@@ -1275,9 +1275,9 @@ class DouyinHandler:
                 live.room_id,
                 live.nickname_raw or "",
                 (
-                    live.live_title_raw[:20] + "..."
-                    if len(live.live_title_raw) > 20
-                    else live.live_title_raw
+                    (live.live_title_raw or "")[:20] + "..."
+                    if len(live.live_title_raw or "") > 20
+                    else (live.live_title_raw or "")
                 ),
                 DY_LIVE_STATUS_MAPPING.get(live.live_status, _("未知状态")),
                 live.user_count or 0,
@@ -1298,9 +1298,9 @@ class DouyinHandler:
                 live.room_id,
                 live.nickname_raw or "",
                 (
-                    live.live_title_raw[:20] + "..."
-                    if len(live.live_title_raw) > 20
-                    else live.live_title_raw
+                    (live.live_title_raw or "")[:20] + "..."
+                    if len(live.live_title_raw or "") > 20
+                    else (live.live_title_raw or "")
                 ),
                 DY_LIVE_STATUS_MAPPING.get(live.live_status, _("未知状态")),
                 live.user_count or 0,
@@ -1340,9 +1340,9 @@ class DouyinHandler:
                 live.web_rid,
                 live.nickname_raw or "",
                 (
-                    live.live_title_raw[:20] + "..."
-                    if len(live.live_title_raw) > 20
-                    else live.live_title_raw
+                    (live.live_title_raw or "")[:20] + "..."
+                    if len(live.live_title_raw or "") > 20
+                    else (live.live_title_raw or "")
                 ),
                 DY_LIVE_STATUS_MAPPING.get(live.live_status, _("未知状态")),
                 live.user_count or 0,
@@ -1371,9 +1371,9 @@ class DouyinHandler:
                 live.web_rid,
                 live.nickname_raw or "",
                 (
-                    live.live_title_raw[:20] + "..."
-                    if len(live.live_title_raw) > 20
-                    else live.live_title_raw
+                    (live.live_title_raw or "")[:20] + "..."
+                    if len(live.live_title_raw or "") > 20
+                    else (live.live_title_raw or "")
                 ),
                 DY_LIVE_STATUS_MAPPING.get(live.live_status, _("未知状态")),
                 live.user_count or 0,
@@ -2133,9 +2133,9 @@ class DouyinHandler:
                 ).format(
                     follow_live.room_id,
                     (
-                        follow_live.live_title_raw[:20] + "..."
-                        if len(follow_live.live_title_raw) > 20
-                        else follow_live.live_title_raw
+                        (follow_live.live_title_raw or "")[:20] + "..."
+                        if len((follow_live.live_title_raw or "")) > 20
+                        else (follow_live.live_title_raw or "")
                     ),
                     follow_live.user_count or 0,
                     timestamp_2_str(get_timestamp("sec")),
