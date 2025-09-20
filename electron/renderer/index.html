@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>提猫直播助手</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <i class="fas fa-cat"></i>
+                <span>提猫直播助手</span>
+            </div>
+            <div class="status-indicator">
+                <div id="connection-status" class="status-dot offline"></div>
+                <span id="status-text">连接中...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主要内容区域 -->
+    <main class="main-content">
+        <!-- 左侧面板 - 评论流 -->
+        <section class="left-panel">
+            <div class="panel-header">
+                <h2><i class="fas fa-comments"></i> 实时评论</h2>
+                <div class="panel-controls">
+                    <button id="toggle-auto-scroll" class="btn btn-sm" title="自动滚动">
+                        <i class="fas fa-arrows-alt-v"></i>
+                    </button>
+                    <button id="clear-comments" class="btn btn-sm" title="清空评论">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="comments-container">
+                <div id="comments-list" class="comments-list">
+                    <!-- 评论将在这里动态加载 -->
+                    <div class="no-comments">
+                        <i class="fas fa-comment-slash"></i>
+                        <p>暂无评论数据</p>
+                        <small>等待直播间评论...</small>
+                    </div>
+                </div>
+            </div>
+            <div class="comments-stats">
+                <span>总评论: <strong id="total-comments">0</strong></span>
+                <span>每分钟: <strong id="comments-per-minute">0</strong></span>
+            </div>
+        </section>
+
+        <!-- 中间面板 - 热词分析 -->
+        <section class="middle-panel">
+            <div class="panel-header">
+                <h2><i class="fas fa-fire"></i> 热词分析</h2>
+                <div class="panel-controls">
+                    <button id="refresh-hot-words" class="btn btn-sm" title="刷新热词">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="hot-words-container">
+                <div id="hot-words-list" class="hot-words-list">
+                    <!-- 热词将在这里动态加载 -->
+                    <div class="no-data">
+                        <i class="fas fa-chart-bar"></i>
+                        <p>暂无热词数据</p>
+                        <small>需要更多评论数据进行分析</small>
+                    </div>
+                </div>
+            </div>
+            <div class="hot-words-chart">
+                <canvas id="hot-words-chart" width="300" height="200"></canvas>
+            </div>
+        </section>
+
+        <!-- 右侧面板 - AI话术 -->
+        <section class="right-panel">
+            <div class="panel-header">
+                <h2><i class="fas fa-robot"></i> AI话术</h2>
+                <div class="panel-controls">
+                    <button id="generate-script" class="btn btn-primary btn-sm" title="生成新话术">
+                        <i class="fas fa-magic"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="scripts-container">
+                <div id="scripts-list" class="scripts-list">
+                    <!-- AI话术将在这里动态加载 -->
+                    <div class="no-scripts">
+                        <i class="fas fa-lightbulb"></i>
+                        <p>暂无AI话术</p>
+                        <small>点击生成按钮创建话术</small>
+                    </div>
+                </div>
+            </div>
+            <div class="script-controls">
+                <button id="copy-all-scripts" class="btn btn-outline">
+                    <i class="fas fa-copy"></i> 复制全部
+                </button>
+                <button id="export-scripts" class="btn btn-outline">
+                    <i class="fas fa-download"></i> 导出
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <!-- 底部状态栏 -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-left">
+                <span id="app-version">v1.0.0</span>
+                <span class="separator">|</span>
+                <span id="last-update">最后更新: --</span>
+            </div>
+            <div class="footer-right">
+                <button id="settings-btn" class="btn btn-ghost btn-sm" title="设置">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <button id="help-btn" class="btn btn-ghost btn-sm" title="帮助">
+                    <i class="fas fa-question-circle"></i>
+                </button>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 设置模态框 -->
+    <div id="settings-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>设置</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="auto-scroll-setting"> 自动滚动评论
+                    </label>
+                </div>
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="sound-enabled-setting"> 启用声音提示
+                    </label>
+                </div>
+                <div class="setting-group">
+                    <label>评论显示数量限制:</label>
+                    <input type="number" id="max-comments-setting" min="50" max="500" value="100">
+                </div>
+                <div class="setting-group">
+                    <label>热词数量限制:</label>
+                    <input type="number" id="hot-words-limit-setting" min="10" max="50" value="20">
+                </div>
+                <div class="setting-group">
+                    <label>话术刷新间隔(秒):</label>
+                    <input type="number" id="script-interval-setting" min="10" max="300" value="30">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="save-settings" class="btn btn-primary">保存</button>
+                <button id="cancel-settings" class="btn btn-outline">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载指示器 -->
+    <div id="loading-indicator" class="loading-indicator">
+        <div class="spinner"></div>
+        <p>加载中...</p>
+    </div>
+
+    <!-- 通知容器 -->
+    <div id="notifications" class="notifications"></div>
+
+    <!-- 脚本文件 -->
+    <script src="app.js"></script>
+</body>
+</html>

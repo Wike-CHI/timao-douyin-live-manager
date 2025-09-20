@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>提猫直播管理平台 - 企业版原型</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Microsoft YaHei", "微软雅黑", sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .app-container {
+            min-height: 100vh;
+            padding: 20px;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            gap: 20px;
+        }
+
+        /* 顶部标题栏 */
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 15px 25px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .cat-logo {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(45deg, #ff9a9e, #fecfef);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            animation: catBounce 2s ease-in-out infinite;
+        }
+
+        @keyframes catBounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .app-title {
+            font-size: 24px;
+            font-weight: bold;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-indicators {
+            display: flex;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            position: relative;
+        }
+
+        .status-dot.online {
+            background: #4ade80;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.ai {
+            background: #f59e0b;
+        }
+
+        .status-dot.comments {
+            background: #06b6d4;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(74, 222, 128, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+        }
+
+        /* 主内容区域 */
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 20px;
+            height: calc(100vh - 200px);
+        }
+
+        /* 评论流区域 */
+        .comments-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f1f5f9;
+        }
+
+        .section-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .comments-icon {
+            background: linear-gradient(45deg, #06b6d4, #0891b2);
+            color: white;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #334155;
+        }
+
+        .comments-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 5px;
+        }
+
+        .comment-item {
+            background: #f8fafc;
+            border-radius: 15px;
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            border-left: 3px solid #06b6d4;
+            animation: slideInLeft 0.3s ease-out;
+        }
+
+        @keyframes slideInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .comment-user {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .comment-text {
+            color: #334155;
+            line-height: 1.4;
+        }
+
+        .comment-time {
+            font-size: 10px;
+            color: #94a3b8;
+            margin-top: 5px;
+        }
+
+        /* 右侧面板 */
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* 热词榜区域 */
+        .hotwords-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 20px;
+            flex: 1;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .hotwords-icon {
+            background: linear-gradient(45deg, #f59e0b, #d97706);
+            color: white;
+        }
+
+        .hotword-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 15px;
+            margin-bottom: 8px;
+            background: #f8fafc;
+            border-radius: 12px;
+            border-left: 3px solid #f59e0b;
+            animation: fadeInUp 0.3s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .hotword-text {
+            font-weight: 500;
+            color: #334155;
+        }
+
+        .hotword-count {
+            background: linear-gradient(45deg, #f59e0b, #d97706);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        /* AI题词区域 */
+        .tips-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 20px;
+            flex: 1;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .tips-icon {
+            background: linear-gradient(45deg, #8b5cf6, #7c3aed);
+            color: white;
+        }
+
+        .tip-item {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 10px;
+            position: relative;
+            animation: slideInRight 0.3s ease-out;
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .tip-item::before {
+            content: "🐱";
+            position: absolute;
+            top: -5px;
+            right: 10px;
+            font-size: 20px;
+        }
+
+        .tip-text {
+            line-height: 1.5;
+            margin-bottom: 8px;
+        }
+
+        .tip-time {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .tip-refresh {
+            background: linear-gradient(45deg, #4ade80, #22c55e);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 10px 15px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .tip-refresh:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(74, 222, 128, 0.4);
+        }
+
+        /* 底部控制栏 */
+        .footer {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 15px 25px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .room-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .room-id {
+            background: #f1f5f9;
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-weight: 500;
+            color: #334155;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .control-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 15px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .control-btn.danger {
+            background: linear-gradient(45deg, #ef4444, #dc2626);
+        }
+
+        .control-btn.danger:hover {
+            box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 1200px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr 300px;
+            }
+
+            .right-panel {
+                flex-direction: row;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .app-container {
+                padding: 10px;
+            }
+
+            .main-content {
+                grid-template-rows: 1fr 200px;
+            }
+
+            .right-panel {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .footer {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+
+        /* 滚动条样式 */
+        .comments-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .comments-list::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 3px;
+        }
+
+        .comments-list::-webkit-scrollbar-thumb {
+            background: linear-gradient(45deg, #06b6d4, #0891b2);
+            border-radius: 3px;
+        }
+
+        .comments-list::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(45deg, #0891b2, #0e7490);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- 顶部标题栏 -->
+        <div class="header">
+            <div class="logo-section">
+                <div class="cat-logo">🐱</div>
+                <h1 class="app-title">提猫直播管理平台</h1>
+            </div>
+            <div class="status-indicators">
+                <div class="status-dot online" title="服务在线"></div>
+                <div class="status-dot ai" title="AI服务"></div>
+                <div class="status-dot comments" title="评论流"></div>
+            </div>
+        </div>
+
+        <!-- 主内容区域 -->
+        <div class="main-content">
+            <!-- 评论流区域 -->
+            <div class="comments-section">
+                <div class="section-header">
+                    <div class="section-icon comments-icon">💬</div>
+                    <h2 class="section-title">实时评论流</h2>
+                </div>
+                <div class="comments-list">
+                    <div class="comment-item">
+                        <div class="comment-user">小猫咪爱看直播</div>
+                        <div class="comment-text">主播好可爱呀！这个产品有蓝色的吗？</div>
+                        <div class="comment-time">刚刚</div>
+                    </div>
+                    <div class="comment-item">
+                        <div class="comment-user">购物达人123</div>
+                        <div class="comment-text">价格多少啊？有没有优惠券？</div>
+                        <div class="comment-time">5秒前</div>
+                    </div>
+                    <div class="comment-item">
+                        <div class="comment-user">夜猫子观众</div>
+                        <div class="comment-text">链接在哪里？想要链接！</div>
+                        <div class="comment-time">10秒前</div>
+                    </div>
+                    <div class="comment-item">
+                        <div class="comment-user">直播间常客</div>
+                        <div class="comment-text">主播声音真好听，产品质量怎么样？</div>
+                        <div class="comment-time">15秒前</div>
+                    </div>
+                    <div class="comment-item">
+                        <div class="comment-user">新来的观众</div>
+                        <div class="comment-text">有现货吗？什么时候发货？</div>
+                        <div class="comment-time">20秒前</div>
+                    </div>
+                    <div class="comment-item">
+                        <div class="comment-user">老粉丝</div>
+                        <div class="comment-text">支持主播！这期产品很棒</div>
+                        <div class="comment-time">25秒前</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧面板 -->
+            <div class="right-panel">
+                <!-- 热词榜区域 -->
+                <div class="hotwords-section">
+                    <div class="section-header">
+                        <div class="section-icon hotwords-icon">🔥</div>
+                        <h2 class="section-title">热词排行榜</h2>
+                    </div>
+                    <div class="hotword-item">
+                        <span class="hotword-text">价格</span>
+                        <span class="hotword-count">28</span>
+                    </div>
+                    <div class="hotword-item">
+                        <span class="hotword-text">链接</span>
+                        <span class="hotword-count">24</span>
+                    </div>
+                    <div class="hotword-item">
+                        <span class="hotword-text">蓝色</span>
+                        <span class="hotword-count">18</span>
+                    </div>
+                    <div class="hotword-item">
+                        <span class="hotword-text">优惠券</span>
+                        <span class="hotword-count">15</span>
+                    </div>
+                    <div class="hotword-item">
+                        <span class="hotword-text">质量</span>
+                        <span class="hotword-count">12</span>
+                    </div>
+                    <div class="hotword-item">
+                        <span class="hotword-text">发货</span>
+                        <span class="hotword-count">9</span>
+                    </div>
+                </div>
+
+                <!-- AI题词区域 -->
+                <div class="tips-section">
+                    <div class="section-header">
+                        <div class="section-icon tips-icon">🤖</div>
+                        <h2 class="section-title">AI智能题词</h2>
+                    </div>
+                    <div class="tip-item">
+                        <div class="tip-text">看到很多朋友问价格和蓝色款，我们现在有特别优惠，蓝色款的链接已经放在小黄车里了！</div>
+                        <div class="tip-time">30秒前生成</div>
+                    </div>
+                    <div class="tip-item">
+                        <div class="tip-text">关于质量问题，我们用的都是精选材料，包邮包退，大家可以放心购买～</div>
+                        <div class="tip-time">1分钟前</div>
+                    </div>
+                    <div class="tip-item">
+                        <div class="tip-text">优惠券记得先领再拍哦！现货充足，今天下单明天就能发货！</div>
+                        <div class="tip-time">1.5分钟前</div>
+                    </div>
+                    <button class="tip-refresh">🐾 刷新话术</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部控制栏 -->
+        <div class="footer">
+            <div class="room-info">
+                <span>直播间ID:</span>
+                <span class="room-id">123456789</span>
+            </div>
+            <div class="controls">
+                <button class="control-btn">⚙️ 设置</button>
+                <button class="control-btn">📊 统计</button>
+                <button class="control-btn danger">⏹️ 停止</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 简单的动画效果
+        document.addEventListener('DOMContentLoaded', function() {
+            // 模拟实时评论更新
+            const commentsList = document.querySelector('.comments-list');
+            const tipRefreshBtn = document.querySelector('.tip-refresh');
+
+            // 评论滚动动画
+            function scrollToBottom() {
+                commentsList.scrollTop = commentsList.scrollHeight;
+            }
+
+            // 刷新按钮点击效果
+            tipRefreshBtn.addEventListener('click', function() {
+                this.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    this.style.transform = 'scale(1)';
+                }, 150);
+            });
+
+            // 初始滚动到底部
+            setTimeout(scrollToBottom, 500);
+        });
+    </script>
+</body>
+</html>

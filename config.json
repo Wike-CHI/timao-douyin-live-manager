@@ -1,0 +1,48 @@
+{
+  "app": {
+    "name": "提猫直播助手",
+    "version": "1.0.0",
+    "description": "抖音直播评论分析与AI话术生成助手"
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 5001,
+    "debug": true,
+    "threaded": true
+  },
+  "ai": {
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "max_tokens": 1000,
+    "temperature": 0.7,
+    "timeout": 30
+  },
+  "douyin": {
+    "room_id": "default_room",
+    "fetch_interval": 5,
+    "max_comments": 1000,
+    "use_mock_data": true
+  },
+  "nlp": {
+    "hotword_update_interval": 5,
+    "max_hotwords": 20,
+    "min_word_length": 2,
+    "cache_expire_time": 300
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "logs/app.log",
+    "max_file_size": "10MB",
+    "backup_count": 5,
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  },
+  "cache": {
+    "expire_time": 300,
+    "max_size": 1000
+  },
+  "performance": {
+    "max_connections": 100,
+    "request_timeout": 30,
+    "worker_threads": 4
+  }
+}

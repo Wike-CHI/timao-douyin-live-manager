@@ -1,0 +1,71 @@
+douyin:
+  cookie:
+  naming: '{create}_{desc}'
+  path: Download
+  timeout: 10
+  max_retries: 5
+  lyric: yes
+  max_connections: 5
+  max_counts: 0
+  max_tasks: 10
+  page_counts: 20
+
+tiktok:
+  cookie:
+  max_connections: 5
+  max_counts: 0
+  max_retries: 5
+  max_tasks: 5
+  naming: '{create}_{desc}'
+  page_counts: 5
+  path: Download
+  timeout: 10
+
+twitter:
+  path: Download
+  folderize: yes
+  mode: one
+  naming: '{create}_{desc}'
+  cookie:
+  interval: all
+  timeout: 10
+  max_retries: 5
+  max_connections: 5
+  max_counts: 0
+  max_tasks: 5
+  page_counts: 20
+
+weibo:
+  path: Download
+  folderize: yes
+  mode: post
+  naming: '{create}_{desc}'
+  cookie:
+  interval: all
+  timeout: 10
+  max_retries: 5
+  max_connections: 5
+  max_counts: 0
+  max_tasks: 5
+  page_counts: 20
+
+bark:
+  key:
+  token:
+  mode: get
+  url: "https://f2.wiki/"
+  retry: 3
+  ringtones: 1
+  icon: https://f2.wiki/f2-logo-with-shadow.png
+  level: active
+  volume: 5
+  call: 0
+  isArchive: 1
+  sound: birdsong
+  autoCopy: 1
+  title: F2
+  body: ""
+  call: 0
+  copy: ""
+  group: F2下载统计
+  badge: 1

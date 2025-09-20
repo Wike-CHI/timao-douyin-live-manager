@@ -1,0 +1,64 @@
+{
+  "name": "timao-douyin-live-manager",
+  "version": "1.0.0",
+  "description": "抖音直播评论实时分析与AI话术生成工具",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "concurrently \"python server/app.py\" \"wait-on http://127.0.0.1:5001 && electron .\"",
+    "build": "electron-builder",
+    "test": "jest",
+    "lint": "eslint electron/",
+    "server": "python server/app.py",
+    "electron": "electron ."
+  },
+  "keywords": [
+    "douyin",
+    "live",
+    "comments",
+    "ai",
+    "electron",
+    "flask"
+  ],
+  "author": "提猫团队",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^27.0.0",
+    "electron-builder": "^24.6.4",
+    "concurrently": "^8.2.2",
+    "wait-on": "^7.0.1",
+    "eslint": "^8.50.0",
+    "jest": "^29.7.0"
+  },
+  "dependencies": {
+    "axios": "^1.5.0"
+  },
+  "build": {
+    "appId": "com.timao.douyin-live-manager",
+    "productName": "提猫直播助手",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "server/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icon.png"
+    }
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  }
+}

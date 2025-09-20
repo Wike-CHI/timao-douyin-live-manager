@@ -1,0 +1,39 @@
+douyin:
+  headers:
+    User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0
+    Referer: https://www.douyin.com/
+  cookie: __ac_nonce=0679cdaea003bbbbafd36; __ac_signature=_02B4Z6wo00f01yusPiQAAIDDHIj6e8HB958rjDqAAK2C1d; ttwid=1%7CWFFN533VJk01MQHn_smfPbk9bYUQZurNviP4tXHOHfQ%7C1738332907%7Caa266f5abb9161c6b1f1326ea0d1b4c4853dd0659d9b04e85f166318953bcdcc; UIFID_TEMP=26198ff38959f773c63a6fc9b3542e2fdcfd2f10d2782124ed1adc24709862dffab00448a01f15146f11a47fdeeeb094ed071f3011db604e24202113184d0c24f75f63311e71a8ce1403c90560eea426; s_v_web_id=verify_m6kuj6o7_LkwzFdMZ_eB1U_4O2G_AoLo_jm4Gpc0K4Q2p; douyin.com; device_web_cpu_core=12; device_web_memory_size=8; architecture=amd64; hevc_supported=true; IsDouyinActive=true; home_can_add_dy_2_desktop=%220%22; dy_swidth=1920; dy_sheight=1080; stream_recommend_feed_params=%22%7B%5C%22cookie_enabled%5C%22%3Atrue%2C%5C%22screen_width%5C%22%3A1920%2C%5C%22screen_height%5C%22%3A1080%2C%5C%22browser_online%5C%22%3Atrue%2C%5C%22cpu_core_num%5C%22%3A12%2C%5C%22device_memory%5C%22%3A8%2C%5C%22downlink%5C%22%3A10%2C%5C%22effective_type%5C%22%3A%5C%224g%5C%22%2C%5C%22round_trip_time%5C%22%3A0%7D%22; csrf_session_id=f70fe5051d5c8a16ad8437e932286b82; strategyABtestKey=%221738332915.027%22; volume_info=%7B%22isUserMute%22%3Afalse%2C%22isMute%22%3Afalse%2C%22volume%22%3A0.5%7D; stream_player_status_params=%22%7B%5C%22is_auto_play%5C%22%3A0%2C%5C%22is_full_screen%5C%22%3A0%2C%5C%22is_full_webscreen%5C%22%3A0%2C%5C%22is_mute%5C%22%3A0%2C%5C%22is_speed%5C%22%3A1%2C%5C%22is_visible%5C%22%3A1%7D%22; xgplayer_user_id=973895269113; passport_csrf_token=0ac9df5e68c45306cba32b8fed94e2d0; passport_csrf_token_default=0ac9df5e68c45306cba32b8fed94e2d0; fpk1=U2FsdGVkX1/O22RYwAdrC7ln9Qo5muUvRcfuw3ZVPwyPCQ2YAGgt/zl3UKvtofcBiXpfQRctRuhmmO+69KzWcw==; fpk2=ffc3218438300d069a0fd5dfa5c6e851; FORCE_LOGIN=%7B%22videoConsumedRemainSeconds%22%3A180%7D; __security_mc_1_s_sdk_cert_key=94ea41a8-4653-bf4b; __security_mc_1_s_sdk_sign_data_key_web_protect=e3d08d7c-4b14-a568; __security_mc_1_s_sdk_crypt_sdk=5b983846-43a7-a2ba; bd_ticket_guard_client_data=eyJiZC10aWNrZXQtZ3VhcmQtdmVyc2lvbiI6MiwiYmQtdGlja2V0LWd1YXJkLWl0ZXJhdGlvbi12ZXJzaW9uIjoxLCJiZC10aWNrZXQtZ3VhcmQtcmVlLXB1YmxpYy1rZXkiOiJCTUtDSDZGWWlDd015bUw2WGJuT01oQnk0ejNvbTdLNGpXT04waWs1Q0hwUDBXWUI4M043QjBiVzZkSVBjQWt5cmc5UkhKUFVWNlJhalJ3Z2hVRmFCd1U9IiwiYmQtdGlja2V0LWd1YXJkLXdlYi12ZXJzaW9uIjoyfQ%3D%3D; bd_ticket_guard_client_web_domain=2; biz_trace_id=41cc98b8; sdk_source_info=7e276470716a68645a606960273f276364697660272927676c715a6d6069756077273f276364697660272927666d776a68605a607d71606b766c6a6b5a7666776c7571273f275e58272927666a6b766a69605a696c6061273f27636469766027292762696a6764695a7364776c6467696076273f275e5827292771273f27373c3134373c3736363d363234272927676c715a75776a716a666a69273f2763646976602778; bit_env=zxlTeiBtGXJSxCWfLwM-NB1Di5lHBfu75eUwWVkCilqR73jSY4dCasPeA0qcl90O2Yu1ETYgA8yq0M3v3uVFWyJTowuLfA_ig62Em1m2ip0IlkK3zFU6OmNncn4Ojm-2oNIx2Jw9TgQx7yOav6p269uTmh9sy-LslrnUrz2PolvfHq7wlsLbDO79m6ZKkOXP3QTCrHBrBRMd2L4me9jA1_voQl5Tx64pO8MLAjLu8tIcoi7SqWVYiaaKTS6b8QhtoAOkDDmfsQcUAD0cfMUM0k6rnYZ48q6FHKnuBQglODQUey4OsSa6K4nWMuMjhh4fKkVjZvD_95Wt3qzcPG2YgTn1aX0d35199phQLUYf7E86hzvccH88aEBrh0dACRRygay4E8U2wqsUJoQqy9gv4yrj9zcMs8c7sNzx82xXJg1cCxUVbIQfs_Fp_oM9b4NxLzQJOdpX3qHl00waKJVlilvvhXbkMRW5wNndVoD_JpuJI8PJgEGo7yghYDQKvLGva_pEzA47-sfmKPY0AZJq9MiEMsEp4fagbjZRRbrZ3Ik%3D; gulu_source_res=eyJwX2luIjoiZjgxMDM2NjljMjZmMzZkODQ0MmQwMTUzZTdlODMyODRlYzdmN2M3M2UwMDRlMTE3N2JkMjVkNjIyOGYyNTNhYiJ9; passport_auth_mix_state=p21u6uca2z5ul4aarcgunj3xad4p03jg; __security_mc_1_s_sdk_sign_data_key_sso=cd4c0993-4965-8c3d
+  proxies:
+    http://:
+    https://:
+
+tiktok:
+  headers:
+    User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0
+    Referer: https://www.tiktok.com/
+  cookie: tt_csrf_token=5ssSeTwE-r8PiNHI9Md6Qvu_I8115GoJngI8; tt_chain_token=qfnQXoEyVEBxRHTOu+8Taw==; ak_bmsc=E5A701A4B5F4973342B3F3762D2294C0~000000000000000000000000000000~YAAQB/N0aOGtlLeUAQAA+xi4vBpJgsYbU78aM7gEvnq3G2PaOXL/n1s5DeT2ECnxHMTkityswrCdcm51qPULcdnSpx49f+GkmNOIsiRrz2MPyRXkfraW6XmwbR1Bl9/NLzt8IFSFHaC9XfJxmF/Ijb0WkJ7TIb9Vq8JGvyoa4s7syjA1onyMlB7OG4fvMdZHcsNAi4NtIIvNL5BWz1pYGrnoAojINXgg0RKK80kgqDPjHdi6wtuIn6B9sAXCNHT9OsNGQY3U6NiQTEMlHXTvLsT6M7umfvi14lztpyZGZTfxvQ1Hzl1KrNWbkyla7T/xamnYlEAnVdVtb0sDCK4EMVMLcNSloPS/YwQ2zbf4Wm6i/IxIfrtO+JL+OIAAB0st8FYDMbN+qJPKAg==; ttwid=1%7CCSfrRg2TGT8XHHHbGLCjsCHYFfcbiwofoSAxLBEd5Cc%7C1738332971%7C0d62ad8776ed819bc48bd04c38c8ed71557b0f69bee77e024ca5eea43f2ea7e8; csrf_session_id=f4db6433b3183ae9c05b7ad519d1cbb5; _ga=GA1.1.2033081070.1738332977; _ga_LWWPCY99PB=GS1.1.1738332977.1.0.1738332977.0.0.183547556; FPID=FPID2.2.G7o2i2GkONofaMB62j2AkDyq5%2FmN5vf%2FIjBAyo2cB%2FQ%3D.1738332977; FPLC=C7JwK48l7%2BITo4oHRhVjfDGTgzkYsGgRIt5c1EqUDbsxIn4jXgCLmYHL28lUbFObs94ps8J%2Fn8zmUn8lRvaNalNIWukN0jZjBA9bpPeg%2B63ww5kMUnfhaCAETzFi3g%3D%3D; FPAU=1.2.1794787286.1738332978; _fbp=fb.1.1738332977959.1313654638; msToken=VqL2gan0rwT_WiyShkPROZr0ffMghxFYV9IO7J-EtNWXXfYwRB7ebuYME28WO8M-a5u-t8MWe2NU2yoZPJtdXi8HjbwbSTSJAa60YfVQZ0LvusS9AjSSDtIA0ut5cLgaEjMGvGMUWBARc5EWd2S6nw==
+  proxies:
+    http://:
+    https://:
+
+weibo:
+  headers:
+    User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0
+    Referer: https://www.weibo.com/
+  cookie: XSRF-TOKEN=O9R5qESZXSgDGogRn0tIaR06; SUB=_2AkMQwFSkf8NxqwFRmf8QyWnrbox1wgrEieKmnKV_JRMxHRl-yT9yql0CtRB6O0B6SwPP5M-Cgk1eejkKAPjblCC0RnPY; SUBP=0033WrSXqPxfM72-Ws9jqgMF55529P9D9W5X471i1s6nd1o5nmDVgAHn; WBPSESS=wmtK4rVYDqg_ZQgKuCoP3nlHEfq8LpfwWbiYteqTtPDS2-uyKFI7cKKt8v09BQkNC17Ztk9lA40DeHDeSLOghJTpIQr-XfJaj6N5bgvT-LxXfDOBCZEpRFDMGBdRLvQ_WDNo1haM1L6eeZwc6lAcDFv93snGOAqFbHlgMDSpsn0=
+  proxies:
+    http://:
+    https://:
+
+twitter:
+  headers:
+    User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0
+    Referer: https://twitter.com/
+  cookie: guest_id=173833303486533045; night_mode=2; guest_id_marketing=v1%3A173833303486533045; guest_id_ads=v1%3A173833303486533045; gt=1885331514923376777; personalization_id="v1_02G1YbVgfCR5kbYEr54zXg=="
+  proxies:
+    http://:
+    https://:
+
+bark:
+  key: ""
+  token: ""

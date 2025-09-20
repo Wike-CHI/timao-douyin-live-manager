@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>提猫直播助手 MVP</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Microsoft YaHei", sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .mvp-container {
+            min-height: 100vh;
+            display: grid;
+            grid-template-rows: 60px 1fr;
+        }
+
+        /* 顶部导航 */
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .logo-icon {
+            width: 35px;
+            height: 35px;
+            background: linear-gradient(45deg, #ff9a9e, #fecfef);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        /* 主内容区 */
+        .main-content {
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto 1fr;
+            gap: 20px;
+            height: calc(100vh - 60px);
+        }
+
+        /* 控制面板 */
+        .control-panel {
+            grid-column: 1 / -1;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .room-config {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .input-label {
+            font-size: 12px;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .input-field {
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .input-field:focus {
+            border-color: #667eea;
+        }
+
+        .control-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .control-btn.danger {
+            background: linear-gradient(45deg, #ef4444, #dc2626);
+        }
+
+        .control-btn.recording {
+            background: linear-gradient(45deg, #f59e0b, #d97706);
+            animation: recordingPulse 1.5s infinite;
+        }
+
+        @keyframes recordingPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        /* 数据面板 */
+        .data-panel {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f1f5f9;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #1e293b;
+        }
+
+        .panel-content {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        /* 评论流样式 */
+        .comment-item {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 8px;
+            border-left: 3px solid #06b6d4;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .comment-user {
+            font-size: 12px;
+            color: #64748b;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .comment-text {
+            color: #1e293b;
+            line-height: 1.4;
+            margin-bottom: 4px;
+        }
+
+        .comment-time {
+            font-size: 10px;
+            color: #94a3b8;
+        }
+
+        /* AI建议样式 */
+        .ai-suggestion {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 10px;
+            position: relative;
+            animation: fadeInUp 0.4s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .ai-suggestion::before {
+            content: "🤖";
+            position: absolute;
+            top: -5px;
+            right: 10px;
+            font-size: 16px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .suggestion-text {
+            line-height: 1.4;
+            margin-bottom: 6px;
+        }
+
+        .suggestion-meta {
+            font-size: 11px;
+            opacity: 0.8;
+        }
+
+        /* 转录记录样式 */
+        .transcript-item {
+            background: #f1f5f9;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 8px;
+            border-left: 3px solid #8b5cf6;
+        }
+
+        .transcript-text {
+            color: #1e293b;
+            line-height: 1.4;
+            margin-bottom: 4px;
+        }
+
+        .transcript-time {
+            font-size: 10px;
+            color: #64748b;
+        }
+
+        /* 统计卡片 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .stat-card {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        }
+
+        .stat-number {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #64748b;
+        }
+
+        /* 按钮样式 */
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .action-btn {
+            flex: 1;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .action-btn:hover {
+            background: #e2e8f0;
+            transform: translateY(-1px);
+        }
+
+        /* 空状态 */
+        .empty-state {
+            text-align: center;
+            color: #94a3b8;
+            padding: 40px 20px;
+        }
+
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .room-config {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="mvp-container">
+        <!-- 顶部导航 -->
+        <div class="header">
+            <div class="logo">
+                <div class="logo-icon">🐱</div>
+                <span>提猫直播助手 MVP</span>
+            </div>
+            <div class="status-bar">
+                <div class="status-item">
+                    <div class="status-dot"></div>
+                    <span>服务运行中</span>
+                </div>
+                <div class="status-item">
+                    <span>房间: 123456789</span>
+                </div>
+                <div class="status-item">
+                    <span>v1.0.0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主内容区 -->
+        <div class="main-content">
+            <!-- 控制面板 -->
+            <div class="control-panel">
+                <div class="room-config">
+                    <div class="input-group">
+                        <label class="input-label">直播间ID</label>
+                        <input type="text" class="input-field" placeholder="请输入抖音直播间ID" value="123456789">
+                    </div>
+                    <button class="control-btn" id="startBtn">🚀 开始监控</button>
+                    <button class="control-btn" id="recordBtn">🎤 开始录音</button>
+                </div>
+                
+                <!-- 统计数据 -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number" id="commentCount">0</div>
+                        <div class="stat-label">评论总数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="sentimentScore">0.0</div>
+                        <div class="stat-label">情感指数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="aiSuggestions">0</div>
+                        <div class="stat-label">AI建议</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 实时评论流 -->
+            <div class="data-panel">
+                <div class="panel-header">
+                    <span class="panel-title">💬 实时评论流</span>
+                </div>
+                <div class="panel-content" id="commentsList">
+                    <div class="empty-state">
+                        <div class="empty-icon">📝</div>
+                        <div>等待评论数据...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI智能建议 -->
+            <div class="data-panel">
+                <div class="panel-header">
+                    <span class="panel-title">🤖 AI智能建议</span>
+                </div>
+                <div class="panel-content" id="aiSuggestionsList">
+                    <div class="empty-state">
+                        <div class="empty-icon">🧠</div>
+                        <div>AI正在分析中...</div>
+                    </div>
+                </div>
+                <div class="action-buttons">
+                    <button class="action-btn" onclick="refreshSuggestions()">🔄 刷新建议</button>
+                    <button class="action-btn" onclick="generateReport()">📊 生成报告</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 模拟数据和功能
+        let isMonitoring = false;
+        let isRecording = false;
+        let commentCount = 0;
+        let currentSentiment = 0;
+        let aiSuggestionCount = 0;
+
+        // 模拟评论数据
+        const mockComments = [
+            "主播好棒！产品看起来很不错",
+            "这个价格怎么样？有优惠吗？",
+            "质量好吗？用过的朋友说说",
+            "什么时候发货？包邮吗？",
+            "颜色很好看，有其他款式吗？",
+            "支持主播！已经下单了",
+            "链接在哪里？找不到啊",
+            "尺码怎么选？有尺码表吗？",
+            "售后服务怎么样？",
+            "主播声音真好听"
+        ];
+
+        // 模拟AI建议
+        const mockSuggestions = [
+            {
+                text: "观众对价格很关心，建议强调性价比和优惠活动",
+                confidence: 0.92,
+                type: "价格策略"
+            },
+            {
+                text: "有多人询问尺码，建议展示尺码表和试穿效果",
+                confidence: 0.88,
+                type: "产品展示"
+            },
+            {
+                text: "观众互动积极，可以适当增加抽奖环节",
+                confidence: 0.85,
+                type: "互动建议"
+            },
+            {
+                text: "检测到购买意向较强，建议推出限时优惠",
+                confidence: 0.90,
+                type: "销售策略"
+            }
+        ];
+
+        // 开始/停止监控
+        document.getElementById('startBtn').addEventListener('click', function() {
+            if (!isMonitoring) {
+                startMonitoring();
+                this.textContent = '⏹️ 停止监控';
+                this.classList.add('danger');
+            } else {
+                stopMonitoring();
+                this.textContent = '🚀 开始监控';
+                this.classList.remove('danger');
+            }
+        });
+
+        // 开始/停止录音
+        document.getElementById('recordBtn').addEventListener('click', function() {
+            if (!isRecording) {
+                startRecording();
+                this.textContent = '⏹️ 停止录音';
+                this.classList.add('recording');
+            } else {
+                stopRecording();
+                this.textContent = '🎤 开始录音';
+                this.classList.remove('recording');
+            }
+        });
+
+        function startMonitoring() {
+            isMonitoring = true;
+            
+            // 清空评论列表
+            document.getElementById('commentsList').innerHTML = '';
+            
+            // 模拟评论流
+            const commentInterval = setInterval(() => {
+                if (!isMonitoring) {
+                    clearInterval(commentInterval);
+                    return;
+                }
+                
+                addMockComment();
+                
+                // 每10条评论生成一次AI建议
+                if (commentCount % 10 === 0) {
+                    generateAISuggestion();
+                }
+                
+            }, Math.random() * 3000 + 1000); // 1-4秒随机间隔
+        }
+
+        function stopMonitoring() {
+            isMonitoring = false;
+        }
+
+        function startRecording() {
+            isRecording = true;
+            
+            // 模拟语音转录
+            setTimeout(() => {
+                if (isRecording) {
+                    addTranscriptRecord("大家好，欢迎来到我的直播间，今天给大家推荐这款非常好的产品");
+                }
+            }, 3000);
+        }
+
+        function stopRecording() {
+            isRecording = false;
+        }
+
+        function addMockComment() {
+            const comment = {
+                id: Date.now(),
+                username: `用户${Math.floor(Math.random() * 9000) + 1000}`,
+                content: mockComments[Math.floor(Math.random() * mockComments.length)],
+                timestamp: new Date().toLocaleTimeString()
+            };
+            
+            const commentsList = document.getElementById('commentsList');
+            const commentElement = document.createElement('div');
+            commentElement.className = 'comment-item';
+            commentElement.innerHTML = `
+                <div class="comment-user">${comment.username}</div>
+                <div class="comment-text">${comment.content}</div>
+                <div class="comment-time">${comment.timestamp}</div>
+            `;
+            
+            commentsList.insertBefore(commentElement, commentsList.firstChild);
+            
+            // 保持最多20条评论
+            while (commentsList.children.length > 20) {
+                commentsList.removeChild(commentsList.lastChild);
+            }
+            
+            // 更新统计
+            commentCount++;
+            document.getElementById('commentCount').textContent = commentCount;
+            
+            // 更新情感指数（模拟）
+            currentSentiment = Math.max(0, Math.min(10, currentSentiment + (Math.random() - 0.5) * 2));
+            document.getElementById('sentimentScore').textContent = currentSentiment.toFixed(1);
+        }
+
+        function generateAISuggestion() {
+            const suggestion = mockSuggestions[Math.floor(Math.random() * mockSuggestions.length)];
+            
+            const suggestionsList = document.getElementById('aiSuggestionsList');
+            
+            // 如果是空状态，先清空
+            if (suggestionsList.querySelector('.empty-state')) {
+                suggestionsList.innerHTML = '';
+            }
+            
+            const suggestionElement = document.createElement('div');
+            suggestionElement.className = 'ai-suggestion';
+            suggestionElement.innerHTML = `
+                <div class="suggestion-text">${suggestion.text}</div>
+                <div class="suggestion-meta">
+                    置信度: ${(suggestion.confidence * 100).toFixed(0)}% | 
+                    类型: ${suggestion.type} | 
+                    ${new Date().toLocaleTimeString()}
+                </div>
+            `;
+            
+            suggestionsList.insertBefore(suggestionElement, suggestionsList.firstChild);
+            
+            // 保持最多5条建议
+            while (suggestionsList.children.length > 5) {
+                suggestionsList.removeChild(suggestionsList.lastChild);
+            }
+            
+            // 更新统计
+            aiSuggestionCount++;
+            document.getElementById('aiSuggestions').textContent = aiSuggestionCount;
+        }
+
+        function addTranscriptRecord(text) {
+            console.log('语音转录:', text);
+            // 这里可以添加转录记录的显示逻辑
+        }
+
+        function refreshSuggestions() {
+            generateAISuggestion();
+        }
+
+        function generateReport() {
+            alert(`直播报告:\n评论总数: ${commentCount}\n情感指数: ${currentSentiment.toFixed(1)}\nAI建议: ${aiSuggestionCount}条`);
+        }
+
+        // 页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('提猫直播助手 MVP 已启动');
+        });
+    </script>
+</body>
+</html>

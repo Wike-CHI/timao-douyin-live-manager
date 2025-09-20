@@ -1,0 +1,112 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "f2"
+dynamic = ["version"]
+description = "🚀Asynchronous based full-platform download tool"
+readme = "README.md"
+license = "Apache-2.0"
+repository = "https://github.com/Johnserf-Seed/f2"
+requires-python = ">=3.10"
+authors = [
+    { name = "Johnserf-Seed", email = "support@f2.wiki" },
+]
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Customer Service",
+    "License :: OSI Approved :: Apache Software License",
+    "Framework :: AsyncIO",
+    "Topic :: Utilities",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Internet :: WWW/HTTP",
+    "Typing :: Typed",
+    "Development Status :: 4 - Beta",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+    "Environment :: Web Environment",
+    "Environment :: Plugins",
+    "Natural Language :: Chinese (Simplified)",
+    "Natural Language :: English",
+]
+
+keywords = [
+    "async",
+    "websockets",
+    "crawler",
+    "downloader",
+    "internat",
+    "download",
+    "f2",
+    "http",
+    "https",
+    "ws",
+    "wss",
+    "bark",
+    "tiktok",
+    "douyin",
+    "twitter",
+    "x",
+    "weibo",
+    "bilibili",
+    "netease",
+    "http proxy",
+    "watermark",
+]
+
+dependencies = [
+    "babel==2.13.0",
+    "black==24.10.0",
+    "click==8.1.7",
+    "rich==13.9.3",
+    "httpx==0.28.1",
+    "aiofiles==24.1.0",
+    "aiosqlite==0.20.0",
+    "pyyaml==6.0.2",
+    "jsonpath-ng==1.6.1",
+    "importlib_resources==6.4.5",
+    "m3u8==3.6.0",
+    "pytest==8.3.4",
+    "pytest-asyncio==0.25.0",
+    "browser_cookie3==0.20.1",
+    "pydantic==2.9.*",
+    "websockets<13.0",
+    "websockets_proxy==0.1.2",
+    "PyExecJS==1.5.1",
+    "protobuf==5.28.3",
+    "gmssl==3.2.2",
+    "cryptography==44.0.1",
+]
+
+[project.scripts]
+f2 = "f2.cli.cli_commands:main"
+
+[project.urls]
+Homepage = "https://github.com/Johnserf-Seed/f2"
+Documentation = "https://f2.wiki/"
+Chat = "https://discord.gg//3PhtPmgHf8"
+"Source Code" = "https://github.com/Johnserf-Seed/f2"
+"Issue Tracker" = "https://github.com/Johnserf-Seed/f2/issues"
+
+[tool.hatch.version]
+path = "f2/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/f2",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
