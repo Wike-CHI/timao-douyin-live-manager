@@ -1,0 +1,44 @@
+# FastAPI 后端依赖
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+python-multipart>=0.0.6
+websockets>=11.0.2
+
+# 数据库
+aiosqlite>=0.19.0
+sqlalchemy>=2.0.0
+
+# VOSK 语音识别和AST模块依赖
+# vosk>=0.3.45  # 我们使用本地集成的版本
+srt>=3.5.0
+requests>=2.31.0
+tqdm>=4.65.0
+numpy>=1.24.0
+# sounddevice>=0.4.6  # 使用pyaudio替代
+pyaudio>=0.2.11
+aiohttp>=3.8.0
+scipy>=1.10.0
+
+# F2 抖音数据抓取
+# F2项目本地集成，无需pip安装
+
+# 本地AI分析
+jieba>=0.42.1
+snownlp>=0.12.3
+
+# 工具库
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+httpx>=0.24.0
+aiofiles>=23.0.0
+
+# 开发工具
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+black>=23.0.0
+flake8>=6.0.0
+
+# 日志和监控
+loguru>=0.7.0
+prometheus-client>=0.17.0

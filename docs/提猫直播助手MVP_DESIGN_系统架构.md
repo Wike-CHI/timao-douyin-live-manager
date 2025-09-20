@@ -22,32 +22,40 @@ graph TB
         J --> L[音频处理服务]
         J --> M[AI分析服务]
         K --> N[F2弹幕抓取]
-        L --> O[VOSK语音转录]
-        M --> P[情感分析引擎]
+        L --> O[AST语音转录模块]
+        O --> P[VOSK中文识别引擎]
+        M --> Q[情感分析引擎]
     end
     
     subgraph "数据存储层"
-        Q[SQLite数据库] --> R[弹幕记录表]
-        Q --> S[转录记录表]
-        Q --> T[AI建议表]
+        R[SQLite数据库] --> S[弹幕记录表]
+        R --> T[转录记录表]
+        R --> U[AI建议表]
     end
     
     subgraph "外部依赖"
-        U[抖音直播间] --> V[F2 WebSocket连接]
-        W[麦克风音频] --> X[VOSK本地模型]
+        V[抖音直播间] --> W[F2 WebSocket连接]
+        X[麦克风音频] --> Y[AST音频采集器]
+    end
+    
+    subgraph "AST_module组件"
+        Y --> Z[音频预处理器]
+        Z --> AA[VOSK服务管理器]
+        AA --> BB[语音识别结果]
     end
     
     E -.->|WebSocket| H
-    K --> V
-    L --> X
-    N --> V
-    O --> X
-    J --> Q
+    K --> W
+    L --> Y
+    N --> W
+    O --> Y
+    J --> R
     
     style A fill:#FFE6CC
     style N fill:#E6F3FF
     style O fill:#E6FFE6
-    style P fill:#F0E6FF
+    style Q fill:#F0E6FF
+    style Y fill:#FFE6E6
 ```
 
 ## 系统分层设计
@@ -179,154 +187,259 @@ class WebSocketMessage(BaseModel):
 #### 3.1 F2弹幕抓取服务
 ```python
 # douyin_service.py
-import asyncio
 from f2.apps.douyin.handler import DouyinHandler
 from f2.apps.douyin.crawler import DouyinWebSocketCrawler
 from f2.apps.douyin.utils import TokenManager
 
 class DouyinLiveService:
+    """抖音直播服务 - 基于F2项目"""
+    
     def __init__(self):
-        self.kwargs = {
+        # F2项目配置
+        self.http_kwargs = {
             "headers": {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                 "Referer": "https://www.douyin.com/",
             },
-            "proxies": {"http://": None, "https://": None},
-            "timeout": 10,
-            "cookie": f"ttwid={TokenManager.gen_ttwid()}; __live_version__=%221.1.2.6631%22;",
+            "cookie": f"ttwid={TokenManager.gen_ttwid()}; __live_version__=\"1.1.2.6631\";",
         }
         
-        self.wss_kwargs = {
-            "headers": {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                "Upgrade": "websocket",
-                "Connection": "Upgrade",
-            },
-            "show_message": False,  # 不在终端显示
-            "cookie": "",
+        # WebSocket回调配置
+        self.wss_callbacks = {
+            "WebcastChatMessage": self._handle_chat_message,
+            "WebcastGiftMessage": self._handle_gift_message,
+        }
+```
+
+#### 3.2 AST语音转录服务 (新增)
+```python
+# ast_service.py - 基于AST_module
+from AST_module import ASTService, TranscriptionResult, create_ast_config
+
+class LiveTranscriptionService:
+    """直播语音转录服务"""
+    
+    def __init__(self):
+        # 创建AST配置
+        self.ast_config = create_ast_config(
+            model_path="./vosk-api/vosk-model-cn-0.22",
+            chunk_duration=1.0,  # 1秒转录间隔
+            min_confidence=0.6,  # 置信度阈值
+            save_audio=False     # 生产环境不保存音频
+        )
+        
+        # 初始化AST服务
+        self.ast_service = ASTService(self.ast_config)
+        self.transcription_callbacks = {}
+        self.current_session = None
+    
+    async def start_transcription(self, room_id: str) -> Dict[str, Any]:
+        """开始语音转录"""
+        try:
+            # 初始化AST服务
+            if not await self.ast_service.initialize():
+                return {"success": False, "error": "AST服务初始化失败"}
+            
+            # 设置转录回调
+            self.ast_service.add_transcription_callback(
+                "live_transcription", 
+                self._handle_transcription_result
+            )
+            
+            # 开始转录
+            if await self.ast_service.start_transcription(room_id):
+                self.current_session = room_id
+                return {"success": True, "session_id": room_id}
+            else:
+                return {"success": False, "error": "转录启动失败"}
+                
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def _handle_transcription_result(self, result: TranscriptionResult):
+        """处理转录结果"""
+        # 广播转录结果到WebSocket客户端
+        message = {
+            "type": "transcript",
+            "data": {
+                "text": result.text,
+                "confidence": result.confidence,
+                "timestamp": result.timestamp,
+                "room_id": result.room_id
+            }
+        }
+        
+        # 调用外部回调
+        for callback in self.transcription_callbacks.values():
+            try:
+                if asyncio.iscoroutinefunction(callback):
+                    await callback("transcript", message["data"])
+                else:
+                    callback("transcript", message["data"])
+            except Exception as e:
+                logging.error(f"转录回调失败: {e}")
+```
+
+#### 3.3 AI分析服务
+            "WebcastChatMessage": self._handle_chat_message,
+            "WebcastGiftMessage": self._handle_gift_message,
+            "WebcastLikeMessage": self._handle_like_message,
+            "WebcastMemberMessage": self._handle_member_message,
         }
     
-    async def start_monitoring(self, live_id: str, callback):
+    async def start_monitoring(self, live_id: str) -> Dict[str, Any]:
         """开始监控直播间"""
-        try:
-            # 获取用户信息
-            user = await DouyinHandler(self.kwargs).fetch_query_user()
-            
-            # 获取直播间信息
-            room = await DouyinHandler(self.kwargs).fetch_user_live_videos(live_id)
-            
-            if room.live_status != 2:
-                raise Exception("直播间未开播")
-            
-            # 获取WebSocket连接信息
-            live_im = await DouyinHandler(self.kwargs).fetch_live_im(
-                room_id=room.room_id, 
-                unique_id=user.user_unique_id
-            )
-            
-            # 定义消息回调
-            wss_callbacks = {
-                "WebcastChatMessage": self.handle_chat_message,
-                "WebcastGiftMessage": self.handle_gift_message,
-                "WebcastLikeMessage": self.handle_like_message,
-                # ... 其他消息类型
-            }
-            
-            # 开始接收弹幕
-            await DouyinHandler(self.wss_kwargs).fetch_live_danmaku(
-                room_id=room.room_id,
-                user_unique_id=user.user_unique_id,
-                internal_ext=live_im.internal_ext,
-                cursor=live_im.cursor,
-                wss_callbacks=wss_callbacks,
-            )
-            
-        except Exception as e:
-            logger.error(f"直播监控启动失败: {e}")
-            raise
+        # 1. 获取游客信息
+        user = await DouyinHandler(self.http_kwargs).fetch_query_user()
+        
+        # 2. 获取直播间信息
+        room = await DouyinHandler(self.http_kwargs).fetch_user_live_videos(live_id)
+        
+        # 3. 检查直播状态
+        if room.live_status != 2:
+            raise Exception("直播间未开播")
+        
+        # 4. 获取WebSocket连接信息
+        live_im = await DouyinHandler(self.http_kwargs).fetch_live_im(
+            room_id=room.room_id,
+            unique_id=user.user_unique_id
+        )
+        
+        # 5. 开始WebSocket监控
+        await DouyinHandler(self.wss_kwargs).fetch_live_danmaku(
+            room_id=room.room_id,
+            user_unique_id=user.user_unique_id,
+            internal_ext=live_im.internal_ext,
+            cursor=live_im.cursor,
+            wss_callbacks=self.wss_callbacks,
+        )
     
-    async def handle_chat_message(self, message):
+    async def _handle_chat_message(self, message):
         """处理聊天消息"""
-        comment_data = {
-            "id": message.msgId,
+        chat_data = {
+            "type": "chat",
+            "id": str(message.msgId),
             "username": message.user.nickName,
             "content": message.content,
-            "timestamp": datetime.now().isoformat(),
-            "user_level": getattr(message.user, 'level', 0)
+            "user_level": getattr(message.user, 'level', 0),
+            "timestamp": datetime.now().isoformat()
         }
         
-        # 存储到数据库
-        await self.save_comment(comment_data)
-        
-        # 通过WebSocket推送
-        await self.websocket_manager.broadcast_to_room(
-            room_id=self.current_room_id,
-            message={
-                "type": "new_comment",
-                "data": comment_data
-            }
-        )
+        # 存储到数据库并推送
+        await self.save_and_broadcast(chat_data)
 ```
 
 #### 3.2 VOSK语音转录服务
 ```python
 # vosk_service.py
-import vosk
-import json
-import asyncio
-from io import BytesIO
+import sys
+from pathlib import Path
 
-class VoskTranscriptionService:
-    def __init__(self, model_path: str = "vosk-model-cn-0.22"):
-        self.model = vosk.Model(model_path)
-        self.is_recording = False
+# 导入本地VOSK模块
+VOSK_PATH = Path(__file__).parent.parent.parent / "vosk-api" / "python"
+sys.path.insert(0, str(VOSK_PATH))
+
+from vosk import Model, KaldiRecognizer
+
+class VoskService:
+    """VOSK语音转录服务 - 基于本地中文模型"""
     
-    async def transcribe_audio_stream(self, audio_data: bytes) -> dict:
-        """转录音频流"""
+    def __init__(self, model_path: Optional[str] = None):
+        # 使用项目中的中文模型
+        self.model_path = model_path or self._get_default_model_path()
+        self.model = None
+        self.recognizer = None
+        self.sample_rate = 16000  # VOSK推荐采样率
+        self.is_initialized = False
+    
+    def _get_default_model_path(self) -> str:
+        """获取默认中文模型路径"""
+        current_dir = Path(__file__).parent.parent.parent
+        model_path = current_dir / "vosk-api" / "vosk-model-cn-0.22"
+        
+        if not model_path.exists():
+            raise FileNotFoundError(f"VOSK中文模型未找到: {model_path}")
+            
+        return str(model_path)
+    
+    async def initialize(self) -> bool:
+        """异步初始化VOSK模型"""
         try:
-            recognizer = vosk.KaldiRecognizer(self.model, 16000)
+            # 在线程池中加载模型(避免阻塞)
+            loop = asyncio.get_event_loop()
+            self.model = await loop.run_in_executor(
+                None, lambda: Model(self.model_path)
+            )
             
+            # 创建识别器
+            self.recognizer = KaldiRecognizer(self.model, self.sample_rate)
+            self.recognizer.SetWords(True)  # 启用词级时间戳
+            
+            self.is_initialized = True
+            return True
+            
+        except Exception as e:
+            logger.error(f"VOSK模型加载失败: {e}")
+            return False
+    
+    async def transcribe_audio(self, audio_data: bytes) -> Dict[str, Any]:
+        """转录音频数据"""
+        if not self.is_initialized:
+            raise RuntimeError("VOSK服务未初始化")
+        
+        try:
             # 处理音频数据
-            if recognizer.AcceptWaveform(audio_data):
-                result = json.loads(recognizer.Result())
+            if self.recognizer.AcceptWaveform(audio_data):
+                # 完整识别结果
+                result = json.loads(self.recognizer.Result())
+                return {
+                    "success": True,
+                    "type": "final",
+                    "text": result.get("text", ""),
+                    "confidence": self._calculate_confidence(result),
+                    "words": result.get("result", []),
+                    "timestamp": time.time()
+                }
             else:
-                result = json.loads(recognizer.PartialResult())
-            
-            if result.get('text'):
-                transcript_data = {
-                    "id": str(uuid.uuid4()),
-                    "text": result['text'],
-                    "confidence": result.get('confidence', 0.8),
-                    "timestamp": datetime.now().isoformat()
+                # 部分识别结果
+                partial = json.loads(self.recognizer.PartialResult())
+                return {
+                    "success": True,
+                    "type": "partial",
+                    "text": partial.get("partial", ""),
+                    "confidence": 0.5,
+                    "timestamp": time.time()
                 }
                 
-                # 存储到数据库
-                await self.save_transcript(transcript_data)
-                
-                # WebSocket推送
-                await self.websocket_manager.broadcast_to_room(
-                    room_id=self.current_room_id,
-                    message={
-                        "type": "new_transcript", 
-                        "data": transcript_data
-                    }
-                )
-                
-                return transcript_data
-                
         except Exception as e:
-            logger.error(f"语音转录失败: {e}")
-            return None
+            return {
+                "success": False,
+                "error": str(e),
+                "text": ""
+            }
     
-    async def start_realtime_transcription(self, room_id: str):
-        """开始实时转录"""
-        self.current_room_id = room_id
-        self.is_recording = True
-        
-        # 启动音频流处理循环
-        while self.is_recording:
-            # 这里需要实现音频流的实时获取
-            await asyncio.sleep(0.1)
+    def _calculate_confidence(self, result: Dict) -> float:
+        """计算识别置信度"""
+        if not result.get("result"):
+            return 0.0
+            
+        words = result["result"]
+        if not words:
+            return 0.0
+            
+        # 计算平均置信度
+        confidences = [word.get("conf", 0.0) for word in words]
+        return sum(confidences) / len(confidences)
+    
+    def get_model_info(self) -> Dict[str, Any]:
+        """获取模型信息"""
+        return {
+            "model_path": self.model_path,
+            "sample_rate": self.sample_rate,
+            "is_initialized": self.is_initialized,
+            "model_type": "vosk-model-cn-0.22",
+            "language": "zh-CN"
+        }
 ```
 
 #### 3.3 AI分析服务
@@ -418,7 +531,35 @@ class AIAnalysisService:
         return suggestions[:3]  # 返回最多3条建议
 ```
 
-### 4. 数据存储层 (Data Layer)
+### 核心技术集成说明
+
+#### F2项目集成优势
+- ✅ **成熟稳定**: F2项目持续维护，支持最新抖音API
+- ✅ **功能完善**: 支持多种消息类型(聊天、礼物、点赞等)
+- ✅ **反爬处理**: 已处理抖音平台反爬机制
+- ✅ **WebSocket实时**: 原生支持实时弹幕流
+
+#### VOSK本地语音识别优势
+- ✅ **本地运行**: 无需网络调用，降低成本
+- ✅ **中文优化**: vosk-model-cn-0.22专门中文模型
+- ✅ **实时处理**: 支持流式音频实时识别
+- ✅ **轻量级**: 模型大小适中，占用资源少
+
+#### 技术架构集成路径
+```
+项目根目录
+├── f2/                    # F2项目(已存在)
+│   ├── apps/douyin/        # 抖音应用模块
+│   └── ...
+├── vosk-api/              # VOSK语音识别(已存在)
+│   ├── python/vosk/        # Python API
+│   └── vosk-model-cn-0.22/ # 中文模型
+└── server/               # MVP应用服务
+    ├── app/services/
+    │   ├── douyin_service.py  # F2集成服务
+    │   └── vosk_service.py    # VOSK集成服务
+    └── ...
+```
 
 #### 4.1 数据库设计
 ```sql

@@ -1,98 +1,81 @@
-# 提猫直播助手
+# 提猫直播助手 MVP 项目
 
-一个基于 Electron + Flask 的抖音直播评论实时分析与AI话术生成工具。
-
-## 功能特性
-
-- 🔄 **实时评论抓取**: 抓取抖音直播间评论流
-- 🔥 **热词分析**: 智能提取评论热词，实时排序
-- 🤖 **AI话术生成**: 基于评论内容生成互动话术
-- 💻 **桌面端看板**: 三区域实时展示（评论流/热词榜/题词区）
-- ⚡ **低延迟**: 评论到话术生成延迟 ≤ 2s
+基于F2项目的抖音直播弹幕抓取 + VOSK本地语音识别的主播AI助手
 
 ## 技术栈
 
-- **前端**: Electron + HTML/CSS + JavaScript
-- **后端**: Python Flask + Server-Sent Events
-- **AI服务**: DeepSeek/OpenAI/豆包（可切换）
-- **数据存储**: 内存环形缓冲区
-
-## 快速开始
-
-### 环境要求
-
-- Node.js ≥ 16.x
-- Python ≥ 3.8
-- 网络连接（访问AI API）
-
-### 安装步骤
-
-1. 克隆项目
-```bash
-git clone <repository-url>
-cd timao-douyin-live-manager
-```
-
-2. 安装依赖
-```bash
-npm install
-pip install -r requirements.txt
-```
-
-3. 配置环境变量
-```bash
-cp .env.example .env
-# 编辑 .env 文件，填入必要的配置
-```
-
-4. 启动应用
-```bash
-npm run dev
-```
+- **前端**: HTML + CSS + Element UI 2.15
+- **后端**: FastAPI + SQLite + Redis
+- **数据抓取**: F2项目 (抖音直播弹幕)
+- **语音识别**: VOSK本地模型 (中文)
+- **AI分析**: jieba + SnowNLP (本地NLP)
+- **部署**: Docker + Nginx
 
 ## 项目结构
 
 ```
 timao-douyin-live-manager/
-├── electron/                 # Electron 桌面端
-│   ├── main.js              # 主进程
-│   ├── preload.js           # 预加载脚本
-│   └── renderer/            # 渲染进程
-│       ├── index.html       # 主界面
-│       ├── styles.css       # 样式文件
-│       └── app.js           # 前端逻辑
-├── server/                  # Flask 后端
-│   ├── app.py              # 主应用
-│   ├── ingest/             # 评论抓取
-│   ├── nlp/                # 热词分析
-│   ├── ai/                 # AI话术生成
-│   └── utils/              # 工具模块
-├── docs/                   # 项目文档
-├── package.json            # Node.js 配置
-├── requirements.txt        # Python 依赖
-└── .env.example           # 环境变量模板
+├── f2/                     # F2项目 (抖音数据抓取)
+├── vosk-api/              # VOSK语音识别
+│   ├── python/vosk/       # VOSK Python API
+│   └── vosk-model-cn-0.22/ # 中文语音模型
+├── server/                # FastAPI后端服务
+│   ├── app/
+│   │   ├── api/          # API路由
+│   │   ├── core/         # 核心配置
+│   │   ├── models/       # 数据模型
+│   │   ├── services/     # 业务服务
+│   │   └── main.py       # 应用入口
+│   ├── requirements.txt  # Python依赖
+│   └── Dockerfile        # Docker配置
+├── frontend/             # 前端界面
+│   ├── index.html        # 主页面
+│   ├── css/              # 样式文件
+│   ├── js/               # JavaScript文件
+│   └── assets/           # 静态资源
+├── docs/                 # 项目文档
+└── docker-compose.yml    # 部署配置
 ```
 
-## API 接口
+## 快速开始
 
-- `GET /api/health` - 健康检查
-- `GET /api/stream/comments` - 评论流推送 (SSE)
-- `GET /api/hotwords` - 热词排行
-- `GET /api/tips/latest` - 最新话术
-- `POST /api/config` - 配置管理
+### 1. 环境准备
+```bash
+# Python 3.11+
+pip install -r server/requirements.txt
 
-## 开发指南
+# 启动服务
+cd server
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-详细的开发文档请参考 `docs/` 目录：
+### 2. 前端访问
+```bash
+# 打开浏览器访问
+http://localhost:3000
+```
 
-- [需求对齐文档](docs/提猫直播助手_ALIGNMENT_项目初始化.md)
-- [架构设计文档](docs/提猫直播助手_DESIGN_架构设计.md)
-- [任务拆分文档](docs/提猫直播助手_TASK_任务拆分.md)
+### 3. Docker部署
+```bash
+docker-compose up -d
+```
 
-## 许可证
+## 核心功能
 
-MIT License
+- 🎯 **F2弹幕抓取**: 实时抓取抖音直播间弹幕
+- 🎤 **VOSK语音转录**: 本地中文语音识别
+- 🧠 **AI智能分析**: 情感分析 + 热词提取
+- 🎨 **可爱界面**: 猫咪主题Element UI界面
 
-## 贡献
+## MVP验证目标
 
-欢迎提交 Issue 和 Pull Request！
+- 弹幕抓取成功率 > 95%
+- 语音识别准确率 > 80%
+- 系统响应延迟 < 2秒
+- 3天开发完成基础功能
+
+---
+
+**开发团队**: 提猫科技  
+**项目版本**: MVP v1.0  
+**最后更新**: 2025年9月20日
