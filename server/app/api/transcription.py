@@ -12,13 +12,12 @@ from pydantic import BaseModel
 import sys
 from pathlib import Path
 
-# 添加AST模块路径
-AST_MODULE_PATH = Path(__file__).parent.parent.parent.parent / "AST_module"
-sys.path.insert(0, str(AST_MODULE_PATH))
+# 添加项目根目录到sys.path
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
 try:
-    from ast_service import ASTService, TranscriptionResult, get_ast_service
-    from config import create_ast_config
+    from AST_module import ASTService, TranscriptionResult, create_ast_config
 except ImportError as e:
     logging.error(f"AST模块导入失败: {e}")
     raise

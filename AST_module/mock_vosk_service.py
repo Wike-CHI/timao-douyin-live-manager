@@ -169,7 +169,7 @@ class MockVoskService:
             "status": "🤖 模拟模式 - 仅用于开发和测试"
         }
 
-def create_vosk_service(model_path: Optional[str] = None) -> "VoskServiceBase":
+def create_vosk_service(model_path: Optional[str] = None):
     """
     创建VOSK服务实例 - 自动选择真实或模拟服务
     

@@ -13,7 +13,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Union
 
 # 动态加入 F2 路径
 F2_PATH = Path(__file__).resolve().parent.parent / "f2"
@@ -83,12 +83,32 @@ class DouyinLiveFetcher:
             "WebcastRoomUserSeqMessage": self._on_room_stats,
         }
 
-    async def start(self, live_id: str) -> Dict[str, Any]:
-        """启动抓取"""
+    def _normalize_cookie(self, cookie: Union[str, Dict[str, Any], None]) -> Optional[str]:
+        if cookie is None:
+            return None
+        if isinstance(cookie, str):
+            return cookie.strip()
+        if isinstance(cookie, dict):
+            # 简单拼接为 k=v; k2=v2 格式
+            parts = []
+            for k, v in cookie.items():
+                parts.append(f"{k}={v}")
+            return "; ".join(parts)
+        return str(cookie)
+
+    async def start(self, live_id: str, cookie: Optional[Union[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """启动抓取，可选传入 cookie 覆盖默认的 ttwid 方案"""
         if self._is_running:
             return {"success": False, "error": "fetcher already running"}
 
         try:
+            # 应用外部 cookie 覆盖
+            norm_cookie = self._normalize_cookie(cookie)
+            if norm_cookie:
+                self._http_kwargs["cookie"] = norm_cookie
+                self._wss_kwargs["cookie"] = norm_cookie
+                self._logger.info("已应用外部提供的 Cookie")
+
             self._logger.info(f"启动抖音抓取 live_id={live_id}")
             self._handler_http = DouyinHandler(self._http_kwargs)
 
@@ -234,7 +254,7 @@ class DouyinLiveFetcher:
                 "type": "member",
                 "id": str(getattr(msg, "msgId", "")),
                 "username": getattr(getattr(msg, "user", None), "nickName", ""),
-                "action": "enter",
+                "action": getattr(msg, "action", "enter"),
                 "timestamp": datetime.now().isoformat(),
                 "room_id": self._room_id,
             }
@@ -248,7 +268,7 @@ class DouyinLiveFetcher:
                 "type": "social",
                 "id": str(getattr(msg, "msgId", "")),
                 "username": getattr(getattr(msg, "user", None), "nickName", ""),
-                "action": "follow",
+                "action": getattr(msg, "action", ""),
                 "timestamp": datetime.now().isoformat(),
                 "room_id": self._room_id,
             }
@@ -260,7 +280,8 @@ class DouyinLiveFetcher:
         try:
             data = {
                 "type": "room_stats",
-                "online_count": getattr(msg, "total", 0),
+                "online": getattr(msg, "online", 0),
+                "total": getattr(msg, "total", 0),
                 "timestamp": datetime.now().isoformat(),
                 "room_id": self._room_id,
             }

@@ -93,6 +93,10 @@ class VoskService:
             raise RuntimeError("VOSK服务未初始化，请先调用initialize()")
         
         try:
+            # 棄查识别器是否已初始化
+            if self.recognizer is None:
+                raise RuntimeError("VOSK识别器未初始化")
+                
             # 处理音频数据
             if self.recognizer.AcceptWaveform(audio_data):
                 # 完整识别结果
@@ -137,6 +141,10 @@ class VoskService:
             raise RuntimeError("VOSK服务未初始化")
         
         try:
+            # 棄查识别器是否已初始化
+            if self.recognizer is None:
+                raise RuntimeError("VOSK识别器未初始化")
+                
             result = json.loads(self.recognizer.FinalResult())
             return {
                 "success": True,

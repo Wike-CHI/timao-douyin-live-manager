@@ -26,10 +26,10 @@ class AudioConfig:
 class AudioCapture:
     """音频采集器"""
     
-    def __init__(self, config: AudioConfig = None):
+    def __init__(self, config: Optional[AudioConfig] = None):
         self.config = config or AudioConfig()
-        self.audio = None
-        self.stream = None
+        self.audio: Optional[pyaudio.PyAudio] = None
+        self.stream: Optional[pyaudio.Stream] = None
         self.is_recording = False
         self.logger = logging.getLogger(__name__)
     
@@ -48,17 +48,24 @@ class AudioCapture:
     
     def _list_audio_devices(self):
         """列出可用的音频设备"""
+        if self.audio is None:
+            return
+        
         self.logger.info("可用音频设备:")
         for i in range(self.audio.get_device_count()):
             info = self.audio.get_device_info_by_index(i)
-            if info['maxInputChannels'] > 0:
-                self.logger.info(f"  {i}: {info['name']} (输入通道: {info['maxInputChannels']})")
+            max_input_channels = info.get('maxInputChannels')
+            if isinstance(max_input_channels, int) and max_input_channels > 0:
+                self.logger.info(f"  {i}: {info['name']} (输入通道: {max_input_channels})")
     
     async def start_recording(self) -> bool:
         """开始录音"""
         try:
             if self.is_recording:
                 return True
+            
+            if self.audio is None:
+                return False
             
             # 打开音频流
             self.stream = self.audio.open(

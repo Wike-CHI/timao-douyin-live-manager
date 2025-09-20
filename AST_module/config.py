@@ -4,6 +4,7 @@ AST模块配置文件
 """
 
 from pathlib import Path
+from typing import Optional
 try:
     from .audio_capture import AudioConfig
     from .ast_service import ASTConfig
@@ -38,7 +39,7 @@ def get_default_ast_config():
 DEFAULT_AST_CONFIG = None  # 延迟初始化
 
 def create_ast_config(
-    model_path: str = None,
+    model_path: Optional[str] = None,
     sample_rate: int = 16000,
     chunk_duration: float = 1.0,
     min_confidence: float = 0.5,

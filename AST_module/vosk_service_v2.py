@@ -211,6 +211,10 @@ class VoskServiceV2:
                 "content_type": "audio/wav"
             }
             
+            # 棄查session是否已初始化
+            if self.session is None:
+                raise RuntimeError("HTTP会话未初始化")
+            
             async with self.session.post(url, json=data) as response:
                 if response.status == 200:
                     result = await response.json()
@@ -252,6 +256,10 @@ class VoskServiceV2:
         try:
             # 连接到WebSocket
             ws_url = f"ws://{self.config.server_host}:{self.config.server_port}/ws"
+            
+            # 棄查session是否已初始化
+            if self.session is None:
+                raise RuntimeError("HTTP会话未初始化")
             
             async with self.session.ws_connect(ws_url) as ws:
                 # 发送配置

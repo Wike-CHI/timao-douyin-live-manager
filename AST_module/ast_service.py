@@ -98,14 +98,20 @@ class ASTService:
             # 检查模型是否存在
             model_path = Path(self.config.vosk_model_path)
             if model_path.exists():
-                from vosk_direct_service import VoskDirectService
+                try:
+                    from .vosk_direct_service import VoskDirectService
+                except ImportError:
+                    from vosk_direct_service import VoskDirectService
                 self.vosk_service = VoskDirectService(self.config.vosk_model_path)
                 self.logger.info(f"使用真实VOSK直接服务: {model_path}")
             else:
                 raise FileNotFoundError(f"模型路径不存在: {model_path}")
         except Exception as e:
             self.logger.warning(f"真实VOSK服务不可用，使用模拟服务: {e}")
-            from mock_vosk_service import MockVoskService
+            try:
+                from .mock_vosk_service import MockVoskService
+            except ImportError:
+                from mock_vosk_service import MockVoskService
             self.vosk_service = MockVoskService(self.config.vosk_model_path)
         self.audio_buffer = AudioBuffer(
             max_duration=self.config.buffer_duration,

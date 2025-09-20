@@ -17,6 +17,8 @@ router = APIRouter(prefix="/api/douyin", tags=["douyin"])
 
 class StartMonitoringRequest(BaseModel):
     live_id: str
+    # 新增：可选 cookie 字符串（建议为浏览器导出的 Cookie 字符串）
+    cookie: Optional[str] = None
 
 
 class BaseResponse(BaseModel):
@@ -39,7 +41,8 @@ async def start_monitoring(request: StartMonitoringRequest):
     """
     try:
         service = get_douyin_service()
-        result = await service.start_monitoring(request.live_id)
+        # 传递可选 cookie 到服务层
+        result = await service.start_monitoring(request.live_id, cookie=request.cookie)
         if result.get("success"):
             return BaseResponse(success=True, message="监控已启动", data=result)
         return BaseResponse(success=False, message=result.get("error", "监控启动失败"), data=result)

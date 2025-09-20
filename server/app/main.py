@@ -48,24 +48,26 @@ try:
     logging.info("✅ WebSocket 服务导入成功（相对导入）")
 except ImportError:
     try:
-        # 如果相对导入失败，尝试绝对/路径导入
-        import sys
+        # 如果相对导入失败，使用包路径导入，确保子模块内的相对导入可解析
+        import importlib, sys
         from pathlib import Path
-        sys.path.append(str(Path(__file__).parent))
-        from api.transcription import router as transcription_router
-        app.include_router(transcription_router)
+        project_root = Path(__file__).parent.parent.parent  # 项目根目录（包含 server 包）
+        if str(project_root) not in sys.path:
+            sys.path.append(str(project_root))
+
+        # 以完整包名导入，维持 __package__=server.app.api.*，使相对导入生效
+        transcription_mod = importlib.import_module('server.app.api.transcription')
+        app.include_router(getattr(transcription_mod, 'router'))
         logging.info("✅ 转录API路由已加载")
 
-        from api.douyin import router as douyin_router
-        app.include_router(douyin_router)
+        douyin_mod = importlib.import_module('server.app.api.douyin')
+        app.include_router(getattr(douyin_mod, 'router'))
         logging.info("✅ 抖音API路由已加载")
 
-        # 为了导入 server 目录下的 websocket_handler，将其父目录加入路径
-        server_dir = Path(__file__).parent.parent
-        if str(server_dir) not in sys.path:
-            sys.path.append(str(server_dir))
-        from websocket_handler import start_websocket_services, stop_websocket_services  # type: ignore
-        logging.info("✅ WebSocket 服务导入成功（路径导入）")
+        ws_mod = importlib.import_module('server.websocket_handler')
+        start_websocket_services = getattr(ws_mod, 'start_websocket_services')
+        stop_websocket_services = getattr(ws_mod, 'stop_websocket_services')
+        logging.info("✅ WebSocket 服务导入成功（包路径导入）")
     except ImportError as e:
         logging.error(f"❌ API路由/WS服务加载失败: {e}")
         # 提供空占位，避免后续引用报错

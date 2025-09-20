@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎤 AST语音转录测试工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #eee;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .header .cat {
+            font-size: 2em;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.2em;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .control-panel {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            border: 2px solid #e9ecef;
+        }
+
+        .control-panel h3 {
+            color: #495057;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 5px;
+            min-width: 120px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #51cf66 0%, #40c057 100%);
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .status-item {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .status-item h4 {
+            color: #495057;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+
+        .status-item .value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .transcription-area {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+
+        .transcription-area h3 {
+            color: #495057;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .results-container {
+            max-height: 400px;
+            overflow-y: auto;
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            border: 2px solid #e9ecef;
+        }
+
+        .transcription-item {
+            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+            margin-bottom: 15px;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #2196f3;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .transcription-text {
+            font-size: 1.1em;
+            color: #333;
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+
+        .transcription-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85em;
+            color: #666;
+        }
+
+        .confidence {
+            padding: 4px 8px;
+            border-radius: 15px;
+            font-weight: bold;
+        }
+
+        .confidence.high {
+            background: #4caf50;
+            color: white;
+        }
+
+        .confidence.medium {
+            background: #ff9800;
+            color: white;
+        }
+
+        .confidence.low {
+            background: #f44336;
+            color: white;
+        }
+
+        .settings {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+
+        .settings h3 {
+            color: #495057;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .setting-item {
+            margin-bottom: 15px;
+        }
+
+        .setting-item label {
+            display: block;
+            margin-bottom: 5px;
+            color: #495057;
+            font-weight: 500;
+        }
+
+        .setting-item input[type="range"] {
+            width: 100%;
+            margin-bottom: 5px;
+        }
+
+        .setting-item input[type="text"] {
+            width: 100%;
+            padding: 8px 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 1em;
+        }
+
+        .range-value {
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .recording-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #ff4757;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: bold;
+            display: none;
+            z-index: 1000;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .log-area {
+            background: #2c3e50;
+            color: #ecf0f1;
+            border-radius: 10px;
+            padding: 20px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9em;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+
+        .log-item {
+            margin-bottom: 5px;
+            padding: 2px 0;
+        }
+
+        .log-item.error {
+            color: #e74c3c;
+        }
+
+        .log-item.success {
+            color: #2ecc71;
+        }
+
+        .log-item.info {
+            color: #3498db;
+        }
+
+        .clear-btn {
+            background: #6c757d;
+            font-size: 0.9em;
+            padding: 8px 16px;
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                grid-template-columns: 1fr;
+            }
+            
+            .status-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .container {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="recording-indicator" id="recordingIndicator">
+        🔴 录音中...
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>
+                <span class="cat">🐱</span>
+                AST语音转录测试工具
+                <span>🎤</span>
+            </h1>
+            <p>基于VOSK的实时语音识别测试平台</p>
+        </div>
+
+        <div class="controls">
+            <div class="control-panel">
+                <h3>🎮 转录控制</h3>
+                <button class="btn btn-success" id="startBtn" onclick="startTranscription()">
+                    🎤 开始转录
+                </button>
+                <button class="btn btn-danger" id="stopBtn" onclick="stopTranscription()" disabled>
+                    ⏹️ 停止转录
+                </button>
+                <button class="btn" onclick="checkHealth()">
+                    💚 健康检查
+                </button>
+                <button class="btn" onclick="getStatus()">
+                    📊 获取状态
+                </button>
+            </div>
+
+            <div class="control-panel">
+                <h3>🔧 快速操作</h3>
+                <button class="btn" onclick="clearResults()">
+                    🗑️ 清空结果
+                </button>
+                <button class="btn" onclick="exportResults()">
+                    📥 导出结果
+                </button>
+                <button class="btn" onclick="testMicrophone()">
+                    🎯 测试麦克风
+                </button>
+                <button class="btn clear-btn" onclick="clearLogs()">
+                    🧹 清空日志
+                </button>
+            </div>
+        </div>
+
+        <div class="status-grid">
+            <div class="status-item">
+                <h4>连接状态</h4>
+                <div class="value" id="connectionStatus">未连接</div>
+            </div>
+            <div class="status-item">
+                <h4>转录状态</h4>
+                <div class="value" id="transcriptionStatus">未启动</div>
+            </div>
+            <div class="status-item">
+                <h4>识别次数</h4>
+                <div class="value" id="transcriptionCount">0</div>
+            </div>
+            <div class="status-item">
+                <h4>平均置信度</h4>
+                <div class="value" id="avgConfidence">0%</div>
+            </div>
+            <div class="status-item">
+                <h4>当前会话</h4>
+                <div class="value" id="currentSession">无</div>
+            </div>
+            <div class="status-item">
+                <h4>运行时间</h4>
+                <div class="value" id="runtime">00:00</div>
+            </div>
+        </div>
+
+        <div class="settings">
+            <h3>⚙️ 转录设置</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+                <div class="setting-item">
+                    <label for="roomId">房间ID:</label>
+                    <input type="text" id="roomId" value="test_room_001" placeholder="输入房间ID">
+                </div>
+                <div class="setting-item">
+                    <label for="chunkDuration">音频块时长: <span class="range-value" id="chunkValue">1.0</span>秒</label>
+                    <input type="range" id="chunkDuration" min="0.5" max="3.0" step="0.1" value="1.0" 
+                           oninput="updateRangeValue('chunkValue', this.value)">
+                </div>
+                <div class="setting-item">
+                    <label for="minConfidence">最小置信度: <span class="range-value" id="confidenceValue">0.6</span></label>
+                    <input type="range" id="minConfidence" min="0.1" max="1.0" step="0.1" value="0.6"
+                           oninput="updateRangeValue('confidenceValue', this.value)">
+                </div>
+                <div class="setting-item">
+                    <label for="saveAudio">
+                        <input type="checkbox" id="saveAudio"> 保存音频文件
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="transcription-area">
+            <h3>📝 转录结果</h3>
+            <div class="results-container" id="resultsContainer">
+                <div style="text-align: center; color: #666; padding: 40px;">
+                    点击"开始转录"开始语音识别测试...
+                </div>
+            </div>
+        </div>
+
+        <div class="log-area" id="logArea">
+            <div class="log-item info">
+                [系统] AST语音转录测试工具已就绪，等待用户操作...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let ws = null;
+        let isTranscribing = false;
+        let transcriptionCount = 0;
+        let totalConfidence = 0;
+        let startTime = null;
+        let runtimeTimer = null;
+        let results = [];
+
+        // API基础URL
+        const API_BASE = 'http://127.0.0.1:8001/api/transcription';
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            log('AST测试工具初始化完成', 'success');
+            checkServerConnection();
+        });
+
+        // 日志函数
+        function log(message, type = 'info') {
+            const logArea = document.getElementById('logArea');
+            const timestamp = new Date().toLocaleTimeString();
+            const logItem = document.createElement('div');
+            logItem.className = `log-item ${type}`;
+            logItem.textContent = `[${timestamp}] ${message}`;
+            logArea.appendChild(logItem);
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+
+        // 更新范围值显示
+        function updateRangeValue(elementId, value) {
+            document.getElementById(elementId).textContent = value;
+        }
+
+        // 检查服务器连接
+        async function checkServerConnection() {
+            try {
+                const response = await fetch(API_BASE + '/health');
+                const data = await response.json();
+                
+                if (data.status === 'healthy') {
+                    updateStatus('connectionStatus', '✅ 已连接');
+                    log('服务器连接正常', 'success');
+                } else {
+                    updateStatus('connectionStatus', '⚠️ 异常');
+                    log('服务器状态异常', 'error');
+                }
+            } catch (error) {
+                updateStatus('connectionStatus', '❌ 断开');
+                log(`服务器连接失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 健康检查
+        async function checkHealth() {
+            log('执行健康检查...', 'info');
+            try {
+                const response = await fetch(API_BASE + '/health');
+                const data = await response.json();
+                log(`健康检查结果: ${JSON.stringify(data, null, 2)}`, 'success');
+            } catch (error) {
+                log(`健康检查失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 获取状态
+        async function getStatus() {
+            log('获取转录状态...', 'info');
+            try {
+                const response = await fetch(API_BASE + '/status');
+                const data = await response.json();
+                
+                updateStatus('transcriptionStatus', data.is_running ? '✅ 运行中' : '⏸️ 停止');
+                updateStatus('currentSession', data.current_session_id || '无');
+                updateStatus('transcriptionCount', data.stats.successful_transcriptions || 0);
+                
+                if (data.stats.average_confidence) {
+                    updateStatus('avgConfidence', (data.stats.average_confidence * 100).toFixed(1) + '%');
+                }
+                
+                log(`状态更新: ${JSON.stringify(data, null, 2)}`, 'info');
+            } catch (error) {
+                log(`获取状态失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 开始转录
+        async function startTranscription() {
+            const roomId = document.getElementById('roomId').value;
+            const chunkDuration = parseFloat(document.getElementById('chunkDuration').value);
+            const minConfidence = parseFloat(document.getElementById('minConfidence').value);
+            const saveAudio = document.getElementById('saveAudio').checked;
+
+            if (!roomId.trim()) {
+                alert('请输入房间ID');
+                return;
+            }
+
+            log(`开始转录 - 房间: ${roomId}, 块时长: ${chunkDuration}s, 最小置信度: ${minConfidence}`, 'info');
+
+            try {
+                // 启动转录服务
+                const response = await fetch(API_BASE + '/start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        room_id: roomId,
+                        chunk_duration: chunkDuration,
+                        min_confidence: minConfidence,
+                        save_audio: saveAudio
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    log('转录服务启动成功', 'success');
+                    
+                    // 连接WebSocket
+                    connectWebSocket();
+                    
+                    // 更新UI状态
+                    isTranscribing = true;
+                    startTime = Date.now();
+                    updateButtons();
+                    startRuntimeTimer();
+                    updateStatus('transcriptionStatus', '✅ 运行中');
+                    updateStatus('currentSession', data.data.session_id);
+                    document.getElementById('recordingIndicator').style.display = 'block';
+                } else {
+                    log(`转录启动失败: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                log(`转录启动失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 停止转录
+        async function stopTranscription() {
+            log('停止转录...', 'info');
+            
+            try {
+                const response = await fetch(API_BASE + '/stop', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    log('转录服务已停止', 'success');
+                } else {
+                    log(`停止转录失败: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                log(`停止转录失败: ${error.message}`, 'error');
+            }
+
+            // 断开WebSocket
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+
+            // 更新UI状态
+            isTranscribing = false;
+            stopRuntimeTimer();
+            updateButtons();
+            updateStatus('transcriptionStatus', '⏸️ 停止');
+            document.getElementById('recordingIndicator').style.display = 'none';
+        }
+
+        // 连接WebSocket
+        function connectWebSocket() {
+            const wsUrl = `ws://127.0.0.1:8001/api/transcription/ws`;
+            log(`连接WebSocket: ${wsUrl}`, 'info');
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function(event) {
+                log('WebSocket连接已建立', 'success');
+            };
+
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'transcription') {
+                    handleTranscriptionResult(data.data);
+                } else if (data.type === 'status') {
+                    log(`状态更新: ${JSON.stringify(data.data)}`, 'info');
+                }
+            };
+
+            ws.onclose = function(event) {
+                log('WebSocket连接已关闭', 'info');
+            };
+
+            ws.onerror = function(error) {
+                log(`WebSocket错误: ${error}`, 'error');
+            };
+        }
+
+        // 处理转录结果
+        function handleTranscriptionResult(result) {
+            if (!result.text.trim()) return;
+
+            transcriptionCount++;
+            totalConfidence += result.confidence;
+            
+            // 添加到结果列表
+            results.push({
+                ...result,
+                id: Date.now() + Math.random()
+            });
+
+            // 更新显示
+            addTranscriptionResult(result);
+            updateStats();
+            
+            log(`转录: "${result.text}" (置信度: ${(result.confidence * 100).toFixed(1)}%)`, 'success');
+        }
+
+        // 添加转录结果到UI
+        function addTranscriptionResult(result) {
+            const container = document.getElementById('resultsContainer');
+            
+            // 首次添加时清空占位符
+            if (container.children.length === 1 && container.children[0].textContent.includes('点击')) {
+                container.innerHTML = '';
+            }
+
+            const item = document.createElement('div');
+            item.className = 'transcription-item';
+            
+            const confidenceClass = result.confidence >= 0.8 ? 'high' : 
+                                   result.confidence >= 0.5 ? 'medium' : 'low';
+
+            item.innerHTML = `
+                <div class="transcription-text">${result.text}</div>
+                <div class="transcription-meta">
+                    <span>时间: ${new Date(result.timestamp * 1000).toLocaleTimeString()}</span>
+                    <span class="confidence ${confidenceClass}">
+                        ${(result.confidence * 100).toFixed(1)}%
+                    </span>
+                    <span>${result.is_final ? '最终' : '部分'}</span>
+                </div>
+            `;
+
+            container.insertBefore(item, container.firstChild);
+            
+            // 限制显示数量
+            while (container.children.length > 20) {
+                container.removeChild(container.lastChild);
+            }
+        }
+
+        // 更新统计信息
+        function updateStats() {
+            updateStatus('transcriptionCount', transcriptionCount);
+            if (transcriptionCount > 0) {
+                const avgConf = (totalConfidence / transcriptionCount * 100).toFixed(1);
+                updateStatus('avgConfidence', avgConf + '%');
+            }
+        }
+
+        // 更新状态显示
+        function updateStatus(elementId, value) {
+            document.getElementById(elementId).textContent = value;
+        }
+
+        // 更新按钮状态
+        function updateButtons() {
+            document.getElementById('startBtn').disabled = isTranscribing;
+            document.getElementById('stopBtn').disabled = !isTranscribing;
+        }
+
+        // 开始运行时间计时
+        function startRuntimeTimer() {
+            runtimeTimer = setInterval(() => {
+                if (startTime) {
+                    const elapsed = Date.now() - startTime;
+                    const minutes = Math.floor(elapsed / 60000);
+                    const seconds = Math.floor((elapsed % 60000) / 1000);
+                    updateStatus('runtime', `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+                }
+            }, 1000);
+        }
+
+        // 停止运行时间计时
+        function stopRuntimeTimer() {
+            if (runtimeTimer) {
+                clearInterval(runtimeTimer);
+                runtimeTimer = null;
+            }
+        }
+
+        // 清空结果
+        function clearResults() {
+            document.getElementById('resultsContainer').innerHTML = `
+                <div style="text-align: center; color: #666; padding: 40px;">
+                    结果已清空，点击"开始转录"重新开始...
+                </div>
+            `;
+            results = [];
+            transcriptionCount = 0;
+            totalConfidence = 0;
+            updateStats();
+            log('转录结果已清空', 'info');
+        }
+
+        // 导出结果
+        function exportResults() {
+            if (results.length === 0) {
+                alert('没有可导出的结果');
+                return;
+            }
+
+            const exportData = {
+                export_time: new Date().toISOString(),
+                total_count: results.length,
+                results: results
+            };
+
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+                type: 'application/json'
+            });
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `AST_转录结果_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            log(`导出了 ${results.length} 条转录结果`, 'success');
+        }
+
+        // 测试麦克风
+        async function testMicrophone() {
+            log('测试麦克风权限...', 'info');
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                log('✅ 麦克风权限正常，可以进行语音转录', 'success');
+                
+                // 显示音频信息
+                const tracks = stream.getAudioTracks();
+                if (tracks.length > 0) {
+                    const track = tracks[0];
+                    log(`音频设备: ${track.label}`, 'info');
+                }
+                
+                // 停止流
+                stream.getTracks().forEach(track => track.stop());
+            } catch (error) {
+                log(`❌ 麦克风权限被拒绝或设备不可用: ${error.message}`, 'error');
+                alert('请允许浏览器访问麦克风，并确保有可用的音频输入设备');
+            }
+        }
+
+        // 清空日志
+        function clearLogs() {
+            document.getElementById('logArea').innerHTML = `
+                <div class="log-item info">
+                    [${new Date().toLocaleTimeString()}] 日志已清空
+                </div>
+            `;
+        }
+
+        // 页面卸载时清理
+        window.addEventListener('beforeunload', function() {
+            if (isTranscribing) {
+                stopTranscription();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎤 AST双模式语音转录测试</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .cat {
+            font-size: 2em;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .modes-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .mode-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .mode-header {
+            text-align: center;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 15px;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .browser-mode {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+        }
+
+        .server-mode {
+            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+            color: white;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 5px;
+            min-width: 120px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #51cf66 0%, #40c057 100%);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+        }
+
+        .status-item {
+            background: #f8f9fa;
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin: 8px 0;
+            border-left: 4px solid #667eea;
+        }
+
+        .status-item h4 {
+            color: #495057;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+
+        .status-item .value {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .results-area {
+            max-height: 300px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .transcription-item {
+            background: white;
+            margin-bottom: 10px;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #2196f3;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .transcription-text {
+            font-size: 1.1em;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .transcription-meta {
+            font-size: 0.85em;
+            color: #666;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .confidence {
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 0.8em;
+        }
+
+        .confidence.high { background: #4caf50; color: white; }
+        .confidence.medium { background: #ff9800; color: white; }
+        .confidence.low { background: #f44336; color: white; }
+
+        .comparison-area {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            margin-top: 20px;
+        }
+
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .comparison-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .comparison-item h4 {
+            color: #495057;
+            margin-bottom: 10px;
+        }
+
+        .comparison-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        @media (max-width: 1200px) {
+            .modes-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2em;
+                flex-direction: column;
+            }
+            
+            .container {
+                padding: 10px;
+            }
+            
+            .mode-panel {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                <span class="cat">🐱</span>
+                AST双模式语音转录测试
+                <span>🎤</span>
+            </h1>
+            <p>同时测试浏览器原生语音识别 vs AST服务器模式</p>
+        </div>
+
+        <div class="modes-container">
+            <!-- 浏览器模式 -->
+            <div class="mode-panel">
+                <div class="mode-header browser-mode">
+                    🌐 浏览器原生模式
+                </div>
+                
+                <div class="controls">
+                    <button class="btn btn-success" id="browserStartBtn" onclick="browserStart()">
+                        🎤 开始识别
+                    </button>
+                    <button class="btn btn-danger" id="browserStopBtn" onclick="browserStop()" disabled>
+                        ⏹️ 停止识别
+                    </button>
+                    <button class="btn" onclick="browserClear()">
+                        🗑️ 清空
+                    </button>
+                </div>
+
+                <div class="status-item">
+                    <h4>浏览器支持</h4>
+                    <div class="value" id="browserSupport">检测中...</div>
+                </div>
+                <div class="status-item">
+                    <h4>识别状态</h4>
+                    <div class="value" id="browserStatus">未开始</div>
+                </div>
+                <div class="status-item">
+                    <h4>识别次数</h4>
+                    <div class="value" id="browserCount">0</div>
+                </div>
+
+                <div class="results-area" id="browserResults">
+                    <div style="text-align: center; color: #666; padding: 20px;">
+                        等待开始识别...
+                    </div>
+                </div>
+            </div>
+
+            <!-- 服务器模式 -->
+            <div class="mode-panel">
+                <div class="mode-header server-mode">
+                    🔧 AST服务器模式
+                </div>
+                
+                <div class="controls">
+                    <button class="btn btn-success" id="serverStartBtn" onclick="serverStart()">
+                        🎤 开始转录
+                    </button>
+                    <button class="btn btn-danger" id="serverStopBtn" onclick="serverStop()" disabled>
+                        ⏹️ 停止转录
+                    </button>
+                    <button class="btn" onclick="serverClear()">
+                        🗑️ 清空
+                    </button>
+                    <button class="btn" onclick="checkHealth()">
+                        💚 健康检查
+                    </button>
+                </div>
+
+                <div class="status-item">
+                    <h4>服务器连接</h4>
+                    <div class="value" id="serverConnection">检查中...</div>
+                </div>
+                <div class="status-item">
+                    <h4>转录状态</h4>
+                    <div class="value" id="serverStatus">未开始</div>
+                </div>
+                <div class="status-item">
+                    <h4>转录次数</h4>
+                    <div class="value" id="serverCount">0</div>
+                </div>
+
+                <div class="results-area" id="serverResults">
+                    <div style="text-align: center; color: #666; padding: 20px;">
+                        等待开始转录...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="comparison-area">
+            <h3 style="text-align: center; margin-bottom: 15px;">📊 对比分析</h3>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <h4>浏览器模式</h4>
+                    <div class="comparison-value" id="browserTotal">0</div>
+                    <small>识别次数</small>
+                </div>
+                <div class="comparison-item">
+                    <h4>服务器模式</h4>
+                    <div class="comparison-value" id="serverTotal">0</div>
+                    <small>转录次数</small>
+                </div>
+                <div class="comparison-item">
+                    <h4>响应速度</h4>
+                    <div class="comparison-value" id="responseTime">-</div>
+                    <small>平均延迟</small>
+                </div>
+                <div class="comparison-item">
+                    <h4>准确率对比</h4>
+                    <div class="comparison-value" id="accuracy">-</div>
+                    <small>相似度</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let browserRecognition = null;
+        let isBrowserRecording = false;
+        let isServerRecording = false;
+        let browserCount = 0;
+        let serverCount = 0;
+        let ws = null;
+
+        // 服务器API配置
+        const API_BASE = 'http://127.0.0.1:8001/api/transcription';
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeBrowserMode();
+            checkServerConnection();
+        });
+
+        // ========== 浏览器模式 ==========
+        function initializeBrowserMode() {
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                document.getElementById('browserSupport').textContent = '✅ 支持';
+                
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                browserRecognition = new SpeechRecognition();
+                
+                browserRecognition.continuous = true;
+                browserRecognition.interimResults = true;
+                browserRecognition.lang = 'zh-CN';
+                
+                browserRecognition.onstart = function() {
+                    document.getElementById('browserStatus').textContent = '🔴 识别中';
+                };
+                
+                browserRecognition.onresult = function(event) {
+                    for (let i = event.resultIndex; i < event.results.length; i++) {
+                        const transcript = event.results[i][0].transcript;
+                        const confidence = event.results[i][0].confidence;
+                        
+                        if (event.results[i].isFinal) {
+                            addBrowserResult(transcript, confidence, true);
+                            browserCount++;
+                            updateBrowserCount();
+                        }
+                    }
+                };
+                
+                browserRecognition.onerror = function(event) {
+                    console.error('Browser recognition error:', event.error);
+                };
+                
+                browserRecognition.onend = function() {
+                    if (isBrowserRecording) {
+                        setTimeout(() => {
+                            if (isBrowserRecording) {
+                                browserRecognition.start();
+                            }
+                        }, 100);
+                    }
+                };
+            } else {
+                document.getElementById('browserSupport').textContent = '❌ 不支持';
+            }
+        }
+
+        function browserStart() {
+            if (!browserRecognition) return;
+            
+            isBrowserRecording = true;
+            browserRecognition.start();
+            
+            document.getElementById('browserStartBtn').disabled = true;
+            document.getElementById('browserStopBtn').disabled = false;
+        }
+
+        function browserStop() {
+            isBrowserRecording = false;
+            if (browserRecognition) {
+                browserRecognition.stop();
+            }
+            
+            document.getElementById('browserStartBtn').disabled = false;
+            document.getElementById('browserStopBtn').disabled = true;
+            document.getElementById('browserStatus').textContent = '⏸️ 已停止';
+        }
+
+        function browserClear() {
+            document.getElementById('browserResults').innerHTML = `
+                <div style="text-align: center; color: #666; padding: 20px;">
+                    等待开始识别...
+                </div>
+            `;
+            browserCount = 0;
+            updateBrowserCount();
+        }
+
+        function addBrowserResult(text, confidence, isFinal) {
+            const container = document.getElementById('browserResults');
+            
+            if (container.children.length === 1 && container.children[0].textContent.includes('等待')) {
+                container.innerHTML = '';
+            }
+            
+            const item = document.createElement('div');
+            item.className = 'transcription-item';
+            
+            const confidenceClass = confidence >= 0.8 ? 'high' : 
+                                   confidence >= 0.5 ? 'medium' : 'low';
+            
+            item.innerHTML = `
+                <div class="transcription-text">${text}</div>
+                <div class="transcription-meta">
+                    <span>${new Date().toLocaleTimeString()}</span>
+                    <span class="confidence ${confidenceClass}">
+                        ${confidence ? (confidence * 100).toFixed(1) + '%' : 'N/A'}
+                    </span>
+                </div>
+            `;
+            
+            container.insertBefore(item, container.firstChild);
+            
+            while (container.children.length > 10) {
+                container.removeChild(container.lastChild);
+            }
+        }
+
+        function updateBrowserCount() {
+            document.getElementById('browserCount').textContent = browserCount;
+            document.getElementById('browserTotal').textContent = browserCount;
+        }
+
+        // ========== 服务器模式 ==========
+        async function checkServerConnection() {
+            try {
+                const response = await fetch(API_BASE + '/health');
+                const data = await response.json();
+                
+                if (data.status === 'healthy') {
+                    document.getElementById('serverConnection').textContent = '✅ 已连接';
+                } else {
+                    document.getElementById('serverConnection').textContent = '⚠️ 异常';
+                }
+            } catch (error) {
+                document.getElementById('serverConnection').textContent = '❌ 断开';
+                console.error('Server connection failed:', error);
+            }
+        }
+
+        async function serverStart() {
+            try {
+                const response = await fetch(API_BASE + '/start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        room_id: 'dual_test_room',
+                        chunk_duration: 1.0,
+                        min_confidence: 0.5,
+                        save_audio: false
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    isServerRecording = true;
+                    connectWebSocket();
+                    
+                    document.getElementById('serverStartBtn').disabled = true;
+                    document.getElementById('serverStopBtn').disabled = false;
+                    document.getElementById('serverStatus').textContent = '🔴 转录中';
+                } else {
+                    alert('服务器转录启动失败: ' + data.message);
+                }
+            } catch (error) {
+                alert('服务器连接失败: ' + error.message);
+            }
+        }
+
+        async function serverStop() {
+            try {
+                const response = await fetch(API_BASE + '/stop', {
+                    method: 'POST'
+                });
+
+                isServerRecording = false;
+                
+                if (ws) {
+                    ws.close();
+                    ws = null;
+                }
+                
+                document.getElementById('serverStartBtn').disabled = false;
+                document.getElementById('serverStopBtn').disabled = true;
+                document.getElementById('serverStatus').textContent = '⏸️ 已停止';
+            } catch (error) {
+                console.error('Server stop failed:', error);
+            }
+        }
+
+        function serverClear() {
+            document.getElementById('serverResults').innerHTML = `
+                <div style="text-align: center; color: #666; padding: 20px;">
+                    等待开始转录...
+                </div>
+            `;
+            serverCount = 0;
+            updateServerCount();
+        }
+
+        function connectWebSocket() {
+            const wsUrl = `ws://127.0.0.1:8001/api/transcription/ws`;
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function(event) {
+                console.log('WebSocket connected');
+            };
+
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'transcription') {
+                    addServerResult(data.data.text, data.data.confidence, data.data.is_final);
+                    if (data.data.is_final) {
+                        serverCount++;
+                        updateServerCount();
+                    }
+                }
+            };
+
+            ws.onclose = function(event) {
+                console.log('WebSocket closed');
+            };
+
+            ws.onerror = function(error) {
+                console.error('WebSocket error:', error);
+            };
+        }
+
+        function addServerResult(text, confidence, isFinal) {
+            if (!text.trim()) return;
+            
+            const container = document.getElementById('serverResults');
+            
+            if (container.children.length === 1 && container.children[0].textContent.includes('等待')) {
+                container.innerHTML = '';
+            }
+            
+            const item = document.createElement('div');
+            item.className = 'transcription-item';
+            
+            const confidenceClass = confidence >= 0.8 ? 'high' : 
+                                   confidence >= 0.5 ? 'medium' : 'low';
+            
+            item.innerHTML = `
+                <div class="transcription-text">${text}</div>
+                <div class="transcription-meta">
+                    <span>${new Date().toLocaleTimeString()}</span>
+                    <span class="confidence ${confidenceClass}">
+                        ${(confidence * 100).toFixed(1)}%
+                    </span>
+                </div>
+            `;
+            
+            container.insertBefore(item, container.firstChild);
+            
+            while (container.children.length > 10) {
+                container.removeChild(container.lastChild);
+            }
+        }
+
+        function updateServerCount() {
+            document.getElementById('serverCount').textContent = serverCount;
+            document.getElementById('serverTotal').textContent = serverCount;
+        }
+
+        async function checkHealth() {
+            try {
+                const response = await fetch(API_BASE + '/health');
+                const data = await response.json();
+                alert('健康检查结果:\n' + JSON.stringify(data, null, 2));
+            } catch (error) {
+                alert('健康检查失败: ' + error.message);
+            }
+        }
+
+        // 页面卸载时清理
+        window.addEventListener('beforeunload', function() {
+            browserStop();
+            serverStop();
+        });
+    </script>
+</body>
+</html>
