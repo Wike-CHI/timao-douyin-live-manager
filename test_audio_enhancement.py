@@ -84,10 +84,15 @@ def test_audio_enhancement():
         # 测试音频增强器初始化
         print("2. 测试音频增强器初始化...")
         if hasattr(vosk, 'AudioEnhancer'):
-            enhancer = vosk.AudioEnhancer(sample_rate=16000)
-            print(f"   采样率: 16000 Hz")
-            print(f"   增强功能状态: {'启用' if enhancer.enabled else '禁用'}")
-            print("   ✅ 音频增强器初始化成功")
+            # 使用 getattr 来避免类型检查错误
+            AudioEnhancerClass = getattr(vosk, 'AudioEnhancer', None)
+            if AudioEnhancerClass:
+                enhancer = AudioEnhancerClass(sample_rate=16000)
+                print(f"   采样率: 16000 Hz")
+                print(f"   增强功能状态: {'启用' if enhancer.enabled else '禁用'}")
+                print("   ✅ 音频增强器初始化成功")
+            else:
+                print("   ⚠️ AudioEnhancer类获取失败")
         else:
             print("   ⚠️ AudioEnhancer类不可用，跳过此测试")
             
@@ -126,23 +131,27 @@ def test_audio_processing():
         # 测试音频增强处理
         print("2. 测试音频增强处理...")
         if hasattr(vosk, 'AudioEnhancer'):
-            enhancer = vosk.AudioEnhancer(sample_rate=16000)
-            
-            # 测试不同降噪强度
-            test_strengths = [0.3, 0.5, 0.7]
-            for strength in test_strengths:
-                enhancer.set_noise_reduction(strength)
-                processed_data = enhancer.enhance_audio(audio_data)
-                print(f"   降噪强度 {strength}: {len(processed_data)} bytes")
-            
-            # 测试不同增益设置
-            test_gains = [0.5, 0.7, 0.9]
-            for gain in test_gains:
-                enhancer.set_gain_target(gain)
-                processed_data = enhancer.enhance_audio(audio_data)
-                print(f"   增益目标 {gain}: {len(processed_data)} bytes")
-            
-            print("   ✅ 音频增强处理测试完成")
+            AudioEnhancerClass = getattr(vosk, 'AudioEnhancer', None)
+            if AudioEnhancerClass:
+                enhancer = AudioEnhancerClass(sample_rate=16000)
+                
+                # 测试不同降噪强度
+                test_strengths = [0.3, 0.5, 0.7]
+                for strength in test_strengths:
+                    enhancer.set_noise_reduction(strength)
+                    processed_data = enhancer.enhance_audio(audio_data)
+                    print(f"   降噪强度 {strength}: {len(processed_data)} bytes")
+                
+                # 测试不同增益设置
+                test_gains = [0.5, 0.7, 0.9]
+                for gain in test_gains:
+                    enhancer.set_gain_target(gain)
+                    processed_data = enhancer.enhance_audio(audio_data)
+                    print(f"   增益目标 {gain}: {len(processed_data)} bytes")
+                
+                print("   ✅ 音频增强处理测试完成")
+            else:
+                print("   ⚠️ AudioEnhancer类获取失败")
         else:
             print("   ⚠️ 音频增强器不可用，跳过处理测试")
             
@@ -196,45 +205,49 @@ def test_performance_impact():
         print("1. 测试音频处理性能...")
         
         if hasattr(vosk, 'AudioEnhancer'):
-            enhancer = vosk.AudioEnhancer(sample_rate=16000)
-            
-            # 生成较大的测试数据
-            sample_rate = 16000
-            duration = 5.0  # 5秒音频
-            samples = int(sample_rate * duration)
-            audio_array = np.random.randn(samples).astype(np.float32)
-            audio_data = (audio_array * 32767).astype(np.int16).tobytes()
-            
-            # 测试处理时间
-            iterations = 10
-            total_time = 0
-            
-            print(f"   测试数据: {len(audio_data)} bytes ({duration}秒)")
-            print(f"   测试轮次: {iterations}")
-            
-            for i in range(iterations):
-                start_time = time.time()
-                enhanced_data = enhancer.enhance_audio(audio_data)
-                end_time = time.time()
+            AudioEnhancerClass = getattr(vosk, 'AudioEnhancer', None)
+            if AudioEnhancerClass:
+                enhancer = AudioEnhancerClass(sample_rate=16000)
                 
-                processing_time = (end_time - start_time) * 1000  # 转换为毫秒
-                total_time += processing_time
+                # 生成较大的测试数据
+                sample_rate = 16000
+                duration = 5.0  # 5秒音频
+                samples = int(sample_rate * duration)
+                audio_array = np.random.randn(samples).astype(np.float32)
+                audio_data = (audio_array * 32767).astype(np.int16).tobytes()
                 
-                if i == 0:
-                    print(f"   首次处理: {processing_time:.2f}ms")
-            
-            avg_time = total_time / iterations
-            realtime_factor = (duration * 1000) / avg_time  # 实时倍数
-            
-            print(f"   平均处理时间: {avg_time:.2f}ms")
-            print(f"   实时倍数: {realtime_factor:.1f}x")
-            
-            if realtime_factor > 10:
-                print("   ✅ 性能优秀，适合实时应用")
-            elif realtime_factor > 5:
-                print("   ✅ 性能良好，可用于实时应用")
+                # 测试处理时间
+                iterations = 10
+                total_time = 0
+                
+                print(f"   测试数据: {len(audio_data)} bytes ({duration}秒)")
+                print(f"   测试轮次: {iterations}")
+                
+                for i in range(iterations):
+                    start_time = time.time()
+                    enhanced_data = enhancer.enhance_audio(audio_data)
+                    end_time = time.time()
+                    
+                    processing_time = (end_time - start_time) * 1000  # 转换为毫秒
+                    total_time += processing_time
+                    
+                    if i == 0:
+                        print(f"   首次处理: {processing_time:.2f}ms")
+                
+                avg_time = total_time / iterations
+                realtime_factor = (duration * 1000) / avg_time  # 实时倍数
+                
+                print(f"   平均处理时间: {avg_time:.2f}ms")
+                print(f"   实时倍数: {realtime_factor:.1f}x")
+                
+                if realtime_factor > 10:
+                    print("   ✅ 性能优秀，适合实时应用")
+                elif realtime_factor > 5:
+                    print("   ✅ 性能良好，可用于实时应用")
+                else:
+                    print("   ⚠️ 性能一般，可能影响实时性")
             else:
-                print("   ⚠️ 性能一般，可能影响实时性")
+                print("   ⚠️ AudioEnhancer类获取失败")
                 
         else:
             print("   ⚠️ 音频增强器不可用，跳过性能测试")
@@ -303,14 +316,15 @@ def main():
     
     # 系统信息
     print(f"Python版本: {sys.version}")
-    print(f"numpy可用: {'是' if 'numpy' in sys.modules or importnumpy() else '否'}")
     
-    def importnumpy():
+    def check_numpy():
         try:
             import numpy
             return True
-        except:
+        except ImportError:
             return False
+    
+    print(f"numpy可用: {'是' if 'numpy' in sys.modules or check_numpy() else '否'}")
     
     # 运行测试
     passed, total = generate_test_report()

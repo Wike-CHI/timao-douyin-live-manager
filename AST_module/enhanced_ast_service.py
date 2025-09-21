@@ -199,6 +199,7 @@ class EnhancedASTService:
                 raise ValueError("音频数据无效或过短")
             
             # 2. 检查缓存
+            cache_key = None
             if self.result_cache and enable_enhancements:
                 cache_key = self._generate_cache_key(audio_data, processing_types)
                 if cache_key in self.result_cache:
@@ -290,7 +291,7 @@ class EnhancedASTService:
             result.processing_time_ms = (time.time() - start_time) * 1000
             
             # 10. 缓存结果
-            if self.result_cache and enable_enhancements:
+            if self.result_cache and enable_enhancements and cache_key:
                 self._cache_result(cache_key, result)
             
             # 11. 更新统计
@@ -457,6 +458,9 @@ class EnhancedASTService:
     
     def _cache_result(self, cache_key: str, result: EnhancedTranscriptionResult):
         """缓存结果"""
+        if not self.result_cache:
+            return
+            
         if len(self.result_cache) >= self.config.cache_size:
             # 移除最旧的缓存项
             oldest_key = next(iter(self.result_cache))

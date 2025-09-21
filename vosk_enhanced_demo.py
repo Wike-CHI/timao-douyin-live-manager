@@ -20,6 +20,7 @@ import os
 import time
 import logging
 from pathlib import Path
+from typing import Optional
 
 # 添加VOSK模块到路径
 vosk_path = Path(__file__).parent / "vosk-api" / "python"
@@ -27,7 +28,15 @@ sys.path.insert(0, str(vosk_path))
 
 try:
     import vosk
-    from vosk import Model, EnhancedKaldiRecognizer
+    from vosk import Model
+    # 尝试导入增强版识别器，如果不存在则使用基础版本
+    EnhancedKaldiRecognizer = getattr(vosk, 'EnhancedKaldiRecognizer', None)
+    if EnhancedKaldiRecognizer is not None:
+        ENHANCED_RECOGNIZER_AVAILABLE = True
+    else:
+        from vosk import KaldiRecognizer as EnhancedKaldiRecognizer
+        ENHANCED_RECOGNIZER_AVAILABLE = False
+        
     import pyaudio
     import numpy as np
 except ImportError as e:
@@ -43,7 +52,7 @@ logger = logging.getLogger(__name__)
 class VoskEnhancedDemo:
     """VOSK增强语音识别演示类"""
     
-    def __init__(self, model_path: str = None, model_name: str = None):
+    def __init__(self, model_path: Optional[str] = None, model_name: Optional[str] = None):
         """
         初始化演示程序
         
@@ -74,13 +83,24 @@ class VoskEnhancedDemo:
         
         # 初始化增强版识别器
         logger.info("正在初始化增强版识别器...")
-        self.recognizer = EnhancedKaldiRecognizer(
-            self.model, 
-            self.sample_rate,
-            enable_audio_enhancement=True,
-            noise_reduction_strength=0.6,  # 较强的降噪
-            gain_target=0.8  # 较高的增益目标
-        )
+        if ENHANCED_RECOGNIZER_AVAILABLE and EnhancedKaldiRecognizer is not None:
+            # 使用增强版识别器
+            self.recognizer = EnhancedKaldiRecognizer(self.model, self.sample_rate)
+            # 动态设置增强参数（如果支持）
+            if hasattr(self.recognizer, 'enable_audio_enhancement'):
+                getattr(self.recognizer, 'enable_audio_enhancement', lambda x: None)(True)
+            if hasattr(self.recognizer, 'noise_reduction_strength'):
+                getattr(self.recognizer, 'noise_reduction_strength', lambda x: None)(0.6)
+            if hasattr(self.recognizer, 'gain_target'):
+                getattr(self.recognizer, 'gain_target', lambda x: None)(0.8)
+        else:
+            # 使用基础识别器
+            if EnhancedKaldiRecognizer is not None:
+                self.recognizer = EnhancedKaldiRecognizer(self.model, self.sample_rate)
+            else:
+                # 如果连基础识别器都不可用，则抛出错误
+                raise ImportError("无法导入VOSK识别器")
+            logger.warning("使用基础识别器，音频增强功能不可用")
         
         # 配置识别器参数
         self.recognizer.SetWords(True)
@@ -106,7 +126,7 @@ class VoskEnhancedDemo:
             logger.info("可用音频设备:")
             for i in range(self.audio.get_device_count()):
                 info = self.audio.get_device_info_by_index(i)
-                if info['maxInputChannels'] > 0:
+                if int(info.get('maxInputChannels', 0)) > 0:
                     logger.info(f"  设备 {i}: {info['name']} (输入通道: {info['maxInputChannels']})")
             
             # 创建音频流
@@ -156,28 +176,38 @@ class VoskEnhancedDemo:
                 elif command == 's':
                     self._show_statistics()
                 elif command.startswith('n '):
-                    try:
-                        strength = float(command.split()[1])
-                        self.recognizer.SetNoiseReduction(strength)
-                        print(f"✅ 降噪强度已设置为: {strength:.2f}")
-                    except (ValueError, IndexError):
-                        print("❌ 无效的降噪强度值。使用格式: n 0.5")
+                    if ENHANCED_RECOGNIZER_AVAILABLE and hasattr(self.recognizer, 'SetNoiseReduction'):
+                        try:
+                            strength = float(command.split()[1])
+                            getattr(self.recognizer, 'SetNoiseReduction')(strength)
+                            print(f"✅ 降噪强度已设置为: {strength:.2f}")
+                        except (ValueError, IndexError):
+                            print("❌ 无效的降噪强度值。使用格式: n 0.5")
+                    else:
+                        print("❌ 音频增强功能不可用")
                 elif command.startswith('g '):
-                    try:
-                        target = float(command.split()[1])
-                        self.recognizer.SetGainTarget(target)
-                        print(f"✅ 增益目标已设置为: {target:.2f}")
-                    except (ValueError, IndexError):
-                        print("❌ 无效的增益目标值。使用格式: g 0.8")
+                    if ENHANCED_RECOGNIZER_AVAILABLE and hasattr(self.recognizer, 'SetGainTarget'):
+                        try:
+                            target = float(command.split()[1])
+                            getattr(self.recognizer, 'SetGainTarget')(target)
+                            print(f"✅ 增益目标已设置为: {target:.2f}")
+                        except (ValueError, IndexError):
+                            print("❌ 无效的增益目标值。使用格式: g 0.8")
+                    else:
+                        print("❌ 音频增强功能不可用")
                 elif command == 'e':
-                    # 切换音频增强
-                    stats = self.recognizer.GetEnhancementStats()
-                    current_state = stats.get("enhancement_enabled", False)
-                    self.recognizer.EnableAudioEnhancement(not current_state)
-                    status = "禁用" if current_state else "启用"
-                    print(f"✅ 音频增强已{status}")
+                    if ENHANCED_RECOGNIZER_AVAILABLE and hasattr(self.recognizer, 'GetEnhancementStats') and hasattr(self.recognizer, 'EnableAudioEnhancement'):
+                        # 切换音频增强
+                        stats = getattr(self.recognizer, 'GetEnhancementStats')()
+                        current_state = stats.get("enhancement_enabled", False)
+                        getattr(self.recognizer, 'EnableAudioEnhancement')(not current_state)
+                        status = "禁用" if current_state else "启用"
+                        print(f"✅ 音频增强已{status}")
+                    else:
+                        print("❌ 音频增强功能不可用")
                 elif command == 'r':
-                    self.recognizer.ResetEnhancementStats()
+                    if ENHANCED_RECOGNIZER_AVAILABLE and hasattr(self.recognizer, 'ResetEnhancementStats'):
+                        getattr(self.recognizer, 'ResetEnhancementStats')()
                     self.recognition_stats = {
                         "total_chunks": 0,
                         "recognition_time": 0.0,
@@ -207,7 +237,15 @@ class VoskEnhancedDemo:
             
             while True:
                 # 读取音频数据
-                data = self.stream.read(self.chunk_size, exception_on_overflow=False)
+                if self.stream:
+                    try:
+                        data = self.stream.read(self.chunk_size, exception_on_overflow=False)
+                    except Exception as e:
+                        logger.warning(f"音频读取错误: {e}")
+                        continue
+                else:
+                    logger.error("音频流未初始化")
+                    break
                 
                 # 更新统计
                 self.recognition_stats["total_chunks"] += 1
@@ -254,9 +292,12 @@ class VoskEnhancedDemo:
     
     def _show_realtime_stats(self):
         """显示实时统计信息"""
-        enhancement_stats = self.recognizer.GetEnhancementStats()
+        if ENHANCED_RECOGNIZER_AVAILABLE and hasattr(self.recognizer, 'GetEnhancementStats'):
+            enhancement_stats = getattr(self.recognizer, 'GetEnhancementStats')()
+        else:
+            enhancement_stats = {}
         
-        print(f"\\n📊 实时统计:")
+        print(f"\n📊 实时统计:")
         print(f"   处理块数: {self.recognition_stats['total_chunks']}")
         print(f"   成功识别: {self.recognition_stats['successful_recognitions']}")
         print(f"   音频增强: {'启用' if enhancement_stats.get('enhancement_enabled', False) else '禁用'}")
@@ -266,9 +307,12 @@ class VoskEnhancedDemo:
     
     def _show_statistics(self):
         """显示详细统计信息"""
-        enhancement_stats = self.recognizer.GetEnhancementStats()
+        if ENHANCED_RECOGNIZER_AVAILABLE and hasattr(self.recognizer, 'GetEnhancementStats'):
+            enhancement_stats = getattr(self.recognizer, 'GetEnhancementStats')()
+        else:
+            enhancement_stats = {}
         
-        print("\\n" + "="*50)
+        print("\n" + "="*50)
         print("📊 详细统计信息")
         print("="*50)
         
@@ -289,7 +333,7 @@ class VoskEnhancedDemo:
             print(f"   平均识别时间: {avg_time*1000:.1f}ms")
         
         # 音频增强统计
-        print("\\n🔧 音频增强统计:")
+        print("\n🔧 音频增强统计:")
         print(f"   增强功能状态: {'启用' if enhancement_stats.get('enhancement_enabled', False) else '禁用'}")
         print(f"   增强处理块数: {enhancement_stats.get('processed_chunks', 0)}")
         

@@ -1,30 +1,37 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `electron/` hosts the desktop shell; `main.js` boots the Flask API and loads the renderer UI.
-- `server/` runs Flask (`app.py`) and FastAPI (`app/main.py`) services with shared helpers in `utils/`, NLP flows in `nlp/`, and ingest jobs in `ingest/`.
-- Speech tooling sits in `AST_module/`, VOSK assets in `vosk-api/`, prototype UIs in `frontend/`, and legacy collectors in `f2/`; additional references live in `docs/`.
+- `electron/` is the desktop shell; `main.js` spawns `server/app.py` and renders the UI.
+- `server/` hosts Flask (`app.py`), FastAPI (`app/main.py`), helpers (`utils/`), NLP (`nlp/`), ingest (`ingest/`), and AI (`ai/`).
+- Streaming and speech assets live in `AST_module/` and `vosk-api/`; web assets sit in `frontend/`; documentation and legacy collectors stay in `docs/` and `f2/`.
+
+## Flask API Development
+- `server/app.py` provides REST endpoints plus `/api/stream/comments` SSE; keep responses lightweight for Electron readiness probes.
+- Reuse `server/utils/ring_buffer.py` for bounded streaming buffers instead of ad-hoc queues.
+- Tweak hotword detection inside `server/nlp/hotwords.py` and update LLM prompt templates in `server/ai/tips.py`.
 
 ## Build, Test, and Development Commands
-- Install JavaScript deps with `npm ci`; bootstrap Flask deps via `pip install -r requirements.txt` and FastAPI extras via `pip install -r server/requirements.txt`.
-- Start the full Electron + Flask stack using `npm run dev`, or launch only the shell for UI debugging with `npm run electron`.
-- Package the desktop app with `npm run build`; lint JS via `npm run lint` and run renderer tests through `npm test`.
-- Spin up the experimental FastAPI stack for AST workflows with `uvicorn server.app.main:app --reload --port 8000`.
+- Install deps: `npm ci`, `pip install -r requirements.txt`, and `pip install -r server/requirements.txt` for FastAPI extras.
+- Run stacks: `npm run dev` (Electron + Flask), `npm run electron` (UI only), `uvicorn server.app.main:app --reload --port 8000` (FastAPI AST).
+- Ship and sanity-check: `npm run build`, `npm run lint`, `npm test`.
 
 ## Coding Style & Naming Conventions
-- Use 4-space indentation for Python, keep modules snake_case, classes PascalCase, and functions snake_case with type hints when available.
-- JavaScript uses 2-space indentation, camelCase for functions/variables, and PascalCase for components. Run `npm run lint` and address `eslint` feedback before committing.
-- Format Python code with `black`, enforce linting via `flake8`, and log through `server/utils/` helpers instead of `print`.
+- Python: 4-space indent, snake_case modules/functions, PascalCase classes, type hints when practical. Format with `black`, lint with `flake8`, and use `server/utils/logger` for logging.
+- JavaScript: 2-space indent, camelCase variables/functions, PascalCase components. Resolve all `npm run lint` findings before committing.
 
 ## Testing Guidelines
-- House Jest specs under `electron/__tests__/` or `frontend/js/__tests__/`, using `*.spec.js` filenames and mocking network calls for determinism.
-- Python tests belong under `tests/` (or scoped `server/tests/`) and should start with `test_`. Use `pytest` for new suites and cover success, failure, and websocket flows.
-- Validate AST integrations with short end-to-end scripts when practical, capturing audio sample paths in the test notes.
+- Place Jest specs in `electron/__tests__/` or `frontend/js/__tests__/` using `*.spec.js`; stub network calls.
+- Python tests belong in `tests/` or `server/tests/`, named `test_*.py`; run with `pytest` covering success, failure, SSE, and websocket paths.
+- Document audio fixtures when validating AST integrations so runs are reproducible.
 
 ## Commit & Pull Request Guidelines
-- Follow the existing Conventional Commits style (`feat:`, `fix:`, `chore:`), keep subjects under ~70 chars, and bundle one logical change per commit.
-- PRs should link issues, list executed tests, and include UI screenshots or API traces when behavior changes. Call out FastAPI vs Flask impacts explicitly.
+- Follow Conventional Commits (`feat:`, `fix:`, `chore:`), keep subjects under ~70 chars, and isolate logical changes.
+- PRs link issues, list executed tests, and attach UI captures or API traces for behavior shifts; note whether changes touch Flask, FastAPI, or both.
 
 ## Security & Configuration Tips
-- Keep secrets out of version control; avoid committing modified `config.json` or local model paths.
-- Document VOSK model downloads and checksums when sharing updates, and double-check CORS/websocket origins in both Flask and FastAPI configs before release.
+- Keep secrets out of git, including `config.json` edits and local model paths; record VOSK download locations and checksums in PR notes.
+- Review CORS and websocket origins in Flask (`server/app.py`) and FastAPI (`server/app/main.py`) before deployment.
+
+## Agent Playbook
+- Use Codex for rapid route scaffolding, data-structure tuning (e.g., ring buffers), and optimizing hotword or prompt workflows.
+- Align larger refactors with the 6A workflow and outline side effects before merging.

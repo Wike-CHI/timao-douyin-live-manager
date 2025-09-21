@@ -88,7 +88,7 @@ class TestEnhancedASTService(unittest.TestCase):
             self.assertIsNotNone(result.emotional_features)
             self.assertIsNotNone(result.confidence_breakdown)
             self.assertIsNotNone(result.processing_time_ms)
-            self.assertGreater(result.processing_time_ms, 0)
+            self.assertGreater(result.processing_time_ms or 0, 0)
             
             return result
         
@@ -149,19 +149,22 @@ class TestEnhancedASTService(unittest.TestCase):
             
             # 验证音频质量分析
             self.assertIsNotNone(enhanced_result.audio_quality)
-            self.assertGreaterEqual(enhanced_result.audio_quality.noise_level, 0.0)
-            self.assertLessEqual(enhanced_result.audio_quality.noise_level, 1.0)
+            if enhanced_result.audio_quality:
+                self.assertGreaterEqual(enhanced_result.audio_quality.noise_level, 0.0)
+                self.assertLessEqual(enhanced_result.audio_quality.noise_level, 1.0)
             
             # 验证情感分析
             self.assertIsNotNone(enhanced_result.emotional_features)
-            self.assertIsInstance(enhanced_result.emotional_features.emotion_type, EmotionType)
-            self.assertGreaterEqual(enhanced_result.emotional_features.intensity, 0.0)
-            self.assertLessEqual(enhanced_result.emotional_features.intensity, 1.0)
+            if enhanced_result.emotional_features:
+                self.assertIsInstance(enhanced_result.emotional_features.emotion_type, EmotionType)
+                self.assertGreaterEqual(enhanced_result.emotional_features.intensity, 0.0)
+                self.assertLessEqual(enhanced_result.emotional_features.intensity, 1.0)
             
             # 验证置信度分解
             self.assertIsNotNone(enhanced_result.confidence_breakdown)
-            self.assertGreaterEqual(enhanced_result.confidence_breakdown.final_confidence, 0.0)
-            self.assertLessEqual(enhanced_result.confidence_breakdown.final_confidence, 1.0)
+            if enhanced_result.confidence_breakdown:
+                self.assertGreaterEqual(enhanced_result.confidence_breakdown.final_confidence, 0.0)
+                self.assertLessEqual(enhanced_result.confidence_breakdown.final_confidence, 1.0)
             
             return enhanced_result, basic_result
         
@@ -170,7 +173,9 @@ class TestEnhancedASTService(unittest.TestCase):
         enhanced_result, basic_result = loop.run_until_complete(run_test())
         
         # 增强版处理时间可能更长（因为有更多处理步骤）
-        self.assertGreaterEqual(enhanced_result.processing_time_ms, basic_result.processing_time_ms)
+        enhanced_time = enhanced_result.processing_time_ms or 0.0
+        basic_time = basic_result.processing_time_ms or 0.0
+        self.assertGreaterEqual(enhanced_time, basic_time)
     
     def test_error_handling(self):
         """测试错误处理"""

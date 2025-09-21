@@ -205,7 +205,7 @@ class EnhancedConfigManager:
         """加载情感词汇配置"""
         cache_key = "emotion_vocabulary"
         
-        if not force_reload and self.enable_cache:
+        if not force_reload and self.enable_cache and self.cache:
             cached = self.cache.get(cache_key)
             if cached:
                 return cached
@@ -237,7 +237,7 @@ class EnhancedConfigManager:
                 self.loaded_configs[cache_key] = config
                 
                 # 缓存配置
-                if self.enable_cache:
+                if self.enable_cache and self.cache:
                     self.cache.set(cache_key, config)
                 
                 self.logger.info("情感词汇配置加载成功")
@@ -251,7 +251,7 @@ class EnhancedConfigManager:
         """加载算法配置"""
         cache_key = "algorithm_config"
         
-        if not force_reload and self.enable_cache:
+        if not force_reload and self.enable_cache and self.cache:
             cached = self.cache.get(cache_key)
             if cached:
                 return cached
@@ -283,7 +283,7 @@ class EnhancedConfigManager:
                 self.loaded_configs[cache_key] = config
                 
                 # 缓存配置
-                if self.enable_cache:
+                if self.enable_cache and self.cache:
                     self.cache.set(cache_key, config)
                 
                 self.logger.info("算法配置加载成功")
@@ -305,7 +305,7 @@ class EnhancedConfigManager:
             self.logger.warning(f"未找到情感词汇: {emotion_type}.{category}")
             return []
     
-    def get_product_vocabulary(self, category: str, subcategory: str = None) -> List[Dict[str, Any]]:
+    def get_product_vocabulary(self, category: str, subcategory: Optional[str] = None) -> List[Dict[str, Any]]:
         """获取产品词汇"""
         config = self.load_emotion_vocabulary()
         if not config:
@@ -332,7 +332,7 @@ class EnhancedConfigManager:
             self.logger.warning(f"未找到网络用语: {category}")
             return []
     
-    def get_algorithm_config(self, section: str = None) -> Union[Dict[str, Any], Any]:
+    def get_algorithm_config(self, section: Optional[str] = None) -> Union[Dict[str, Any], Any]:
         """获取算法配置"""
         config = self.load_algorithm_config()
         if not config:
@@ -383,7 +383,7 @@ class EnhancedConfigManager:
                     self.logger.info(f"配置更新成功: {config_type}.{section}")
                     
                     # 清除缓存
-                    if self.enable_cache:
+                    if self.enable_cache and self.cache:
                         cache_key = f"{config_type}_config" if config_type == "algorithm" else "emotion_vocabulary"
                         self.cache.set(cache_key, config)
                     
@@ -402,7 +402,7 @@ class EnhancedConfigManager:
             self.logger.info("开始重新加载所有配置")
             
             # 清除缓存
-            if self.enable_cache:
+            if self.enable_cache and self.cache:
                 self.cache.clear()
             
             # 重新加载配置
@@ -428,7 +428,7 @@ class EnhancedConfigManager:
     
     def get_cache_stats(self) -> Dict[str, Any]:
         """获取缓存统计"""
-        if not self.enable_cache:
+        if not self.enable_cache or not self.cache:
             return {"cache_enabled": False}
         
         return {
@@ -464,7 +464,7 @@ def get_emotion_words(emotion_type: str, category: str = "high_frequency") -> Li
     """便捷函数：获取情感词汇"""
     return get_config_manager().get_emotion_words(emotion_type, category)
 
-def get_algorithm_config(section: str = None) -> Union[Dict[str, Any], Any]:
+def get_algorithm_config(section: Optional[str] = None) -> Union[Dict[str, Any], Any]:
     """便捷函数：获取算法配置"""
     return get_config_manager().get_algorithm_config(section)
 
