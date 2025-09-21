@@ -19,7 +19,7 @@ logging.basicConfig(
 # 创建FastAPI应用
 app = FastAPI(
     title="提猫直播助手 API",
-    description="基于F2 + VOSK的抖音直播弹幕抓取和语音转录服务",
+    description="基于自研抓取器 + VOSK 的抖音直播弹幕抓取和语音转录服务",
     version="1.0.0"
 )
 
@@ -129,7 +129,7 @@ async def root():
         <div class="container">
             <div class="cat">🐱</div>
             <h1>提猫直播助手</h1>
-            <p>基于F2 + VOSK的抖音直播弹幕抓取和语音转录服务</p>
+            <p>基于自研抓取器 + VOSK 的抖音直播弹幕抓取和语音转录服务</p>
             
             <div class="status">
                 <h3>🚀 服务状态</h3>

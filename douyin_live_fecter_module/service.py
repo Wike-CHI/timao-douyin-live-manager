@@ -1,290 +1,389 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-DouyinLiveFetcher: 基于 F2 的抖音直播互动数据抓取器
-- 提供启动/停止/状态查询接口
-- 通过适配器将事件输出到目标系统
-- 封装 F2 DouyinHandler 以保持与 server/app/services/douyin_service 对齐
-"""
-from __future__ import annotations
 
-import sys
+"""
+抖音直播抓取模块 - 基于项目内置的 DouyinLiveWebFetcher 实现
+"""
+
 import asyncio
 import logging
+import threading
+import time
 from dataclasses import dataclass
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Dict, Any, Optional, Callable, List
+from enum import Enum
+import sys
+import os
 
-# 动态加入 F2 路径
-F2_PATH = Path(__file__).resolve().parent.parent / "f2"
-if str(F2_PATH) not in sys.path:
-    sys.path.insert(0, str(F2_PATH))
+# 添加DouyinLiveWebFetcher路径
+DOUYIN_WEB_FETCHER_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'DouyinLiveWebFetcher')
+if DOUYIN_WEB_FETCHER_PATH not in sys.path:
+    sys.path.insert(0, DOUYIN_WEB_FETCHER_PATH)
 
 try:
-    from f2.apps.douyin.handler import DouyinHandler
-    from f2.apps.douyin.utils import TokenManager
-except Exception as e:
-    logging.getLogger(__name__).error(f"导入 F2 模块失败: {e}")
-    raise
+    from liveMan import DouyinLiveWebFetcher
+    DOUYIN_WEB_FETCHER_AVAILABLE = True
+except ImportError as e:
+    print(f"DouyinLiveWebFetcher不可用: {e}")
+    DOUYIN_WEB_FETCHER_AVAILABLE = False
 
-from .adapters import LiveDataAdapter, NoopAdapter
+
+class FetcherStatus(Enum):
+    """抓取器状态枚举"""
+    IDLE = "idle"
+    STARTING = "starting"
+    RUNNING = "running"
+    STOPPING = "stopping"
+    ERROR = "error"
 
 
 @dataclass
-class FetcherStatus:
-    is_running: bool
-    room_id: Optional[str]
-    live_id: Optional[str]
-    callbacks_count: int
+class FetcherStatusInfo:
+    """抓取器状态信息"""
+    status: FetcherStatus
+    room_id: Optional[str] = None
+    live_id: Optional[str] = None
+    error_message: Optional[str] = None
+    start_time: Optional[float] = None
+    message_count: int = 0
 
 
 class DouyinLiveFetcher:
-    """抖音直播互动数据抓取器"""
-
-    def __init__(self, adapter: Optional[LiveDataAdapter] = None) -> None:
-        self._logger = logging.getLogger(__name__)
-        self._adapter: LiveDataAdapter = adapter or NoopAdapter()
-        self._handler_http: Optional[DouyinHandler] = None
-        self._handler_wss: Optional[DouyinHandler] = None
-        self._is_running: bool = False
-        self._room_id: Optional[str] = None
-        self._live_id: Optional[str] = None
-
-        # F2 请求参数
-        self._http_kwargs = {
-            "headers": {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-                "Referer": "https://www.douyin.com/",
-                "Content-Type": "application/protobuffer;",
-            },
-            "proxies": {"http://": None, "https://": None},
-            "timeout": 10,
-            "cookie": f"ttwid={TokenManager.gen_ttwid()}; __live_version__=\"1.1.2.6631\"; live_use_vvc=\"false\";",
-        }
-        self._wss_kwargs = {
-            "headers": {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-                "Upgrade": "websocket",
-                "Connection": "Upgrade",
-            },
-            "proxies": {"http://": None, "https://": None},
-            "timeout": 10,
-            "show_message": False,
-            "cookie": "",
-        }
-
-        # WebSocket 回调映射
-        self._wss_callbacks = {
-            "WebcastChatMessage": self._on_chat,
-            "WebcastGiftMessage": self._on_gift,
-            "WebcastLikeMessage": self._on_like,
-            "WebcastMemberMessage": self._on_member,
-            "WebcastSocialMessage": self._on_social,
-            "WebcastRoomUserSeqMessage": self._on_room_stats,
-        }
-
-    def _normalize_cookie(self, cookie: Union[str, Dict[str, Any], None]) -> Optional[str]:
-        if cookie is None:
-            return None
-        if isinstance(cookie, str):
-            return cookie.strip()
-        if isinstance(cookie, dict):
-            # 简单拼接为 k=v; k2=v2 格式
-            parts = []
-            for k, v in cookie.items():
-                parts.append(f"{k}={v}")
-            return "; ".join(parts)
-        return str(cookie)
-
-    async def start(self, live_id: str, cookie: Optional[Union[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
-        """启动抓取，可选传入 cookie 覆盖默认的 ttwid 方案"""
-        if self._is_running:
-            return {"success": False, "error": "fetcher already running"}
-
-        try:
-            # 应用外部 cookie 覆盖
-            norm_cookie = self._normalize_cookie(cookie)
-            if norm_cookie:
-                self._http_kwargs["cookie"] = norm_cookie
-                self._wss_kwargs["cookie"] = norm_cookie
-                self._logger.info("已应用外部提供的 Cookie")
-
-            self._logger.info(f"启动抖音抓取 live_id={live_id}")
-            self._handler_http = DouyinHandler(self._http_kwargs)
-
-            # 游客信息
-            user = await self._handler_http.fetch_query_user()
-            if not user:
-                raise RuntimeError("获取游客信息失败")
-
-            room = await self._handler_http.fetch_user_live_videos(live_id)
-            if not room:
-                raise RuntimeError("获取直播间信息失败")
-            if getattr(room, "live_status", 0) != 2:
-                raise RuntimeError("直播间未开播")
-
-            live_im = await self._handler_http.fetch_live_im(
-                room_id=room.room_id, unique_id=user.user_unique_id
-            )
-            if not live_im:
-                raise RuntimeError("获取直播间IM信息失败")
-
-            self._room_id = room.room_id
-            self._live_id = live_id
-            self._is_running = True
-
-            # 适配器 on_start
-            await self._adapter.on_start(
-                {
-                    "room_id": self._room_id,
-                    "live_id": self._live_id,
-                    "user_unique_id": user.user_unique_id,
-                    "cursor": live_im.cursor,
-                }
-            )
-
-            # 启动 WSS 监听（后台任务）
-            asyncio.create_task(
-                self._run_wss(
-                    room_id=self._room_id,
-                    user_unique_id=user.user_unique_id,
-                    internal_ext=live_im.internal_ext,
-                    cursor=live_im.cursor,
-                )
-            )
-
-            return {
-                "success": True,
-                "room_id": self._room_id,
-                "live_id": self._live_id,
-                "user_unique_id": user.user_unique_id,
-            }
-        except Exception as e:
-            self._logger.error(f"启动抓取失败: {e}")
-            await self.stop()
-            return {"success": False, "error": str(e)}
-
-    async def stop(self) -> Dict[str, Any]:
-        """停止抓取"""
-        if not self._is_running:
-            return {"success": False, "error": "fetcher not running"}
-
-        self._is_running = False
-        self._room_id = None
-        self._live_id = None
-        try:
-            await self._adapter.on_stop()
-        except Exception as e:
-            self._logger.warning(f"停止适配器时出错: {e}")
-        return {"success": True}
-
-    def status(self) -> FetcherStatus:
-        return FetcherStatus(
-            is_running=self._is_running,
-            room_id=self._room_id,
-            live_id=self._live_id,
-            callbacks_count=1,  # 适配器作为单一出口
+    """
+    抖音直播抓取器 - 基于 DouyinLiveWebFetcher 实现
+    """
+    
+    def __init__(self, adapters: List[Any] = None):
+        """
+        初始化抓取器
+        
+        Args:
+            adapters: 适配器列表，用于处理抓取到的数据
+        """
+        self.adapters = adapters or []
+        self.logger = logging.getLogger(__name__)
+        
+        # 状态管理
+        self._status = FetcherStatus.IDLE
+        self._status_info = FetcherStatusInfo(status=self._status)
+        self._fetcher_thread = None
+        self._stop_event = threading.Event()
+        
+        # DouyinLiveWebFetcher实例
+        self._web_fetcher = None
+        self._current_live_id = None
+        
+        # 回调函数
+        self._on_message_callback = None
+        self._on_status_change_callback = None
+        
+        # 检查依赖可用性
+        if not DOUYIN_WEB_FETCHER_AVAILABLE:
+            self.logger.error("DouyinLiveWebFetcher不可用，无法启动抓取")
+    
+    def set_message_callback(self, callback: Callable[[str, Dict[str, Any]], None]):
+        """设置消息回调函数"""
+        self._on_message_callback = callback
+    
+    def set_status_change_callback(self, callback: Callable[[FetcherStatusInfo], None]):
+        """设置状态变化回调函数"""
+        self._on_status_change_callback = callback
+    
+    def _update_status(self, status: FetcherStatus, **kwargs):
+        """更新状态"""
+        self._status = status
+        self._status_info.status = status
+        
+        for key, value in kwargs.items():
+            if hasattr(self._status_info, key):
+                setattr(self._status_info, key, value)
+        
+        if self._on_status_change_callback:
+            try:
+                self._on_status_change_callback(self._status_info)
+            except Exception as e:
+                self.logger.error(f"状态变化回调执行失败: {e}")
+    
+    def _send_message(self, message_type: str, data: Dict[str, Any]):
+        """发送消息到适配器"""
+        self._status_info.message_count += 1
+        
+        # 调用回调函数
+        if self._on_message_callback:
+            try:
+                self._on_message_callback(message_type, data)
+            except Exception as e:
+                self.logger.error(f"消息回调执行失败: {e}")
+        
+        # 发送到适配器
+        for adapter in self.adapters:
+            try:
+                if hasattr(adapter, 'handle_message'):
+                    adapter.handle_message(message_type, data)
+                elif hasattr(adapter, 'on_message'):
+                    adapter.on_message(message_type, data)
+            except Exception as e:
+                self.logger.error(f"适配器处理消息失败: {e}")
+    
+    def start_fetch(self, live_id: str, **kwargs) -> bool:
+        """
+        开始抓取直播数据
+        
+        Args:
+            live_id: 直播间ID
+            **kwargs: 其他参数（兼容性保留）
+            
+        Returns:
+            bool: 启动是否成功
+        """
+        if not DOUYIN_WEB_FETCHER_AVAILABLE:
+            self.logger.error("DouyinLiveWebFetcher不可用")
+            self._update_status(FetcherStatus.ERROR, error_message="DouyinLiveWebFetcher不可用")
+            return False
+        
+        if self._status != FetcherStatus.IDLE:
+            self.logger.warning(f"抓取器状态为 {self._status.value}，无法启动")
+            return False
+        
+        self._current_live_id = live_id
+        self._stop_event.clear()
+        
+        # 启动抓取线程
+        self._fetcher_thread = threading.Thread(
+            target=self._fetch_worker,
+            args=(live_id,),
+            daemon=True
         )
-
-    async def _run_wss(self, room_id: str, user_unique_id: str, internal_ext: str, cursor: str):
+        
+        self._update_status(
+            FetcherStatus.STARTING,
+            live_id=live_id,
+            start_time=time.time(),
+            message_count=0
+        )
+        
+        self._fetcher_thread.start()
+        return True
+    
+    def stop_fetch(self) -> bool:
+        """
+        停止抓取
+        
+        Returns:
+            bool: 停止是否成功
+        """
+        if self._status not in [FetcherStatus.RUNNING, FetcherStatus.STARTING]:
+            self.logger.warning(f"抓取器状态为 {self._status.value}，无需停止")
+            return False
+        
+        self._update_status(FetcherStatus.STOPPING)
+        self._stop_event.set()
+        
+        # 停止WebFetcher
+        if self._web_fetcher:
+            try:
+                self._web_fetcher.stop()
+            except Exception as e:
+                self.logger.error(f"停止WebFetcher失败: {e}")
+        
+        # 等待线程结束
+        if self._fetcher_thread and self._fetcher_thread.is_alive():
+            self._fetcher_thread.join(timeout=5.0)
+        
+        self._update_status(FetcherStatus.IDLE)
+        return True
+    
+    def _fetch_worker(self, live_id: str):
+        """抓取工作线程"""
         try:
-            self._handler_wss = DouyinHandler(self._wss_kwargs)
-            await self._handler_wss.fetch_live_danmaku(
-                room_id=room_id,
-                user_unique_id=user_unique_id,
-                internal_ext=internal_ext,
-                cursor=cursor,
-                wss_callbacks=self._wss_callbacks,
-            )
+            self.logger.info(f"开始抓取直播间 {live_id}")
+            
+            # 创建自定义的DouyinLiveWebFetcher
+            class CustomDouyinLiveWebFetcher(DouyinLiveWebFetcher):
+                def __init__(self, live_id, parent_fetcher):
+                    super().__init__(live_id)
+                    self.parent_fetcher = parent_fetcher
+                
+                def _parseChatMsg(self, payload):
+                    """重写聊天消息处理"""
+                    try:
+                        from protobuf.douyin import ChatMessage
+                        message = ChatMessage().parse(payload)
+                        user_name = message.user.nick_name
+                        user_id = message.user.id
+                        content = message.content
+                        
+                        # 发送到适配器
+                        self.parent_fetcher._send_message('chat', {
+                            'user_id': str(user_id),
+                            'user_name': user_name,
+                            'content': content,
+                            'timestamp': time.time()
+                        })
+                    except Exception as e:
+                        self.parent_fetcher.logger.error(f"处理聊天消息失败: {e}")
+                
+                def _parseGiftMsg(self, payload):
+                    """重写礼物消息处理"""
+                    try:
+                        from protobuf.douyin import GiftMessage
+                        message = GiftMessage().parse(payload)
+                        user_name = message.user.nick_name
+                        user_id = message.user.id
+                        gift_name = message.gift.name
+                        gift_cnt = message.combo_count
+                        
+                        # 发送到适配器
+                        self.parent_fetcher._send_message('gift', {
+                            'user_id': str(user_id),
+                            'user_name': user_name,
+                            'gift_name': gift_name,
+                            'gift_count': gift_cnt,
+                            'timestamp': time.time()
+                        })
+                    except Exception as e:
+                        self.parent_fetcher.logger.error(f"处理礼物消息失败: {e}")
+                
+                def _parseLikeMsg(self, payload):
+                    """重写点赞消息处理"""
+                    try:
+                        from protobuf.douyin import LikeMessage
+                        message = LikeMessage().parse(payload)
+                        user_name = message.user.nick_name
+                        user_id = message.user.id
+                        count = message.count
+                        
+                        # 发送到适配器
+                        self.parent_fetcher._send_message('like', {
+                            'user_id': str(user_id),
+                            'user_name': user_name,
+                            'count': count,
+                            'timestamp': time.time()
+                        })
+                    except Exception as e:
+                        self.parent_fetcher.logger.error(f"处理点赞消息失败: {e}")
+                
+                def _parseMemberMsg(self, payload):
+                    """重写进入直播间消息处理"""
+                    try:
+                        from protobuf.douyin import MemberMessage
+                        message = MemberMessage().parse(payload)
+                        user_name = message.user.nick_name
+                        user_id = message.user.id
+                        gender = ["女", "男"][message.user.gender] if message.user.gender in [0, 1] else "未知"
+                        
+                        # 发送到适配器
+                        self.parent_fetcher._send_message('member', {
+                            'user_id': str(user_id),
+                            'user_name': user_name,
+                            'gender': gender,
+                            'action': 'enter',
+                            'timestamp': time.time()
+                        })
+                    except Exception as e:
+                        self.parent_fetcher.logger.error(f"处理进场消息失败: {e}")
+                
+                def _wsOnOpen(self, ws):
+                    """WebSocket连接成功"""
+                    super()._wsOnOpen(ws)
+                    self.parent_fetcher._update_status(FetcherStatus.RUNNING)
+                
+                def _wsOnError(self, ws, error):
+                    """WebSocket错误"""
+                    super()._wsOnError(ws, error)
+                    self.parent_fetcher._update_status(
+                        FetcherStatus.ERROR,
+                        error_message=str(error)
+                    )
+                
+                def _wsOnClose(self, ws, *args):
+                    """WebSocket关闭"""
+                    super()._wsOnClose(ws, *args)
+                    if not self.parent_fetcher._stop_event.is_set():
+                        # 非主动停止，可能是连接断开
+                        self.parent_fetcher.logger.warning("WebSocket连接意外断开")
+            
+            # 创建并启动WebFetcher
+            self._web_fetcher = CustomDouyinLiveWebFetcher(live_id, self)
+            
+            # 获取房间状态
+            try:
+                self._web_fetcher.get_room_status()
+                room_id = self._web_fetcher.room_id
+                self._update_status(FetcherStatus.RUNNING, room_id=room_id)
+            except Exception as e:
+                self.logger.error(f"获取房间状态失败: {e}")
+                self._update_status(FetcherStatus.ERROR, error_message=f"获取房间状态失败: {e}")
+                return
+            
+            # 开始抓取
+            self._web_fetcher.start()
+            
         except Exception as e:
-            self._logger.error(f"WSS 监听异常: {e}")
-            self._is_running = False
-
-    # 事件处理：将 F2 消息转换为统一结构并交给适配器
-    async def _on_chat(self, msg) -> None:
+            self.logger.error(f"抓取过程中发生错误: {e}")
+            self._update_status(FetcherStatus.ERROR, error_message=str(e))
+        finally:
+            if not self._stop_event.is_set():
+                self._update_status(FetcherStatus.IDLE)
+    
+    def get_status(self) -> FetcherStatusInfo:
+        """获取当前状态"""
+        return self._status_info
+    
+    def is_running(self) -> bool:
+        """检查是否正在运行"""
+        return self._status == FetcherStatus.RUNNING
+    
+    def get_room_info(self) -> Optional[Dict[str, Any]]:
+        """获取房间信息"""
+        if not self._web_fetcher:
+            return None
+        
         try:
-            data = {
-                "type": "chat",
-                "id": str(getattr(msg, "msgId", "")),
-                "username": getattr(getattr(msg, "user", None), "nickName", ""),
-                "content": getattr(msg, "content", ""),
-                "user_id": str(getattr(getattr(msg, "user", None), "id", "")),
-                "user_level": getattr(getattr(msg, "user", None), "level", 0),
-                "timestamp": datetime.now().isoformat(),
-                "room_id": self._room_id,
+            return {
+                'live_id': self._current_live_id,
+                'room_id': getattr(self._web_fetcher, 'room_id', None),
+                'ttwid': getattr(self._web_fetcher, 'ttwid', None)
             }
-            await self._adapter.handle("chat", data)
         except Exception as e:
-            self._logger.error(f"处理聊天消息失败: {e}")
+            self.logger.error(f"获取房间信息失败: {e}")
+            return None
 
-    async def _on_gift(self, msg) -> None:
-        try:
-            gift = getattr(msg, "gift", None)
-            data = {
-                "type": "gift",
-                "id": str(getattr(msg, "msgId", "")),
-                "username": getattr(getattr(msg, "user", None), "nickName", ""),
-                "gift_name": getattr(gift, "name", ""),
-                "gift_count": getattr(msg, "comboCount", 0),
-                "gift_id": getattr(gift, "id", 0),
-                "timestamp": datetime.now().isoformat(),
-                "room_id": self._room_id,
-            }
-            await self._adapter.handle("gift", data)
-        except Exception as e:
-            self._logger.error(f"处理礼物消息失败: {e}")
 
-    async def _on_like(self, msg) -> None:
-        try:
-            data = {
-                "type": "like",
-                "id": str(getattr(msg, "msgId", "")),
-                "username": getattr(getattr(msg, "user", None), "nickName", ""),
-                "like_count": getattr(msg, "count", 0),
-                "timestamp": datetime.now().isoformat(),
-                "room_id": self._room_id,
-            }
-            await self._adapter.handle("like", data)
-        except Exception as e:
-            self._logger.error(f"处理点赞消息失败: {e}")
+# 全局服务实例
+douyin_live_fetcher_service = DouyinLiveFetcher()
 
-    async def _on_member(self, msg) -> None:
-        try:
-            data = {
-                "type": "member",
-                "id": str(getattr(msg, "msgId", "")),
-                "username": getattr(getattr(msg, "user", None), "nickName", ""),
-                "action": getattr(msg, "action", "enter"),
-                "timestamp": datetime.now().isoformat(),
-                "room_id": self._room_id,
-            }
-            await self._adapter.handle("member", data)
-        except Exception as e:
-            self._logger.error(f"处理成员消息失败: {e}")
 
-    async def _on_social(self, msg) -> None:
+if __name__ == "__main__":
+    # 测试代码
+    import logging
+    
+    logging.basicConfig(level=logging.INFO)
+    
+    def test_callback(message_type: str, data: Dict[str, Any]):
+        print(f"收到消息 [{message_type}]: {data}")
+    
+    def status_callback(status_info: FetcherStatusInfo):
+        print(f"状态变化: {status_info}")
+    
+    # 创建测试实例
+    fetcher = DouyinLiveFetcher()
+    fetcher.set_message_callback(test_callback)
+    fetcher.set_status_change_callback(status_callback)
+    
+    # 测试启动（需要真实的live_id）
+    test_live_id = "163823390463"  # 示例live_id
+    print(f"测试启动抓取器，live_id: {test_live_id}")
+    
+    if fetcher.start_fetch(test_live_id):
+        print("抓取器启动成功")
         try:
-            data = {
-                "type": "social",
-                "id": str(getattr(msg, "msgId", "")),
-                "username": getattr(getattr(msg, "user", None), "nickName", ""),
-                "action": getattr(msg, "action", ""),
-                "timestamp": datetime.now().isoformat(),
-                "room_id": self._room_id,
-            }
-            await self._adapter.handle("social", data)
-        except Exception as e:
-            self._logger.error(f"处理社交消息失败: {e}")
-
-    async def _on_room_stats(self, msg) -> None:
-        try:
-            data = {
-                "type": "room_stats",
-                "online": getattr(msg, "online", 0),
-                "total": getattr(msg, "total", 0),
-                "timestamp": datetime.now().isoformat(),
-                "room_id": self._room_id,
-            }
-            await self._adapter.handle("room_stats", data)
-        except Exception as e:
-            self._logger.error(f"处理房间统计失败: {e}")
+            # 运行一段时间
+            time.sleep(30)
+        except KeyboardInterrupt:
+            print("用户中断")
+        finally:
+            print("停止抓取器")
+            fetcher.stop_fetch()
+    else:
+        print("抓取器启动失败")

@@ -19,8 +19,8 @@ pyaudio>=0.2.11
 aiohttp>=3.8.0
 scipy>=1.10.0
 
-# F2 抖音数据抓取
-# F2项目本地集成，无需pip安装
+# 抖音直播数据抓取
+# 使用项目内置的DouyinLiveWebFetcher，无需额外依赖
 
 # 本地AI分析
 jieba>=0.42.1

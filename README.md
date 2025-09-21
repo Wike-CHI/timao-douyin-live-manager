@@ -1,12 +1,12 @@
 # 提猫直播助手 MVP 项目
 
-基于F2项目的抖音直播弹幕抓取 + VOSK本地语音识别的主播AI助手
+基于自研抖音直播抓取器 + VOSK本地语音识别的主播AI助手
 
 ## 技术栈
 
 - **前端**: HTML + CSS + Element UI 2.15
 - **后端**: FastAPI + SQLite + Redis
-- **数据抓取**: F2项目 (抖音直播弹幕)
+- **数据抓取**: 项目内置 DouyinLiveWebFetcher 模块
 - **语音识别**: VOSK本地模型 (中文)
 - **AI分析**: jieba + SnowNLP (本地NLP)
 - **部署**: Docker + Nginx
@@ -15,7 +15,6 @@
 
 ```
 timao-douyin-live-manager/
-├── f2/                     # F2项目 (抖音数据抓取)
 ├── vosk-api/              # VOSK语音识别
 │   ├── python/vosk/       # VOSK Python API
 │   └── vosk-model-cn-0.22/ # 中文语音模型
@@ -40,6 +39,7 @@ timao-douyin-live-manager/
 ## 快速开始
 
 ### 1. 环境准备
+
 ```bash
 # Python 3.11+
 pip install -r server/requirements.txt
@@ -50,19 +50,21 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### 2. 前端访问
+
 ```bash
 # 打开浏览器访问
 http://localhost:3000
 ```
 
 ### 3. Docker部署
+
 ```bash
 docker-compose up -d
 ```
 
 ## 核心功能
 
-- 🎯 **F2弹幕抓取**: 实时抓取抖音直播间弹幕
+- 🎯 **直播弹幕抓取**: 实时抓取抖音直播间弹幕
 - 🎤 **VOSK语音转录**: 本地中文语音识别
 - 🧠 **AI智能分析**: 情感分析 + 热词提取
 - 🎨 **可爱界面**: 猫咪主题Element UI界面
@@ -76,6 +78,6 @@ docker-compose up -d
 
 ---
 
-**开发团队**: 提猫科技  
-**项目版本**: MVP v1.0  
-**最后更新**: 2025年9月20日
+**开发团队**: 提猫科技
+**项目版本**: MVP v1.0
+**最后更新**: 2025年9月21日

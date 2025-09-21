@@ -28,7 +28,7 @@
   - SSE：/api/stream/comments 持续推送评论
 - 后端 B（实验）：FastAPI 应用 server/app/main.py，挂载 server/app/api/transcription.py 路由，提供基于 AST_module 的实时语音转写 REST 与 WebSocket（/api/transcription/ws）。如有 frontend/ 会通过 StaticFiles 提供静态页。
 - 语音/AST 集成：AST_module/ 提供 VOSK 本地识别与音频采集（ast_service.py、audio_capture.py 等）。transcription 路由负责参数配置、启动/停止与回传结果。
-- F2 集成：f2/ 是外部项目的内置副本（异步多平台抓取/CLI）。后端可调用以抓取抖音/TikTok 数据；该目录自带 pyproject、测试与文档站点脚本（vitepress）。
+- 直播抓取：douyin_live_fecter_module/ 集成 DouyinLiveWebFetcher，提供抖音直播间弹幕抓取、消息适配与状态管理能力。
 
 关键运行流
 
@@ -43,7 +43,7 @@
 - Python 依赖分离：根 requirements.txt（Flask 栈）；server/requirements.txt（FastAPI+AST 栈）。按需安装对应集合。
 - 语音功能依赖本地音频与 VOSK 模型（如使用实时转写，需安装 pyaudio 等）。
 - 6A 工作流：按 .qoder/rules/6A_workflow.md 的 ALIGNMENT/CONSENSUS/DESIGN/TASK/ACCEPTANCE/FINAL/TODO 文档产物流程推进较大改动。
-- 安全披露：参见 f2/SECURITY.md（Tidelift 渠道）。
+- 安全披露：遵循内部安全流程，定期审查抓取与语音模块的依赖风险。
 
 常用路径索引
 
@@ -51,7 +51,7 @@
 - Flask 入口：server/app.py
 - FastAPI 入口：server/app/main.py
 - 转写 API：server/app/api/transcription.py
-- F2 根目录：f2/
+- 直播抓取模块：douyin_live_fecter_module/
 
 示例（单文件/接口调试）
 

@@ -1,0 +1,49 @@
+2025-09-21 14:19:20,938 - INFO - \u2705 成功导入VOSK模块
+2025-09-21 14:19:20,938 - INFO - \U0001f399\ufe0f 简化版长音频处理测试
+2025-09-21 14:19:20,938 - INFO - ==================================================
+2025-09-21 14:19:20,938 - INFO - \U0001f4c1 使用测试音频: d:\gsxm\timao-douyin-live-manager\tests\30198727526-1-30216.mp4
+2025-09-21 14:19:20,938 - INFO -    文件大小: 9.6 MB
+2025-09-21 14:19:20,938 - INFO - \U0001f504 加载测试音频...
+2025-09-21 14:19:23,708 - INFO -    原始音频: 44100Hz, 2声道, 1797.88秒
+2025-09-21 14:19:24,738 - INFO -    转换后音频: 28765995 采样点
+2025-09-21 14:19:24,740 - INFO -    估算时长: 30.0 分钟
+2025-09-21 14:19:24,740 - INFO - 
+==================================================
+2025-09-21 14:19:24,741 - INFO - \U0001f680 开始处理音频...
+2025-09-21 14:19:24,741 - INFO -    加载VOSK模型...
+LOG (VoskAPI:ReadDataFiles():model.cc:213) Decoding params beam=12 max-active=5000 lattice-beam=4
+LOG (VoskAPI:ReadDataFiles():model.cc:216) Silence phones 1:2:3:4:5:6:7:8:9:10
+LOG (VoskAPI:RemoveOrphanNodes():nnet-nnet.cc:948) Removed 0 orphan nodes.
+LOG (VoskAPI:RemoveOrphanComponents():nnet-nnet.cc:847) Removing 0 orphan components.
+LOG (VoskAPI:ReadDataFiles():model.cc:248) Loading i-vector extractor from C:\Users\31328\.cache\vosk\vosk-model-small-cn-0.22/ivector/final.ie
+LOG (VoskAPI:ComputeDerivedVars():ivector-extractor.cc:183) Computing derived variables for iVector extractor
+LOG (VoskAPI:ComputeDerivedVars():ivector-extractor.cc:204) Done.
+LOG (VoskAPI:ReadDataFiles():model.cc:282) Loading HCL and G from C:\Users\31328\.cache\vosk\vosk-model-small-cn-0.22/graph/HCLr.fst C:\Users\31328\.cache\vosk\vosk-model-small-cn-0.22/graph/Gr.fst
+LOG (VoskAPI:ReadDataFiles():model.cc:308) Loading winfo C:\Users\31328\.cache\vosk\vosk-model-small-cn-0.22/graph/phones/word_boundary.int
+2025-09-21 14:19:25,169 - INFO -    开始处理音频数据...
+2025-09-21 14:19:42,241 - INFO -    处理进度: 5% (已用时: 17.1秒)
+2025-09-21 14:19:55,684 - INFO -    处理进度: 10% (已用时: 30.5秒)
+2025-09-21 14:20:11,951 - INFO -    处理进度: 15% (已用时: 46.8秒)
+2025-09-21 14:20:25,449 - INFO -    处理进度: 20% (已用时: 60.3秒)
+2025-09-21 14:20:41,829 - INFO -    处理进度: 25% (已用时: 76.7秒)
+2025-09-21 14:20:57,117 - INFO -    处理进度: 30% (已用时: 91.9秒)
+2025-09-21 14:21:11,665 - INFO -    处理进度: 35% (已用时: 106.5秒)
+2025-09-21 14:21:24,140 - INFO -    处理进度: 40% (已用时: 119.0秒)
+2025-09-21 14:21:39,195 - INFO -    处理进度: 45% (已用时: 134.0秒)
+2025-09-21 14:21:52,872 - INFO -    处理进度: 50% (已用时: 147.7秒)
+2025-09-21 14:22:05,543 - INFO -    处理进度: 55% (已用时: 160.4秒)
+2025-09-21 14:22:20,855 - INFO -    处理进度: 60% (已用时: 175.7秒)
+2025-09-21 14:22:35,064 - INFO -    处理进度: 65% (已用时: 189.9秒)
+2025-09-21 14:22:49,509 - INFO -    处理进度: 70% (已用时: 204.3秒)
+2025-09-21 14:23:00,165 - INFO -    处理进度: 75% (已用时: 215.0秒)
+2025-09-21 14:23:11,528 - INFO -    处理进度: 80% (已用时: 226.4秒)
+2025-09-21 14:23:25,731 - INFO -    处理进度: 85% (已用时: 240.6秒)
+2025-09-21 14:23:40,607 - INFO -    处理进度: 90% (已用时: 255.4秒)
+2025-09-21 14:23:52,226 - INFO -    处理进度: 95% (已用时: 267.1秒)
+2025-09-21 14:24:04,177 - INFO -    处理进度: 100% (已用时: 279.0秒)
+2025-09-21 14:24:04,212 - INFO -    识别完成!
+2025-09-21 14:24:04,212 - INFO -    识别词数: 4421
+2025-09-21 14:24:04,212 - INFO -    处理时间: 279.04秒
+2025-09-21 14:24:04,545 - INFO - 
+\U0001f4dd 转录文本已保存到: d:\gsxm\timao-douyin-live-manager\test_results\simple_transcription.txt
+2025-09-21 14:24:04,545 - INFO - \U0001f389 长音频处理测试完成!

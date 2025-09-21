@@ -1,0 +1,81 @@
+{
+  "timestamp": "2025-09-21T14:57:43.868452",
+  "summary": {
+    "total_tests": 15,
+    "passed": 15,
+    "failed": 0,
+    "success_rate": 100.0,
+    "total_time": 0.022282123565673828
+  },
+  "test_results": {
+    "test_api_creation": {
+      "passed": true,
+      "execution_time": 0.0007302761077880859
+    },
+    "test_connection_management": {
+      "passed": true,
+      "execution_time": 6.67572021484375e-06
+    },
+    "test_message_stream_processing": {
+      "passed": true,
+      "execution_time": 0.00012135505676269531
+    },
+    "test_message_adapters": {
+      "passed": true,
+      "execution_time": 8.106231689453125e-06
+    },
+    "test_adapter_manager": {
+      "passed": true,
+      "execution_time": 0.0001308917999267578
+    },
+    "test_state_management": {
+      "passed": true,
+      "execution_time": 0.0004885196685791016
+    },
+    "test_room_state_tracking": {
+      "passed": true,
+      "execution_time": 0.0008285045623779297
+    },
+    "test_cache_operations": {
+      "passed": true,
+      "execution_time": 0.0006203651428222656
+    },
+    "test_cache_performance": {
+      "passed": true,
+      "execution_time": 0.0009539127349853516
+    },
+    "test_config_management": {
+      "passed": true,
+      "execution_time": 1.0728836059570312e-05
+    },
+    "test_end_to_end_workflow": {
+      "passed": true,
+      "execution_time": 0.0004658699035644531
+    },
+    "test_concurrent_operations": {
+      "passed": true,
+      "execution_time": 0.0005249977111816406
+    },
+    "test_memory_usage": {
+      "passed": true,
+      "execution_time": 0.016705036163330078
+    },
+    "test_error_handling": {
+      "passed": true,
+      "execution_time": 3.910064697265625e-05
+    },
+    "test_resource_cleanup": {
+      "passed": true,
+      "execution_time": 0.0006477832794189453
+    }
+  },
+  "performance_metrics": {
+    "cache_set_time": 0.0005552768707275391,
+    "cache_get_time": 0.0003943443298339844,
+    "concurrent_processing_time": 0.0004436969757080078,
+    "messages_per_second": 225379.04352498657,
+    "memory_usage_mb": 58.08203125,
+    "memory_increase_mb": 0.36328125
+  },
+  "errors": []
+}

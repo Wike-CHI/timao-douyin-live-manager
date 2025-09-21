@@ -1,0 +1,63 @@
+2025-09-21 14:55:49,932 - INFO - \u2705 成功导入所需模块
+2025-09-21 14:55:49,932 - INFO - \U0001f399\ufe0f 长音频实时处理测试
+2025-09-21 14:55:49,933 - INFO - ==================================================
+2025-09-21 14:55:49,933 - INFO - \U0001f4c1 使用测试音频: d:\gsxm\timao-douyin-live-manager\tests\27994754259-1-30280.mp4
+2025-09-21 14:55:49,933 - INFO -    文件大小: 14.4 MB
+2025-09-21 14:55:49,933 - INFO - \U0001f504 加载测试音频...
+2025-09-21 14:55:53,458 - INFO -    原始音频: 44100Hz, 2声道, 2664.07秒
+2025-09-21 14:55:54,793 - INFO -    转换后音频: 42625150 采样点
+2025-09-21 14:55:54,795 - INFO -    估算时长: 44.4 分钟
+2025-09-21 14:55:54,795 - INFO - 
+==================================================
+2025-09-21 14:55:54,795 - INFO - \U0001f680 开始处理音频 (增强: 关闭)
+2025-09-21 14:55:54,795 - INFO -    加载VOSK模型...
+LOG (VoskAPI:ReadDataFiles():model.cc:213) Decoding params beam=12 max-active=5000 lattice-beam=4
+LOG (VoskAPI:ReadDataFiles():model.cc:216) Silence phones 1:2:3:4:5:6:7:8:9:10
+LOG (VoskAPI:RemoveOrphanNodes():nnet-nnet.cc:948) Removed 0 orphan nodes.
+LOG (VoskAPI:RemoveOrphanComponents():nnet-nnet.cc:847) Removing 0 orphan components.
+LOG (VoskAPI:ReadDataFiles():model.cc:248) Loading i-vector extractor from C:\Users\31328\.cache\vosk\vosk-model-small-cn-0.22/ivector/final.ie
+LOG (VoskAPI:ComputeDerivedVars():ivector-extractor.cc:183) Computing derived variables for iVector extractor
+LOG (VoskAPI:ComputeDerivedVars():ivector-extractor.cc:204) Done.
+LOG (VoskAPI:ReadDataFiles():model.cc:282) Loading HCL and G from C:\Users\31328\.cache\vosk\vosk-model-small-cn-0.22/graph/HCLr.fst C:\Users\31328\.cache\vosk\vosk-model-small-cn-0.22/graph/Gr.fst
+LOG (VoskAPI:ReadDataFiles():model.cc:308) Loading winfo C:\Users\31328\.cache\vosk\vosk-model-small-cn-0.22/graph/phones/word_boundary.int
+2025-09-21 14:55:55,181 - INFO -    使用标准识别器
+2025-09-21 14:55:55,181 - INFO -    开始处理音频数据...
+2025-09-21 14:56:25,105 - INFO -    处理进度: 10% (已用时: 29.9秒)
+2025-09-21 14:56:59,121 - INFO -    处理进度: 20% (已用时: 63.9秒)
+2025-09-21 14:57:41,359 - INFO -    处理进度: 30% (已用时: 106.2秒)
+2025-09-21 14:58:20,448 - INFO -    处理进度: 40% (已用时: 145.3秒)
+2025-09-21 14:58:57,064 - INFO -    处理进度: 50% (已用时: 181.9秒)
+2025-09-21 14:59:39,927 - INFO -    处理进度: 60% (已用时: 224.7秒)
+2025-09-21 15:00:20,646 - INFO -    处理进度: 70% (已用时: 265.5秒)
+2025-09-21 15:01:03,095 - INFO -    处理进度: 80% (已用时: 307.9秒)
+2025-09-21 15:01:38,151 - INFO -    处理进度: 90% (已用时: 343.0秒)
+2025-09-21 15:02:14,162 - INFO -    处理进度: 100% (已用时: 379.0秒)
+2025-09-21 15:02:14,163 - INFO -    识别完成!
+2025-09-21 15:02:14,163 - INFO -    识别文本: 感谢 各位 网上 朋友 感谢 各位 领导 各位 专家 啊 其实 每年 一度 的 网商 大会 呢 我 多想 很长时间 走 我 能够 表达 一个 什么样 的 想法 而 这次 也 一样 其实 我 刚刚 从 ...
+2025-09-21 15:02:14,163 - INFO -    识别词数: 6824
+2025-09-21 15:02:14,163 - INFO -    处理时间: 378.98秒
+2025-09-21 15:02:14,478 - INFO - 
+==================================================
+2025-09-21 15:02:14,478 - INFO - \U0001f680 开始处理音频 (增强: 开启)
+2025-09-21 15:02:14,478 - INFO -    加载VOSK模型...
+LOG (VoskAPI:ReadDataFiles():model.cc:213) Decoding params beam=12 max-active=5000 lattice-beam=4
+LOG (VoskAPI:ReadDataFiles():model.cc:216) Silence phones 1:2:3:4:5:6:7:8:9:10
+LOG (VoskAPI:RemoveOrphanNodes():nnet-nnet.cc:948) Removed 0 orphan nodes.
+LOG (VoskAPI:RemoveOrphanComponents():nnet-nnet.cc:847) Removing 0 orphan components.
+LOG (VoskAPI:ReadDataFiles():model.cc:248) Loading i-vector extractor from C:\Users\31328\.cache\vosk\vosk-model-small-cn-0.22/ivector/final.ie
+LOG (VoskAPI:ComputeDerivedVars():ivector-extractor.cc:183) Computing derived variables for iVector extractor
+LOG (VoskAPI:ComputeDerivedVars():ivector-extractor.cc:204) Done.
+LOG (VoskAPI:ReadDataFiles():model.cc:282) Loading HCL and G from C:\Users\31328\.cache\vosk\vosk-model-small-cn-0.22/graph/HCLr.fst C:\Users\31328\.cache\vosk\vosk-model-small-cn-0.22/graph/Gr.fst
+LOG (VoskAPI:ReadDataFiles():model.cc:308) Loading winfo C:\Users\31328\.cache\vosk\vosk-model-small-cn-0.22/graph/phones/word_boundary.int
+2025-09-21 15:02:14,811 - INFO - 音频增强器初始化完成
+2025-09-21 15:02:14,811 - INFO - 降噪强度已设置为: 0.50
+2025-09-21 15:02:14,811 - INFO - 自动增益目标已设置为: 0.70
+2025-09-21 15:02:14,811 - INFO - 增强版Kaldi识别器已启用音频增强功能
+2025-09-21 15:02:14,812 - INFO - 音频增强功能已启用
+2025-09-21 15:02:14,812 - INFO -    已启用音频增强功能
+2025-09-21 15:02:14,812 - INFO -    开始处理音频数据...
+2025-09-21 15:03:13,650 - INFO -    处理进度: 10% (已用时: 58.8秒)
+2025-09-21 15:04:54,376 - INFO -    处理进度: 20% (已用时: 159.6秒)
+2025-09-21 15:06:03,684 - INFO -    处理进度: 30% (已用时: 228.9秒)
+2025-09-21 15:07:08,171 - INFO -    处理进度: 40% (已用时: 293.4秒)
+2025-09-21 15:08:14,166 - INFO -    处理进度: 50% (已用时: 359.4秒)
