@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>抖音弹幕测试面板</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0f172a;
+      --panel: rgba(15, 23, 42, 0.78);
+      --accent: #38bdf8;
+      --accent-dark: #0284c7;
+      --text: #e2e8f0;
+      --border: rgba(148, 163, 184, 0.2);
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top, #1e293b, #020617);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 40px 20px;
+    }
+
+    .container {
+      width: min(1100px, 100%);
+      background: rgba(15, 23, 42, 0.85);
+      border-radius: 24px;
+      padding: 32px;
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+    }
+
+    h1 {
+      margin: 0 0 20px;
+      font-size: 28px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .control-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 24px;
+      align-items: center;
+    }
+
+    input[type="text"] {
+      flex: 1 1 220px;
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.6);
+      color: var(--text);
+      font-size: 16px;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    button {
+      padding: 12px 24px;
+      border-radius: 12px;
+      border: none;
+      font-size: 16px;
+      cursor: pointer;
+      background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+      color: white;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    button.secondary {
+      background: rgba(148, 163, 184, 0.3);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+
+    button:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow: 0 16px 32px rgba(56, 189, 248, 0.25);
+    }
+
+    .status {
+      margin-bottom: 24px;
+      padding: 12px 16px;
+      border-radius: 12px;
+      background: rgba(148, 163, 184, 0.1);
+      border: 1px solid var(--border);
+      min-height: 48px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border-radius: 20px;
+      padding: 20px;
+      border: 1px solid var(--border);
+      min-height: 420px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel h2 {
+      margin: 0 0 16px;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+    }
+
+    #chatList {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      flex: 1;
+      overflow-y: auto;
+      scrollbar-width: thin;
+    }
+
+    #chatList li {
+      border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+      padding: 10px 0;
+      display: grid;
+      gap: 6px;
+    }
+
+    #chatList li:last-child {
+      border-bottom: none;
+    }
+
+    .chat-nickname {
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .chat-content {
+      color: rgba(226, 232, 240, 0.9);
+      word-break: break-word;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    thead th {
+      text-align: left;
+      padding: 8px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+      color: rgba(226, 232, 240, 0.6);
+      font-weight: 500;
+    }
+
+    tbody td {
+      padding: 10px 8px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+      vertical-align: middle;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .rank-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      object-fit: cover;
+      margin-right: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+    }
+
+    .rank-user {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      font-size: 12px;
+      margin-left: 4px;
+    }
+
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎯 Douyin 弹幕 & 排行榜实时测试</h1>
+    <div class="control-bar">
+      <input id="liveIdInput" type="text" placeholder="输入直播间号，例如 926155072586" />
+      <button id="startBtn">开始抓取</button>
+      <button id="stopBtn" class="secondary">停止</button>
+    </div>
+    <div id="status" class="status">等待启动…</div>
+    <div class="layout">
+      <section class="panel">
+        <h2>💬 实时弹幕</h2>
+        <ul id="chatList"></ul>
+      </section>
+      <section class="panel">
+        <h2>🏆 直播间排行榜</h2>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 60px;">排名</th>
+              <th>用户</th>
+              <th style="width: 100px;">贡献值</th>
+            </tr>
+          </thead>
+          <tbody id="rankBody">
+            <tr><td colspan="3" style="text-align:center; padding:20px; color: rgba(226,232,240,0.4);">暂无数据</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const statusBox = document.getElementById('status');
+    const chatList = document.getElementById('chatList');
+    const rankBody = document.getElementById('rankBody');
+    const liveIdInput = document.getElementById('liveIdInput');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    stopBtn.disabled = true;
+
+    let eventSource = null;
+    let chatBuffer = [];
+    const MAX_CHAT = 80;
+
+    function updateStatus(message, tone = 'info') {
+      const colorMap = {
+        info: 'rgba(148, 163, 184, 0.7)',
+        success: '#38bdf8',
+        error: '#f87171',
+        warning: '#facc15',
+      };
+      statusBox.style.borderColor = colorMap[tone] || colorMap.info;
+      statusBox.textContent = message;
+    }
+
+    function ensureEventSource() {
+      if (eventSource) {
+        return;
+      }
+      eventSource = new EventSource('/api/douyin/web/stream');
+      eventSource.onopen = () => updateStatus('SSE 通道已建立，等待数据…', 'info');
+      eventSource.onerror = () => updateStatus('SSE 通道异常，可能已断开。', 'warning');
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          handleEvent(data);
+        } catch (err) {
+          console.error('解析消息失败', err);
+        }
+      };
+    }
+
+    function disposeEventSource() {
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+      }
+    }
+
+    function handleEvent(event) {
+      const { type, payload } = event;
+      switch (type) {
+        case 'status': {
+          const stage = payload?.stage;
+          if (stage === 'starting') {
+            updateStatus('正在启动抓取任务…', 'info');
+          } else if (stage === 'resolving_room') {
+            updateStatus('正在解析直播间信息…', 'info');
+          } else if (stage === 'room_ready') {
+            updateStatus(`已解析直播间，room_id=${payload.room_id || '未知'}，等待弹幕…`, 'success');
+          } else if (stage === 'connected') {
+            updateStatus('WebSocket 已连接，开始接收弹幕。', 'success');
+          } else if (stage === 'closed' || stage === 'stopped') {
+            updateStatus('连接已关闭。', 'warning');
+          }
+          break;
+        }
+        case 'error': {
+          updateStatus(`抓取异常：${payload?.message || '未知错误'}`, 'error');
+          break;
+        }
+        case 'chat':
+          appendChat(payload);
+          break;
+        case 'gift':
+          appendChat({
+            nickname: payload?.nickname,
+            content: `🎁 送出 ${payload?.gift_name || ''} x${payload?.count || 1}`,
+          });
+          break;
+        case 'like':
+          appendChat({
+            nickname: payload?.nickname,
+            content: `👍 点赞 ${payload?.count || 1} 次`,
+          });
+          break;
+        case 'member':
+          appendChat({
+            nickname: payload?.nickname,
+            content: '👋 进入直播间',
+          });
+          break;
+        case 'room_rank':
+          renderRank(payload?.ranks || []);
+          break;
+        default:
+          break;
+      }
+    }
+
+    function appendChat(data) {
+      if (!data?.nickname && !data?.content) {
+        return;
+      }
+      chatBuffer.push({
+        nickname: data.nickname || '匿名',
+        content: data.content || '',
+        ts: Date.now(),
+      });
+      if (chatBuffer.length > MAX_CHAT) {
+        chatBuffer = chatBuffer.slice(chatBuffer.length - MAX_CHAT);
+      }
+      chatList.innerHTML = '';
+      for (const item of chatBuffer.slice(-MAX_CHAT).reverse()) {
+        const li = document.createElement('li');
+        const nick = document.createElement('div');
+        nick.className = 'chat-nickname';
+        nick.textContent = item.nickname;
+        const content = document.createElement('div');
+        content.className = 'chat-content';
+        content.textContent = item.content;
+        li.appendChild(nick);
+        li.appendChild(content);
+        chatList.appendChild(li);
+      }
+    }
+
+    function renderRank(ranks) {
+      if (!Array.isArray(ranks) || ranks.length === 0) {
+        rankBody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px; color: rgba(226,232,240,0.4);">暂无排行榜数据</td></tr>';
+        return;
+      }
+      rankBody.innerHTML = '';
+      ranks.slice(0, 10).forEach((item) => {
+        const tr = document.createElement('tr');
+
+        const rankTd = document.createElement('td');
+        rankTd.textContent = item.rank ?? '-';
+        tr.appendChild(rankTd);
+
+        const userTd = document.createElement('td');
+        const wrap = document.createElement('div');
+        wrap.className = 'rank-user';
+        if (item.avatar) {
+          const img = document.createElement('img');
+          img.src = item.avatar;
+          img.alt = item.nickname || '';
+          img.className = 'rank-avatar';
+          img.referrerPolicy = 'no-referrer';
+          wrap.appendChild(img);
+        }
+        const name = document.createElement('span');
+        name.textContent = item.nickname || '匿名用户';
+        wrap.appendChild(name);
+        userTd.appendChild(wrap);
+        tr.appendChild(userTd);
+
+        const scoreTd = document.createElement('td');
+        scoreTd.textContent = item.score_str || item.score || '-';
+        tr.appendChild(scoreTd);
+
+        rankBody.appendChild(tr);
+      });
+    }
+
+    async function startMonitor() {
+      const liveId = liveIdInput.value.trim();
+      if (!liveId) {
+        updateStatus('请先输入直播间号。', 'warning');
+        liveIdInput.focus();
+        return;
+      }
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      ensureEventSource();
+      try {
+        const resp = await fetch('/api/douyin/web/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ live_id: liveId }),
+        });
+        if (!resp.ok) {
+          const detail = await resp.json().catch(() => ({}));
+          throw new Error(detail.detail || '启动失败');
+        }
+        updateStatus(`已提交抓取任务，直播间 ${liveId}`, 'info');
+      } catch (error) {
+        console.error(error);
+        updateStatus(`启动失败：${error.message}`, 'error');
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+      }
+    }
+
+    async function stopMonitor() {
+      stopBtn.disabled = true;
+      try {
+        await fetch('/api/douyin/web/stop', { method: 'POST' });
+      } catch (error) {
+        console.error(error);
+      }
+      disposeEventSource();
+      updateStatus('已停止抓取。', 'warning');
+      setTimeout(() => {
+        startBtn.disabled = false;
+      }, 200);
+    }
+
+    startBtn.addEventListener('click', startMonitor);
+    stopBtn.addEventListener('click', stopMonitor);
+
+    window.addEventListener('beforeunload', () => {
+      disposeEventSource();
+    });
+  </script>
+</body>
+</html>

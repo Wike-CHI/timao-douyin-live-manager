@@ -24,8 +24,12 @@ import requests
 import websocket
 from py_mini_racer import MiniRacer
 
-from ac_signature import get__ac_signature
-from protobuf.douyin import *
+try:  # 优先使用包内相对导入，兼容作为模块引用
+    from .ac_signature import get__ac_signature
+    from .protobuf.douyin import *  # noqa: F401,F403
+except ImportError:  # 兼容脚本直接运行
+    from ac_signature import get__ac_signature
+    from protobuf.douyin import *  # type: ignore # noqa: F401,F403
 
 from urllib3.util.url import parse_url
 
@@ -128,7 +132,8 @@ class DouyinLiveWebFetcher:
         self._connectWebSocket()
     
     def stop(self):
-        self.ws.close()
+        if hasattr(self, 'ws') and self.ws:
+            self.ws.close()
     
     @property
     def ttwid(self):

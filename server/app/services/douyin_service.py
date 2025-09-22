@@ -1,133 +1,134 @@
 # -*- coding: utf-8 -*-
-"""
-抖音直播数据抓取服务
-基于独立的抖音直播弹幕实时抓取模块
-"""
+"""抖音直播数据抓取服务（统一基于 DouyinLiveWebFetcher 实现）。"""
 
 import asyncio
 import logging
-import json
-from typing import Optional, Dict, Any, Callable, List
+from contextlib import suppress
 from datetime import datetime
+from typing import Callable, Dict, Optional, Any
 
-# 导入适配器（避免在应用启动阶段加载抓取器实现）
-from douyin_live_fecter_module.adapters import (
-    CallbackAdapter,
-    WebsocketBroadcasterAdapter,
-    CompositeAdapter,
-    LiveDataAdapter,
-)
+from .douyin_web_relay import get_douyin_web_relay
+
 
 class DouyinLiveService:
-    """抖音直播服务"""
-    
+    """抖音直播监控服务（兼容旧 API 接口）。"""
+
     def __init__(self):
-        """初始化抖音直播服务"""
         self.handler = None
         self.is_monitoring = False
-        self.current_room_id = None
-        self.current_live_id = None
-        self.message_callbacks = {}
-        self._fetcher = None
-        
-        # 配置日志
+        self.current_room_id: Optional[str] = None
+        self.current_live_id: Optional[str] = None
+        self.message_callbacks: Dict[str, Callable] = {}
+
+        self._relay = get_douyin_web_relay()
+        self._client_queue: Optional[asyncio.Queue] = None
+        self._queue_consumer: Optional[asyncio.Task] = None
+
         self.logger = logging.getLogger(__name__)
-        
-        # 消息处理回调
-        self.wss_callbacks = {
-            "WebcastChatMessage": self._handle_chat_message,
-            "WebcastGiftMessage": self._handle_gift_message,
-            "WebcastLikeMessage": self._handle_like_message,
-            "WebcastMemberMessage": self._handle_member_message,
-            "WebcastSocialMessage": self._handle_social_message,
-            "WebcastRoomUserSeqMessage": self._handle_room_user_seq_message,
-            # 可以添加更多消息类型处理
+        self.event_handlers = {
+            "chat": self._handle_chat_message,
+            "gift": self._handle_gift_message,
+            "like": self._handle_like_message,
+            "member": self._handle_member_message,
+            "room_rank": self._handle_room_rank_message,
         }
-    
-    async def start_monitoring(self, live_id: str, message_callback: Optional[Callable] = None, cookie: Optional[str] = None) -> Dict[str, Any]:
-        """
-        开始监控直播间（委派到 DouyinLiveFetcher）
-        """
+
+    async def start_monitoring(self, live_id: str, message_callback: Optional[Callable] = None, cookie: Optional[str] = None) -> Dict[str, Any]:  # noqa: ARG002
+        """启动直播监控（与旧接口保持一致）。"""
         try:
             if self.is_monitoring:
                 return {"success": False, "error": "已在监控中"}
 
-            # 延迟导入，避免在应用启动阶段触发依赖问题
-            try:
-                from douyin_live_fecter_module.service import DouyinLiveFetcher
-            except Exception as ie:
-                self.logger.error(f"导入 DouyinLiveFetcher 失败: {ie}")
-                return {"success": False, "error": f"导入抓取器失败: {ie}"}
-
-            # 清理旧回调
             self.message_callbacks.clear()
             if message_callback:
                 self.message_callbacks["external"] = message_callback
 
-            # 组装适配器：WebSocket 广播 + 回调转发
-            adapters: List[LiveDataAdapter] = [WebsocketBroadcasterAdapter()]
+            relay_result = await self._relay.start(live_id)
+            if not relay_result.get("success"):
+                return relay_result
 
-            async def _forward(msg_type: str, data: Dict[str, Any]):
-                # 通过现有回调机制转发，保持兼容
-                await self._notify_callbacks(msg_type, data)
-
-            adapters.append(CallbackAdapter(_forward))
-            composite = CompositeAdapter(adapters)
-
-            # 启动抓取器
-            self._fetcher = DouyinLiveFetcher(adapter=composite)
-            result = await self._fetcher.start(live_id, cookie=cookie)
-
-            if not result.get("success"):
-                # 启动失败，复位状态
-                self._fetcher = None
-                self.is_monitoring = False
-                self.current_room_id = None
-                self.current_live_id = None
-                return {"success": False, "error": result.get("error", "未知错误")}
-
-            # 启动成功，同步状态
             self.is_monitoring = True
-            self.current_room_id = result.get("room_id")
-            self.current_live_id = result.get("live_id")
+            self.current_live_id = live_id
+            self.current_room_id = None
+
+            self._client_queue = await self._relay.register_client()
+            self._queue_consumer = asyncio.create_task(self._consume_events())
+
+            for _ in range(20):
+                status = self._relay.get_status()
+                if status.room_id:
+                    self.current_room_id = status.room_id
+                    break
+                await asyncio.sleep(0.25)
 
             return {
                 "success": True,
                 "room_id": self.current_room_id,
                 "live_id": self.current_live_id,
-                "room_name": "",  # 保持旧接口字段，现阶段不可得
-                "user_unique_id": result.get("user_unique_id", ""),
+                "room_name": "",
+                "user_unique_id": None,
             }
-
-        except Exception as e:
-            self.logger.error(f"启动监控失败: {e}")
+        except Exception as exc:  # pragma: no cover - 运行时异常记录
+            self.logger.error(f"启动监控失败: {exc}")
             self.is_monitoring = False
-            return {"success": False, "error": str(e)}
-    
+            return {"success": False, "error": str(exc)}
+
     async def stop_monitoring(self) -> Dict[str, Any]:
-        """
-        停止监控直播间（委派到 DouyinLiveFetcher）
-        """
+        """停止直播监控。"""
         try:
-            if not self.is_monitoring or not self._fetcher:
+            if not self.is_monitoring:
                 return {"success": True, "message": "未在监控，已忽略"}
 
-            result = await self._fetcher.stop()
+            if self._queue_consumer:
+                self._queue_consumer.cancel()
+                with suppress(asyncio.CancelledError):
+                    await self._queue_consumer
+                self._queue_consumer = None
+
+            if self._client_queue is not None:
+                await self._relay.unregister_client(self._client_queue)
+                self._client_queue = None
+
+            await self._relay.stop()
+
             self.is_monitoring = False
             self.current_room_id = None
             self.current_live_id = None
-            return {"success": True, **result}
-        except Exception as e:
-            self.logger.error(f"停止监控失败: {e}")
-            return {"success": False, "error": str(e)}
+            return {"success": True}
+        except Exception as exc:  # pragma: no cover
+            self.logger.error(f"停止监控失败: {exc}")
+            return {"success": False, "error": str(exc)}
 
-    async def _start_websocket_monitoring(self, room_id: str, user_unique_id: str, 
-                                        internal_ext: str, cursor: str):
-        """（保留旧逻辑占位，不再直接使用）"""
-        pass
+    async def _consume_events(self) -> None:
+        queue = self._client_queue
+        if queue is None:
+            return
+        try:
+            while True:
+                event = await queue.get()
+                if event is None:
+                    continue
+                event_type = event.get("type")
+                payload = event.get("payload", {})
+                if event_type == "status":
+                    stage = payload.get("stage")
+                    if stage == "room_ready":
+                        self.current_room_id = payload.get("room_id")
+                    if stage == "stopped":
+                        self.is_monitoring = False
+                        break
+                    continue
+                handler = self.event_handlers.get(event_type)
+                if handler:
+                    await handler(payload)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            if self._client_queue is not None:
+                await self._relay.unregister_client(self._client_queue)
+                self._client_queue = None
 
-    async def _handle_chat_message(self, message) -> None:
-        """处理聊天消息（保留向后兼容的回调体系）"""
+    async def _handle_chat_message(self, message: Dict[str, Any]) -> None:
         try:
             data = {
                 "type": "chat",
@@ -136,10 +137,10 @@ class DouyinLiveService:
                 "timestamp": int(datetime.utcnow().timestamp() * 1000),
             }
             await self._notify_callbacks("chat", data)
-        except Exception as e:
-            self.logger.error(f"处理聊天消息失败: {e}")
+        except Exception as exc:
+            self.logger.error(f"处理聊天消息失败: {exc}")
 
-    async def _handle_gift_message(self, message) -> None:
+    async def _handle_gift_message(self, message: Dict[str, Any]) -> None:
         try:
             data = {
                 "type": "gift",
@@ -149,10 +150,10 @@ class DouyinLiveService:
                 "timestamp": int(datetime.utcnow().timestamp() * 1000),
             }
             await self._notify_callbacks("gift", data)
-        except Exception as e:
-            self.logger.error(f"处理礼物消息失败: {e}")
+        except Exception as exc:
+            self.logger.error(f"处理礼物消息失败: {exc}")
 
-    async def _handle_like_message(self, message) -> None:
+    async def _handle_like_message(self, message: Dict[str, Any]) -> None:
         try:
             data = {
                 "type": "like",
@@ -161,10 +162,10 @@ class DouyinLiveService:
                 "timestamp": int(datetime.utcnow().timestamp() * 1000),
             }
             await self._notify_callbacks("like", data)
-        except Exception as e:
-            self.logger.error(f"处理点赞消息失败: {e}")
+        except Exception as exc:
+            self.logger.error(f"处理点赞消息失败: {exc}")
 
-    async def _handle_member_message(self, message) -> None:
+    async def _handle_member_message(self, message: Dict[str, Any]) -> None:
         try:
             data = {
                 "type": "member",
@@ -173,76 +174,48 @@ class DouyinLiveService:
                 "timestamp": int(datetime.utcnow().timestamp() * 1000),
             }
             await self._notify_callbacks("member", data)
-        except Exception as e:
-            self.logger.error(f"处理成员消息失败: {e}")
+        except Exception as exc:
+            self.logger.error(f"处理成员消息失败: {exc}")
 
-    async def _handle_social_message(self, message) -> None:
+    async def _handle_room_rank_message(self, message: Dict[str, Any]) -> None:
         try:
             data = {
-                "type": "social",
-                "action": message.get("action"),
-                "nickname": message.get("nickname"),
+                "type": "room_rank",
+                "ranks": message.get("ranks", []),
                 "timestamp": int(datetime.utcnow().timestamp() * 1000),
             }
-            await self._notify_callbacks("social", data)
-        except Exception as e:
-            self.logger.error(f"处理社交消息失败: {e}")
-
-    async def _handle_room_user_seq_message(self, message) -> None:
-        try:
-            data = {
-                "type": "room_stats",
-                "online": message.get("online", 0),
-                "total": message.get("total", 0),
-                "timestamp": int(datetime.utcnow().timestamp() * 1000),
-            }
-            await self._notify_callbacks("room_stats", data)
-        except Exception as e:
-            self.logger.error(f"处理房间统计失败: {e}")
+            await self._notify_callbacks("room_rank", data)
+        except Exception as exc:
+            self.logger.error(f"处理房间排行榜失败: {exc}")
 
     async def _notify_callbacks(self, message_type: str, data: Dict[str, Any]):
-        """统一的回调通知接口"""
         try:
-            # 外部回调
-            ext_cb = self.message_callbacks.get("external")
-            if ext_cb:
-                try:
-                    await ext_cb(message_type, data)
-                except Exception as e:
-                    self.logger.error(f"外部回调处理失败: {e}")
-        except Exception as e:
-            self.logger.error(f"消息回调通知失败: {e}")
+            callback = self.message_callbacks.get("external")
+            if callback:
+                result = callback(message_type, data)
+                if asyncio.iscoroutine(result):
+                    await result
+        except Exception as exc:
+            self.logger.error(f"消息回调通知失败: {exc}")
 
     def get_status(self) -> Dict[str, Any]:
-        """获取服务监控状态（与 Fetcher 状态对齐）"""
-        fetcher_status = None
-        try:
-            if self._fetcher:
-                fs = self._fetcher.status()
-                fetcher_status = {
-                    "is_running": fs.is_running,
-                    "room_id": fs.room_id,
-                    "live_id": fs.live_id,
-                    "callbacks_count": fs.callbacks_count,
-                }
-        except Exception as e:
-            self.logger.error(f"获取抓取器状态失败: {e}")
-
+        relay_status = self._relay.get_status()
         return {
             "is_monitoring": self.is_monitoring,
-            "current_room_id": self.current_room_id,
-            "current_live_id": self.current_live_id,
-            "fetcher_status": fetcher_status or {
-                "is_running": False,
-                "room_id": None,
-                "live_id": None,
-                "callbacks_count": 0,
+            "current_room_id": self.current_room_id or relay_status.room_id,
+            "current_live_id": self.current_live_id or relay_status.live_id,
+            "fetcher_status": {
+                "is_running": relay_status.is_running,
+                "room_id": relay_status.room_id,
+                "live_id": relay_status.live_id,
+                "callbacks_count": len(self.message_callbacks),
+                "last_error": relay_status.last_error,
             },
         }
 
-# 全局服务实例
 
 douyin_service: Optional[DouyinLiveService] = None
+
 
 def get_douyin_service() -> DouyinLiveService:
     global douyin_service
@@ -250,9 +223,11 @@ def get_douyin_service() -> DouyinLiveService:
         douyin_service = DouyinLiveService()
     return douyin_service
 
+
 if __name__ == "__main__":
-    async def test_douyin():
+    async def _test():
         svc = get_douyin_service()
         print("status:", svc.get_status())
         print("抖音直播服务已准备就绪")
-    asyncio.run(test_douyin())
+
+    asyncio.run(_test())

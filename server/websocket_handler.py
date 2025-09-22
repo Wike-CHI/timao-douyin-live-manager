@@ -542,7 +542,10 @@ class LiveDataBroadcaster:
     def _broadcast_comments(self):
         """广播最新评论"""
         try:
-            recent_comments = data_manager.get_recent_comments(limit=10)
+            try:
+                recent_comments = data_manager.get_recent_comments(limit=10)
+            except TypeError:
+                recent_comments = data_manager.get_recent_comments()
             if recent_comments:
                 comment_data = [asdict(comment) for comment in recent_comments]
                 self.ws_manager.emit_to_subscribers('comments', 'new_comments', {
@@ -556,7 +559,10 @@ class LiveDataBroadcaster:
         """广播热词"""
         try:
             from .comment_processor import comment_processor
-            hot_words = comment_processor.get_hot_words(limit=20)
+            try:
+                hot_words = comment_processor.get_hot_words(limit=20)
+            except TypeError:
+                hot_words = comment_processor.get_hot_words()
             if hot_words:
                 self.ws_manager.emit_to_subscribers('hotwords', 'hot_words_update', {
                     'hot_words': hot_words,
@@ -568,7 +574,10 @@ class LiveDataBroadcaster:
     def _broadcast_scripts(self):
         """广播AI话术"""
         try:
-            latest_scripts = data_manager.get_latest_scripts(limit=5)
+            try:
+                latest_scripts = data_manager.get_latest_scripts(limit=5)
+            except TypeError:
+                latest_scripts = data_manager.get_latest_scripts()
             if latest_scripts:
                 script_data = [asdict(script) for script in latest_scripts]
                 self.ws_manager.emit_to_subscribers('scripts', 'new_scripts', {
@@ -618,6 +627,7 @@ class LiveDataBroadcaster:
 # 全局WebSocket管理器实例
 ws_manager = WebSocketManager()
 data_broadcaster = LiveDataBroadcaster(ws_manager)
+_data_broadcaster_enabled = False
 
 
 def setup_websocket(socketio):
@@ -627,13 +637,32 @@ def setup_websocket(socketio):
 
 def start_websocket_services():
     """启动WebSocket服务"""
+    global _data_broadcaster_enabled
     ws_manager.start()
-    data_broadcaster.start()
+
+    required_methods = [
+        "get_recent_comments",
+        "get_hot_words",
+        "get_latest_scripts",
+        "get_stats",
+    ]
+    if all(hasattr(data_manager, method) for method in required_methods):
+        data_broadcaster.start()
+        _data_broadcaster_enabled = True
+    else:  # pragma: no cover - 运行时环境不满足时降级
+        missing = [m for m in required_methods if not hasattr(data_manager, m)]
+        print(
+            f"[{format_time()}] 数据广播器未启动：data_manager 缺少 {', '.join(missing)}，已降级为仅 WebSocket 管理"
+        )
+        _data_broadcaster_enabled = False
 
 
 def stop_websocket_services():
     """停止WebSocket服务"""
-    data_broadcaster.stop()
+    global _data_broadcaster_enabled
+    if _data_broadcaster_enabled:
+        data_broadcaster.stop()
+    _data_broadcaster_enabled = False
     ws_manager.stop()
 
 

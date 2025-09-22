@@ -43,6 +43,10 @@ try:
     app.include_router(douyin_router)
     logging.info("✅ 抖音API路由已加载")
 
+    from .api.douyin_web import router as douyin_web_router
+    app.include_router(douyin_web_router)
+    logging.info("✅ 抖音Web测试路由已加载")
+
     # WebSocket 广播与管理服务（相对导入）
     from ..websocket_handler import start_websocket_services, stop_websocket_services  # type: ignore
     logging.info("✅ WebSocket 服务导入成功（相对导入）")
@@ -63,6 +67,10 @@ except ImportError:
         douyin_mod = importlib.import_module('server.app.api.douyin')
         app.include_router(getattr(douyin_mod, 'router'))
         logging.info("✅ 抖音API路由已加载")
+
+        douyin_web_mod = importlib.import_module('server.app.api.douyin_web')
+        app.include_router(getattr(douyin_web_mod, 'router'))
+        logging.info("✅ 抖音Web测试路由已加载")
 
         ws_mod = importlib.import_module('server.websocket_handler')
         start_websocket_services = getattr(ws_mod, 'start_websocket_services')
@@ -141,6 +149,7 @@ async def root():
                 <a href="/docs" class="link">📚 API文档</a>
                 <a href="/api/transcription/health" class="link">💚 健康检查</a>
                 <a href="/static/index.html" class="link">🎯 前端界面</a>
+                <a href="/static/douyin_test.html" class="link">🧪 Douyin 测试面板</a>
             </div>
             
             <div style="margin-top: 30px; font-size: 0.9em; opacity: 0.8;">
