@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""
-AST (Audio Speech Transcription) 主服务
-整合音频采集、处理和VOSK语音识别的完整解决方案
+"""AST (Audio Speech Transcription) 主服务.
+
+整合音频采集、处理与 SenseVoice 语音识别的完整解决方案。
 """
 
 import asyncio
@@ -16,19 +16,12 @@ from pathlib import Path
 # 导入AST模块组件
 try:
     from .audio_capture import AudioCapture, AudioProcessor, AudioConfig, AudioBuffer
-    from .vosk_service_v2 import VoskServiceV2, VoskConfig
 except ImportError:
     # 如果在AST_module目录外运行
     import sys
     from pathlib import Path
     sys.path.append(str(Path(__file__).parent))
     from audio_capture import AudioCapture, AudioProcessor, AudioConfig, AudioBuffer
-    from vosk_service_v2 import VoskServiceV2, VoskConfig
-    # 如果VOSK不可用，尝试模拟服务
-    try:
-        VoskServiceV2()
-    except:
-        from mock_vosk_service import MockVoskService as VoskServiceV2
 
 @dataclass
 class TranscriptionResult:
@@ -51,10 +44,7 @@ class ASTConfig:
     """AST模块配置"""
     # 音频配置
     audio_config: AudioConfig
-    
-    # VOSK配置
-    vosk_model_path: str
-    vosk_server_port: int = 2700
+    model_id: str = "iic/SenseVoiceSmall"
     
     # 处理配置
     chunk_duration: float = 1.0  # 音频块持续时间(秒)
@@ -77,7 +67,11 @@ class ASTService:
         """
         # 使用默认配置
         if config is None:
-            from config import create_ast_config
+            try:
+                from .config import create_ast_config
+            except ImportError:
+                # 如果在AST_module目录外运行
+                from config import create_ast_config
             config = create_ast_config(
                 chunk_duration=1.0,
                 min_confidence=0.5,
@@ -93,26 +87,20 @@ class ASTService:
         self.audio_capture = AudioCapture(self.config.audio_config)
         self.audio_processor = AudioProcessor()
         
-        # 优先使用真实VOSK直接服务
         try:
-            # 检查模型是否存在
-            model_path = Path(self.config.vosk_model_path)
-            if model_path.exists():
-                try:
-                    from .vosk_direct_service import VoskDirectService
-                except ImportError:
-                    from vosk_direct_service import VoskDirectService
-                self.vosk_service = VoskDirectService(self.config.vosk_model_path)
-                self.logger.info(f"使用真实VOSK直接服务: {model_path}")
-            else:
-                raise FileNotFoundError(f"模型路径不存在: {model_path}")
-        except Exception as e:
-            self.logger.warning(f"真实VOSK服务不可用，使用模拟服务: {e}")
-            try:
-                from .mock_vosk_service import MockVoskService
-            except ImportError:
-                from mock_vosk_service import MockVoskService
-            self.vosk_service = MockVoskService(self.config.vosk_model_path)
+            from .sensevoice_service import SenseVoiceService, SenseVoiceConfig
+        except ImportError:  # pragma: no cover - 兼容直接运行
+            from sensevoice_service import SenseVoiceService, SenseVoiceConfig
+
+        self.recognizer: Optional[SenseVoiceService] = None
+        self.mock_transcriber = None
+        try:
+            svc_config = SenseVoiceConfig(model_id=self.config.model_id)
+            self.recognizer = SenseVoiceService(svc_config)
+            self.logger.info("使用 SenseVoice 服务进行语音识别")
+        except Exception as exc:  # pragma: no cover - SenseVoice 缺失
+            self.logger.error(f"SenseVoice 服务初始化失败: {exc}")
+            self.recognizer = None
         self.audio_buffer = AudioBuffer(
             max_duration=self.config.buffer_duration,
             sample_rate=self.config.audio_config.sample_rate
@@ -137,18 +125,40 @@ class ASTService:
         if self.config.save_audio_files:
             Path(self.config.audio_output_dir).mkdir(parents=True, exist_ok=True)
     
-    def _get_default_model_path(self) -> str:
-        """获取默认VOSK模型路径"""
-        current_dir = Path(__file__).parent.parent
-        model_path = current_dir / "vosk-api" / "vosk-model-cn-0.22"
-        
-        # 如果模型不存在，返回一个默认路径而不抛出异常
-        if not model_path.exists():
-            logging.warning(f"VOSK中文模型未找到: {model_path}，将使用模拟服务")
-            return str(model_path)  # 返回路径，由VOSK服务决定如何处理
-        
-        return str(model_path)
-    
+    def _create_basic_mock_service(self):
+        """创建基础模拟服务"""
+        class BasicMockService:
+            def __init__(self):
+                self.is_initialized = False
+            
+            async def initialize(self):
+                self.is_initialized = True
+                return True
+            
+            async def transcribe_audio(self, audio_data: bytes):
+                return {
+                    "success": True,
+                    "type": "final",
+                    "text": "模拟转录结果",
+                    "confidence": 0.9,
+                    "words": [],
+                    "timestamp": time.time()
+                }
+            
+            async def cleanup(self):
+                pass
+            
+            def get_model_info(self):
+                return {
+                    "model_id": "mock",
+                    "sample_rate": 16000,
+                    "is_initialized": self.is_initialized,
+                    "model_type": "mock-service",
+                    "deployment_mode": "mock",
+                }
+
+        return BasicMockService()
+
     async def initialize(self) -> bool:
         """
         初始化所有组件
@@ -164,11 +174,21 @@ class ASTService:
                 self.logger.error("音频系统初始化失败")
                 return False
             
-            # 2. 初始化VOSK服务
-            if not await self.vosk_service.initialize():
-                self.logger.error("VOSK服务初始化失败")
+            # 2. 初始化 SenseVoice 服务
+            if self.recognizer:
+                try:
+                    ok = await self.recognizer.initialize()
+                    if not ok:
+                        self.logger.error("SenseVoice 服务初始化失败")
+                        self.recognizer = None
+                except Exception as exc:
+                    self.logger.error(f"SenseVoice 初始化异常: {exc}")
+                    self.recognizer = None
+
+            if not self.recognizer:
+                self.logger.error("SenseVoice 未正确初始化，请检查依赖或麦克风")
                 return False
-            
+
             self.logger.info("✅ AST服务初始化成功")
             return True
             
@@ -240,10 +260,14 @@ class ASTService:
             await self.audio_buffer.clear()
             
             self.logger.info("✅ AST转录服务已停止")
-            
-            # 输出统计信息
+
             duration = time.time() - self.stats["session_start_time"]
-            self.logger.info(f"会话统计 - 时长:{duration:.1f}s, 转录次数:{self.stats['successful_transcriptions']}, 平均置信度:{self.stats['average_confidence']:.2f}")
+            self.logger.info(
+                "会话统计 - 时长:%s, 转录次数:%s, 平均置信度:%.2f",
+                f"{duration:.1f}s",
+                self.stats["successful_transcriptions"],
+                self.stats["average_confidence"],
+            )
             
             return True
             
@@ -301,8 +325,9 @@ class ASTService:
                 audio_file = Path(self.config.audio_output_dir) / f"chunk_{timestamp}.wav"
                 self.audio_processor.save_audio_to_file(audio_data, str(audio_file))
             
-            # VOSK转录
-            result = await self.vosk_service.transcribe_audio(audio_data)
+            if not self.recognizer:
+                return
+            result = await self.recognizer.transcribe_audio(audio_data)
             
             if result.get("success") and result.get("text"):
                 # 创建转录结果
@@ -379,7 +404,9 @@ class ASTService:
             "current_room_id": self.current_room_id,
             "current_session_id": self.current_session_id,
             "stats": self.stats.copy(),
-            "vosk_info": self.vosk_service.get_model_info() if self.vosk_service else None,
+            "recognizer_info": self.recognizer.get_model_info()
+            if hasattr(self.recognizer, "get_model_info")
+            else None,
             "audio_config": asdict(self.config.audio_config),
             "callbacks_count": len(self.transcription_callbacks)
         }
@@ -395,8 +422,8 @@ class ASTService:
             
             # 清理组件
             self.audio_capture.cleanup()
-            if self.vosk_service:
-                await self.vosk_service.cleanup()
+            if self.recognizer and hasattr(self.recognizer, "cleanup"):
+                await self.recognizer.cleanup()
             
             # 清理回调
             self.transcription_callbacks.clear()

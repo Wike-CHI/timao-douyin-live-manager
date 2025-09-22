@@ -17,7 +17,7 @@ from pathlib import Path
 @dataclass
 class AudioConfig:
     """音频配置"""
-    sample_rate: int = 16000  # VOSK推荐采样率
+    sample_rate: int = 16000  # SenseVoice 推荐采样率
     channels: int = 1         # 单声道
     chunk_size: int = 1024    # 每次读取的帧数
     format: int = pyaudio.paInt16  # 16位深度
@@ -57,6 +57,24 @@ class AudioCapture:
             max_input_channels = info.get('maxInputChannels')
             if isinstance(max_input_channels, int) and max_input_channels > 0:
                 self.logger.info(f"  {i}: {info['name']} (输入通道: {max_input_channels})")
+
+    def list_audio_devices(self):
+        """获取可用音频设备列表"""
+        if self.audio is None:
+            return []
+        
+        devices = []
+        for i in range(self.audio.get_device_count()):
+            info = self.audio.get_device_info_by_index(i)
+            max_input_channels = info.get('maxInputChannels')
+            if isinstance(max_input_channels, int) and max_input_channels > 0:
+                devices.append({
+                    'index': i,
+                    'name': info['name'],
+                    'maxInputChannels': max_input_channels
+                })
+        
+        return devices
     
     async def start_recording(self) -> bool:
         """开始录音"""

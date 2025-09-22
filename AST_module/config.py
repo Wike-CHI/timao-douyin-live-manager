@@ -13,17 +13,12 @@ except ImportError:
     # 暂时延迟导入ASTConfig，避免循环导入
     ASTConfig = None
 
-# 默认模型路径
-DEFAULT_MODEL_PATH = str(Path(__file__).parent.parent / "vosk-api" / "vosk-model-cn-0.22")
-
-# 检查模型是否存在
-if not Path(DEFAULT_MODEL_PATH).exists():
-    import logging
-    logging.warning(f"VOSK模型路径不存在: {DEFAULT_MODEL_PATH}，将使用模拟服务")
+# 默认 SenseVoice 模型
+DEFAULT_MODEL_ID = "iic/SenseVoiceSmall"
 
 # 默认音频配置
 DEFAULT_AUDIO_CONFIG = AudioConfig(
-    sample_rate=16000,      # VOSK推荐采样率
+    sample_rate=16000,      # SenseVoice 推荐采样率
     channels=1,             # 单声道
     chunk_size=1024,        # 音频块大小
     input_device_index=None # 自动选择设备
@@ -49,7 +44,7 @@ def create_ast_config(
     创建自定义AST配置
     
     Args:
-        model_path: VOSK模型路径
+        model_path: SenseVoice 模型 ID（ModelScope）
         sample_rate: 音频采样率
         chunk_duration: 音频块持续时间
         min_confidence: 最小置信度阈值
@@ -75,8 +70,7 @@ def create_ast_config(
     
     return ASTConfig(
         audio_config=audio_config,
-        vosk_model_path=model_path or DEFAULT_MODEL_PATH,
-        vosk_server_port=2700,
+        model_id=model_path or DEFAULT_MODEL_ID,
         chunk_duration=chunk_duration,
         min_confidence=min_confidence,
         buffer_duration=10.0,

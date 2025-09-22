@@ -4,20 +4,14 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Set
 
-from DouyinLiveWebFetcher.liveMan import (
-    ChatMessage,
-    DouyinLiveWebFetcher,
-    GiftMessage,
-    LikeMessage,
-    MemberMessage,
-    RoomRankMessage,
-)
+from DouyinLiveWebFetcher.liveMan import (ChatMessage, DouyinLiveWebFetcher,
+                                          GiftMessage, LikeMessage,
+                                          MemberMessage, RoomRankMessage)
 
 
 @dataclass
@@ -37,11 +31,13 @@ class _WebRelayFetcher(DouyinLiveWebFetcher):
 
     def _emit_event(self, event_type: str, payload: Dict[str, Any]) -> None:
         try:
-            self._emit({
-                "type": event_type,
-                "payload": payload,
-                "timestamp": time.time(),
-            })
+            self._emit(
+                {
+                    "type": event_type,
+                    "payload": payload,
+                    "timestamp": time.time(),
+                }
+            )
         except Exception:
             # 回调失败时忽略，以免影响主体流程
             pass
@@ -67,41 +63,36 @@ class _WebRelayFetcher(DouyinLiveWebFetcher):
 
     def _parseChatMsg(self, payload):  # noqa: N802
         message = ChatMessage().parse(payload)
-        self._emit_event("chat", {
-            "user_id": message.user.id,
-            "user_id_str": message.user.id_str,
-            "nickname": message.user.nick_name,
-            "content": message.content,
-        })
+        self._emit_event(
+            "chat",
+            {
+                "user_id": message.user.id,
+                "user_id_str": message.user.id_str,
+                "nickname": message.user.nick_name,
+                "content": message.content,
+            },
+        )
 
     def _parseGiftMsg(self, payload):  # noqa: N802
         message = GiftMessage().parse(payload)
-        self._emit_event("gift", {
-            "user_id": message.user.id,
-            "user_id_str": message.user.id_str,
-            "nickname": message.user.nick_name,
-            "gift_name": message.gift.name,
-            "count": message.combo_count,
-        })
+        self._emit_event(
+            "gift",
+            {
+                "user_id": message.user.id,
+                "user_id_str": message.user.id_str,
+                "nickname": message.user.nick_name,
+                "gift_name": message.gift.name,
+                "count": message.combo_count,
+            },
+        )
 
     def _parseLikeMsg(self, payload):  # noqa: N802
-        message = LikeMessage().parse(payload)
-        self._emit_event("like", {
-            "user_id": message.user.id,
-            "user_id_str": message.user.id_str,
-            "nickname": message.user.nick_name,
-            "count": message.count,
-        })
+        # 点赞信息在测试页面中忽略
+        return
 
     def _parseMemberMsg(self, payload):  # noqa: N802
-        message = MemberMessage().parse(payload)
-        gender_map = {0: "female", 1: "male"}
-        self._emit_event("member", {
-            "user_id": message.user.id,
-            "user_id_str": message.user.id_str,
-            "nickname": message.user.nick_name,
-            "gender": gender_map.get(message.user.gender, "unknown"),
-        })
+        # 进场信息在测试页面中忽略
+        return
 
     def _parseRankMsg(self, payload):  # noqa: N802
         message = RoomRankMessage().parse(payload)
@@ -110,15 +101,17 @@ class _WebRelayFetcher(DouyinLiveWebFetcher):
             avatar = None
             if item.user.avatar_thumb and item.user.avatar_thumb.url_list_list:
                 avatar = item.user.avatar_thumb.url_list_list[0]
-            ranks.append({
-                "rank": item.rank,
-                "score": item.score,
-                "score_str": item.score_str,
-                "user_id": item.user.id,
-                "user_id_str": item.user.id_str,
-                "nickname": item.user.nick_name,
-                "avatar": avatar,
-            })
+            ranks.append(
+                {
+                    "rank": item.rank,
+                    "score": item.score,
+                    "score_str": item.score_str,
+                    "user_id": item.user.id,
+                    "user_id_str": item.user.id_str,
+                    "nickname": item.user.nick_name,
+                    "avatar": avatar,
+                }
+            )
         if ranks:
             self._emit_event("room_rank", {"ranks": ranks})
 
@@ -176,28 +169,53 @@ class DouyinWebRelay:
 
             def runner():
                 try:
-                    emitter({"type": "status", "payload": {"stage": "resolving_room"}, "timestamp": time.time()})
+                    emitter(
+                        {
+                            "type": "status",
+                            "payload": {"stage": "resolving_room"},
+                            "timestamp": time.time(),
+                        }
+                    )
                     try:
                         self._fetcher.get_room_status()
                         room_id = getattr(self._fetcher, "room_id", None)
                         if room_id:
-                            emitter({
-                                "type": "status",
-                                "payload": {"stage": "room_ready", "room_id": room_id},
-                                "timestamp": time.time(),
-                            })
+                            emitter(
+                                {
+                                    "type": "status",
+                                    "payload": {
+                                        "stage": "room_ready",
+                                        "room_id": room_id,
+                                    },
+                                    "timestamp": time.time(),
+                                }
+                            )
                     except Exception as exc:
-                        emitter({"type": "error", "payload": {"message": str(exc)}, "timestamp": time.time()})
+                        emitter(
+                            {
+                                "type": "error",
+                                "payload": {"message": str(exc)},
+                                "timestamp": time.time(),
+                            }
+                        )
                         return
 
                     self._fetcher.start()
                 except Exception as exc:
-                    emitter({"type": "error", "payload": {"message": str(exc)}, "timestamp": time.time()})
+                    emitter(
+                        {
+                            "type": "error",
+                            "payload": {"message": str(exc)},
+                            "timestamp": time.time(),
+                        }
+                    )
                 finally:
                     if self._event_loop:
                         self._event_loop.call_soon_threadsafe(self._thread_finished)
 
-            self._thread = threading.Thread(target=runner, name="DouyinWebRelay", daemon=True)
+            self._thread = threading.Thread(
+                target=runner, name="DouyinWebRelay", daemon=True
+            )
             self._thread.start()
             return {"success": True, "live_id": live_id}
 
@@ -252,7 +270,9 @@ class DouyinWebRelay:
             except asyncio.QueueFull:
                 pass
 
-    def _emit_status(self, stage: str, payload: Optional[Dict[str, Any]] = None) -> None:
+    def _emit_status(
+        self, stage: str, payload: Optional[Dict[str, Any]] = None
+    ) -> None:
         data = {
             "type": "status",
             "payload": {"stage": stage, **(payload or {})},
