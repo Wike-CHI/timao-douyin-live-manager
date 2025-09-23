@@ -6,7 +6,7 @@
 
 import asyncio
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 import sys
@@ -31,8 +31,10 @@ class StartTranscriptionRequest(BaseModel):
     chunk_duration: float = 1.0
     min_confidence: float = 0.6
     save_audio: bool = False
-    enable_vad: bool = False
+    # 前端不强制暴露专业开关；这里改为可选，仅当提供时才覆盖后端自动策略
+    enable_vad: Optional[bool] = None
     vad_model_path: Optional[str] = None
+    device_index: Optional[int] = None
 
 class TranscriptionResponse(BaseModel):
     success: bool
@@ -85,13 +87,11 @@ async def start_transcription(request: StartTranscriptionRequest):
         service.config.chunk_duration = request.chunk_duration
         service.config.min_confidence = request.min_confidence
         service.config.save_audio_files = request.save_audio
-        # VAD 配置（动态）
-        service.config.enable_vad = bool(request.enable_vad)
-        # 如果启用 VAD 且未提供路径，则使用项目内默认位置作为约定
-        if request.enable_vad and not request.vad_model_path:
-            default_vad = str(PROJECT_ROOT / 'models' / 'models' / 'iic' / 'speech_fsmn_vad_zh-cn-16k-common-pytorch')
-            service.config.vad_model_id = default_vad
-        else:
+        # VAD 配置（仅当请求显式给出时覆盖自动策略）
+        if request.enable_vad is not None:
+            service.config.enable_vad = bool(request.enable_vad)
+        if request.vad_model_path is not None:
+            # 若给了路径则覆盖，否则保留自动探测结果
             service.config.vad_model_id = request.vad_model_path
 
         # 初始化服务
@@ -117,6 +117,62 @@ async def start_transcription(request: StartTranscriptionRequest):
             
     except Exception as e:
         logging.error(f"启动转录失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class UpdateConfigRequest(BaseModel):
+    device_index: Optional[int] = None
+    preset_mode: Optional[str] = None  # fast | accurate
+
+
+@router.get("/devices")
+async def list_audio_devices():
+    """列出可用麦克风设备（来自 PyAudio）。"""
+    try:
+        service = get_ast_service_instance()
+        # 确保可列举设备
+        if service.audio_capture.audio is None:
+            service.audio_capture.initialize()
+        devices: List[dict] = service.audio_capture.list_audio_devices() or []
+        return {"devices": devices}
+    except Exception as e:
+        logging.error(f"获取音频设备失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/config")
+async def update_config(req: UpdateConfigRequest):
+    """更新运行配置：选择输入设备、切换识别模式（快/准）。"""
+    try:
+        service = get_ast_service_instance()
+        if req.device_index is not None:
+            service.config.audio_config.input_device_index = req.device_index
+        if req.preset_mode:
+            mode = (req.preset_mode or '').lower()
+            if mode == 'fast':
+                service.config.chunk_duration = 0.8
+                service.config.min_confidence = 0.5
+                service.config.enable_vad = False
+            elif mode == 'accurate':
+                service.config.chunk_duration = 1.5
+                service.config.min_confidence = 0.6
+                # 若本地找到 VAD 则启用（config.create_ast_config 已带自动探测），这里只是偏好
+                service.config.enable_vad = True
+            else:
+                raise HTTPException(status_code=400, detail="preset_mode 仅支持 fast/accurate")
+        return {
+            "success": True,
+            "config": {
+                "chunk_duration": service.config.chunk_duration,
+                "min_confidence": service.config.min_confidence,
+                "enable_vad": getattr(service.config, 'enable_vad', False),
+                "device_index": service.config.audio_config.input_device_index,
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"更新配置失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/stop", response_model=TranscriptionResponse)

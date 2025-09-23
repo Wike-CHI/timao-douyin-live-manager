@@ -143,10 +143,15 @@ class AudioCapture:
         self.logger.info("音频系统已清理")
 
 class AudioProcessor:
-    """音频预处理器"""
+    """音频预处理器
+    - 将输入音频统一到目标采样率与单声道。
+    - 明确区分输入采样率/通道，避免因为默认 44.1k 假设导致的错误重采样。
+    """
     
-    def __init__(self, target_sample_rate: int = 16000):
+    def __init__(self, target_sample_rate: int = 16000, source_sample_rate: int = 16000, source_channels: int = 1):
         self.target_sample_rate = target_sample_rate
+        self.source_sample_rate = source_sample_rate
+        self.source_channels = max(1, int(source_channels))
         self.logger = logging.getLogger(__name__)
     
     def validate_audio_format(self, audio_data: bytes) -> bool:
@@ -166,24 +171,31 @@ class AudioProcessor:
             self.logger.error(f"音频格式验证失败: {e}")
             return False
     
-    def convert_to_16khz_mono(self, audio_data: bytes, original_rate: int = 44100) -> bytes:
-        """转换为16kHz单声道格式"""
+    def convert_to_16khz_mono(self, audio_data: bytes) -> bytes:
+        """将输入音频转换为目标采样率的单声道。
+        使用初始化时提供的 source_sample_rate/source_channels 作为真实输入格式。
+        """
         try:
             # 转换为numpy数组
             audio_array = np.frombuffer(audio_data, dtype=np.int16)
             
-            # 如果是立体声，转换为单声道
-            if len(audio_array) % 2 == 0:
-                # 假设是立体声
-                stereo = audio_array.reshape(-1, 2)
-                mono = np.mean(stereo, axis=1).astype(np.int16)
+            # 如果是多通道，按通道均值转单声道
+            if self.source_channels > 1:
+                total_frames = len(audio_array) // self.source_channels
+                if total_frames > 0:
+                    multi = audio_array[: total_frames * self.source_channels].reshape(
+                        -1, self.source_channels
+                    )
+                    mono = np.mean(multi, axis=1).astype(np.int16)
+                else:
+                    mono = audio_array
             else:
                 mono = audio_array
             
             # 重采样到16kHz
-            if original_rate != self.target_sample_rate:
+            if self.source_sample_rate != self.target_sample_rate:
                 # 简单的重采样 (线性插值)
-                resample_ratio = self.target_sample_rate / original_rate
+                resample_ratio = self.target_sample_rate / float(self.source_sample_rate)
                 new_length = int(len(mono) * resample_ratio)
                 resampled = np.interp(
                     np.linspace(0, len(mono) - 1, new_length),
@@ -240,7 +252,7 @@ class AudioProcessor:
         if not self.validate_audio_format(audio_data):
             return b''
         
-        # 1. 格式转换
+        # 1. 格式转换（基于真实输入采样率/通道）
         processed = self.convert_to_16khz_mono(audio_data)
         
         # 2. 噪声降低

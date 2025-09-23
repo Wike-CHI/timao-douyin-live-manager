@@ -30,6 +30,7 @@ export interface StartTranscriptionPayload {
   saveAudio?: boolean;
   enableVad?: boolean;
   vadModelPath?: string | null;
+  deviceIndex?: number | null;
 }
 
 export interface TranscriptionStats {
@@ -63,18 +64,22 @@ export const startTranscription = async (
   payload: StartTranscriptionPayload,
   baseUrl: string = DEFAULT_BASE_URL
 ) => {
+  // 仅在显式提供时发送专业参数，保留后端自动策略
+  const body: Record<string, unknown> = {
+    room_id: payload.roomId,
+    session_id: payload.sessionId,
+    chunk_duration: payload.chunkDuration ?? 1.2,
+    min_confidence: payload.minConfidence ?? 0.6,
+    save_audio: payload.saveAudio ?? false,
+  };
+  if (typeof payload.enableVad === 'boolean') body.enable_vad = payload.enableVad;
+  if (typeof payload.vadModelPath !== 'undefined') body.vad_model_path = payload.vadModelPath;
+  if (typeof payload.deviceIndex !== 'undefined') body.device_index = payload.deviceIndex;
+
   const response = await fetch(`${baseUrl}/api/transcription/start`, {
     method: 'POST',
     headers: buildHeaders(),
-    body: JSON.stringify({
-      room_id: payload.roomId,
-      session_id: payload.sessionId,
-      chunk_duration: payload.chunkDuration ?? 1.0,
-      min_confidence: payload.minConfidence ?? 0.6,
-      save_audio: payload.saveAudio ?? false,
-      enable_vad: payload.enableVad ?? false,
-      vad_model_path: payload.vadModelPath ?? null,
-    }),
+    body: JSON.stringify(body),
   });
   return handleResponse(response);
 };
@@ -119,3 +124,36 @@ export const openTranscriptionWebSocket = (
 };
 
 export const createSessionId = () => `session-${Date.now()}`;
+
+// New: list audio input devices (from backend / PyAudio)
+export interface AudioDevice {
+  index: number;
+  name: string;
+  maxInputChannels: number;
+}
+
+export const listDevices = async (
+  baseUrl: string = DEFAULT_BASE_URL
+): Promise<{ devices: AudioDevice[] }> => {
+  const response = await fetch(`${baseUrl}/api/transcription/devices`, {
+    method: 'GET',
+    headers: buildHeaders(),
+  });
+  return handleResponse(response);
+};
+
+// New: update runtime config (device / preset)
+export const updateTranscriptionConfig = async (
+  config: { deviceIndex?: number | null; presetMode?: 'fast' | 'accurate' },
+  baseUrl: string = DEFAULT_BASE_URL
+) => {
+  const response = await fetch(`${baseUrl}/api/transcription/config`, {
+    method: 'POST',
+    headers: buildHeaders(),
+    body: JSON.stringify({
+      device_index: typeof config.deviceIndex === 'undefined' ? undefined : config.deviceIndex,
+      preset_mode: config.presetMode,
+    }),
+  });
+  return handleResponse(response);
+};

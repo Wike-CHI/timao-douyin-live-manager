@@ -88,7 +88,12 @@ class ASTService:
         
         # 初始化组件
         self.audio_capture = AudioCapture(self.config.audio_config)
-        self.audio_processor = AudioProcessor()
+        # 让处理器了解真实输入格式，避免重复/错误重采样
+        self.audio_processor = AudioProcessor(
+            target_sample_rate=self.config.audio_config.sample_rate,
+            source_sample_rate=self.config.audio_config.sample_rate,
+            source_channels=self.config.audio_config.channels,
+        )
         
         try:
             from .sensevoice_service import SenseVoiceService, SenseVoiceConfig

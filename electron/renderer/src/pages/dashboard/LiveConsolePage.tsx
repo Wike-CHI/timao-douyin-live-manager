@@ -9,6 +9,8 @@ import {
   TranscriptionStatus,
 } from '../../services/transcription';
 import DouyinRelayPanel from '../../components/douyin/DouyinRelayPanel';
+import InputLevelMeter from '../../components/InputLevelMeter';
+import { listDevices, updateTranscriptionConfig, AudioDevice } from '../../services/transcription';
 
 interface TranscriptEntry {
   id: string;
@@ -29,11 +31,12 @@ const LiveConsolePage = () => {
   const [log, setLog] = useState<TranscriptEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // VAD 控件
-  const [enableVad, setEnableVad] = useState(false);
-  const [vadModelPath, setVadModelPath] = useState<string>('');
+  // 简化设置：不暴露 VAD/模型等专业术语，后端自动探测
 
   const socketRef = useRef<WebSocket | null>(null);
+  const [devices, setDevices] = useState<AudioDevice[]>([]);
+  const [selectedDevice, setSelectedDevice] = useState<number | null>(null);
+  const [presetMode, setPresetMode] = useState<'fast' | 'accurate'>('accurate');
 
   const isRunning = status?.is_running ?? false;
 
@@ -91,6 +94,15 @@ const LiveConsolePage = () => {
 
   useEffect(() => {
     refreshStatus();
+    // 拉取麦克风设备列表
+    (async () => {
+      try {
+        const res = await listDevices(FASTAPI_BASE_URL);
+        setDevices(res.devices || []);
+      } catch (e) {
+        console.warn('获取麦克风设备失败', e);
+      }
+    })();
     return () => {
       if (socketRef.current) {
         socketRef.current.close();
@@ -102,17 +114,22 @@ const LiveConsolePage = () => {
     setLoading(true);
     setError(null);
     try {
+      // 先应用当前预设和设备
+      await updateTranscriptionConfig(
+        {
+          deviceIndex: selectedDevice,
+          presetMode,
+        },
+        FASTAPI_BASE_URL
+      );
       const currentSession = sessionId || createSessionId();
       setSessionId(currentSession);
       await startTranscription(
         {
           roomId,
           sessionId: currentSession,
-          chunkDuration: 1.0,
-          minConfidence: 0.6,
+          // 其余参数由后端 preset 决定，这里保持轻量
           saveAudio: false,
-          enableVad,
-          vadModelPath: enableVad && vadModelPath.trim() ? vadModelPath.trim() : null,
         },
         FASTAPI_BASE_URL
       );
@@ -232,35 +249,69 @@ const LiveConsolePage = () => {
         </section>
 
         <section className="flex flex-col gap-4">
+          {/* 设备与模式设置（无专业术语） */}
           <div className="timao-card">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
                 <span>🎛️</span>
-                转写设置
+                识别设置
               </h3>
             </div>
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={enableVad}
-                  onChange={(e) => setEnableVad(e.target.checked)}
-                />
-                启用 VAD（语音活动检测）
-              </label>
-            </div>
-            <div className="mt-3">
-              <label className="text-xs text-slate-500 block mb-1">VAD 模型路径（可选）</label>
-              <input
-                type="text"
-                placeholder="例如：models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
-                className="timao-input w-full"
-                value={vadModelPath}
-                onChange={(e) => setVadModelPath(e.target.value)}
-                disabled={!enableVad}
-              />
-              <div className="text-xs timao-support-text mt-1">
-                为空则按后端默认策略。建议将模型离线放入 models/ 目录并填写绝对或项目相对路径。
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <div className="text-xs text-slate-500 mb-1">麦克风</div>
+                <select
+                  className="timao-input w-full"
+                  value={selectedDevice ?? ''}
+                  onChange={async (e) => {
+                    const idx = e.target.value === '' ? null : Number(e.target.value);
+                    setSelectedDevice(idx);
+                    try {
+                      await updateTranscriptionConfig({ deviceIndex: idx ?? null }, FASTAPI_BASE_URL);
+                    } catch {}
+                  }}
+                >
+                  <option value="">系统默认</option>
+                  {devices.map((d) => (
+                    <option key={d.index} value={d.index}>
+                      {d.name}（通道 {d.maxInputChannels}）
+                    </option>
+                  ))}
+                </select>
+                <div className="mt-2"><InputLevelMeter /></div>
+              </div>
+
+              <div>
+                <div className="text-xs text-slate-500 mb-1">识别模式</div>
+                <div className="flex items-center gap-3 text-sm">
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="preset"
+                      checked={presetMode === 'fast'}
+                      onChange={async () => {
+                        setPresetMode('fast');
+                        try { await updateTranscriptionConfig({ presetMode: 'fast' }, FASTAPI_BASE_URL); } catch {}
+                      }}
+                    />
+                    快速（低延迟）
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="preset"
+                      checked={presetMode === 'accurate'}
+                      onChange={async () => {
+                        setPresetMode('accurate');
+                        try { await updateTranscriptionConfig({ presetMode: 'accurate' }, FASTAPI_BASE_URL); } catch {}
+                      }}
+                    />
+                    准确（更稳）
+                  </label>
+                </div>
+                <div className="text-xs timao-support-text mt-2">
+                  快速：更快出字；准确：更接近完整短句。你也可以先“快速”再切“准确”。
+                </div>
               </div>
             </div>
           </div>
@@ -310,7 +361,7 @@ const LiveConsolePage = () => {
           <div className="timao-card">
             <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2 mb-3">
               <span>🔍</span>
-              SenseVoice 状态
+              服务状态
             </h3>
             <ul className="space-y-2 text-sm timao-support-text">
               <li>· 服务状态：{isRunning ? '运行中' : '已停止'}</li>
