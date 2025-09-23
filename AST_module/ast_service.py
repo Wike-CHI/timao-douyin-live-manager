@@ -100,25 +100,20 @@ class ASTService:
             from .sensevoice_service import SenseVoiceService, SenseVoiceConfig
         except ImportError:  # pragma: no cover - 兼容直接运行
             from sensevoice_service import SenseVoiceService, SenseVoiceConfig
+        # Optional sherpa backend
+        try:
+            from .sherpa_service import SherpaOnnxService, SherpaConfig
+        except ImportError:
+            SherpaOnnxService = None  # type: ignore
+            SherpaConfig = None  # type: ignore
         try:
             from .postprocess import ChineseCleaner, HallucinationGuard, SentenceAssembler, pcm16_rms
         except ImportError:
             from postprocess import ChineseCleaner, HallucinationGuard, SentenceAssembler, pcm16_rms
 
-        self.recognizer: Optional[SenseVoiceService] = None
+        self.recognizer = None
         self.mock_transcriber = None
-        try:
-            # 将 VAD 配置传入 SenseVoice 服务
-            svc_config = SenseVoiceConfig(
-                model_id=self.config.model_id,
-                vad_model_id=(self.config.vad_model_id if self.config.enable_vad else None),
-                punc_model_id=self.config.punc_model_id,
-            )
-            self.recognizer = SenseVoiceService(svc_config)
-            self.logger.info("使用 SenseVoice 服务进行语音识别")
-        except Exception as exc:  # pragma: no cover - SenseVoice 缺失
-            self.logger.error(f"SenseVoice 服务初始化失败: {exc}")
-            self.recognizer = None
+        self._build_recognizer()
         self.audio_buffer = AudioBuffer(
             max_duration=self.config.buffer_duration,
             sample_rate=self.config.audio_config.sample_rate
@@ -146,6 +141,47 @@ class ASTService:
         # 创建输出目录
         if self.config.save_audio_files:
             Path(self.config.audio_output_dir).mkdir(parents=True, exist_ok=True)
+
+    def _build_recognizer(self):
+        """Create recognizer based on current model_id.
+        - If model looks like a sherpa-onnx repo (contains 'sherpa-onnx' or 'xiaowangge/'),
+          use SherpaOnnxService; else default to SenseVoiceService.
+        """
+        model_id = self.config.model_id or ""
+        use_sherpa = ("sherpa-onnx" in model_id) or ("xiaowangge/" in model_id)
+        if use_sherpa:
+            try:
+                from .sherpa_service import SherpaOnnxService, SherpaConfig
+                self.recognizer = SherpaOnnxService(SherpaConfig(model_id=model_id))
+                self.logger.info("使用 Sherpa-ONNX 模型: %s", model_id)
+                return
+            except Exception as e:
+                self.logger.error("构建 Sherpa-ONNX 失败，将回退 SenseVoice: %s", e)
+        # Default SenseVoice
+        try:
+            from .sensevoice_service import SenseVoiceService, SenseVoiceConfig
+            svc_config = SenseVoiceConfig(
+                model_id=self.config.model_id,
+                vad_model_id=(self.config.vad_model_id if self.config.enable_vad else None),
+                punc_model_id=self.config.punc_model_id,
+            )
+            self.recognizer = SenseVoiceService(svc_config)
+            self.logger.info("使用 SenseVoice 服务进行语音识别: %s", self.config.model_id)
+        except Exception as exc:
+            self.logger.error("SenseVoice 服务初始化失败: %s", exc)
+            self.recognizer = None
+
+    def set_model_id(self, model_id: str):
+        """Switch ASR backend/model at runtime.
+        Will cleanup current recognizer and create a new one; initialize() should be called later.
+        """
+        try:
+            if self.recognizer and hasattr(self.recognizer, 'cleanup'):
+                asyncio.create_task(self.recognizer.cleanup())
+        except Exception:
+            pass
+        self.config.model_id = model_id
+        self._build_recognizer()
     
     def _create_basic_mock_service(self):
         """创建基础模拟服务"""

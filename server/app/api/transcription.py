@@ -35,6 +35,7 @@ class StartTranscriptionRequest(BaseModel):
     enable_vad: Optional[bool] = None
     vad_model_path: Optional[str] = None
     device_index: Optional[int] = None
+    model_id: Optional[str] = None
 
 class TranscriptionResponse(BaseModel):
     success: bool
@@ -83,6 +84,13 @@ async def start_transcription(request: StartTranscriptionRequest):
         if service.is_running:
             await service.stop_transcription()
         
+        # 切换模型（如指定）
+        if request.model_id:
+            try:
+                service.set_model_id(request.model_id)
+            except Exception:
+                pass
+
         # 更新配置
         service.config.chunk_duration = request.chunk_duration
         service.config.min_confidence = request.min_confidence
