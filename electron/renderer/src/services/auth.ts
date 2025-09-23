@@ -1,4 +1,5 @@
-import { mockLogin, mockPaymentPoll, mockPaymentUpload, mockRegister } from './mockAuth';
+import { mockLogin, mockPaymentPoll, mockPaymentUpload, mockRegister, mockGetWallet, mockRecharge, mockConsume, mockUseFirstFree } from './mockAuth';
+import useAuthStore from '../store/useAuthStore';
 
 const AUTH_BASE_URL = (import.meta.env?.VITE_AUTH_BASE_URL as string | undefined)?.trim();
 const isMock = !AUTH_BASE_URL; // 未配置云端地址时使用本地模拟
@@ -53,8 +54,12 @@ export const uploadPayment = async (file: File) => {
   if (isMock) return mockPaymentUpload(file);
   const form = new FormData();
   form.append('file', file);
+  const { token } = useAuthStore.getState();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
   const resp = await fetch(joinUrl('/api/payment/upload'), {
     method: 'POST',
+    headers,
     body: form,
   });
   if (!resp.ok) {
@@ -66,10 +71,78 @@ export const uploadPayment = async (file: File) => {
 
 export const pollPayment = async () => {
   if (isMock) return mockPaymentPoll();
-  const resp = await fetch(joinUrl('/api/payment/status'), { method: 'GET' });
+  const { token } = useAuthStore.getState();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const resp = await fetch(joinUrl('/api/payment/status'), { method: 'GET', headers });
   if (!resp.ok) {
     const txt = await resp.text().catch(() => '查询失败');
     throw new Error(txt || '查询失败');
+  }
+  return resp.json();
+};
+
+// 钱包相关 API
+export const getWallet = async () => {
+  if (isMock) return mockGetWallet();
+  const { token } = useAuthStore.getState();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const resp = await fetch(joinUrl('/api/wallet/balance'), { method: 'GET', headers });
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '查询钱包失败');
+    throw new Error(txt || '查询钱包失败');
+  }
+  return resp.json();
+};
+
+export const recharge = async (amount: number) => {
+  if (isMock) return mockRecharge(amount);
+  const { token } = useAuthStore.getState();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const resp = await fetch(joinUrl('/api/wallet/recharge'), {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ amount }),
+  });
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '充值失败');
+    throw new Error(txt || '充值失败');
+  }
+  return resp.json();
+};
+
+export const consume = async (amount: number, reason?: string) => {
+  if (isMock) return mockConsume(amount);
+  const { token } = useAuthStore.getState();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const resp = await fetch(joinUrl('/api/wallet/consume'), {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ amount, reason }),
+  });
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '扣费失败');
+    throw new Error(txt || '扣费失败');
+  }
+  return resp.json();
+};
+
+export const useFirstFree = async () => {
+  if (isMock) return mockUseFirstFree();
+  const { token } = useAuthStore.getState();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const resp = await fetch(joinUrl('/api/wallet/useFree'), {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({}),
+  });
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '首次免费失败');
+    throw new Error(txt || '首次免费失败');
   }
   return resp.json();
 };

@@ -55,8 +55,19 @@ export interface TranscriptionMessage {
     confidence: number;
     timestamp: number;
     is_final: boolean;
+    words?: { word: string; start: number; end: number }[];
     room_id?: string;
     session_id?: string;
+  };
+}
+
+export interface TranscriptionDeltaMessage {
+  type: 'transcription_delta';
+  data: {
+    op: 'append' | 'replace' | 'final';
+    text: string;
+    timestamp: number;
+    confidence: number;
   };
 }
 
@@ -68,10 +79,10 @@ export const startTranscription = async (
   const body: Record<string, unknown> = {
     room_id: payload.roomId,
     session_id: payload.sessionId,
-    chunk_duration: payload.chunkDuration ?? 1.2,
-    min_confidence: payload.minConfidence ?? 0.6,
     save_audio: payload.saveAudio ?? false,
   };
+  if (typeof payload.chunkDuration === 'number') body.chunk_duration = payload.chunkDuration;
+  if (typeof payload.minConfidence === 'number') body.min_confidence = payload.minConfidence;
   if (typeof payload.enableVad === 'boolean') body.enable_vad = payload.enableVad;
   if (typeof payload.vadModelPath !== 'undefined') body.vad_model_path = payload.vadModelPath;
   if (typeof payload.deviceIndex !== 'undefined') body.device_index = payload.deviceIndex;

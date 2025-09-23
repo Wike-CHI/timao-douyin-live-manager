@@ -15,7 +15,7 @@ exports.main = async (event) => {
       const now = new Date();
       const existing = await db.collection('users').where({ email }).get();
       if (existing.data && existing.data.length > 0) return { success: false, message: '邮箱已存在' };
-      const addRes = await db.collection('users').add({ email, password: hashed, nickname, isPaid: false, createdAt: now });
+      const addRes = await db.collection('users').add({ email, password: hashed, nickname, isPaid: false, balance: 0, firstFreeUsed: false, createdAt: now });
       return { success: true, message: '注册成功', userId: addRes.id };
     }
 
@@ -35,6 +35,8 @@ exports.main = async (event) => {
         user: { id: user._id, email: user.email, nickname: user.nickname },
         token,
         isPaid: !!user.isPaid,
+        balance: typeof user.balance === 'number' ? user.balance : 0,
+        firstFreeUsed: !!user.firstFreeUsed,
       };
     }
 

@@ -6,6 +6,8 @@ import useAuthStore from '../../store/useAuthStore';
 const LoginPage = () => {
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
+  const setBalance = useAuthStore((state) => state.setBalance);
+  const setFirstFreeUsed = useAuthStore((state) => state.setFirstFreeUsed);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,7 +21,15 @@ const LoginPage = () => {
       const response = await login({ email, password });
       if (response.success) {
         setAuth({ user: response.user, token: response.token, isPaid: response.isPaid });
-        navigate('/pay/verify');
+        // 写入钱包状态
+        if (typeof response.balance === 'number') {
+          setBalance(response.balance);
+        }
+        if (typeof response.firstFreeUsed === 'boolean') {
+          setFirstFreeUsed(response.firstFreeUsed);
+        }
+        const canEnter = (response.balance ?? 0) > 0 || !response.firstFreeUsed;
+        navigate(canEnter ? '/dashboard' : '/pay/wallet');
       }
     } catch (err) {
       setError((err as Error).message);

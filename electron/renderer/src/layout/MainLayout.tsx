@@ -19,6 +19,10 @@ const MainLayout = () => {
     navigate('/auth/login');
   };
 
+  // 新增：余额与钱包入口
+  const { balance } = useAuthStore();
+  const goWallet = () => navigate('/pay/wallet');
+
   return (
     <div className="min-h-screen timao-surface flex">
       <aside className="w-64 timao-card flex flex-col p-6 mr-4">
@@ -57,6 +61,20 @@ const MainLayout = () => {
             <div className="text-sm timao-support-text">祝你今晚直播顺利喵～</div>
           </div>
           <div className="flex items-center gap-4">
+            {/* 新增：余额展示 */}
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-purple-50/50 text-purple-700 shadow-sm">
+              <span>💰</span>
+              <span className="text-sm">余额</span>
+              <span className="font-semibold">{(Number(balance ?? 0)).toFixed(2)}</span>
+            </div>
+            {/* 新增：钱包入口 */}
+            <button
+              onClick={goWallet}
+              className="timao-primary-btn px-4 py-2"
+              title="进入钱包充值"
+            >
+              打开钱包
+            </button>
             <ThemeToggle />
           </div>
         </header>

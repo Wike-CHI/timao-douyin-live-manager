@@ -10,9 +10,10 @@ import AboutPage from './pages/about/AboutPage';
 import LiveConsolePage from './pages/dashboard/LiveConsolePage';
 import ReportsPlaceholder from './pages/dashboard/ReportsPlaceholder';
 import useAuthGuard from './hooks/useAuthGuard';
+import WalletPage from '@/pages/payment/WalletPage';
 
 const App = () => {
-  const { requireAuth, requirePayment, isAuthenticated, isPaid } = useAuthGuard();
+  const { requireAuth, requirePayment, isAuthenticated } = useAuthGuard();
 
   return (
     <HashRouter>
@@ -27,8 +28,9 @@ const App = () => {
           path="/pay"
           element={requireAuth(<PaymentLayout />)}
         >
-          <Route index element={<Navigate to="verify" replace />} />
+          <Route index element={<Navigate to="wallet" replace />} />
           <Route path="verify" element={<PaymentVerifyPage />} />
+          <Route path="wallet" element={<WalletPage />} />
         </Route>
 
         <Route
@@ -46,9 +48,7 @@ const App = () => {
           path="*"
           element={
             isAuthenticated
-              ? isPaid
-                ? <Navigate to="/dashboard" replace />
-                : <Navigate to="/pay/verify" replace />
+              ? <Navigate to="/dashboard" replace />
               : <Navigate to="/auth/login" replace />
           }
         />

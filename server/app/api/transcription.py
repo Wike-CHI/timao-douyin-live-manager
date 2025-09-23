@@ -28,14 +28,14 @@ router = APIRouter(prefix="/api/transcription", tags=["transcription"])
 class StartTranscriptionRequest(BaseModel):
     room_id: str
     session_id: Optional[str] = None
-    chunk_duration: float = 1.0
-    min_confidence: float = 0.6
+    # 仅当前端显式提供时才覆盖后端预设，默认 None 保持当前/预设配置
+    chunk_duration: Optional[float] = None
+    min_confidence: Optional[float] = None
     save_audio: bool = False
     # 前端不强制暴露专业开关；这里改为可选，仅当提供时才覆盖后端自动策略
     enable_vad: Optional[bool] = None
     vad_model_path: Optional[str] = None
     device_index: Optional[int] = None
-    model_id: Optional[str] = None
 
 class TranscriptionResponse(BaseModel):
     success: bool
@@ -55,15 +55,27 @@ def get_ast_service_instance() -> ASTService:
     """获取AST服务实例"""
     global ast_service
     if ast_service is None:
-        # 创建适合生产环境的配置
+        # 默认使用主播 FAST 预设（无需额外调用 /config）
         config = create_ast_config(
-            chunk_duration=1.0,
-            min_confidence=0.4,  # 降低阈值以获取更多结果
-            save_audio=True,      # 启用音频保存用于调试
-            enable_vad=False,
+            chunk_duration=0.4,
+            min_confidence=0.55,
+            save_audio=False,
+            enable_vad=True,
         )
         ast_service = ASTService(config)
-        logging.info("🎤 AST服务实例已创建")
+        # 同步后处理器为 FAST 预设
+        try:
+            if hasattr(ast_service, 'assembler'):
+                ast_service.assembler.max_wait = 2.0
+                ast_service.assembler.max_chars = 36
+                ast_service.assembler.silence_flush = 1
+            if hasattr(ast_service, 'guard'):
+                ast_service.guard.min_rms = 0.020
+                ast_service.guard.low_conf = 0.50
+                ast_service.guard.min_len = 2
+        except Exception:
+            pass
+        logging.info("🎤 AST服务实例已创建（默认主播 FAST 预设）")
     return ast_service
 
 @router.post("/start", response_model=TranscriptionResponse)
@@ -84,16 +96,11 @@ async def start_transcription(request: StartTranscriptionRequest):
         if service.is_running:
             await service.stop_transcription()
         
-        # 切换模型（如指定）
-        if request.model_id:
-            try:
-                service.set_model_id(request.model_id)
-            except Exception:
-                pass
-
-        # 更新配置
-        service.config.chunk_duration = request.chunk_duration
-        service.config.min_confidence = request.min_confidence
+        # 更新配置（仅在显式提供时覆盖预设）
+        if request.chunk_duration is not None:
+            service.config.chunk_duration = float(request.chunk_duration)
+        if request.min_confidence is not None:
+            service.config.min_confidence = float(request.min_confidence)
         service.config.save_audio_files = request.save_audio
         # VAD 配置（仅当请求显式给出时覆盖自动策略）
         if request.enable_vad is not None:
@@ -131,7 +138,7 @@ async def start_transcription(request: StartTranscriptionRequest):
 class UpdateConfigRequest(BaseModel):
     device_index: Optional[int] = None
     device_name: Optional[str] = None
-    preset_mode: Optional[str] = None  # fast | accurate
+    preset_mode: Optional[str] = None  # fast | accurate（主播预设）
     silence_gate: Optional[float] = None  # 0.005 ~ 0.03 推荐
 
 
@@ -178,14 +185,38 @@ async def update_config(req: UpdateConfigRequest):
         if req.preset_mode:
             mode = (req.preset_mode or '').lower()
             if mode == 'fast':
-                service.config.chunk_duration = 0.8
-                service.config.min_confidence = 0.5
-                service.config.enable_vad = False
+                # 主播-快速滚动（更接近逐字），低延迟
+                service.config.chunk_duration = 0.4
+                service.config.min_confidence = 0.55
+                service.config.enable_vad = True  # 更稳切分
+                # 分句/门限：更积极地出句
+                try:
+                    if hasattr(service, 'assembler'):
+                        service.assembler.max_wait = 2.0
+                        service.assembler.max_chars = 36
+                        service.assembler.silence_flush = 1
+                    if hasattr(service, 'guard'):
+                        service.guard.min_rms = 0.020
+                        service.guard.low_conf = 0.50
+                        service.guard.min_len = 2
+                except Exception:
+                    pass
             elif mode == 'accurate':
-                service.config.chunk_duration = 1.5
-                service.config.min_confidence = 0.6
-                # 若本地找到 VAD 则启用（config.create_ast_config 已带自动探测），这里只是偏好
+                # 主播-稳重（更高准确与断句自然）
+                service.config.chunk_duration = 1.2
+                service.config.min_confidence = 0.60
                 service.config.enable_vad = True
+                try:
+                    if hasattr(service, 'assembler'):
+                        service.assembler.max_wait = 2.5
+                        service.assembler.max_chars = 48
+                        service.assembler.silence_flush = 2
+                    if hasattr(service, 'guard'):
+                        service.guard.min_rms = 0.018
+                        service.guard.low_conf = 0.50
+                        service.guard.min_len = 2
+                except Exception:
+                    pass
             else:
                 raise HTTPException(status_code=400, detail="preset_mode 仅支持 fast/accurate")
         # 静音门限（防幻觉灵敏度）
@@ -299,25 +330,78 @@ async def transcription_websocket(websocket: WebSocket):
     await ws_manager.connect(websocket)
     service = get_ast_service_instance()
     
-    # 设置转录回调
+    # 设置转录回调（带增量拼接协议）
     callback_name = f"ws_{id(websocket)}"
-    
+    # 用于增量拼接：保存当前缓冲文本（仅限该连接会话）
+    delta_buffer = {"text": ""}
+
     def transcription_callback(result: TranscriptionResult):
-        """转录结果回调"""
-        message = {
-            "type": "transcription",
-            "data": {
-                "text": result.text,
-                "confidence": result.confidence,
-                "timestamp": result.timestamp,
-                "is_final": result.is_final,
-                "room_id": result.room_id,
-                "session_id": result.session_id
+        """转录结果回调：同时发送全文与增量两种消息，保证向后兼容。
+        - transcription: 兼容旧客户端（全文）
+        - transcription_delta: 新协议（append/replace/final）
+        """
+        try:
+            # 1) 新协议：增量消息
+            prev = delta_buffer.get("text", "")
+            curr = result.text or ""
+            if result.is_final:
+                # 最终落句：告知前端最终文本
+                delta_msg = {
+                    "type": "transcription_delta",
+                    "data": {
+                        "op": "final",
+                        "text": curr,
+                        "timestamp": result.timestamp,
+                        "confidence": result.confidence,
+                    },
+                }
+                delta_buffer["text"] = ""
+                asyncio.create_task(websocket.send_json(delta_msg))
+            else:
+                if curr.startswith(prev):
+                    add = curr[len(prev) :]
+                    if add:
+                        delta_msg = {
+                            "type": "transcription_delta",
+                            "data": {
+                                "op": "append",
+                                "text": add,
+                                "timestamp": result.timestamp,
+                                "confidence": result.confidence,
+                            },
+                        }
+                        asyncio.create_task(websocket.send_json(delta_msg))
+                else:
+                    # 无法做纯追加，回退为替换
+                    delta_msg = {
+                        "type": "transcription_delta",
+                        "data": {
+                            "op": "replace",
+                            "text": curr,
+                            "timestamp": result.timestamp,
+                            "confidence": result.confidence,
+                        },
+                    }
+                    asyncio.create_task(websocket.send_json(delta_msg))
+                # 更新缓冲
+                delta_buffer["text"] = curr
+
+            # 2) 向后兼容：全文消息
+            full_msg = {
+                "type": "transcription",
+                "data": {
+                    "text": result.text,
+                    "confidence": result.confidence,
+                    "timestamp": result.timestamp,
+                    "is_final": result.is_final,
+                    "room_id": result.room_id,
+                    "session_id": result.session_id,
+                    "words": result.words or [],
+                },
             }
-        }
-        
-        # 异步发送消息
-        asyncio.create_task(websocket.send_json(message))
+            asyncio.create_task(websocket.send_json(full_msg))
+        except Exception as e:
+            logging.error(f"发送转录消息失败: {e}")
     
     service.add_transcription_callback(callback_name, transcription_callback)
     # 后端电平回调

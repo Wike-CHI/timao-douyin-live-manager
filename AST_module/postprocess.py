@@ -129,6 +129,20 @@ class SentenceAssembler:
             return out
         return None
 
+    def tick(self, now: Optional[float] = None) -> Optional[str]:
+        """基于时间的强制出句：
+        - 距上次追加超过 max_wait，则将缓冲区内容作为一句输出。
+        - 避免长时间没有终止标点时一直不出句。
+        """
+        now = now or time.time()
+        if self._buf and self._last_ts > 0 and (now - self._last_ts) >= self.max_wait:
+            out = self._buf
+            self._buf = ""
+            self._silence = 0
+            self._last_ts = now
+            return out
+        return None
+
     def reset(self):
         self._buf = ""
         self._silence = 0

@@ -49,6 +49,8 @@ class SenseVoiceService:
         self.logger = logging.getLogger(__name__)
         self._model: Optional[Any] = None  # Type annotation to fix reportOptionalMemberAccess
         self.is_initialized = False
+        # Remember which device we loaded the model on (for logging/debug)
+        self._device: str = "cpu"
 
     async def initialize(self) -> bool:
         """Load SenseVoice model asynchronously."""
@@ -122,11 +124,21 @@ class SenseVoiceService:
             os.environ["MS_CACHE_HOME"] = str(cache_root)
             os.environ.setdefault("FUNASR_HOME", str(cache_root / "funasr"))
 
+            # Choose device: prefer CUDA if available
+            device = 'cpu'
+            try:
+                import torch  # type: ignore
+                if torch.cuda.is_available():
+                    device = 'cuda:0'
+            except Exception:
+                pass
+
             model_kwargs: Dict[str, Any] = {
                 "model": self.config.model_id,
                 "disable_update": self.config.disable_update,
                 # 添加hub参数以指定模型下载源
-                "hub": "ms"  # ModelScope
+                "hub": "ms",  # ModelScope
+                "device": device,
             }
             if self.config.vad_model_id:
                 model_kwargs["vad_model"] = self.config.vad_model_id
@@ -135,7 +147,10 @@ class SenseVoiceService:
 
             # First try with provided config; if it fails due to VAD, retry without VAD.
             try:
-                return AutoModel(**model_kwargs)
+                model = AutoModel(**model_kwargs)
+                # persist the selected device for later logging
+                self._device = device
+                return model
             except Exception as e:
                 # Retry without VAD if the failure seems VAD-related or any download error occurs
                 self.logger.warning(
@@ -143,13 +158,19 @@ class SenseVoiceService:
                     str(e),
                 )
                 model_kwargs.pop("vad_model", None)
-                return AutoModel(**model_kwargs)
+                model = AutoModel(**model_kwargs)
+                self._device = device
+                return model
 
         try:
             self.logger.info("Loading SenseVoice model: %s", self.config.model_id)
             self._model = await loop.run_in_executor(None, _load_model)
             self.is_initialized = True
-            self.logger.info("✅ SenseVoice model loaded successfully")
+            # model_kwargs is local to loader; use the tracked device instead
+            self.logger.info(
+                "✅ SenseVoice model loaded successfully (device=%s)",
+                getattr(self, "_device", "unknown"),
+            )
             return True
         except Exception as exc:  # pragma: no cover - initialization failures are logged
             self.logger.error("Failed to load SenseVoice model: %s", exc)
@@ -189,6 +210,7 @@ class SenseVoiceService:
                     }
 
                 speech = speech.astype(np.float32) / 32768.0
+                audio_sec = float(len(speech)) / 16000.0
                 # Check if model is not None before calling generate
                 if self._model is not None:
                     raw_results = self._model.generate(
@@ -197,8 +219,8 @@ class SenseVoiceService:
                         use_itn=self.config.use_itn,
                         batch_size=self.config.batch_size,
                     )
-
                     text = self._extract_text(raw_results)
+                    words = self._extract_words(raw_results, text, audio_sec)
                     confidence = 0.9 if text else 0.0
                     return {
                         "success": True,
@@ -206,7 +228,7 @@ class SenseVoiceService:
                         "text": text,
                         "confidence": confidence,
                         "timestamp": time.time(),
-                        "words": [],
+                        "words": words,
                     }
                 else:
                     return self._mock_transcribe(audio_data)
@@ -260,3 +282,38 @@ class SenseVoiceService:
         clean = re.sub(r"<\|[^|>]+\|>", "", text)
         clean = re.sub(r"\s+", " ", clean)
         return clean.strip()
+
+    @staticmethod
+    def _extract_words(raw_results: Any, text: str, audio_sec: float):
+        """Best-effort word/char timestamps.
+        - If backend returns timestamps (e.g., CTC alignment), convert to words list.
+        - Otherwise approximate by uniformly slicing the audio duration per character.
+        """
+        try:
+            first = raw_results[0] if raw_results else None
+            if isinstance(first, dict):
+                # Common patterns: first.get('timestamp') or first.get('words')
+                if 'words' in first and isinstance(first['words'], list):
+                    return first['words']
+                ts = first.get('timestamp')
+                if isinstance(ts, list) and all(isinstance(p, (list, tuple)) and len(p) == 2 for p in ts):
+                    words = []
+                    # If text length matches timestamp entries, map char-to-span
+                    units = list(text)
+                    for i, (s, e) in enumerate(ts[: len(units)]):
+                        words.append({"word": units[i], "start": float(s), "end": float(e)})
+                    return words
+        except Exception:
+            pass
+
+        # Fallback: uniform segmentation per character
+        text = text or ""
+        n = max(1, len(text))
+        dur = max(0.001, audio_sec)
+        step = dur / n
+        t0 = 0.0
+        words = []
+        for ch in text:
+            words.append({"word": ch, "start": t0, "end": t0 + step})
+            t0 += step
+        return words

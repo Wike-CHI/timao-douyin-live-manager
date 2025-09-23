@@ -14,16 +14,21 @@ except ImportError:
     ASTConfig = None
 
 # 默认 SenseVoice 模型
-DEFAULT_MODEL_ID = str(
-    Path("models") / "models" / "iic" / "SenseVoiceSmall"
-)
+# 仅保留 SenseVoiceSmall
+DEFAULT_MODEL_ID = str(Path("models") / "models" / "iic" / "SenseVoiceSmall")
 
 # 默认音频配置
 DEFAULT_AUDIO_CONFIG = AudioConfig(
     sample_rate=16000,      # SenseVoice 推荐采样率
     channels=1,             # 单声道
     chunk_size=1024,        # 音频块大小
-    input_device_index=None # 自动选择设备
+    input_device_index=None, # 自动选择设备
+    # 基础前端预处理：默认启用轻量降噪 + AGC
+    enable_denoise=True,
+    denoise_backend="auto",     # 自动选择可用后端
+    denoise_level="moderate",   # 低延迟、音质平衡
+    enable_agc=True,
+    target_rms=0.05,
 )
 
 # 默认AST配置
@@ -101,13 +106,20 @@ def create_ast_config(
         sample_rate=sample_rate,
         channels=1,
         chunk_size=1024,
-        input_device_index=None
+        input_device_index=None,
+        enable_denoise=True,
+        denoise_backend="auto",
+        denoise_level="moderate",
+        enable_agc=True,
+        target_rms=0.05,
     )
+    
+    # 统一的模型根目录（仓库内 models/）
+    project_root = Path(__file__).resolve().parents[1] / 'models'
     
     # 自动探测本地 VAD（如未显式提供路径）
     autodetected_vad = None
     if vad_model_path is None:
-        project_root = Path(__file__).resolve().parents[1] / 'models'
         autodetected_vad = _autodetect_vad_model(project_root)
 
     # 自动检测本地 PUNC 模型

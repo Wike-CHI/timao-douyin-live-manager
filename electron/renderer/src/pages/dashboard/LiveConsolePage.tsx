@@ -7,10 +7,15 @@ import {
   stopTranscription,
   TranscriptionMessage,
   TranscriptionStatus,
+  TranscriptionDeltaMessage,
 } from '../../services/transcription';
 import DouyinRelayPanel from '../../components/douyin/DouyinRelayPanel';
 import InputLevelMeter from '../../components/InputLevelMeter';
 import { listDevices, updateTranscriptionConfig, AudioDevice } from '../../services/transcription';
+// 新增：钱包与导航相关
+import { useNavigate } from 'react-router-dom';
+import useAuthStore from '../../store/useAuthStore';
+import { useFirstFree as useFirstFreeApi } from '../../services/auth';
 
 interface TranscriptEntry {
   id: string;
@@ -18,6 +23,7 @@ interface TranscriptEntry {
   timestamp: number;
   confidence: number;
   isFinal: boolean;
+  words?: { word: string; start: number; end: number }[];
 }
 
 const MAX_LOG_ITEMS = 50;
@@ -38,9 +44,12 @@ const LiveConsolePage = () => {
   const socketRef = useRef<WebSocket | null>(null);
   const [devices, setDevices] = useState<AudioDevice[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<number | null>(null);
-  const [presetMode, setPresetMode] = useState<'fast' | 'accurate'>('accurate');
-  const [silenceGate, setSilenceGate] = useState<number>(0.012);
+  const [presetMode, setPresetMode] = useState<'fast' | 'accurate'>('fast');
+  const [silenceGate, setSilenceGate] = useState<number>(0.02);
   const [backendLevel, setBackendLevel] = useState<number>(0);
+
+  const navigate = useNavigate();
+  const { balance, firstFreeUsed, setFirstFreeUsed } = useAuthStore();
 
   const isRunning = status?.is_running ?? false;
 
@@ -64,15 +73,21 @@ const LiveConsolePage = () => {
     }
   }, [collapsed, log, selectedId]);
 
+  const deltaModeRef = useRef(false);
   const handleSocketMessage = useCallback(
     (message: TranscriptionMessage) => {
       if (message.type === 'transcription' && message.data) {
+        if (deltaModeRef.current) {
+          // 若已进入增量模式，忽略全文消息避免重复
+          return;
+        }
         const entry: TranscriptEntry = {
           id: `${message.data.timestamp}-${Math.random()}`,
           text: message.data.text,
           confidence: message.data.confidence,
           timestamp: message.data.timestamp,
           isFinal: message.data.is_final,
+          words: message.data.words,
         };
         setLatest(entry);
         if (entry.isFinal && entry.text.trim()) {
@@ -90,6 +105,37 @@ const LiveConsolePage = () => {
     const socket = openTranscriptionWebSocket((message) => {
       if (message.type === 'level' && (message as any).data?.rms != null) {
         setBackendLevel(((message as any).data.rms as number) || 0);
+      } else if (message.type === 'transcription_delta') {
+        deltaModeRef.current = true;
+        const m = message as unknown as TranscriptionDeltaMessage;
+        const op = m.data.op;
+        const ts = m.data.timestamp;
+        const conf = m.data.confidence;
+        setLatest((prev) => {
+          const baseText = prev?.text ?? '';
+          let nextText = baseText;
+          let isFinal = false;
+          if (op === 'append') {
+            nextText = baseText + (m.data.text || '');
+          } else if (op === 'replace') {
+            nextText = m.data.text || '';
+          } else if (op === 'final') {
+            nextText = m.data.text || '';
+            isFinal = true;
+          }
+          const entry: TranscriptEntry = {
+            id: `${ts}-${Math.random()}`,
+            text: nextText,
+            confidence: conf,
+            timestamp: ts,
+            isFinal,
+            words: [],
+          };
+          if (isFinal && nextText.trim()) {
+            appendLog(entry);
+          }
+          return entry;
+        });
       } else {
         handleSocketMessage(message);
       }
@@ -144,6 +190,27 @@ const LiveConsolePage = () => {
     setLoading(true);
     setError(null);
     try {
+      // 启动前进行钱包校验：余额>0 或 可用首次免费
+      const currentBalance = Number(balance ?? 0);
+      if (currentBalance <= 0) {
+        if (!firstFreeUsed) {
+          // 尝试使用首次免费
+          const res = await useFirstFreeApi();
+          if (res?.success) {
+            setFirstFreeUsed(true);
+          } else {
+            setError(res?.message || '首次免费使用失败');
+            setLoading(false);
+            return;
+          }
+        } else {
+          setError('余额不足，请先前往充值或购买套餐');
+          navigate('/pay/wallet');
+          setLoading(false);
+          return;
+        }
+      }
+
       // 先应用当前预设和设备
       await updateTranscriptionConfig(
         {
@@ -407,15 +474,25 @@ const LiveConsolePage = () => {
               </h3>
               <span className="text-xs timao-support-text">{formattedCountdown}</span>
             </div>
-            <div className="rounded-2xl bg-purple-50/80 border border-purple-100 px-4 py-3 text-slate-700 min-h-[72px] flex items-center">
-              {latest?.text ? latest.text : '等待识别结果...'}
+          <div className="rounded-2xl bg-purple-50/80 border border-purple-100 px-4 py-3 text-slate-700 min-h-[72px] flex items-center">
+            {latest?.text ? latest.text : '等待识别结果...'}
+          </div>
+          {latest ? (
+            <div className="text-xs text-slate-400 mt-3">
+              时间 {new Date(latest.timestamp * 1000).toLocaleTimeString()} · 置信度{' '}
+              {(latest.confidence * 100).toFixed(1)}%
             </div>
-            {latest ? (
-              <div className="text-xs text-slate-400 mt-3">
-                时间 {new Date(latest.timestamp * 1000).toLocaleTimeString()} · 置信度{' '}
-                {(latest.confidence * 100).toFixed(1)}%
-              </div>
-            ) : null}
+          ) : null}
+          {latest?.words?.length ? (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {latest.words.map((w, i) => (
+                <span key={i} className="px-1.5 py-0.5 rounded bg-white/90 border text-xs text-slate-600">
+                  {w.word}
+                  <span className="ml-1 text-[10px] text-slate-400">{w.start.toFixed(2)}–{w.end.toFixed(2)}s</span>
+                </span>
+              ))}
+            </div>
+          ) : null}
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">

@@ -22,6 +22,12 @@ class AudioConfig:
     chunk_size: int = 1024    # 每次读取的帧数
     format: int = pyaudio.paInt16  # 16位深度
     input_device_index: Optional[int] = None
+    # 降噪与电平控制
+    enable_denoise: bool = True
+    denoise_backend: str = "auto"   # auto|rnnoise|webrtc|spectral|gate|off
+    denoise_level: str = "moderate" # low|moderate|high
+    enable_agc: bool = True         # 自动增益（自动控制响度）
+    target_rms: float = 0.05        # 目标 RMS（0~1，对应 16-bit 全幅的比例）
 
 class AudioCapture:
     """音频采集器"""
@@ -148,11 +154,69 @@ class AudioProcessor:
     - 明确区分输入采样率/通道，避免因为默认 44.1k 假设导致的错误重采样。
     """
     
-    def __init__(self, target_sample_rate: int = 16000, source_sample_rate: int = 16000, source_channels: int = 1):
+    def __init__(
+        self,
+        target_sample_rate: int = 16000,
+        source_sample_rate: int = 16000,
+        source_channels: int = 1,
+        enable_denoise: bool = True,
+        denoise_backend: str = "auto",
+        denoise_level: str = "moderate",
+        enable_agc: bool = True,
+        target_rms: float = 0.05,
+    ):
         self.target_sample_rate = target_sample_rate
         self.source_sample_rate = source_sample_rate
         self.source_channels = max(1, int(source_channels))
         self.logger = logging.getLogger(__name__)
+        # 降噪/AGC 配置
+        self.enable_denoise = enable_denoise
+        self.enable_agc = enable_agc
+        self._target_rms = float(max(1e-4, min(0.9, target_rms)))
+        self._denoise_backend = denoise_backend
+        self._denoise_level = denoise_level
+        # 内部状态：用于频谱门限与 AGC 的平滑
+        self._noise_mag_est: Optional[np.ndarray] = None
+        self._prev_gain: float = 1.0
+        self._agc_smooth: float = 0.9  # 0.9 越平滑、响应越慢
+        # 探测可用的降噪库
+        self._use_rnnoise = False
+        self._use_webrtc = False
+        if self.enable_denoise and denoise_backend in ("auto", "rnnoise"):
+            try:
+                import rnnoise  # type: ignore
+                self._rnnoise = rnnoise.RNNoise()
+                self._use_rnnoise = True
+                if self._denoise_backend == "auto":
+                    self._denoise_backend = "rnnoise"
+                self.logger.info("降噪后端: RNNoise")
+            except Exception:
+                pass
+        if self.enable_denoise and not self._use_rnnoise and denoise_backend in ("auto", "webrtc"):
+            try:
+                import webrtc_audio_processing as ap  # type: ignore
+                # 初始化轻量 NS；AEC 需要回放路由支持，这里不启用
+                self._ap = ap.AudioProcessing(ns_level=self._webrtc_ns_level(denoise_level), enable_ns=True)
+                self._use_webrtc = True
+                if self._denoise_backend == "auto":
+                    self._denoise_backend = "webrtc"
+                self.logger.info("降噪后端: WebRTC-NS")
+            except Exception:
+                pass
+        if self.enable_denoise and not (self._use_rnnoise or self._use_webrtc):
+            # 回退到频谱门限
+            if self._denoise_backend == "off":
+                self.enable_denoise = False
+            else:
+                if self._denoise_backend == "auto":
+                    self._denoise_backend = "spectral"
+                self.logger.info("降噪后端: Spectral-gate")
+
+    @staticmethod
+    def _webrtc_ns_level(level: str) -> int:
+        # 将字符串等级映射到 webrtc 音频处理库的设定（0~3）
+        lv = (level or "moderate").lower()
+        return {"low": 1, "moderate": 2, "high": 3}.get(lv, 2)
     
     def validate_audio_format(self, audio_data: bytes) -> bool:
         """验证音频格式"""
@@ -212,37 +276,142 @@ class AudioProcessor:
             return audio_data
     
     def apply_noise_reduction(self, audio_data: bytes) -> bytes:
-        """应用噪声降低"""
+        """应用降噪，自动选择后端。
+        - RNNoise（若可用）：质量高，延迟低，但依赖 48k 帧；本实现做近似处理。
+        - WebRTC-NS（若可用）：稳健、轻量。
+        - 频谱门限：零依赖的基础方案。
+        - 简单门限（gate）：最基础的保底方案。
+        """
+        if not self.enable_denoise:
+            return audio_data
+
         try:
-            audio_array = np.frombuffer(audio_data, dtype=np.int16)
-            
-            # 简单的噪声门限制
-            threshold = np.max(np.abs(audio_array)) * 0.1
-            mask = np.abs(audio_array) > threshold
-            
-            # 应用掩码
-            processed = audio_array * mask
-            
-            return processed.astype(np.int16).tobytes()
-            
+            if self._use_rnnoise and self._denoise_backend == "rnnoise":
+                return self._denoise_with_rnnoise(audio_data)
+            if self._use_webrtc and self._denoise_backend == "webrtc":
+                return self._denoise_with_webrtc(audio_data)
+            if self._denoise_backend == "spectral":
+                return self._denoise_with_spectral_gate(audio_data)
+            # 回退到简单门限
+            return self._denoise_with_gate(audio_data)
         except Exception as e:
             self.logger.error(f"噪声降低失败: {e}")
             return audio_data
+
+    def _denoise_with_gate(self, audio_data: bytes) -> bytes:
+        audio = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32)
+        if audio.size == 0:
+            return audio_data
+        thr_ratio = {"low": 0.2, "moderate": 0.1, "high": 0.05}.get(self._denoise_level, 0.1)
+        thr = max(50.0, float(np.max(np.abs(audio))) * thr_ratio)
+        mask = np.abs(audio) > thr
+        den = (audio * mask).astype(np.int16)
+        return den.tobytes()
+
+    def _denoise_with_webrtc(self, audio_data: bytes) -> bytes:
+        # webrtc 期望 float32 [-1,1]，但该 Python 封装支持 16k 单声道处理
+        import webrtc_audio_processing as ap  # type: ignore
+        proc: ap.AudioProcessing = self._ap  # type: ignore[attr-defined]
+        # 将短整型转 [-1,1]
+        x = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
+        # WebRTC 库以帧为单位处理，采用 10ms 步长
+        sr = self.target_sample_rate
+        frame = int(sr * 0.01)
+        out = np.empty_like(x)
+        for i in range(0, len(x), frame):
+            seg = x[i : i + frame]
+            if len(seg) < frame:
+                seg = np.pad(seg, (0, frame - len(seg)))
+            y = proc.process_stream(seg.reshape(-1, 1), sr)
+            out[i : i + frame] = y[: len(seg), 0]
+        out = np.clip(out, -1.0, 1.0)
+        return (out * 32767.0).astype(np.int16).tobytes()
+
+    def _denoise_with_rnnoise(self, audio_data: bytes) -> bytes:
+        # RNNoise 以 48k、每帧 480 样本为最佳；此处采用简单重采样近似。
+        import rnnoise  # type: ignore
+        x16 = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32)
+        if x16.size == 0:
+            return audio_data
+        # 上采样至 48k（线性插值），分帧处理，再下采样回 16k
+        up_ratio = 48000.0 / float(self.target_sample_rate)
+        up_len = int(len(x16) * up_ratio)
+        x48 = np.interp(
+            np.linspace(0, len(x16) - 1, up_len),
+            np.arange(len(x16)),
+            x16,
+        )
+        den48 = np.empty_like(x48)
+        frame = 480
+        st = self._rnnoise  # type: ignore[attr-defined]
+        for i in range(0, len(x48), frame):
+            seg = x48[i : i + frame]
+            if len(seg) < frame:
+                seg = np.pad(seg, (0, frame - len(seg)))
+            y = st.process_frame(seg)
+            den48[i : i + frame] = y[: len(seg)]
+        # 下采样回原采样率
+        down_len = len(x16)
+        den16 = np.interp(
+            np.linspace(0, len(den48) - 1, down_len),
+            np.arange(len(den48)),
+            den48,
+        )
+        den16 = np.clip(den16, -32767.0, 32767.0).astype(np.int16)
+        return den16.tobytes()
+
+    def _denoise_with_spectral_gate(self, audio_data: bytes) -> bytes:
+        # 简化的单帧频谱门限，适合实时处理；为减少计算，仅做单帧 FFT。
+        x = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32)
+        if x.size == 0:
+            return audio_data
+        # 汉宁窗，避免频谱泄露
+        win = np.hanning(len(x)).astype(np.float32)
+        xw = x * win
+        X = np.fft.rfft(xw)
+        mag = np.abs(X)
+        # 初始化/更新噪声谱估计（滑动最小值法的近似）
+        if self._noise_mag_est is None or self._noise_mag_est.shape != mag.shape:
+            self._noise_mag_est = mag.copy()
+        else:
+            # 平滑更新：对较小的谱分量靠近
+            self._noise_mag_est = np.minimum(
+                self._noise_mag_est * 0.98 + mag * 0.02,
+                mag,
+            )
+        # 门限：k 倍噪声谱
+        k = {"low": 1.2, "moderate": 1.5, "high": 2.0}.get(self._denoise_level, 1.5)
+        thr = self._noise_mag_est * k
+        gain = np.clip((mag - thr) / (mag + 1e-6), 0.0, 1.0)
+        # 轻微保留：避免完全静音造成金属音
+        gain = 0.1 + 0.9 * gain
+        Y = X * gain
+        y = np.fft.irfft(Y)
+        # 反窗并裁剪
+        y = y / (win.mean() + 1e-6)
+        y = np.clip(y, -32767.0, 32767.0).astype(np.int16)
+        return y.tobytes()
     
     def normalize_audio(self, audio_data: bytes) -> bytes:
-        """音频标准化"""
+        """自动增益控制（AGC）：将片段 RMS 拉向目标值，避免时大时小。
+        使用平滑的增益，降低听感突变。
+        """
+        if not self.enable_agc:
+            return audio_data
         try:
-            audio_array = np.frombuffer(audio_data, dtype=np.int16)
-            
-            # 标准化到[-32767, 32767]范围
-            max_val = np.max(np.abs(audio_array))
-            if max_val > 0:
-                normalized = (audio_array / max_val * 32767).astype(np.int16)
-            else:
-                normalized = audio_array
-            
-            return normalized.tobytes()
-            
+            x = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32)
+            if x.size == 0:
+                return audio_data
+            rms = float(np.sqrt(np.mean((x / 32768.0) ** 2)) + 1e-8)
+            desired = self._target_rms
+            gain = desired / rms
+            # 限制瞬时增益范围，避免爆音
+            gain = float(np.clip(gain, 0.5, 8.0))
+            # 平滑
+            self._prev_gain = self._agc_smooth * self._prev_gain + (1 - self._agc_smooth) * gain
+            y = x * self._prev_gain
+            y = np.clip(y, -32767.0, 32767.0).astype(np.int16)
+            return y.tobytes()
         except Exception as e:
             self.logger.error(f"音频标准化失败: {e}")
             return audio_data
@@ -258,7 +427,7 @@ class AudioProcessor:
         # 2. 噪声降低
         processed = self.apply_noise_reduction(processed)
         
-        # 3. 标准化
+        # 3. 自动增益（响度）
         processed = self.normalize_audio(processed)
         
         return processed

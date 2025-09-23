@@ -94,18 +94,17 @@ class ASTService:
             target_sample_rate=self.config.audio_config.sample_rate,
             source_sample_rate=self.config.audio_config.sample_rate,
             source_channels=self.config.audio_config.channels,
+            enable_denoise=getattr(self.config.audio_config, 'enable_denoise', True),
+            denoise_backend=getattr(self.config.audio_config, 'denoise_backend', 'auto'),
+            denoise_level=getattr(self.config.audio_config, 'denoise_level', 'moderate'),
+            enable_agc=getattr(self.config.audio_config, 'enable_agc', True),
+            target_rms=getattr(self.config.audio_config, 'target_rms', 0.05),
         )
         
         try:
             from .sensevoice_service import SenseVoiceService, SenseVoiceConfig
         except ImportError:  # pragma: no cover - 兼容直接运行
             from sensevoice_service import SenseVoiceService, SenseVoiceConfig
-        # Optional sherpa backend
-        try:
-            from .sherpa_service import SherpaOnnxService, SherpaConfig
-        except ImportError:
-            SherpaOnnxService = None  # type: ignore
-            SherpaConfig = None  # type: ignore
         try:
             from .postprocess import ChineseCleaner, HallucinationGuard, SentenceAssembler, pcm16_rms
         except ImportError:
@@ -113,7 +112,18 @@ class ASTService:
 
         self.recognizer = None
         self.mock_transcriber = None
-        self._build_recognizer()
+        # 默认仅使用 SenseVoiceSmall
+        try:
+            svc_config = SenseVoiceConfig(
+                model_id=self.config.model_id,
+                vad_model_id=(self.config.vad_model_id if self.config.enable_vad else None),
+                punc_model_id=self.config.punc_model_id,
+            )
+            self.recognizer = SenseVoiceService(svc_config)
+            self.logger.info("使用 SenseVoice 服务进行语音识别: %s", self.config.model_id)
+        except Exception as exc:
+            self.logger.error("SenseVoice 服务初始化失败: %s", exc)
+            self.recognizer = None
         self.audio_buffer = AudioBuffer(
             max_duration=self.config.buffer_duration,
             sample_rate=self.config.audio_config.sample_rate
@@ -128,6 +138,8 @@ class ASTService:
         self.current_session_id = None
         self.current_room_id = None
         self.transcription_callbacks = {}
+        # 音频电平回调（用于前端绘制输入电平/静音判断可视化）
+        self.level_callbacks: Dict[str, Callable[[float, float], None]] = {}
         
         # 统计信息
         self.stats = {
@@ -142,46 +154,7 @@ class ASTService:
         if self.config.save_audio_files:
             Path(self.config.audio_output_dir).mkdir(parents=True, exist_ok=True)
 
-    def _build_recognizer(self):
-        """Create recognizer based on current model_id.
-        - If model looks like a sherpa-onnx repo (contains 'sherpa-onnx' or 'xiaowangge/'),
-          use SherpaOnnxService; else default to SenseVoiceService.
-        """
-        model_id = self.config.model_id or ""
-        use_sherpa = ("sherpa-onnx" in model_id) or ("xiaowangge/" in model_id)
-        if use_sherpa:
-            try:
-                from .sherpa_service import SherpaOnnxService, SherpaConfig
-                self.recognizer = SherpaOnnxService(SherpaConfig(model_id=model_id))
-                self.logger.info("使用 Sherpa-ONNX 模型: %s", model_id)
-                return
-            except Exception as e:
-                self.logger.error("构建 Sherpa-ONNX 失败，将回退 SenseVoice: %s", e)
-        # Default SenseVoice
-        try:
-            from .sensevoice_service import SenseVoiceService, SenseVoiceConfig
-            svc_config = SenseVoiceConfig(
-                model_id=self.config.model_id,
-                vad_model_id=(self.config.vad_model_id if self.config.enable_vad else None),
-                punc_model_id=self.config.punc_model_id,
-            )
-            self.recognizer = SenseVoiceService(svc_config)
-            self.logger.info("使用 SenseVoice 服务进行语音识别: %s", self.config.model_id)
-        except Exception as exc:
-            self.logger.error("SenseVoice 服务初始化失败: %s", exc)
-            self.recognizer = None
-
-    def set_model_id(self, model_id: str):
-        """Switch ASR backend/model at runtime.
-        Will cleanup current recognizer and create a new one; initialize() should be called later.
-        """
-        try:
-            if self.recognizer and hasattr(self.recognizer, 'cleanup'):
-                asyncio.create_task(self.recognizer.cleanup())
-        except Exception:
-            pass
-        self.config.model_id = model_id
-        self._build_recognizer()
+    # 移除运行时切换后端/模型的能力，统一使用 SenseVoiceSmall
     
     def _create_basic_mock_service(self):
         """创建基础模拟服务"""
@@ -395,6 +368,25 @@ class ASTService:
                 
                 # 让出控制权
                 await asyncio.sleep(0.01)
+
+                # 基于时间的分句检测（无论是否刚产生识别结果）
+                try:
+                    flushed = self.assembler.tick()
+                    if flushed:
+                        tr = TranscriptionResult(
+                            text=flushed,
+                            confidence=0.8,
+                            timestamp=time.time(),
+                            duration=self.config.chunk_duration,
+                            is_final=True,
+                            words=[],
+                            room_id=self.current_room_id or "",
+                            session_id=self.current_session_id or "",
+                        )
+                        await self._notify_transcription_callbacks(tr)
+                        self.logger.info("🎤 转录(超时切句): %s", tr.text)
+                except Exception:
+                    pass
                 
         except Exception as e:
             self.logger.error(f"转录循环异常: {e}")
@@ -495,6 +487,20 @@ class ASTService:
         """
         self.transcription_callbacks[name] = callback
         self.logger.info(f"已添加转录回调: {name}")
+
+    # 供前端订阅电平 (rms, timestamp)
+    def add_level_callback(self, name: str, callback: Callable[[float, float], None]):
+        try:
+            self.level_callbacks[name] = callback
+        except Exception:
+            pass
+
+    def remove_level_callback(self, name: str):
+        if name in self.level_callbacks:
+            try:
+                del self.level_callbacks[name]
+            except Exception:
+                pass
     
     def remove_transcription_callback(self, name: str):
         """移除转录回调"""
