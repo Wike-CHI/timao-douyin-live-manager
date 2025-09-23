@@ -9,6 +9,8 @@ import re
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, TYPE_CHECKING
+import os
+from pathlib import Path
 
 import numpy as np
 
@@ -29,7 +31,9 @@ class SenseVoiceConfig:
     """Configuration for SenseVoice ASR service."""
 
     model_id: str = "iic/SenseVoiceSmall"
-    vad_model_id: Optional[str] = "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
+    # Default: disable external VAD to avoid online downloads and Windows path issues.
+    # If you have the VAD model locally, set this to its local path or a valid modelscope id.
+    vad_model_id: Optional[str] = None
     punc_model_id: Optional[str] = None
     language: str = "zh"
     use_itn: bool = True
@@ -103,6 +107,21 @@ class SenseVoiceService:
         def _load_model():
             from funasr import AutoModel  # Local import so FunASR is optional until used
 
+            # Force caches to local project paths to avoid invalid drive letters (e.g., E:\).
+            # This also helps in offline environments.
+            project_root = Path(__file__).resolve().parents[1]
+            cache_root = (project_root / "models" / ".cache").resolve()
+            try:
+                cache_root.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                # If we cannot create cache dir, just continue without overriding envs
+                pass
+
+            # Override cache related environment variables for modelscope/funasr
+            os.environ["MODELSCOPE_CACHE"] = str(cache_root)
+            os.environ["MS_CACHE_HOME"] = str(cache_root)
+            os.environ.setdefault("FUNASR_HOME", str(cache_root / "funasr"))
+
             model_kwargs: Dict[str, Any] = {
                 "model": self.config.model_id,
                 "disable_update": self.config.disable_update,
@@ -114,7 +133,17 @@ class SenseVoiceService:
             if self.config.punc_model_id:
                 model_kwargs["punc_model"] = self.config.punc_model_id
 
-            return AutoModel(**model_kwargs)
+            # First try with provided config; if it fails due to VAD, retry without VAD.
+            try:
+                return AutoModel(**model_kwargs)
+            except Exception as e:
+                # Retry without VAD if the failure seems VAD-related or any download error occurs
+                self.logger.warning(
+                    "SenseVoice primary load failed (%s). Retrying without VAD...",
+                    str(e),
+                )
+                model_kwargs.pop("vad_model", None)
+                return AutoModel(**model_kwargs)
 
         try:
             self.logger.info("Loading SenseVoice model: %s", self.config.model_id)

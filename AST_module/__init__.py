@@ -12,7 +12,6 @@ __author__ = "提猫科技AST团队"
 # 导入主要类和函数
 from .ast_service import ASTService, TranscriptionResult, ASTConfig, get_ast_service, cleanup_ast_service
 from .audio_capture import AudioCapture, AudioProcessor, AudioConfig, AudioBuffer
-from .vosk_service_v2 import VoskServiceV2, VoskConfig
 
 # 导入配置
 from .config import DEFAULT_AST_CONFIG, create_ast_config
@@ -29,10 +28,6 @@ __all__ = [
     'AudioProcessor', 
     'AudioConfig',
     'AudioBuffer',
-    
-    # VOSK相关类
-    'VoskServiceV2',
-    'VoskConfig',
     
     # 便捷函数
     'get_ast_service',
@@ -57,7 +52,7 @@ def get_info():
         "features": [
             "实时音频采集",
             "音频预处理和格式转换", 
-            "VOSK本地中文语音识别",
+            "SenseVoice本地中文语音识别",
             "流式转录处理",
             "多回调支持",
             "完整的错误处理和日志"
@@ -66,6 +61,6 @@ def get_info():
             "pyaudio",
             "numpy", 
             "aiohttp",
-            "vosk (可选)"
+            "funasr (可选)"
         ]
     }

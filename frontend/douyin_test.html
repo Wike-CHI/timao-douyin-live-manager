@@ -230,7 +230,7 @@
       <button id="stopBtn" class="secondary">停止</button>
     </div>
     <div id="status" class="status">等待启动…</div>
-        <div class="layout">
+    <div class="layout">
       <section class="panel">
         <h2>💬 实时弹幕</h2>
         <ul id="chatList"></ul>
@@ -260,7 +260,7 @@
     const liveIdInput = document.getElementById('liveIdInput');
     const startBtn = document.getElementById('startBtn');
     const stopBtn = document.getElementById('stopBtn');
-    stopBtn.disabled = true;
+        stopBtn.disabled = true;
 
     let eventSource = null;
     let chatBuffer = [];
@@ -316,7 +316,7 @@
             updateStatus('WebSocket 已连接，开始接收弹幕。', 'success');
           } else if (stage === 'closed' || stage === 'stopped') {
             updateStatus('连接已关闭。', 'warning');
-                      }
+          }
           break;
         }
         case 'error': {
@@ -330,9 +330,9 @@
           appendChat({
             nickname: payload?.nickname,
             content: `🎁 送出 ${payload?.gift_name || ''} x${payload?.count || 1}`,
-          });
+    });
           break;
-                        case 'room_rank':
+        case 'room_rank':
           renderRank(payload?.ranks || []);
           break;
         default:
@@ -414,7 +414,7 @@
       }
       startBtn.disabled = true;
       stopBtn.disabled = false;
-            ensureEventSource();
+      ensureEventSource();
       try {
         const resp = await fetch('/api/douyin/web/start', {
           method: 'POST',
@@ -430,12 +430,12 @@
         console.error(error);
         updateStatus(`启动失败：${error.message}`, 'error');
         startBtn.disabled = false;
-    stopBtn.disabled = true;
+        stopBtn.disabled = true;
       }
     }
 
     async function stopMonitor() {
-      stopBtn.disabled = true;
+          stopBtn.disabled = true;
       try {
         await fetch('/api/douyin/web/stop', { method: 'POST' });
       } catch (error) {
@@ -443,7 +443,7 @@
       }
       disposeEventSource();
       updateStatus('已停止抓取。', 'warning');
-            setTimeout(() => {
+      setTimeout(() => {
         startBtn.disabled = false;
       }, 200);
     }
@@ -453,7 +453,7 @@
 
     window.addEventListener('beforeunload', () => {
       disposeEventSource();
-          });
+    });
   </script>
 </body>
 </html>

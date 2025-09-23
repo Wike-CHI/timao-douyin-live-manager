@@ -1,260 +1,220 @@
-const { app, BrowserWindow, ipcMain, Menu } = require('electron');
-const path = require('path');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const { spawn } = require('child_process');
-const axios = require('axios');
+const path = require('path');
+const fs = require('fs');
 
-// 全局变量
+const isDev = !app.isPackaged;
+const rendererDevServerURL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.0.1:5173';
+
+// 保持对窗口对象的全局引用，如果不这样做，窗口会在JavaScript对象被垃圾回收时自动关闭
 let mainWindow;
-let flaskProcess;
-const FLASK_URL = 'http://127.0.0.1:5001';
 
-/**
- * 创建主窗口
- */
+// Child process for backend API (FastAPI via uvicorn)
+let apiProcess = null;
+
+// Legacy: test flask server (kept for voice_transcription.html fallback)
+let legacyFlaskProcess = null;
+
+function resolveProductionIndex() {
+    const distIndex = path.join(__dirname, 'renderer', 'dist', 'index.html');
+    const legacyIndex = path.join(__dirname, 'renderer', 'index.html');
+    if (fs.existsSync(distIndex)) {
+        return distIndex;
+    }
+    if (fs.existsSync(legacyIndex)) {
+        return legacyIndex;
+    }
+    // 回退到旧页面，避免打包失败
+    return path.join(__dirname, 'renderer', 'voice_transcription.html');
+}
+
 function createWindow() {
-  // 创建浏览器窗口
-  mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 1000,
-    minHeight: 600,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
-    },
-    icon: path.join(__dirname, '../assets/icon.png'),
-    title: '提猫直播助手',
-    show: false, // 初始隐藏，等待加载完成
-    titleBarStyle: 'default'
-  });
+    // 创建浏览器窗口
+    // Prefer a branded window icon when available
+    const iconCandidates = [
+        path.join(__dirname, '..', 'icons', 'app.png'),
+        path.join(__dirname, '..', 'icons', 'app.ico'),
+        path.join(__dirname, '..', 'icons', 'logo.png'),
+        path.join(__dirname, '..', 'icons', 'logo.jpg'),
+        path.join(__dirname, '..', 'icons', 'talkingcat.png'),
+        path.join(__dirname, '..', 'icons', 'talkingcat.jpg'),
+        // also allow using packaged build icons
+        path.join(__dirname, '..', 'assets', 'icon.png'),
+        path.join(__dirname, '..', 'assets', 'icon.ico'),
+    ];
+    const iconPath = iconCandidates.find(p => {
+        try { return fs.existsSync(p); } catch { return false; }
+    });
 
-  // 加载应用页面
-  mainWindow.loadFile(path.join(__dirname, 'renderer/index.html'));
+    mainWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        title: '提猫直播助手 • TalkingCat',
+        ...(iconPath ? { icon: iconPath } : {}),
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js')
+        }
+    });
 
-  // 窗口准备好后显示
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
-    
-    // 开发模式下打开开发者工具
-    if (process.env.NODE_ENV === 'development') {
-      mainWindow.webContents.openDevTools();
+    if (isDev) {
+        mainWindow.loadURL(rendererDevServerURL);
+    } else {
+        mainWindow.loadFile(resolveProductionIndex());
     }
-  });
+    // Ensure title reflects brand even if page overrides
+    mainWindow.setTitle('提猫直播助手 • TalkingCat');
 
-  // 窗口关闭事件
-  mainWindow.on('closed', () => {
-    mainWindow = null;
-  });
-
-  // 设置菜单
-  createMenu();
+    // 当窗口关闭时触发
+    mainWindow.on('closed', function () {
+        mainWindow = null;
+    });
 }
 
-/**
- * 创建应用菜单
- */
-function createMenu() {
-  const template = [
-    {
-      label: '文件',
-      submenu: [
-        {
-          label: '退出',
-          accelerator: process.platform === 'darwin' ? 'Cmd+Q' : 'Ctrl+Q',
-          click: () => {
-            app.quit();
-          }
-        }
-      ]
-    },
-    {
-      label: '编辑',
-      submenu: [
-        { label: '撤销', accelerator: 'CmdOrCtrl+Z', role: 'undo' },
-        { label: '重做', accelerator: 'Shift+CmdOrCtrl+Z', role: 'redo' },
-        { type: 'separator' },
-        { label: '剪切', accelerator: 'CmdOrCtrl+X', role: 'cut' },
-        { label: '复制', accelerator: 'CmdOrCtrl+C', role: 'copy' },
-        { label: '粘贴', accelerator: 'CmdOrCtrl+V', role: 'paste' }
-      ]
-    },
-    {
-      label: '视图',
-      submenu: [
-        { label: '重新加载', accelerator: 'CmdOrCtrl+R', role: 'reload' },
-        { label: '强制重新加载', accelerator: 'CmdOrCtrl+Shift+R', role: 'forceReload' },
-        { label: '开发者工具', accelerator: 'F12', role: 'toggleDevTools' },
-        { type: 'separator' },
-        { label: '实际大小', accelerator: 'CmdOrCtrl+0', role: 'resetZoom' },
-        { label: '放大', accelerator: 'CmdOrCtrl+Plus', role: 'zoomIn' },
-        { label: '缩小', accelerator: 'CmdOrCtrl+-', role: 'zoomOut' },
-        { type: 'separator' },
-        { label: '全屏', accelerator: 'F11', role: 'togglefullscreen' }
-      ]
-    },
-    {
-      label: '帮助',
-      submenu: [
-        {
-          label: '关于',
-          click: () => {
-            const { dialog } = require('electron');
-            dialog.showMessageBox(mainWindow, {
-              type: 'info',
-              title: '关于提猫直播助手',
-              message: '提猫直播助手 v1.0.0',
-              detail: '一个基于 Electron + Flask 的抖音直播评论实时分析与AI话术生成工具。'
+// -------------------------------
+// Backend API (FastAPI) launcher
+// -------------------------------
+function startFastAPI() {
+    return new Promise(async (resolve, reject) => {
+        try {
+            if (apiProcess) {
+                return resolve({ success: true, message: 'FastAPI already running' });
+            }
+
+            // If port 8007 is already in use (e.g., user started uvicorn manually),
+            // do not spawn another process to avoid EADDRINUSE and noisy logs.
+            const available = await isPortAvailable(8007);
+            if (!available) {
+                console.log('[electron] Port 8007 is already in use; assuming FastAPI is running.');
+                return resolve({ success: true, message: 'FastAPI already running (external)' });
+            }
+
+            // Use uvicorn to run server.app.main:app on 127.0.0.1:8007 (changed from 8006)
+            // Spawn with project root as cwd so Python can import local packages
+            apiProcess = spawn(
+                process.platform === 'win32' ? 'python' : 'python3',
+                ['-m', 'uvicorn', 'server.app.main:app', '--host', '127.0.0.1', '--port', '8007'],
+                {
+                    cwd: path.join(__dirname, '..'),
+                    env: {
+                        ...process.env,
+                        // Force UTF-8 so emojis/Chinese don't garble in Windows pipes
+                        PYTHONIOENCODING: 'utf-8',
+                        PYTHONUTF8: '1',
+                    },
+                }
+            );
+
+            apiProcess.stdout.on('data', (data) => {
+                const text = data.toString();
+                console.log(`[uvicorn] ${text}`.trim());
+                if (mainWindow) mainWindow.webContents.send('service-log', text);
             });
-          }
+
+            apiProcess.stderr.on('data', (data) => {
+                const text = data.toString();
+                console.error(`[uvicorn] ${text}`.trim());
+                if (mainWindow) mainWindow.webContents.send('service-error', text);
+            });
+
+            apiProcess.on('close', (code) => {
+                console.log(`FastAPI process exited: ${code}`);
+                if (mainWindow) mainWindow.webContents.send('service-stopped', code);
+                apiProcess = null;
+            });
+
+            // Give uvicorn a brief moment to boot
+            setTimeout(() => resolve({ success: true, message: 'FastAPI started' }), 1500);
+        } catch (err) {
+            console.error('Failed to start FastAPI:', err);
+            reject(err);
         }
-      ]
+    });
+}
+
+async function stopFastAPI() {
+    if (!apiProcess) return { success: true, message: 'FastAPI not running' };
+    try {
+        apiProcess.kill();
+        apiProcess = null;
+        return { success: true, message: 'FastAPI stopped' };
+    } catch (err) {
+        console.error('Failed to stop FastAPI:', err);
+        return { success: false, message: String(err) };
     }
-  ];
-
-  const menu = Menu.buildFromTemplate(template);
-  Menu.setApplicationMenu(menu);
 }
 
-/**
- * 启动Flask后端服务
- */
-function startFlaskServer() {
-  return new Promise((resolve, reject) => {
-    console.log('正在启动Flask后端服务...');
-    
-    // 启动Python Flask服务
-    const pythonPath = process.env.PYTHON_PATH || 'python';
-    const serverPath = path.join(__dirname, '../server/app.py');
-    
-    flaskProcess = spawn(pythonPath, [serverPath], {
-      cwd: path.join(__dirname, '..'),
-      stdio: ['pipe', 'pipe', 'pipe']
-    });
+// 控制是否由 Electron 自启本地 FastAPI（云端部署时可关闭）
+const shouldStartApi = (process.env.ELECTRON_START_API || 'true') !== 'false';
 
-    // 监听输出
-    flaskProcess.stdout.on('data', (data) => {
-      console.log(`Flask输出: ${data}`);
-    });
+// 当Electron完成初始化并准备创建浏览器窗口时调用此方法
+app.on('ready', async () => {
+    // Create window first so logs can be delivered
+    createWindow();
+    // Auto-start FastAPI so renderer can call /api/* endpoints (incl. Douyin)
+    if (shouldStartApi) {
+        try {
+            await startFastAPI();
+        } catch (e) {
+            console.error('Auto start FastAPI failed:', e);
+        }
+    } else {
+        console.log('[electron] Skip starting local FastAPI due to ELECTRON_START_API=false');
+    }
+});
 
-    flaskProcess.stderr.on('data', (data) => {
-      console.error(`Flask错误: ${data}`);
-    });
+// 当所有窗口都关闭时退出
+app.on('window-all-closed', async function () {
+    if (process.platform !== 'darwin') {
+        // Stop backends
+        try { await stopFastAPI(); } catch (e) {}
+        if (legacyFlaskProcess) {
+            try { legacyFlaskProcess.kill(); } catch (e) {}
+            legacyFlaskProcess = null;
+        }
+        app.quit();
+    }
+});
 
-    flaskProcess.on('close', (code) => {
-      console.log(`Flask进程退出，代码: ${code}`);
-    });
+app.on('activate', function () {
+    if (mainWindow === null) {
+        createWindow();
+    }
+});
 
-    flaskProcess.on('error', (error) => {
-      console.error(`Flask启动失败: ${error}`);
-      reject(error);
-    });
+// IPC处理程序 - 启动FastAPI服务（提供给渲染端按需调用）
+ipcMain.handle('start-service', async () => {
+    return startFastAPI();
+});
 
-    // 等待服务启动
-    const checkServer = async () => {
-      try {
-        await axios.get(`${FLASK_URL}/api/health`, { timeout: 1000 });
-        console.log('Flask服务启动成功');
-        resolve();
-      } catch (error) {
-        setTimeout(checkServer, 1000);
-      }
+// IPC处理程序 - 停止FastAPI服务
+ipcMain.handle('stop-service', async () => {
+    return stopFastAPI();
+});
+
+// IPC处理程序 - 检查服务状态
+ipcMain.handle('check-service-status', async () => {
+    return {
+        running: apiProcess !== null,
+        pid: apiProcess ? apiProcess.pid : null
     };
+});
 
-    setTimeout(checkServer, 2000);
-  });
+// -------------------------------
+// Helpers
+// -------------------------------
+function isPortAvailable(port) {
+    return new Promise((resolve) => {
+        const net = require('net');
+        const tester = net.createServer()
+            .once('error', (err) => {
+                if (err.code === 'EADDRINUSE') resolve(false);
+                else resolve(false);
+            })
+            .once('listening', () => {
+                tester.close(() => resolve(true));
+            })
+            .listen(port, '127.0.0.1');
+    });
 }
-
-/**
- * 停止Flask后端服务
- */
-function stopFlaskServer() {
-  if (flaskProcess) {
-    console.log('正在停止Flask后端服务...');
-    flaskProcess.kill();
-    flaskProcess = null;
-  }
-}
-
-/**
- * 检查Flask服务状态
- */
-async function checkFlaskHealth() {
-  try {
-    const response = await axios.get(`${FLASK_URL}/api/health`, { timeout: 5000 });
-    return response.data;
-  } catch (error) {
-    throw new Error(`Flask服务连接失败: ${error.message}`);
-  }
-}
-
-// IPC 通信处理
-ipcMain.handle('flask-health-check', async () => {
-  try {
-    const health = await checkFlaskHealth();
-    return { success: true, data: health };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
-
-ipcMain.handle('get-flask-url', () => {
-  return FLASK_URL;
-});
-
-// 应用事件处理
-app.whenReady().then(async () => {
-  try {
-    // 启动Flask服务
-    await startFlaskServer();
-    
-    // 创建主窗口
-    createWindow();
-    
-    console.log('应用启动完成');
-  } catch (error) {
-    console.error('应用启动失败:', error);
-    
-    const { dialog } = require('electron');
-    dialog.showErrorBox('启动失败', `应用启动失败: ${error.message}`);
-    
-    app.quit();
-  }
-});
-
-// 所有窗口关闭时退出应用 (macOS除外)
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
-});
-
-// macOS 激活应用时重新创建窗口
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
-});
-
-// 应用退出前清理
-app.on('before-quit', () => {
-  console.log('应用即将退出，清理资源...');
-  stopFlaskServer();
-});
-
-// 处理未捕获的异常
-process.on('uncaughtException', (error) => {
-  console.error('未捕获的异常:', error);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('未处理的Promise拒绝:', reason);
-});
-
-// 导出模块 (用于测试)
-module.exports = {
-  createWindow,
-  startFlaskServer,
-  stopFlaskServer,
-  checkFlaskHealth
-};

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>语音转录服务启动器</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .instructions {
+            text-align: left;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .step {
+            margin: 15px 0;
+            padding: 10px;
+            border-left: 4px solid #007bff;
+            background-color: #ffffff;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .note {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .success {
+            background-color: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>语音转录服务启动器</h1>
+        
+        <div class="note">
+            <strong>注意:</strong> 此网页无法直接启动本地服务。请按照以下步骤操作以启动完整的语音转录服务。
+        </div>
+        
+        <div class="success">
+            <h3>新增自动启动功能!</h3>
+            <p>我们提供了更简单的启动方式:</p>
+            <p>1. 双击运行项目根目录下的 <code>auto_launch_service.bat</code> 文件</p>
+            <p>2. 或者直接运行 <code>auto_launch_service.py</code> Python脚本</p>
+            <p>这些方式将自动启动服务并在浏览器中打开应用界面。</p>
+        </div>
+        
+        <div class="instructions">
+            <h2>启动步骤:</h2>
+            
+            <div class="step">
+                <h3>步骤 1: 启动服务</h3>
+                <p>打开命令提示符 (CMD) 或 PowerShell，执行以下命令:</p>
+                <pre>cd /d "d:\gsxm\timao-douyin-live-manager\AST_module"
+python test_server.py</pre>
+            </div>
+            
+            <div class="step">
+                <h3>步骤 2: 访问应用</h3>
+                <p>服务启动后，在浏览器中访问以下地址:</p>
+                <pre>http://127.0.0.1:5000</pre>
+            </div>
+            
+            <div class="step">
+                <h3>步骤 3: 使用桌面应用 (可选)</h3>
+                <p>双击运行以下批处理文件以启动桌面应用:</p>
+                <pre>d:\gsxm\timao-douyin-live-manager\start_app.bat</pre>
+            </div>
+        </div>
+        
+        <div class="success">
+            <h3>服务已就绪!</h3>
+            <p>如果您已经按照上述步骤启动了服务，请点击下面的按钮访问应用:</p>
+            <button onclick="window.open('http://127.0.0.1:5000', '_blank')">打开语音转录应用</button>
+        </div>
+    </div>
+</body>
+</html>

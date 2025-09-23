@@ -8,8 +8,7 @@ websockets>=11.0.2
 aiosqlite>=0.19.0
 sqlalchemy>=2.0.0
 
-# VOSK 语音识别和AST模块依赖
-# vosk>=0.3.45  # 我们使用本地集成的版本
+# 语音识别和AST模块依赖
 srt>=3.5.0
 requests>=2.31.0
 tqdm>=4.65.0

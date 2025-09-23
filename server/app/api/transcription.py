@@ -31,6 +31,8 @@ class StartTranscriptionRequest(BaseModel):
     chunk_duration: float = 1.0
     min_confidence: float = 0.6
     save_audio: bool = False
+    enable_vad: bool = False
+    vad_model_path: Optional[str] = None
 
 class TranscriptionResponse(BaseModel):
     success: bool
@@ -54,7 +56,8 @@ def get_ast_service_instance() -> ASTService:
         config = create_ast_config(
             chunk_duration=1.0,
             min_confidence=0.4,  # 降低阈值以获取更多结果
-            save_audio=True      # 启用音频保存用于调试
+            save_audio=True,      # 启用音频保存用于调试
+            enable_vad=False,
         )
         ast_service = ASTService(config)
         logging.info("🎤 AST服务实例已创建")
@@ -82,7 +85,15 @@ async def start_transcription(request: StartTranscriptionRequest):
         service.config.chunk_duration = request.chunk_duration
         service.config.min_confidence = request.min_confidence
         service.config.save_audio_files = request.save_audio
-        
+        # VAD 配置（动态）
+        service.config.enable_vad = bool(request.enable_vad)
+        # 如果启用 VAD 且未提供路径，则使用项目内默认位置作为约定
+        if request.enable_vad and not request.vad_model_path:
+            default_vad = str(PROJECT_ROOT / 'models' / 'models' / 'iic' / 'speech_fsmn_vad_zh-cn-16k-common-pytorch')
+            service.config.vad_model_id = default_vad
+        else:
+            service.config.vad_model_id = request.vad_model_path
+
         # 初始化服务
         if not await service.initialize():
             raise HTTPException(status_code=500, detail="AST服务初始化失败")
@@ -276,7 +287,6 @@ async def transcription_health():
             "status": "healthy",
             "ast_service": "available",
             "is_running": status["is_running"],
-            "vosk_info": status.get("vosk_info", {})
         }
     except Exception as e:
         return {

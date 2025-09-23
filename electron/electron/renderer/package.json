@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "ast-voice-transcription-app": "file:../.."
+  }
+}

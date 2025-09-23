@@ -2,7 +2,7 @@
 
 ## 📋 项目概述
 
-AST (Audio Speech Transcription) 语音转录测试工具是一个基于VOSK的实时语音识别测试平台，可以直接使用麦克风测试语音转录效果。
+AST (Audio Speech Transcription) 语音转录测试工具是一个基于 SenseVoice 的实时语音识别测试平台，可以直接使用麦克风测试语音转录效果。
 
 ## 🚀 快速开始
 
@@ -62,10 +62,10 @@ FastAPI服务器 (8001端口)
     ↓ 调用AST模块
 AST_module/
     ├── ast_service.py          # 主服务
-    ├── vosk_direct_service.py  # VOSK直接集成
+    ├── sensevoice_service.py   # SenseVoice 集成
     ├── audio_capture.py        # 音频采集
-    ├── config.py              # 配置管理
-    └── mock_vosk_service.py    # 模拟服务(降级)
+    ├── config.py               # 配置管理
+    └── mock_transcription.py   # 模拟服务(降级)
 ```
 
 ## 📊 API接口
@@ -81,9 +81,9 @@ AST_module/
 
 ## 🎤 语音模型
 
-- **模型类型**: VOSK中文语音识别模型 
-- **模型版本**: vosk-model-cn-0.22 (2.04GB)
-- **模型路径**: `d:\gsxm\timao-douyin-live-manager\vosk-api\vosk-model-cn-0.22`
+- **模型类型**: SenseVoice 中文语音识别模型 
+- **模型版本**: iic/SenseVoiceSmall (轻量级部署)
+- **模型路径**: 参考 `AST_module/config.py` 中的 `model_id`
 - **采样率**: 16kHz
 - **音频格式**: 16bit单声道PCM
 
@@ -93,7 +93,7 @@ AST_module/
 |------|-------|------|
 | chunk_duration | 1.0秒 | 音频块处理时长，越短响应越快但可能影响准确率 |
 | min_confidence | 0.6 | 最小置信度阈值，低于此值的结果会被过滤 |
-| sample_rate | 16000Hz | 音频采样率，VOSK推荐值 |
+| sample_rate | 16000Hz | 音频采样率，SenseVoice 推荐值 |
 | save_audio | false | 是否保存音频文件到audio_logs目录 |
 
 ## 🔍 故障排除
@@ -108,9 +108,9 @@ AST_module/
    - 浏览器设置中允许网站访问麦克风
    - 确保有可用的音频输入设备
 
-3. **VOSK模型未找到**
+3. **SenseVoice 服务初始化失败**
    - 系统会自动降级到模拟服务
-   - 模拟服务使用随机中文词汇进行测试
+   - 模拟服务使用预置文案进行测试
 
 4. **WebSocket连接失败**
    - 检查防火墙设置

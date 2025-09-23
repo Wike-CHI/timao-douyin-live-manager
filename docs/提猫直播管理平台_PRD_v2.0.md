@@ -265,64 +265,50 @@
 ### 3.1 整体架构图
 ```mermaid
 graph TB
-    subgraph "前端层"
-        A[React Dashboard] --> B[移动端APP]
-        A --> C[Chrome插件]
+    subgraph "桌面端"
+        A[Electron 主进程] --> B[Renderer 页面<br/>(voice_transcription.html)]
     end
-    
-    subgraph "网关层"
-        D[Nginx] --> E[API Gateway]
-        E --> F[负载均衡]
+
+    subgraph "本地服务层"
+        C[Flask 应用<br/>/api/*] --> D[SSE 评论流]
+        E[FastAPI 应用<br/>/api/transcription & /api/douyin] --> F[WebSocket/SSE 推送]
     end
-    
-    subgraph "服务层"
-        G[用户服务] --> H[认证服务]
-        I[直播监控服务] --> J[AI分析服务]
-        K[支付服务] --> L[通知服务]
-        M[数据分析服务] --> N[心理健康服务]
+
+    subgraph "采集与AI"
+        G[CommentFetcher & HotwordAnalyzer] --> C
+        H[DouyinLiveWebFetcher 抓取线程] --> E
+        I[PyAudio + AudioBuffer] --> J[ASTService]
+        J --> K[SenseVoiceSmall (FunASR)]
+        J --> E
     end
-    
-    subgraph "数据层"
-        O[PostgreSQL] --> P[Redis]
-        Q[InfluxDB] --> R[MinIO]
-        S[Elasticsearch] --> T[MongoDB]
-    end
-    
-    subgraph "AI/ML层"
-        U[情感分析模型] --> V[NLP处理引擎]
-        W[语音识别] --> X[计算机视觉]
-        Y[推荐系统] --> Z[预测模型]
-    end
-    
-    A --> E
-    E --> G
-    G --> O
-    J --> U
+
+    B --> C
+    B --> E
 ```
 
 ### 3.2 技术栈选择
 ```
 🖥 前端技术栈
-├── React 18 + TypeScript
-├── Ant Design Pro (UI组件库)
-├── ECharts (数据可视化)
-├── Socket.io (实时通信)
-└── PWA (渐进式Web应用)
+├── Electron 28 + Node.js 20 (桌面壳层)
+├── Preload 脚本 + IPC 通道 (主/渲染通信)
+├── 原生 HTML/CSS + Vanilla JS 渲染
+├── Canvas 2D 图表组件 (自绘热词趋势)
+└── EventSource & WebSocket 客户端封装
 
 ⚙️ 后端技术栈
-├── Python FastAPI (高性能API框架)
-├── Celery + Redis (异步任务队列)
-├── PostgreSQL (主数据库)
-├── InfluxDB (时序数据)
-├── Elasticsearch (搜索引擎)
-└── Docker + K8s (容器化部署)
+├── Flask 2.x (评论/热词/AI 任务 REST + SSE)
+├── FastAPI 0.110.x (AST 与 Douyin 控制 API)
+├── DouyinLiveWebFetcher (抖音弹幕 WebSocket 抓取)
+├── PyAudio + 自研 AudioBuffer (实时音频采集)
+├── SenseVoice 服务封装 (FunASR 模型加载)
+└── SSE/WebSocket 推送通道
 
 🤖 AI/ML技术栈
-├── PyTorch (深度学习框架)
-├── Transformers (预训练模型)
-├── OpenCV (计算机视觉)
-├── SpeechRecognition (语音识别)
-└── scikit-learn (机器学习)
+├── SenseVoiceSmall (FunASR) 中文语音识别
+├── 离线识别引擎扩展位（可按需接入其他模型）
+├── HotwordAnalyzer + jieba (直播热词分析)
+├── SentimentAnalyzer (弹幕情感基线)
+└── TipGenerator (DeepSeek/OpenAI 话术生成)
 
 ☁️ 云服务技术栈
 ├── 阿里云/腾讯云 (基础设施)
@@ -378,6 +364,21 @@ CREATE TABLE emotion_records (
     timestamp TIMESTAMP DEFAULT NOW()
 );
 ```
+
+### 3.4 现有服务落地情况
+
+#### 3.4.1 AST 语音转录链路
+- **代码位置**: `AST_module/`，核心类 `ASTService` 负责调度音频采集、缓冲和 SenseVoice 推理。
+- **音频采集**: `AudioCapture` 基于 PyAudio 以 16kHz/单声道实时拉流，`AudioBuffer` 控制 10 秒滚动缓存并支持落盘调试。
+- **识别引擎**: `SenseVoiceService` 通过 FunASR 加载 `iic/SenseVoiceSmall` 模型，自动检测依赖并在缺失时提供模拟结果，预留接口支持后续扩展其他离线模型。
+- **服务能力**: `server/app/api/transcription.py` 暴露 REST (`/start`、`/stop`、`/status`) 与 WebSocket (`/ws`) 接口，支持配置块长、置信度阈值、会话 ID，并在回调中聚合统计指标。
+- **客户端集成**: Electron 主进程按需拉起 `AST_module/test_server.py`，渲染层订阅 WebSocket/SSE 推送实现桌面端实时字幕。
+
+#### 3.4.2 DouyinLiveWebFetcher 抓取服务
+- **抓取引擎**: `DouyinLiveWebFetcher/liveMan.py` 维护完整的抖音签名逻辑（`_ac_signature`、`X-Bogus` 生成）并通过 WebSocket 拉取弹幕、礼物、排行榜等事件。
+- **异步桥接**: `server/app/services/douyin_web_relay.py` 在独立线程运行抓取器，将消息整理为标准事件并通过 `asyncio.Queue` 向 FastAPI 客户端广播，同时记录最近状态/错误。
+- **服务接口**: `server/app/api/douyin_web.py` 提供 `/api/douyin/web/start|stop|status` 以及 `/stream` SSE 推送；`server/app/services/douyin_service.py` 封装统一 `DouyinLiveService`，兼容旧 `/api/douyin` 控制面并向业务回调弹幕、礼物、排行数据。
+- **桌面消费**: Electron 渲染层通过 `EventSource` 订阅弹幕流，联动 Flask 评论、热词模块，实现本地可视化与脚本生成闭环。
 
 ## 4. AI服务设计
 

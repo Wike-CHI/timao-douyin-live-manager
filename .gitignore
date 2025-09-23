@@ -12,23 +12,25 @@ __pycache__/
 # 构建输出
 dist/
 build/
+out/
 *.egg-info/
 
 # 日志文件
 logs/
 *.log
+log.txt
 
 # 临时文件
 *.tmp
 *.temp
+*.swp
+*.swo
 .DS_Store
 Thumbs.db
 
 # IDE配置
 .vscode/
 .idea/
-*.swp
-*.swo
 
 # 测试覆盖率
 coverage/
@@ -36,12 +38,13 @@ coverage/
 .coverage
 
 # Python虚拟环境
+.venv/
 venv/
 env/
 ENV/
 
-# Electron
-out/
+# Electron构建输出
+release/
 
 # 缓存文件
 .cache/
@@ -58,3 +61,35 @@ desktop.ini
 # 敏感数据
 secrets/
 private/
+
+# 音频日志文件
+audio_logs/
+
+# 测试结果和缓存
+.test_results/
+.pytest_cache/
+.nyc_output/
+.ruff_cache/
+
+# 大文件和模型文件
+models/*/._____temp/
+models/*/.lock/
+
+# 本地开发文件
+.local/
+
+# 系统和编辑器文件
+*.sublime-project
+*.sublime-workspace
+*.vscode-test/
+
+# 操作系统生成的文件
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 项目特定的忽略文件
+comprehensive_test_report.json

@@ -9,10 +9,7 @@ from dataclasses import dataclass
 from contextlib import suppress
 from typing import Any, Dict, Optional, Set
 
-from AST_module.ast_service import (
-    TranscriptionResult,
-    get_ast_service,
-)
+from AST_module.ast_service import TranscriptionResult, get_ast_service
 
 from .douyin_web_relay import get_douyin_web_relay
 
@@ -92,12 +89,12 @@ class LiveTestHub:
     async def _start_ast(self, live_id: str) -> None:
         ast_service = get_ast_service()
 
-        if ast_service.is_running:
-            await ast_service.stop_transcription()
-
         init_ok = await ast_service.initialize()
         if not init_ok:
-            raise RuntimeError("SenseVoice 服务初始化失败")
+            raise RuntimeError("SenseVoice 服务初始化失败，请检查麦克风与依赖")
+
+        if ast_service.is_running:
+            await ast_service.stop_transcription()
 
         callback_name = f"live_test_transcription_{id(self)}"
 
@@ -117,7 +114,7 @@ class LiveTestHub:
         started = await ast_service.start_transcription(live_id, session_id=f"live_test:{live_id}")
         if not started:
             ast_service.remove_transcription_callback(callback_name)
-            raise RuntimeError("语音转录启动失败")
+            raise RuntimeError("语音转录启动失败，请检查麦克风权限")
 
         self._ast_callback_name = callback_name
         self._ast_service = ast_service
@@ -207,7 +204,15 @@ class LiveTestHub:
         self._ast_service = None
 
         previous_live_id = self._status.live_id
-        self._status = LiveTestStatus(last_error=self._status.last_error)
+        last_error = self._status.last_error
+        ast_was_running = self._status.ast_running
+        douyin_was_running = self._status.douyin_running
+
+        self._status = LiveTestStatus(last_error=last_error)
+        if douyin_was_running:
+            self._emit_status("douyin_stopped", {"live_id": previous_live_id})
+        if ast_was_running:
+            self._emit_status("ast_stopped", {"live_id": previous_live_id})
         self._emit_status("live_test_stopped", {"live_id": previous_live_id})
 
     async def register_client(self) -> asyncio.Queue:

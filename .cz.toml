@@ -1,0 +1,10 @@
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.0"
+version_files = []
+change_type_order = [
+  "feat", "fix", "perf", "refactor", "build", "ci", "docs", "style", "test", "revert", "chore"
+]
+commit_parser = "conventional"
+message_template = "<type>(<scope>): <subject>\n\n<body>\n\n<footer>"
+allowed_prefixes = []

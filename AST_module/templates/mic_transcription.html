@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实时语音转录</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+        .control-group {
+            flex: 1;
+            min-width: 150px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+        input, button, select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            border: none;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .btn-danger {
+            background-color: #dc3545;
+        }
+        .btn-danger:hover {
+            background-color: #c82333;
+        }
+        .status {
+            margin-bottom: 30px;
+            padding: 15px;
+            border-radius: 4px;
+            background-color: #e9ecef;
+        }
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .status-label {
+            font-weight: bold;
+        }
+        .results {
+            margin-top: 30px;
+        }
+        .result-item {
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            background-color: #f8f9fa;
+            border-left: 4px solid #007bff;
+        }
+        .result-text {
+            font-size: 18px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .result-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            color: #666;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .mic-status {
+            text-align: center;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .mic-active {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .mic-inactive {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>实时语音转录</h1>
+        
+        <div id="message-area"></div>
+        
+        <div class="mic-status" id="mic-status">
+            麦克风状态: 未激活
+        </div>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label for="mic-device">麦克风设备:</label>
+                <select id="mic-device">
+                    <option value="">默认设备</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label>&nbsp;</label>
+                <button id="refresh-devices">刷新设备列表</button>
+            </div>
+            
+            <div class="control-group">
+                <label>&nbsp;</label>
+                <button id="init-btn">初始化服务</button>
+            </div>
+            
+            <div class="control-group">
+                <label>&nbsp;</label>
+                <button id="start-btn" disabled>开始录音</button>
+            </div>
+            
+            <div class="control-group">
+                <label>&nbsp;</label>
+                <button id="stop-btn" disabled>停止录音</button>
+            </div>
+            
+            <div class="control-group">
+                <label>&nbsp;</label>
+                <button id="clear-btn">清空结果</button>
+            </div>
+            
+            <div class="control-group">
+                <label>&nbsp;</label>
+                <button id="cleanup-btn" class="btn-danger">清理服务</button>
+            </div>
+        </div>
+        
+        <div class="status">
+            <h2>服务状态</h2>
+            <div class="status-item">
+                <span class="status-label">服务状态:</span>
+                <span id="service-status">未初始化</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">录音状态:</span>
+                <span id="recording-status">未开始</span>
+            </div>
+        </div>
+        
+        <div class="results">
+            <h2>转录结果</h2>
+            <div id="results-container">
+                <div class="loading">暂无转录结果</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let updateInterval = null;
+        let resultsInterval = null;
+        let mediaStream = null;
+        
+        // DOM元素
+        const elements = {
+            micDevice: document.getElementById('mic-device'),
+            refreshDevicesBtn: document.getElementById('refresh-devices'),
+            initBtn: document.getElementById('init-btn'),
+            startBtn: document.getElementById('start-btn'),
+            stopBtn: document.getElementById('stop-btn'),
+            clearBtn: document.getElementById('clear-btn'),
+            cleanupBtn: document.getElementById('cleanup-btn'),
+            messageArea: document.getElementById('message-area'),
+            serviceStatus: document.getElementById('service-status'),
+            recordingStatus: document.getElementById('recording-status'),
+            resultsContainer: document.getElementById('results-container'),
+            micStatus: document.getElementById('mic-status')
+        };
+        
+        // 显示消息
+        function showMessage(message, type = 'info') {
+            const messageClass = type === 'error' ? 'error' : 'success';
+            elements.messageArea.innerHTML = `<div class="${messageClass}">${message}</div>`;
+            setTimeout(() => {
+                elements.messageArea.innerHTML = '';
+            }, 5000);
+        }
+        
+        // 更新麦克风状态显示
+        function updateMicStatus(active) {
+            if (active) {
+                elements.micStatus.textContent = '麦克风状态: 已激活';
+                elements.micStatus.className = 'mic-status mic-active';
+            } else {
+                elements.micStatus.textContent = '麦克风状态: 未激活';
+                elements.micStatus.className = 'mic-status mic-inactive';
+            }
+        }
+        
+        // 更新状态显示
+        function updateStatus(status) {
+            elements.serviceStatus.textContent = status.status === 'success' ? '已初始化' : '未初始化';
+            elements.recordingStatus.textContent = status.is_transcribing ? '进行中' : '未开始';
+            
+            // 更新按钮状态
+            const isInitialized = status.status === 'success';
+            const isTranscribing = status.is_transcribing;
+            
+            elements.initBtn.disabled = isInitialized;
+            elements.startBtn.disabled = !(isInitialized && !isTranscribing);
+            elements.stopBtn.disabled = !(isInitialized && isTranscribing);
+        }
+        
+        // 获取服务状态
+        async function getStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                updateStatus(data);
+                return data;
+            } catch (error) {
+                console.error('获取状态失败:', error);
+                updateStatus({status: 'error', is_transcribing: false});
+            }
+        }
+        
+        // 获取转录结果
+        async function getResults() {
+            try {
+                const response = await fetch('/api/results');
+                const data = await response.json();
+                
+                if (data.status === 'success' && data.data.length > 0) {
+                    displayResults(data.data);
+                }
+            } catch (error) {
+                console.error('获取结果失败:', error);
+            }
+        }
+        
+        // 显示转录结果
+        function displayResults(results) {
+            if (results.length === 0) {
+                elements.resultsContainer.innerHTML = '<div class="loading">暂无转录结果</div>';
+                return;
+            }
+            
+            const resultsHtml = results.reverse().map(result => {
+                return `
+                    <div class="result-item">
+                        <div class="result-text">${result.text}</div>
+                        <div class="result-meta">
+                            <span>时间: ${result.formatted_time}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            elements.resultsContainer.innerHTML = resultsHtml;
+        }
+        
+        // 获取麦克风设备列表
+        async function getMicrophoneDevices() {
+            try {
+                const response = await fetch('/api/devices');
+                const data = await response.json();
+                
+                if (data.status === 'success' && data.devices) {
+                    // 清空现有选项
+                    elements.micDevice.innerHTML = '<option value="">默认设备</option>';
+                    
+                    // 添加设备选项
+                    data.devices.forEach(device => {
+                        const option = document.createElement('option');
+                        option.value = device.index;
+                        option.textContent = `${device.name} (通道: ${device.maxInputChannels})`;
+                        elements.micDevice.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('获取设备列表失败:', error);
+            }
+        }
+        
+        // 请求麦克风权限
+        async function requestMicrophonePermission() {
+            try {
+                // 先停止任何现有的媒体流
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(track => track.stop());
+                    mediaStream = null;
+                }
+                
+                // 请求麦克风权限
+                mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                updateMicStatus(true);
+                showMessage('麦克风权限已获取', 'success');
+                return true;
+            } catch (error) {
+                console.error('获取麦克风权限失败:', error);
+                updateMicStatus(false);
+                showMessage(`获取麦克风权限失败: ${error.message}`, 'error');
+                return false;
+            }
+        }
+        
+        // 初始化服务
+        async function initializeService() {
+            try {
+                // 先请求麦克风权限
+                const micPermission = await requestMicrophonePermission();
+                if (!micPermission) {
+                    showMessage('无法获取麦克风权限，无法初始化服务', 'error');
+                    return;
+                }
+                
+                const deviceIndex = elements.micDevice.value || null;
+                
+                const response = await fetch('/api/init', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({device_index: deviceIndex ? parseInt(deviceIndex) : null})
+                });
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showMessage('服务初始化成功', 'success');
+                    getStatus();
+                } else {
+                    showMessage(`初始化失败: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                console.error('初始化服务失败:', error);
+                showMessage('初始化服务失败', 'error');
+            }
+        }
+        
+        // 开始录音
+        async function startRecording() {
+            try {
+                const response = await fetch('/api/start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showMessage('录音已开始', 'success');
+                    getStatus();
+                } else {
+                    showMessage(`启动录音失败: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                console.error('启动录音失败:', error);
+                showMessage('启动录音失败', 'error');
+            }
+        }
+        
+        // 停止录音
+        async function stopRecording() {
+            try {
+                const response = await fetch('/api/stop', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showMessage('录音已停止', 'success');
+                    getStatus();
+                } else {
+                    showMessage(`停止录音失败: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                console.error('停止录音失败:', error);
+                showMessage('停止录音失败', 'error');
+            }
+        }
+        
+        // 清空结果
+        async function clearResults() {
+            try {
+                const response = await fetch('/api/clear', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    elements.resultsContainer.innerHTML = '<div class="loading">暂无转录结果</div>';
+                    showMessage('结果已清空', 'success');
+                }
+            } catch (error) {
+                console.error('清空结果失败:', error);
+                showMessage('清空结果失败', 'error');
+            }
+        }
+        
+        // 清理服务
+        async function cleanupService() {
+            try {
+                const response = await fetch('/api/cleanup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showMessage('服务已清理', 'success');
+                    getStatus();
+                    elements.resultsContainer.innerHTML = '<div class="loading">暂无转录结果</div>';
+                    
+                    // 停止媒体流
+                    if (mediaStream) {
+                        mediaStream.getTracks().forEach(track => track.stop());
+                        mediaStream = null;
+                        updateMicStatus(false);
+                    }
+                } else {
+                    showMessage(`清理服务失败: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                console.error('清理服务失败:', error);
+                showMessage('清理服务失败', 'error');
+            }
+        }
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 绑定事件
+            elements.refreshDevicesBtn.addEventListener('click', getMicrophoneDevices);
+            elements.initBtn.addEventListener('click', initializeService);
+            elements.startBtn.addEventListener('click', startRecording);
+            elements.stopBtn.addEventListener('click', stopRecording);
+            elements.clearBtn.addEventListener('click', clearResults);
+            elements.cleanupBtn.addEventListener('click', cleanupService);
+            
+            // 获取设备列表
+            getMicrophoneDevices();
+            
+            // 定期更新状态
+            updateInterval = setInterval(getStatus, 2000);
+            
+            // 定期获取结果
+            resultsInterval = setInterval(getResults, 3000);
+            
+            // 初始获取状态
+            getStatus();
+        });
+        
+        // 页面卸载时清理定时器和媒体流
+        window.addEventListener('beforeunload', function() {
+            if (updateInterval) clearInterval(updateInterval);
+            if (resultsInterval) clearInterval(resultsInterval);
+            
+            // 停止媒体流
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+        });
+    </script>
+</body>
+</html>

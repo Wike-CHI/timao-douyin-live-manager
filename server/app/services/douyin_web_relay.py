@@ -9,9 +9,22 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Set
 
-from DouyinLiveWebFetcher.liveMan import (ChatMessage, DouyinLiveWebFetcher,
-                                          GiftMessage, LikeMessage,
-                                          MemberMessage, RoomRankMessage)
+from DouyinLiveWebFetcher.liveMan import (
+    ChatMessage,
+    ControlMessage,
+    DouyinLiveWebFetcher,
+    EmojiChatMessage,
+    FansclubMessage,
+    GiftMessage,
+    LikeMessage,
+    MemberMessage,
+    RoomMessage,
+    RoomRankMessage,
+    RoomStatsMessage,
+    RoomStreamAdaptationMessage,
+    RoomUserSeqMessage,
+    SocialMessage,
+)
 
 
 @dataclass
@@ -87,12 +100,90 @@ class _WebRelayFetcher(DouyinLiveWebFetcher):
         )
 
     def _parseLikeMsg(self, payload):  # noqa: N802
-        # 点赞信息在测试页面中忽略
-        return
+        message = LikeMessage().parse(payload)
+        self._emit_event(
+            "like",
+            {
+                "user_id": message.user.id,
+                "user_id_str": getattr(message.user, "id_str", None),
+                "nickname": message.user.nick_name,
+                "count": message.count,
+                "total": getattr(message, "total", None),
+            },
+        )
 
     def _parseMemberMsg(self, payload):  # noqa: N802
-        # 进场信息在测试页面中忽略
-        return
+        message = MemberMessage().parse(payload)
+        gender = None
+        try:
+            gender = ["female", "male"][message.user.gender]
+        except Exception:
+            gender = getattr(message.user, "gender", None)
+        self._emit_event(
+            "member",
+            {
+                "user_id": message.user.id,
+                "user_id_str": getattr(message.user, "id_str", None),
+                "nickname": message.user.nick_name,
+                "gender": gender,
+                "level": getattr(message.user, "level", None),
+                "action": "enter",
+            },
+        )
+
+    def _parseSocialMsg(self, payload):  # noqa: N802
+        message = SocialMessage().parse(payload)
+        action = None
+        social_info = getattr(message, "social_info", None)
+        if social_info is not None:
+            action = getattr(social_info, "action", None)
+        self._emit_event(
+            "follow",
+            {
+                "user_id": message.user.id,
+                "user_id_str": getattr(message.user, "id_str", None),
+                "nickname": message.user.nick_name,
+                "action": action or "follow",
+            },
+        )
+
+    def _parseRoomUserSeqMsg(self, payload):  # noqa: N802
+        message = RoomUserSeqMessage().parse(payload)
+        self._emit_event(
+            "room_user_stats",
+            {
+                "current": message.total,
+                "total": getattr(message, "total_pv_for_anchor", None),
+                "display_short": getattr(message, "display_short", None),
+                "display_long": getattr(message, "display_long", None),
+            },
+        )
+
+    def _parseFansclubMsg(self, payload):  # noqa: N802
+        message = FansclubMessage().parse(payload)
+        user = getattr(message, "user", None)
+        self._emit_event(
+            "fansclub",
+            {
+                "content": message.content,
+                "user_id": getattr(user, "id", None),
+                "user_id_str": getattr(user, "id_str", None),
+                "nickname": getattr(user, "nick_name", None),
+            },
+        )
+
+    def _parseEmojiChatMsg(self, payload):  # noqa: N802
+        message = EmojiChatMessage().parse(payload)
+        user = getattr(message, "user", None)
+        self._emit_event(
+            "emoji_chat",
+            {
+                "emoji_id": message.emoji_id,
+                "default_content": message.default_content,
+                "user_id": getattr(user, "id", None),
+                "nickname": getattr(user, "nick_name", None),
+            },
+        )
 
     def _parseRankMsg(self, payload):  # noqa: N802
         message = RoomRankMessage().parse(payload)
@@ -114,6 +205,53 @@ class _WebRelayFetcher(DouyinLiveWebFetcher):
             )
         if ranks:
             self._emit_event("room_rank", {"ranks": ranks})
+
+    def _parseRoomMsg(self, payload):  # noqa: N802
+        message = RoomMessage().parse(payload)
+        common = getattr(message, "common", None)
+        self._emit_event(
+            "room_info",
+            {
+                "room_id": getattr(common, "room_id", None),
+                "owner_user_id": getattr(common, "owner_user_id", None),
+                "title": getattr(message, "title", None),
+            },
+        )
+
+    def _parseRoomStatsMsg(self, payload):  # noqa: N802
+        message = RoomStatsMessage().parse(payload)
+        self._emit_event(
+            "room_stats",
+            {
+                "display_long": message.display_long,
+                "display_short": getattr(message, "display_short", None),
+                "like_count": getattr(message, "like_count", None),
+                "total_user": getattr(message, "total_user", None),
+            },
+        )
+
+    def _parseControlMsg(self, payload):  # noqa: N802
+        message = ControlMessage().parse(payload)
+        self._emit_event(
+            "room_control",
+            {
+                "status": message.status,
+                "tips": getattr(message, "tips", None),
+            },
+        )
+        if message.status == 3:
+            self._emit_event("status", {"stage": "room_closed"})
+            self.stop()
+
+    def _parseRoomStreamAdaptationMsg(self, payload):  # noqa: N802
+        message = RoomStreamAdaptationMessage().parse(payload)
+        self._emit_event(
+            "stream_adaptation",
+            {
+                "adaptation_type": message.adaptation_type,
+                "enable_low_quality": getattr(message, "enable_low_quality", None),
+            },
+        )
 
 
 class DouyinWebRelay:

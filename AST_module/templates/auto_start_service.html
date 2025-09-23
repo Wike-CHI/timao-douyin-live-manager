@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>语音转录服务启动器</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .status {
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            background-color: #e9ecef;
+        }
+        .status-active {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status-inactive {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .log {
+            text-align: left;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>语音转录服务启动器</h1>
+        
+        <div id="status" class="status status-inactive">
+            服务状态: 未启动
+        </div>
+        
+        <button id="start-btn">启动服务</button>
+        <button id="stop-btn" disabled>停止服务</button>
+        <button id="open-app" disabled>打开应用</button>
+        
+        <div class="log">
+            <h3>日志:</h3>
+            <div id="log-container"></div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let logContainer = document.getElementById('log-container');
+        
+        // 添加日志
+        function addLog(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        // 更新状态显示
+        function updateStatus(isRunning) {
+            const statusElement = document.getElementById('status');
+            const startBtn = document.getElementById('start-btn');
+            const stopBtn = document.getElementById('stop-btn');
+            const openAppBtn = document.getElementById('open-app');
+            
+            if (isRunning) {
+                statusElement.textContent = '服务状态: 运行中';
+                statusElement.className = 'status status-active';
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                openAppBtn.disabled = false;
+            } else {
+                statusElement.textContent = '服务状态: 未启动';
+                statusElement.className = 'status status-inactive';
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                openAppBtn.disabled = true;
+            }
+        }
+        
+        // 启动服务
+        async function startService() {
+            try {
+                addLog('正在启动服务...');
+                
+                // 通过IPC与主进程通信启动服务
+                const result = await window.electronAPI.startService();
+                
+                if (result.success) {
+                    updateStatus(true);
+                    addLog(result.message);
+                    addLog('请点击"打开应用"按钮访问语音转录界面');
+                } else {
+                    addLog(`启动服务失败: ${result.message}`);
+                }
+                
+            } catch (error) {
+                addLog(`启动服务失败: ${error.message}`);
+            }
+        }
+        
+        // 停止服务
+        async function stopService() {
+            try {
+                addLog('正在停止服务...');
+                
+                // 通过IPC与主进程通信停止服务
+                const result = await window.electronAPI.stopService();
+                
+                if (result.success) {
+                    updateStatus(false);
+                    addLog(result.message);
+                } else {
+                    addLog(`停止服务失败: ${result.message}`);
+                }
+                
+            } catch (error) {
+                addLog(`停止服务失败: ${error.message}`);
+            }
+        }
+        
+        // 打开应用
+        function openApp() {
+            // 在Electron应用中，这里会打开一个新的窗口或标签页指向应用界面
+            window.open('http://127.0.0.1:5000', '_blank');
+        }
+        
+        // 监听来自主进程的日志消息
+        window.addEventListener('DOMContentLoaded', () => {
+            // 绑定事件
+            document.getElementById('start-btn').addEventListener('click', startService);
+            document.getElementById('stop-btn').addEventListener('click', stopService);
+            document.getElementById('open-app').addEventListener('click', openApp);
+            
+            // 监听主进程发送的日志
+            window.electronAPI.onServiceLog((data) => {
+                addLog(`[服务] ${data}`);
+            });
+            
+            window.electronAPI.onServiceError((data) => {
+                addLog(`[错误] ${data}`);
+            });
+            
+            window.electronAPI.onServiceStopped((code) => {
+                updateStatus(false);
+                addLog(`服务已停止，退出码: ${code}`);
+            });
+            
+            addLog('启动器已就绪');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>提猫直播助手 · 可爱高保真原型</title>
+  <style>
+    :root {
+      --pink-main: #ff8fbf;
+      --pink-light: #ffe3f2;
+      --pink-lighter: #fff6fc;
+      --blue-accent: #8fd7ff;
+      --mint: #92e6c4;
+      --warning: #ffb347;
+      --text-primary: #36384c;
+      --text-secondary: #6b6b8a;
+      --shadow-soft: 0 18px 40px rgba(255, 143, 191, 0.2);
+      font-family: "Segoe UI", "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top right, rgba(255, 199, 229, 0.45), transparent 45%),
+                  radial-gradient(circle at bottom left, rgba(143, 215, 255, 0.25), transparent 55%),
+                  linear-gradient(180deg, var(--pink-lighter) 0%, #ffffff 90%);
+      color: var(--text-primary);
+    }
+
+    .page-shell {
+      max-width: 1320px;
+      margin: 40px auto 80px;
+      background: rgba(255, 255, 255, 0.88);
+      border-radius: 28px;
+      padding: 40px 48px 48px;
+      box-shadow: var(--shadow-soft);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .page-shell::before,
+    .page-shell::after {
+      content: "";
+      position: absolute;
+      background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="140" height="140" viewBox="0 0 140 140"><g fill="none" stroke="%23ffd1e5" stroke-width="6" stroke-linecap="round"><path d="M72 12c18 12 28 24 28 36 0 18-12 32-28 32s-28-14-28-32c0-12 10-24 28-36z"/><path d="M48 70c-6 16-18 28-32 32"/><path d="M96 70c6 16 18 28 32 32"/></g></svg>');
+      opacity: 0.5;
+      width: 140px;
+      height: 140px;
+      z-index: 0;
+    }
+
+    .page-shell::before {
+      top: -30px;
+      left: -20px;
+    }
+
+    .page-shell::after {
+      bottom: -40px;
+      right: -10px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: relative;
+      z-index: 1;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .brand-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 22px;
+      background: linear-gradient(135deg, var(--pink-main), #ffa8cc);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      color: white;
+      box-shadow: 0 12px 25px rgba(255, 143, 191, 0.35);
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 28px;
+      letter-spacing: 0.5px;
+    }
+
+    .nav-tabs {
+      display: inline-flex;
+      background: rgba(255, 143, 191, 0.12);
+      padding: 6px;
+      border-radius: 18px;
+      gap: 4px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .nav-button {
+      border: none;
+      background: transparent;
+      padding: 10px 22px;
+      border-radius: 16px;
+      font-size: 15px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-weight: 600;
+    }
+
+    .nav-button.active {
+      background: white;
+      color: var(--pink-main);
+      box-shadow: 0 10px 18px rgba(255, 143, 191, 0.25);
+    }
+
+    .screen {
+      margin-top: 36px;
+      position: relative;
+      z-index: 1;
+      display: none;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .card {
+      background: white;
+      border-radius: 24px;
+      padding: 28px;
+      box-shadow: 0 18px 32px rgba(54, 56, 76, 0.08);
+      margin-bottom: 22px;
+      position: relative;
+    }
+
+    .card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 24px;
+      border: 2px dashed rgba(255, 143, 191, 0.08);
+      pointer-events: none;
+    }
+
+    .card-title {
+      font-size: 20px;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .input-group {
+      background: var(--pink-light);
+      border-radius: 18px;
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      margin-bottom: 16px;
+    }
+
+    .input-group label {
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .input-group input,
+    .input-group select {
+      flex: 1;
+      border: none;
+      background: white;
+      padding: 14px 18px;
+      border-radius: 14px;
+      font-size: 16px;
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .pill-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: 999px;
+      background: rgba(143, 215, 255, 0.18);
+      color: var(--blue-accent);
+      font-weight: 600;
+    }
+
+    .primary-btn {
+      border: none;
+      background: linear-gradient(135deg, var(--pink-main), #ffacd3);
+      color: white;
+      padding: 16px 28px;
+      border-radius: 999px;
+      font-size: 17px;
+      font-weight: 700;
+      box-shadow: 0 16px 25px rgba(255, 143, 191, 0.35);
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .primary-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 22px 32px rgba(255, 143, 191, 0.45);
+    }
+
+    /* Live dashboard layout */
+    .live-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1.6fr 1fr;
+      gap: 24px;
+    }
+
+    .status-bar {
+      background: linear-gradient(90deg, rgba(255, 143, 191, 0.15), rgba(143, 215, 255, 0.2));
+      border-radius: 22px;
+      padding: 16px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .status-items {
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--mint);
+      box-shadow: 0 0 0 6px rgba(146, 230, 196, 0.35);
+    }
+
+    .cat-avatar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: white;
+      border-radius: 18px;
+      padding: 10px 16px;
+      box-shadow: 0 10px 20px rgba(143, 215, 255, 0.25);
+    }
+
+    .cat-avatar span:nth-child(1) {
+      font-size: 32px;
+    }
+
+    .cat-avatar button {
+      border: none;
+      background: rgba(255, 143, 191, 0.18);
+      color: var(--pink-main);
+      padding: 10px 16px;
+      border-radius: 999px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .chat-feed {
+      background: linear-gradient(180deg, #ffffff 0%, #fff6fc 100%);
+      border-radius: 24px;
+      padding: 24px 24px 12px;
+      max-height: 560px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .chat-feed::after {
+      content: "";
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 80px;
+      background: linear-gradient(transparent, #fff6fc);
+    }
+
+    .chat-item {
+      background: white;
+      border-radius: 18px;
+      padding: 14px 18px;
+      margin-bottom: 12px;
+      box-shadow: 0 12px 24px rgba(255, 143, 191, 0.18);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .chat-meta {
+      color: var(--text-secondary);
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .gift-card {
+      background: linear-gradient(135deg, rgba(255, 143, 191, 0.14), rgba(143, 215, 255, 0.16));
+      border-radius: 22px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+
+    .subtitle-banner {
+      background: rgba(255, 143, 191, 0.15);
+      border-radius: 18px;
+      padding: 18px 22px;
+      font-size: 18px;
+      margin-top: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .ai-card {
+      background: linear-gradient(180deg, #ffffff 0%, rgba(255, 230, 246, 0.85) 100%);
+      border-radius: 22px;
+      padding: 22px;
+      box-shadow: 0 14px 28px rgba(143, 215, 255, 0.22);
+      margin-bottom: 18px;
+      position: relative;
+    }
+
+    .ai-card::before {
+      content: "🐾";
+      position: absolute;
+      top: -16px;
+      right: 22px;
+      font-size: 26px;
+      transform: rotate(-8deg);
+    }
+
+    .ai-card h3 {
+      margin: 0 0 12px;
+      font-size: 18px;
+      color: var(--pink-main);
+    }
+
+    .analysis-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 15px;
+      padding: 10px 0;
+    }
+
+    .badge {
+      background: rgba(255, 143, 191, 0.18);
+      color: var(--pink-main);
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .tip-list li {
+      background: white;
+      border-radius: 18px;
+      padding: 14px 18px;
+      margin-bottom: 12px;
+      list-style: none;
+      box-shadow: 0 12px 22px rgba(54, 56, 76, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .tip-list button {
+      border: none;
+      background: rgba(143, 215, 255, 0.18);
+      color: var(--blue-accent);
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    /* Cold alert overlay */
+    .overlay {
+      position: relative;
+      margin-top: 32px;
+    }
+
+    .alert-card {
+      max-width: 520px;
+      margin: 0 auto;
+      background: linear-gradient(180deg, #ffffff 0%, #ffe3f2 100%);
+      border-radius: 28px;
+      padding: 32px;
+      text-align: center;
+      box-shadow: 0 24px 40px rgba(255, 143, 191, 0.3);
+      border: 3px solid rgba(255, 143, 191, 0.25);
+    }
+
+    .alert-card h2 {
+      margin: 0 0 12px;
+      font-size: 24px;
+      color: var(--pink-main);
+    }
+
+    .alert-stats {
+      display: flex;
+      justify-content: space-around;
+      margin: 22px 0 26px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .alert-actions {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-top: 24px;
+    }
+
+    .ghost-btn {
+      border: 2px solid rgba(255, 143, 191, 0.55);
+      background: transparent;
+      color: var(--pink-main);
+      padding: 12px 24px;
+      border-radius: 999px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    /* Summary layout */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
+    }
+
+    .score-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+
+    .score-card {
+      background: linear-gradient(135deg, rgba(255, 143, 191, 0.16), rgba(143, 215, 255, 0.2));
+      border-radius: 20px;
+      padding: 18px 20px;
+      text-align: center;
+      box-shadow: 0 12px 22px rgba(255, 143, 191, 0.18);
+    }
+
+    .score-card h4 {
+      margin: 0;
+      font-size: 16px;
+      color: var(--text-secondary);
+    }
+
+    .score-card .value {
+      font-size: 22px;
+      margin-top: 10px;
+      color: var(--pink-main);
+      font-weight: 700;
+    }
+
+    .highlight-list li {
+      background: white;
+      border-radius: 18px;
+      padding: 14px 18px;
+      margin-bottom: 12px;
+      list-style: none;
+      box-shadow: 0 10px 18px rgba(54, 56, 76, 0.08);
+    }
+
+    .footer-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 16px;
+      margin-top: 28px;
+    }
+
+    .footer-actions .ghost-btn {
+      border-color: rgba(143, 215, 255, 0.6);
+      color: var(--blue-accent);
+    }
+  </style>
+</head>
+<body>
+  <div class="page-shell">
+    <header>
+      <div class="brand">
+        <div class="brand-icon">🐱</div>
+        <h1>提猫直播助手 · 高保真原型</h1>
+      </div>
+      <nav class="nav-tabs">
+        <button class="nav-button active" data-target="screen-setup">开播设置</button>
+        <button class="nav-button" data-target="screen-live">实时面板</button>
+        <button class="nav-button" data-target="screen-alert">冷场提醒</button>
+        <button class="nav-button" data-target="screen-summary">复盘报告</button>
+      </nav>
+    </header>
+
+    <!-- Setup Screen -->
+    <section class="screen active" id="screen-setup">
+      <div class="card">
+        <div class="card-title">🐾 直播输入区</div>
+        <div class="input-group">
+          <label>抖音 Live ID</label>
+          <input type="text" placeholder="例：261378947940" />
+          <span class="badge">实时校验 ✔</span>
+        </div>
+        <div class="input-group">
+          <label>抖音 Cookie（可选）</label>
+          <input type="text" placeholder="粘贴浏览器导出的 Cookie" />
+          <button class="ghost-btn">一键粘贴</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🎙️ 音频采集</div>
+        <div class="input-group">
+          <label>采集设备</label>
+          <select>
+            <option>Scarlett 2i2 - Mic 1</option>
+            <option>MacBook Mic</option>
+            <option>Logitech Blue Yeti</option>
+          </select>
+          <span class="pill-status"><span class="status-dot"></span> 电平正常</span>
+        </div>
+        <div class="input-group" style="align-items: flex-start;">
+          <label>实时波形</label>
+          <div style="flex:1; background:white; border-radius:14px; padding:18px; box-shadow: inset 0 1px 6px rgba(255,143,191,0.3);">
+            <div style="height:60px; background: repeating-linear-gradient(90deg, rgba(255,143,191,0.18) 0, rgba(255,143,191,0.18) 6px, transparent 6px, transparent 12px);
+                        border-radius: 12px; position: relative; overflow:hidden;">
+              <div style="position:absolute; inset:10px; background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="360" height="40" viewBox="0 0 360 40"><polyline points="0,20 20,8 40,25 60,12 80,28 100,10 120,22 140,16 160,26 180,12 200,30 220,9 240,24 260,14 280,26 300,12 320,22 340,15 360,20" fill="none" stroke="%23ff8fbf" stroke-width="4" stroke-linecap="round"/></svg>') repeat-x; animation: wave 4s linear infinite;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🤖 AI 服务状态</div>
+        <div class="input-group">
+          <label>DeepSeek V3.1</label>
+          <div style="display:flex; gap:12px; align-items:center; flex:1;">
+            <div class="pill-status" style="background: rgba(146,230,196,0.22); color: var(--mint);"><span class="status-dot" style="background: var(--mint); box-shadow: 0 0 0 6px rgba(146,230,196,0.25);"></span> 已连接</div>
+            <span style="color: var(--text-secondary); font-size: 14px;">平均响应 3.2s</span>
+            <button class="ghost-btn">测试连通</button>
+          </div>
+        </div>
+        <div class="input-group">
+          <label>分析频率</label>
+          <select>
+            <option>每 5 分钟自动生成洞察</option>
+            <option>每 10 分钟</option>
+            <option>手动触发</option>
+          </select>
+          <span class="badge" style="background: rgba(255,179,71,0.18); color: var(--warning);">冷场监测已开启</span>
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:16px; align-items:center;">
+        <span style="color: var(--text-secondary); display:flex; align-items:center; gap:8px;">
+          🐱 小提示：准备好后点击“开始直播助理”~
+        </span>
+        <button class="primary-btn">🐾 开始直播助理</button>
+      </div>
+    </section>
+
+    <!-- Live Screen -->
+    <section class="screen" id="screen-live">
+      <div class="status-bar">
+        <div class="status-items">
+          <span class="pill-status" style="background: rgba(255,143,191,0.18); color: var(--pink-main);"><span class="status-dot" style="background: #ff6fa7; box-shadow: 0 0 0 6px rgba(255,143,191,0.25);"></span> LIVE 在线</span>
+          <span>🎯 下次洞察 04:12</span>
+          <span>⚡ DeepSeek 稳定连接</span>
+        </div>
+        <div class="cat-avatar">
+          <span>😺</span>
+          <div>
+            <div style="font-weight:700;">提猫酱守护中</div>
+            <div style="color:var(--text-secondary); font-size:13px;">当前心情：兴奋</div>
+          </div>
+          <button>休息提醒</button>
+        </div>
+      </div>
+
+      <div class="live-grid">
+        <div class="chat-feed">
+          <div class="card-title" style="margin-bottom:12px;">💬 陪伴弹幕流</div>
+          <div class="chat-item">
+            <div>
+              <div style="font-weight:600;">桃子 · LV8</div>
+              <div>主播声音好好听呀！</div>
+            </div>
+            <div class="chat-meta">20:21:05 · ❤ 12</div>
+          </div>
+          <div class="chat-item">
+            <div>
+              <div style="font-weight:600;">蓝蓝</div>
+              <div>求看粉色款细节~</div>
+            </div>
+            <div class="chat-meta">20:21:09</div>
+          </div>
+          <div class="chat-item" style="background: linear-gradient(135deg, rgba(143,215,255,0.15), rgba(255,255,255,0.9));">
+            <div>
+              <div style="font-weight:600; display:flex; align-items:center; gap:8px;">🎁 礼物雨 · 喵喵 <span class="badge" style="background: rgba(143,215,255,0.22); color: var(--blue-accent);">Top3</span></div>
+              <div>小飞象 ×5，祝主播爆单！</div>
+            </div>
+            <div class="chat-meta">20:21:18</div>
+          </div>
+          <div class="gift-card">
+            <div style="font-weight:700;">⚜️ 榜单速览</div>
+            <div style="margin-top:10px;">
+              1. 妙妙猫 5980分 · 2. 桃桃 5120分 · 3. 小海盐 3870分
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card" style="padding: 24px;">
+            <div class="card-title" style="margin-bottom:16px;">📊 小剧场面板</div>
+            <div style="display:flex; gap:18px;">
+              <div style="flex:1; background: rgba(143,215,255,0.16); border-radius:18px; padding:18px;">
+                <div style="color:var(--text-secondary); font-size:14px;">互动温度</div>
+                <div style="font-size:28px; font-weight:700; color:var(--blue-accent);">温暖</div>
+                <div style="margin-top:12px; font-size:14px;">弹幕 56 条 · 礼物 12 次</div>
+              </div>
+              <div style="flex:1; background: rgba(255,143,191,0.16); border-radius:18px; padding:18px;">
+                <div style="color:var(--text-secondary); font-size:14px;">热词气泡</div>
+                <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:12px;">
+                  <span class="badge">#粉色款</span>
+                  <span class="badge">#价格</span>
+                  <span class="badge">#细节</span>
+                  <span class="badge">#真香</span>
+                  <span class="badge">#赠品</span>
+                </div>
+              </div>
+            </div>
+            <div class="subtitle-banner">
+              <div>
+                <strong>20:21:12 主播：</strong> 大家别急，先给你们看看粉色款的细节噢~
+              </div>
+              <div style="font-size:13px; color: var(--text-secondary);">置信度 92%</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="ai-card">
+            <h3>本轮 5 分钟洞察</h3>
+            <div class="analysis-row">
+              <span>互动情绪</span>
+              <span class="badge">温暖↑</span>
+            </div>
+            <div class="analysis-row">
+              <span>建议</span>
+              <span style="color: var(--text-secondary);">邀请粉丝截图分享领取小礼物</span>
+            </div>
+            <div class="analysis-row">
+              <span>深度洞察</span>
+              <span style="color: var(--pink-main); font-weight:600;">价格话题热度高，适合引导下单</span>
+            </div>
+          </div>
+
+          <div class="ai-card">
+            <h3>即时话术</h3>
+            <ul class="tip-list">
+              <li>
+                <span>有粉粉想看细节呢，马上给大家一个超近距离！</span>
+                <button>复制喵</button>
+              </li>
+              <li>
+                <span>感谢刚刚的小礼物，留言告诉我最想要的颜色吧~</span>
+                <button>复制喵</button>
+              </li>
+            </ul>
+          </div>
+
+          <div class="ai-card" style="background: linear-gradient(180deg, #ffffff 0%, #ffe9d6 100%);">
+            <h3>冷场守护</h3>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span>状态：正常小憩中</span>
+              <span style="color: var(--text-secondary); font-size:13px;">连续 12 分钟无冷场</span>
+            </div>
+            <button class="ghost-btn" style="margin-top:14px; width:100%;">查看预设应对</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Cold alert Screen -->
+    <section class="screen" id="screen-alert">
+      <div class="overlay">
+        <div class="alert-card">
+          <div style="font-size:48px;">🐾</div>
+          <h2>喵喵提醒：直播间有点安静啦~</h2>
+          <p style="color: var(--text-secondary); margin: 6px 0 0;">弹幕稍稍减少，来点互动暖暖场吧！</p>
+          <div class="alert-stats">
+            <div>弹幕 3 条 / 2 分钟</div>
+            <div>礼物 0 次</div>
+            <div>语音检测沉默 35s</div>
+          </div>
+          <div style="background:white; border-radius:18px; padding:18px; text-align:left;">
+            <div style="font-weight:700; color: var(--pink-main);">推荐话术</div>
+            <p style="margin:12px 0 8px;">「喵友们还在吗？送个小心心让我知道你们在~」</p>
+            <p style="margin:0; color: var(--text-secondary); font-size:14px;">备用：「想看哪款多一点？留言告诉我喵~」</p>
+          </div>
+          <div class="alert-actions">
+            <button class="primary-btn" style="padding:14px 32px;">复制话术</button>
+            <button class="ghost-btn">稍后提醒</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Summary Screen -->
+    <section class="screen" id="screen-summary">
+      <div class="card" style="padding: 30px 32px;">
+        <div class="card-title" style="justify-content: space-between;">
+          <span>🐱 直播复盘 · 2025-01-20 20:00 - 21:15</span>
+          <span class="badge" style="background: rgba(146,230,196,0.22); color: var(--mint);">自动生成 ✓</span>
+        </div>
+        <div class="summary-grid">
+          <div>
+            <div class="score-cards">
+              <div class="score-card">
+                <h4>互动指数</h4>
+                <div class="value">★★★★☆</div>
+              </div>
+              <div class="score-card">
+                <h4>转化信号</h4>
+                <div class="value">★★★☆☆</div>
+              </div>
+              <div class="score-card">
+                <h4>情绪稳定</h4>
+                <div class="value">★★★★★</div>
+              </div>
+            </div>
+            <div class="card" style="margin-top:22px;">
+              <div class="card-title" style="margin-bottom:12px;">✨ 高光片段</div>
+              <ul class="highlight-list">
+                <li>20:35 - 20:40 粉色款试戴 · 弹幕峰值 +24%</li>
+                <li>20:58 直播课堂回答价格疑问 · 点赞 86 次</li>
+              </ul>
+            </div>
+            <div class="card">
+              <div class="card-title" style="margin-bottom:12px;">🐾 精进方案</div>
+              <ol style="margin:0; padding-left:20px; color: var(--text-secondary);">
+                <li>先展示赠品再报价格，预计关注提升 15%</li>
+                <li>设置晒图返场福利，鼓励弹幕互动</li>
+                <li>使用 1 分钟总结脚本收尾，强化行动号召</li>
+              </ol>
+            </div>
+          </div>
+          <div>
+            <div class="card" style="background: linear-gradient(180deg, #ffffff 0%, #e4f6ff 100%);">
+              <div class="card-title">📈 核心指标</div>
+              <div style="display:grid; gap:12px;">
+                <div class="analysis-row"><span>总弹幕</span><strong>356</strong></div>
+                <div class="analysis-row"><span>礼物次数</span><strong>68</strong></div>
+                <div class="analysis-row"><span>新增关注</span><strong>112</strong></div>
+                <div class="analysis-row" style="color: var(--warning);"><span>冷场事件</span><strong>1 次</strong></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title" style="margin-bottom:10px;">💗 情绪词云</div>
+              <div style="height:180px; background: rgba(255,143,191,0.12); border-radius:18px; display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap; padding:18px;">
+                <span class="badge" style="font-size:18px;">#好喜欢</span>
+                <span class="badge" style="font-size:16px;">#真香</span>
+                <span class="badge" style="font-size:14px;">#还想看</span>
+                <span class="badge" style="font-size:16px;">#价格</span>
+                <span class="badge" style="font-size:18px;">#粉色款</span>
+              </div>
+            </div>
+            <div class="footer-actions">
+              <button class="ghost-btn">返回首页</button>
+              <button class="ghost-btn">导出 Markdown</button>
+              <button class="primary-btn">分享报告</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const buttons = document.querySelectorAll('.nav-button');
+    const screens = document.querySelectorAll('.screen');
+
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        buttons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        screens.forEach(screen => screen.classList.remove('active'));
+        document.getElementById(btn.dataset.target).classList.add('active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    });
+  </script>
+  <style>
+    @keyframes wave {
+      from { background-position: 0 0; }
+      to { background-position: 360px 0; }
+    }
+  </style>
+</body>
+</html>

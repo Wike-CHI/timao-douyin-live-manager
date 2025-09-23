@@ -1,13 +1,13 @@
-# 提猫直播助手 MVP 项目
+# 提猫直播助手 · TalkingCat
 
-基于自研抖音直播抓取器 + VOSK本地语音识别的主播AI助手
+基于自研直播互动与本地语音识别能力的主播 AI 助手（隐私不出机）
 
 ## 技术栈
 
 - **前端**: HTML + CSS + Element UI 2.15
 - **后端**: FastAPI + SQLite + Redis
-- **数据抓取**: 项目内置 DouyinLiveWebFetcher 模块
-- **语音识别**: VOSK本地模型 (中文)
+- **直播互动**: 项目内置 DouyinLiveWebFetcher 模块（WebSocket → SSE 桥接）
+- **语音识别**: SenseVoice/FunASR 本地模型 (中文)
 - **AI分析**: jieba + SnowNLP (本地NLP)
 - **部署**: Docker + Nginx
 
@@ -15,9 +15,10 @@
 
 ```
 timao-douyin-live-manager/
-├── vosk-api/              # VOSK语音识别
-│   ├── python/vosk/       # VOSK Python API
-│   └── vosk-model-cn-0.22/ # 中文语音模型
+├── AST_module/           # 本地语音采集与转写模块
+│   ├── ast_service.py    # SenseVoice 集成入口
+│   ├── audio_capture.py  # 音频采集与缓冲
+│   └── requirements.txt  # AST 模块依赖
 ├── server/                # FastAPI后端服务
 │   ├── app/
 │   │   ├── api/          # API路由
@@ -62,10 +63,18 @@ http://localhost:3000
 docker-compose up -d
 ```
 
+### 4. Git 使用
+
+有关 Git 使用的详细说明，请参阅以下文档：
+
+- [Git 使用指南](docs/Git使用指南.md) - 完整的 Git 使用说明
+- [Git 操作速查表](docs/Git操作速查表.md) - 常用 Git 命令快速参考
+- [gitignore 配置说明](docs/gitignore配置说明.md) - 项目 .gitignore 配置说明
+
 ## 核心功能
 
-- 🎯 **直播弹幕抓取**: 实时抓取抖音直播间弹幕
-- 🎤 **VOSK语音转录**: 本地中文语音识别
+- 🎯 **直播互动**: 实时同步抖音直播间弹幕、礼物、点赞
+- 🎤 **本地语音转录**: SenseVoice 小型模型实时识别
 - 🧠 **AI智能分析**: 情感分析 + 热词提取
 - 🎨 **可爱界面**: 猫咪主题Element UI界面
 

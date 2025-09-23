@@ -45,6 +45,9 @@ class ASTConfig:
     # 音频配置
     audio_config: AudioConfig
     model_id: str = "iic/SenseVoiceSmall"
+    # 语音活动检测（VAD）配置
+    enable_vad: bool = False
+    vad_model_id: Optional[str] = None
     
     # 处理配置
     chunk_duration: float = 1.0  # 音频块持续时间(秒)
@@ -95,7 +98,11 @@ class ASTService:
         self.recognizer: Optional[SenseVoiceService] = None
         self.mock_transcriber = None
         try:
-            svc_config = SenseVoiceConfig(model_id=self.config.model_id)
+            # 将 VAD 配置传入 SenseVoice 服务
+            svc_config = SenseVoiceConfig(
+                model_id=self.config.model_id,
+                vad_model_id=(self.config.vad_model_id if self.config.enable_vad else None),
+            )
             self.recognizer = SenseVoiceService(svc_config)
             self.logger.info("使用 SenseVoice 服务进行语音识别")
         except Exception as exc:  # pragma: no cover - SenseVoice 缺失
@@ -177,6 +184,20 @@ class ASTService:
             # 2. 初始化 SenseVoice 服务
             if self.recognizer:
                 try:
+                    # 同步最新 VAD 配置给识别器
+                    if hasattr(self.recognizer, 'config'):
+                        try:
+                            desired_vad = (
+                                self.config.vad_model_id if self.config.enable_vad else None
+                            )
+                            current_vad = getattr(self.recognizer.config, 'vad_model_id', None)
+                            # 若已初始化且 VAD 配置发生变化，先卸载以便重新加载
+                            if getattr(self.recognizer, 'is_initialized', False) and desired_vad != current_vad:
+                                await self.recognizer.cleanup()
+                                self.recognizer.is_initialized = False
+                            self.recognizer.config.vad_model_id = desired_vad
+                        except Exception:
+                            pass
                     ok = await self.recognizer.initialize()
                     if not ok:
                         self.logger.error("SenseVoice 服务初始化失败")

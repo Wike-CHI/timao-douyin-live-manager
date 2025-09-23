@@ -14,7 +14,9 @@ except ImportError:
     ASTConfig = None
 
 # 默认 SenseVoice 模型
-DEFAULT_MODEL_ID = "iic/SenseVoiceSmall"
+DEFAULT_MODEL_ID = str(
+    Path("models") / "models" / "iic" / "SenseVoiceSmall"
+)
 
 # 默认音频配置
 DEFAULT_AUDIO_CONFIG = AudioConfig(
@@ -38,7 +40,9 @@ def create_ast_config(
     sample_rate: int = 16000,
     chunk_duration: float = 1.0,
     min_confidence: float = 0.5,
-    save_audio: bool = False
+    save_audio: bool = False,
+    enable_vad: bool = False,
+    vad_model_path: Optional[str] = None,
 ):
     """
     创建自定义AST配置
@@ -75,5 +79,7 @@ def create_ast_config(
         min_confidence=min_confidence,
         buffer_duration=10.0,
         save_audio_files=save_audio,
-        audio_output_dir="./audio_logs"
+        audio_output_dir="./audio_logs",
+        enable_vad=enable_vad,
+        vad_model_id=vad_model_path,
     )

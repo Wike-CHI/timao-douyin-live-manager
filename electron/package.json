@@ -1,0 +1,24 @@
+{
+  "name": "ast-voice-transcription-app",
+  "version": "1.0.0",
+  "description": "语音转录服务桌面应用",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder"
+  },
+  "keywords": [
+    "electron",
+    "voice",
+    "transcription",
+    "speech",
+    "recognition"
+  ],
+  "author": "AST Module Team",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^38.1.2",
+    "electron-builder": "^24.0.0"
+  }
+}

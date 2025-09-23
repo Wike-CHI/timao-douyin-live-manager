@@ -5,7 +5,7 @@ import asyncio
 import logging
 from contextlib import suppress
 from datetime import datetime
-from typing import Callable, Dict, Optional, Any
+from typing import Any, Callable, Dict, Optional
 
 from .douyin_web_relay import get_douyin_web_relay
 
@@ -30,10 +30,23 @@ class DouyinLiveService:
             "gift": self._handle_gift_message,
             "like": self._handle_like_message,
             "member": self._handle_member_message,
+            "follow": self._handle_follow_message,
+            "fansclub": self._handle_fansclub_message,
+            "emoji_chat": self._handle_emoji_message,
+            "room_info": self._handle_room_info_message,
+            "room_stats": self._handle_room_stats_message,
+            "room_user_stats": self._handle_room_user_stats_message,
             "room_rank": self._handle_room_rank_message,
+            "room_control": self._handle_room_control_message,
+            "stream_adaptation": self._handle_stream_adaptation_message,
         }
 
-    async def start_monitoring(self, live_id: str, message_callback: Optional[Callable] = None, cookie: Optional[str] = None) -> Dict[str, Any]:  # noqa: ARG002
+    async def start_monitoring(
+        self,
+        live_id: str,
+        message_callback: Optional[Callable] = None,
+        cookie: Optional[str] = None,
+    ) -> Dict[str, Any]:  # noqa: ARG002
         """启动直播监控（与旧接口保持一致）。"""
         try:
             if self.is_monitoring:
@@ -121,6 +134,8 @@ class DouyinLiveService:
                 handler = self.event_handlers.get(event_type)
                 if handler:
                     await handler(payload)
+                else:
+                    await self._notify_callbacks(event_type, payload)
         except asyncio.CancelledError:
             pass
         finally:
@@ -188,6 +203,78 @@ class DouyinLiveService:
         except Exception as exc:
             self.logger.error(f"处理房间排行榜失败: {exc}")
 
+    async def _handle_follow_message(self, message: Dict[str, Any]) -> None:
+        try:
+            data = {
+                "type": "follow",
+                "nickname": message.get("nickname"),
+                "user_id": message.get("user_id"),
+                "timestamp": int(datetime.utcnow().timestamp() * 1000),
+                "action": message.get("action"),
+            }
+            await self._notify_callbacks("follow", data)
+        except Exception as exc:
+            self.logger.error(f"处理关注消息失败: {exc}")
+
+    async def _handle_fansclub_message(self, message: Dict[str, Any]) -> None:
+        try:
+            data = {
+                "type": "fansclub",
+                "content": message.get("content"),
+                "nickname": message.get("nickname"),
+                "user_id": message.get("user_id"),
+                "timestamp": int(datetime.utcnow().timestamp() * 1000),
+            }
+            await self._notify_callbacks("fansclub", data)
+        except Exception as exc:
+            self.logger.error(f"处理粉丝团消息失败: {exc}")
+
+    async def _handle_emoji_message(self, message: Dict[str, Any]) -> None:
+        try:
+            data = {
+                "type": "emoji_chat",
+                "emoji_id": message.get("emoji_id"),
+                "content": message.get("default_content"),
+                "nickname": message.get("nickname"),
+                "timestamp": int(datetime.utcnow().timestamp() * 1000),
+            }
+            await self._notify_callbacks("emoji_chat", data)
+        except Exception as exc:
+            self.logger.error(f"处理表情弹幕失败: {exc}")
+
+    async def _handle_room_info_message(self, message: Dict[str, Any]) -> None:
+        try:
+            await self._notify_callbacks("room_info", message)
+        except Exception as exc:
+            self.logger.error(f"处理直播间信息失败: {exc}")
+
+    async def _handle_room_stats_message(self, message: Dict[str, Any]) -> None:
+        try:
+            await self._notify_callbacks("room_stats", message)
+        except Exception as exc:
+            self.logger.error(f"处理直播间统计消息失败: {exc}")
+
+    async def _handle_room_user_stats_message(self, message: Dict[str, Any]) -> None:
+        try:
+            await self._notify_callbacks("room_user_stats", message)
+        except Exception as exc:
+            self.logger.error(f"处理直播间用户统计失败: {exc}")
+
+    async def _handle_room_control_message(self, message: Dict[str, Any]) -> None:
+        try:
+            status = message.get("status")
+            if status == 3:
+                self.is_monitoring = False
+            await self._notify_callbacks("room_control", message)
+        except Exception as exc:
+            self.logger.error(f"处理直播间控制消息失败: {exc}")
+
+    async def _handle_stream_adaptation_message(self, message: Dict[str, Any]) -> None:
+        try:
+            await self._notify_callbacks("stream_adaptation", message)
+        except Exception as exc:
+            self.logger.error(f"处理直播间流配置消息失败: {exc}")
+
     async def _notify_callbacks(self, message_type: str, data: Dict[str, Any]):
         try:
             callback = self.message_callbacks.get("external")
@@ -225,6 +312,7 @@ def get_douyin_service() -> DouyinLiveService:
 
 
 if __name__ == "__main__":
+
     async def _test():
         svc = get_douyin_service()
         print("status:", svc.get_status())

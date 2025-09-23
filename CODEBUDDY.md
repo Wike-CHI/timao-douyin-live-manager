@@ -27,7 +27,7 @@
   - 公共工具与配置：server/utils/*（Config、日志等）
   - SSE：/api/stream/comments 持续推送评论
 - 后端 B（实验）：FastAPI 应用 server/app/main.py，挂载 server/app/api/transcription.py 路由，提供基于 AST_module 的实时语音转写 REST 与 WebSocket（/api/transcription/ws）。如有 frontend/ 会通过 StaticFiles 提供静态页。
-- 语音/AST 集成：AST_module/ 提供 VOSK 本地识别与音频采集（ast_service.py、audio_capture.py 等）。transcription 路由负责参数配置、启动/停止与回传结果。
+- 语音/AST 集成：AST_module/ 提供 SenseVoice 本地识别与音频采集（ast_service.py、audio_capture.py 等）。transcription 路由负责参数配置、启动/停止与回传结果。
 - 直播抓取：douyin_live_fecter_module/ 集成 DouyinLiveWebFetcher，提供抖音直播间弹幕抓取、消息适配与状态管理能力。
 
 关键运行流
@@ -41,7 +41,7 @@
 - 双后端并存：Electron 目前固定检查 127.0.0.1:5001（Flask）。FastAPI 为独立进程与端口，不要混淆。
 - 修改 Electron 启动行为需同时校对 electron/main.js 中 FLASK_URL 与 Python 启动路径。
 - Python 依赖分离：根 requirements.txt（Flask 栈）；server/requirements.txt（FastAPI+AST 栈）。按需安装对应集合。
-- 语音功能依赖本地音频与 VOSK 模型（如使用实时转写，需安装 pyaudio 等）。
+- 语音功能依赖本地音频与 SenseVoice 模型（如使用实时转写，需安装 pyaudio 等）。
 - 6A 工作流：按 .qoder/rules/6A_workflow.md 的 ALIGNMENT/CONSENSUS/DESIGN/TASK/ACCEPTANCE/FINAL/TODO 文档产物流程推进较大改动。
 - 安全披露：遵循内部安全流程，定期审查抓取与语音模块的依赖风险。
 
