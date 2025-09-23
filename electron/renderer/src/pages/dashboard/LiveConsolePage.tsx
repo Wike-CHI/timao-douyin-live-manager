@@ -29,6 +29,8 @@ const LiveConsolePage = () => {
   const [status, setStatus] = useState<TranscriptionStatus | null>(null);
   const [latest, setLatest] = useState<TranscriptEntry | null>(null);
   const [log, setLog] = useState<TranscriptEntry[]>([]);
+  const [collapsed, setCollapsed] = useState<boolean>(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // 简化设置：不暴露 VAD/模型等专业术语，后端自动探测
@@ -51,6 +53,16 @@ const LiveConsolePage = () => {
       return updated;
     });
   }, []);
+
+  // 当日志更新或切换为折叠视图时，默认选中最新一条
+  useEffect(() => {
+    if (collapsed) {
+      const first = log[0];
+      if (first && (!selectedId || !log.find((x) => x.id === selectedId))) {
+        setSelectedId(first.id);
+      }
+    }
+  }, [collapsed, log, selectedId]);
 
   const handleSocketMessage = useCallback(
     (message: TranscriptionMessage) => {
@@ -240,30 +252,65 @@ const LiveConsolePage = () => {
               <span>📝</span>
               语音转写流
             </h3>
-            <span className="timao-status-pill text-xs">
-              {isRunning ? '实时更新中' : '已暂停'}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="timao-status-pill text-xs">
+                {isRunning ? '实时更新中' : '已暂停'}
+              </span>
+              <button
+                className="text-xs timao-support-text hover:text-purple-600"
+                onClick={() => setCollapsed((v) => !v)}
+                title={collapsed ? '展开' : '折叠'}
+              >
+                {collapsed ? '展开 ▾' : '折叠 ▸'}
+              </button>
+            </div>
           </div>
-          <div className="space-y-3 overflow-y-auto pr-1">
-            {log.length === 0 ? (
-              <div className="timao-outline-card text-sm timao-support-text text-center">
-                暂无转写结果。{isRunning ? '请说话以生成文本。' : '点击开始转写以开启实时字幕。'}
+          {collapsed ? (
+            <div className="space-y-2">
+              <select
+                className="timao-input w-full"
+                value={selectedId ?? (log[0]?.id || '')}
+                onChange={(e) => setSelectedId(e.target.value || null)}
+              >
+                {log.length === 0 ? (
+                  <option value="">暂无转写</option>
+                ) : (
+                  log.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {new Date(item.timestamp * 1000).toLocaleTimeString()} · {(item.text || '').slice(0, 24)}
+                    </option>
+                  ))
+                )}
+              </select>
+              <div className="rounded-xl bg-white/90 border p-3 text-sm text-slate-700 min-h-[48px]">
+                {(() => {
+                  const found = log.find((x) => x.id === (selectedId ?? log[0]?.id));
+                  return found ? found.text : '暂无转写结果';
+                })()}
               </div>
-            ) : (
-              log.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-2xl border border-white/60 shadow-md p-4 bg-white/95"
-                >
-                  <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                    <span>{new Date(item.timestamp * 1000).toLocaleTimeString()}</span>
-                    <span>置信度 {(item.confidence * 100).toFixed(1)}%</span>
-                  </div>
-                  <div className="text-slate-600 text-sm leading-relaxed">{item.text}</div>
+            </div>
+          ) : (
+            <div className="space-y-3 overflow-y-auto pr-1">
+              {log.length === 0 ? (
+                <div className="timao-outline-card text-sm timao-support-text text-center">
+                  暂无转写结果。{isRunning ? '请说话以生成文本。' : '点击开始转写以开启实时字幕。'}
                 </div>
-              ))
-            )}
-          </div>
+              ) : (
+                log.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-2xl border border-white/60 shadow-md p-4 bg-white/95"
+                  >
+                    <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+                      <span>{new Date(item.timestamp * 1000).toLocaleTimeString()}</span>
+                      <span>置信度 {(item.confidence * 100).toFixed(1)}%</span>
+                    </div>
+                    <div className="text-slate-600 text-sm leading-relaxed">{item.text}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </section>
 
         <section className="flex flex-col gap-4">
