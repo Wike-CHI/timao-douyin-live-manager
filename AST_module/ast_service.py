@@ -329,6 +329,18 @@ class ASTService:
                 # 添加到缓冲区
                 await self.audio_buffer.append(processed_chunk)
                 audio_chunks.append(processed_chunk)
+                # 计算并广播后端电平
+                try:
+                    from .postprocess import pcm16_rms
+                    rms_val = pcm16_rms(processed_chunk)
+                    ts = time.time()
+                    for cb in list(self.level_callbacks.values()):
+                        try:
+                            cb(rms_val, ts)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
                 
                 # 累积到指定时长后进行转录
                 current_size = sum(len(chunk) for chunk in audio_chunks)

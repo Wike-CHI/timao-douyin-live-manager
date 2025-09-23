@@ -122,7 +122,9 @@ async def start_transcription(request: StartTranscriptionRequest):
 
 class UpdateConfigRequest(BaseModel):
     device_index: Optional[int] = None
+    device_name: Optional[str] = None
     preset_mode: Optional[str] = None  # fast | accurate
+    silence_gate: Optional[float] = None  # 0.005 ~ 0.03 推荐
 
 
 @router.get("/devices")
@@ -145,8 +147,26 @@ async def update_config(req: UpdateConfigRequest):
     """更新运行配置：选择输入设备、切换识别模式（快/准）。"""
     try:
         service = get_ast_service_instance()
+        # 设备选择：优先按 index，其次按名称模糊匹配
         if req.device_index is not None:
             service.config.audio_config.input_device_index = req.device_index
+        elif req.device_name:
+            try:
+                name = req.device_name.lower()
+                if service.audio_capture.audio is None:
+                    service.audio_capture.initialize()
+                candidates = service.audio_capture.list_audio_devices() or []
+                best = None
+                score = 0.0
+                from difflib import SequenceMatcher
+                for d in candidates:
+                    s = SequenceMatcher(None, name, str(d.get('name','')).lower()).ratio()
+                    if s > score:
+                        score, best = s, d
+                if best is not None:
+                    service.config.audio_config.input_device_index = int(best['index'])
+            except Exception:
+                pass
         if req.preset_mode:
             mode = (req.preset_mode or '').lower()
             if mode == 'fast':
@@ -160,6 +180,15 @@ async def update_config(req: UpdateConfigRequest):
                 service.config.enable_vad = True
             else:
                 raise HTTPException(status_code=400, detail="preset_mode 仅支持 fast/accurate")
+        # 静音门限（防幻觉灵敏度）
+        if req.silence_gate is not None:
+            try:
+                # 访问 AST 后处理 guard
+                if hasattr(service, 'guard'):
+                    service.guard.min_rms = float(req.silence_gate)
+            except Exception:
+                pass
+
         return {
             "success": True,
             "config": {
@@ -167,6 +196,7 @@ async def update_config(req: UpdateConfigRequest):
                 "min_confidence": service.config.min_confidence,
                 "enable_vad": getattr(service.config, 'enable_vad', False),
                 "device_index": service.config.audio_config.input_device_index,
+                "silence_gate": getattr(getattr(service, 'guard', None), 'min_rms', None),
             },
         }
     except HTTPException:
@@ -282,6 +312,18 @@ async def transcription_websocket(websocket: WebSocket):
         asyncio.create_task(websocket.send_json(message))
     
     service.add_transcription_callback(callback_name, transcription_callback)
+    # 后端电平回调
+    def level_callback(rms: float, ts: float):
+        try:
+            asyncio.create_task(websocket.send_json({
+                "type": "level",
+                "data": {"rms": rms, "timestamp": ts}
+            }))
+        except Exception:
+            pass
+
+    if hasattr(service, 'add_level_callback'):
+        service.add_level_callback(callback_name, level_callback)
     
     try:
         while True:
@@ -305,6 +347,8 @@ async def transcription_websocket(websocket: WebSocket):
     finally:
         # 清理
         service.remove_transcription_callback(callback_name)
+        if hasattr(service, 'remove_level_callback'):
+            service.remove_level_callback(callback_name)
         ws_manager.disconnect(websocket)
 
 # 启动时初始化

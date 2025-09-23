@@ -144,7 +144,7 @@ export const listDevices = async (
 
 // New: update runtime config (device / preset)
 export const updateTranscriptionConfig = async (
-  config: { deviceIndex?: number | null; presetMode?: 'fast' | 'accurate' },
+  config: { deviceIndex?: number | null; deviceName?: string; presetMode?: 'fast' | 'accurate'; silenceGate?: number },
   baseUrl: string = DEFAULT_BASE_URL
 ) => {
   const response = await fetch(`${baseUrl}/api/transcription/config`, {
@@ -152,7 +152,9 @@ export const updateTranscriptionConfig = async (
     headers: buildHeaders(),
     body: JSON.stringify({
       device_index: typeof config.deviceIndex === 'undefined' ? undefined : config.deviceIndex,
+      device_name: config.deviceName,
       preset_mode: config.presetMode,
+      silence_gate: config.silenceGate,
     }),
   });
   return handleResponse(response);

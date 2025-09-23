@@ -37,6 +37,8 @@ const LiveConsolePage = () => {
   const [devices, setDevices] = useState<AudioDevice[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<number | null>(null);
   const [presetMode, setPresetMode] = useState<'fast' | 'accurate'>('accurate');
+  const [silenceGate, setSilenceGate] = useState<number>(0.012);
+  const [backendLevel, setBackendLevel] = useState<number>(0);
 
   const isRunning = status?.is_running ?? false;
 
@@ -73,7 +75,13 @@ const LiveConsolePage = () => {
     if (socketRef.current) {
       socketRef.current.close();
     }
-    const socket = openTranscriptionWebSocket(handleSocketMessage, FASTAPI_BASE_URL);
+    const socket = openTranscriptionWebSocket((message) => {
+      if (message.type === 'level' && (message as any).data?.rms != null) {
+        setBackendLevel(((message as any).data.rms as number) || 0);
+      } else {
+        handleSocketMessage(message);
+      }
+    }, FASTAPI_BASE_URL);
     socketRef.current = socket;
   }, [handleSocketMessage]);
 
@@ -99,6 +107,16 @@ const LiveConsolePage = () => {
       try {
         const res = await listDevices(FASTAPI_BASE_URL);
         setDevices(res.devices || []);
+        // 尝试用系统默认麦克风名称做一次后端匹配
+        try {
+          const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const track = s.getAudioTracks()[0];
+          const label = track?.label;
+          if (label) {
+            await updateTranscriptionConfig({ deviceName: label }, FASTAPI_BASE_URL);
+          }
+          s.getTracks().forEach((t) => t.stop());
+        } catch {}
       } catch (e) {
         console.warn('获取麦克风设备失败', e);
       }
@@ -279,6 +297,7 @@ const LiveConsolePage = () => {
                   ))}
                 </select>
                 <div className="mt-2"><InputLevelMeter /></div>
+                <div className="text-xs timao-support-text mt-1">后端电平：{Math.round(backendLevel * 100)}%</div>
               </div>
 
               <div>
@@ -313,6 +332,24 @@ const LiveConsolePage = () => {
                   快速：更快出字；准确：更接近完整短句。你也可以先“快速”再切“准确”。
                 </div>
               </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="text-xs text-slate-500 mb-1">静音门限（防幻觉灵敏度）</div>
+              <input
+                type="range"
+                min={0.005}
+                max={0.03}
+                step={0.001}
+                value={silenceGate}
+                onChange={async (e) => {
+                  const v = Number(e.target.value);
+                  setSilenceGate(v);
+                  try { await updateTranscriptionConfig({ silenceGate: v }, FASTAPI_BASE_URL); } catch {}
+                }}
+                className="w-full"
+              />
+              <div className="text-xs timao-support-text">当前：{silenceGate.toFixed(3)}</div>
             </div>
           </div>
           <div className="timao-card">
