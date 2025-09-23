@@ -48,6 +48,7 @@ class ASTConfig:
     # 语音活动检测（VAD）配置
     enable_vad: bool = False
     vad_model_id: Optional[str] = None
+    punc_model_id: Optional[str] = None
     
     # 处理配置
     chunk_duration: float = 1.0  # 音频块持续时间(秒)
@@ -99,6 +100,10 @@ class ASTService:
             from .sensevoice_service import SenseVoiceService, SenseVoiceConfig
         except ImportError:  # pragma: no cover - 兼容直接运行
             from sensevoice_service import SenseVoiceService, SenseVoiceConfig
+        try:
+            from .postprocess import ChineseCleaner, HallucinationGuard, SentenceAssembler, pcm16_rms
+        except ImportError:
+            from postprocess import ChineseCleaner, HallucinationGuard, SentenceAssembler, pcm16_rms
 
         self.recognizer: Optional[SenseVoiceService] = None
         self.mock_transcriber = None
@@ -107,6 +112,7 @@ class ASTService:
             svc_config = SenseVoiceConfig(
                 model_id=self.config.model_id,
                 vad_model_id=(self.config.vad_model_id if self.config.enable_vad else None),
+                punc_model_id=self.config.punc_model_id,
             )
             self.recognizer = SenseVoiceService(svc_config)
             self.logger.info("使用 SenseVoice 服务进行语音识别")
@@ -117,6 +123,10 @@ class ASTService:
             max_duration=self.config.buffer_duration,
             sample_rate=self.config.audio_config.sample_rate
         )
+        # 后处理组件
+        self.cleaner = ChineseCleaner()
+        self.guard = HallucinationGuard()
+        self.assembler = SentenceAssembler()
         
         # 状态管理
         self.is_running = False
@@ -355,37 +365,73 @@ class ASTService:
                 return
             result = await self.recognizer.transcribe_audio(audio_data)
             
-            if result.get("success") and result.get("text"):
-                # 创建转录结果
+            # 语音能量（用于防幻觉判定）
+            from .postprocess import pcm16_rms  # local import for clarity
+            rms = pcm16_rms(audio_data)
+
+            text_raw = result.get("text", "") if isinstance(result, dict) else ""
+            ok = bool(result.get("success")) and bool(text_raw)
+            if ok:
+                clean = self.cleaner.clean(text_raw)
+                # 防幻觉过滤
+                if self.guard.should_drop(clean, float(result.get("confidence", 0.0)), rms):
+                    self.logger.debug("文本被防幻觉过滤: %s (rms=%.4f)", clean, rms)
+                    return
+                # 智能分句
+                is_final, maybe = self.assembler.feed(clean)
+                emit_text = maybe if is_final else clean
                 transcription = TranscriptionResult(
-                    text=result["text"],
+                    text=emit_text,
                     confidence=result.get("confidence", 0.0),
                     timestamp=time.time(),
                     duration=self.config.chunk_duration,
-                    is_final=result.get("type") == "final",
+                    is_final=is_final,
                     words=result.get("words", []),
                     room_id=self.current_room_id or "",
                     session_id=self.current_session_id or ""
                 )
                 
                 # 过滤低置信度结果
-                if transcription.confidence >= self.config.min_confidence:
+                if transcription.confidence >= self.config.min_confidence or is_final:
                     # 更新统计
                     self.stats["successful_transcriptions"] += 1
                     self.stats["average_confidence"] = (
                         (self.stats["average_confidence"] * (self.stats["successful_transcriptions"] - 1) + 
                          transcription.confidence) / self.stats["successful_transcriptions"]
                     )
-                    
                     # 调用回调函数
                     await self._notify_transcription_callbacks(transcription)
-                    
-                    self.logger.info(f"🎤 转录: {transcription.text} (置信度: {transcription.confidence:.2f})")
+                    self.logger.info(
+                        "🎤 转录: %s (置信度: %.2f%s)",
+                        transcription.text,
+                        transcription.confidence,
+                        " · FINAL" if is_final else "",
+                    )
                 else:
-                    self.logger.debug(f"低置信度转录被过滤: {result['text']} (置信度: {transcription.confidence:.2f})")
+                    self.logger.debug(
+                        "低置信度转录被过滤: %s (置信度: %.2f)",
+                        transcription.text,
+                        transcription.confidence,
+                    )
             else:
                 self.stats["failed_transcriptions"] += 1
-                self.logger.debug(f"转录失败: {result.get('error', '未知错误')}")
+                # 静音累积可能需要强制出句
+                final_by_silence = self.assembler.mark_silence()
+                if final_by_silence:
+                    tr = TranscriptionResult(
+                        text=final_by_silence,
+                        confidence=0.7,
+                        timestamp=time.time(),
+                        duration=self.config.chunk_duration,
+                        is_final=True,
+                        words=[],
+                        room_id=self.current_room_id or "",
+                        session_id=self.current_session_id or "",
+                    )
+                    await self._notify_transcription_callbacks(tr)
+                    self.logger.info("🎤 转录(静音切句): %s", tr.text)
+                else:
+                    self.logger.debug(f"转录失败: {result.get('error', '未知错误')}")
                 
         except Exception as e:
             self.logger.error(f"音频块处理失败: {e}")

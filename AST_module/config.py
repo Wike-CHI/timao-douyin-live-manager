@@ -54,6 +54,18 @@ def _autodetect_vad_model(base: Path) -> Optional[str]:
         pass
     return None
 
+def _autodetect_punc_model(base: Path) -> Optional[str]:
+    """自动查找本地标点模型目录（punc）。
+    若发现包含 "punc" 的目录且内含 model.pt，则返回该路径。
+    """
+    try:
+        for p in base.rglob('*punc*'):
+            if p.is_dir() and (p / 'model.pt').exists():
+                return str(p)
+    except Exception:
+        pass
+    return None
+
 
 def create_ast_config(
     model_path: Optional[str] = None,
@@ -98,6 +110,9 @@ def create_ast_config(
         project_root = Path(__file__).resolve().parents[1] / 'models'
         autodetected_vad = _autodetect_vad_model(project_root)
 
+    # 自动检测本地 PUNC 模型
+    autodetected_punc = _autodetect_punc_model(project_root)
+
     return ASTConfig(
         audio_config=audio_config,
         model_id=model_path or DEFAULT_MODEL_ID,
@@ -109,4 +124,5 @@ def create_ast_config(
         # 只要找到本地 VAD，就自动启用；否则沿用用户入参
         enable_vad=bool(autodetected_vad) or enable_vad,
         vad_model_id=vad_model_path or autodetected_vad,
+        punc_model_id=autodetected_punc,
     )
