@@ -1,36 +1,38 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `electron/` hosts the desktop shell; `main.js` launches `server/app.py` and renders the UI.
-- `server/` contains Flask (`app.py`), FastAPI (`app/main.py`), helpers in `utils/`, NLP in `nlp/`, ingest pipelines in `ingest/`, and AI logic in `ai/`.
-- Streaming, speech, and audio models live in `AST_module/`; web assets stay in `frontend/`.
-- Documentation and legacy collectors are under `docs/`; tests land in `tests/` or `server/tests/`.
+- `electron/`: desktop shell; `main.js` launches `server/app.py` and renders the UI.
+- `server/`: Flask `app.py` (REST/SSE) and FastAPI `app/main.py` (AST); helpers in `utils/`, NLP in `nlp/`, ingestion in `ingest/`, and AI logic in `ai/`.
+- `AST_module/`: streaming, speech, and audio models; `frontend/`: web assets.
+- `docs/`: documentation and legacy collectors; `tests/` or `server/tests/`: Python tests.
 
 ## Build, Test, and Development Commands
-- `npm ci` installs Node dependencies; `pip install -r requirements.txt` plus `pip install -r server/requirements.txt` sets up Python stacks.
-- `npm run dev` boots Electron with Flask; `npm run electron` runs the UI alone for quick UI iteration.
-- `uvicorn server.app.main:app --reload --port 8000` starts the FastAPI AST service.
-- Ship checks: `npm run build`, `npm run lint`, and `npm test` before releasing.
+- `npm ci` — install Node dependencies.
+- `pip install -r requirements.txt` && `pip install -r server/requirements.txt` — install Python stacks.
+- `npm run dev` — start Electron with Flask backend.
+- `npm run electron` — run UI only for fast UI iteration.
+- `uvicorn server.app.main:app --reload --port 8000` — start FastAPI AST service.
+- `npm run build` | `npm run lint` | `npm test` — ship checks before release.
 
 ## Coding Style & Naming Conventions
-- Python uses 4-space indent, snake_case functions, PascalCase classes, and type hints where feasible; format with `black`, lint with `flake8`.
-- JavaScript uses 2-space indent, camelCase for functions/variables, PascalCase for components; resolve `npm run lint` issues before merging.
-- Prefer `server/utils/logger` for logging and reuse `server/utils/ring_buffer.py` for bounded buffers.
+- Python: 4-space indent; snake_case functions; PascalCase classes; type hints; format with `black`; lint with `flake8`.
+- JavaScript: 2-space indent; camelCase vars/functions; PascalCase components; resolve `npm run lint` issues before merge.
+- Use `server/utils/logger` for logging; reuse `server/utils/ring_buffer.py` for bounded buffers.
 
 ## Testing Guidelines
-- Python tests belong in `tests/` or `server/tests/` as `test_*.py`; run with `pytest` covering REST, SSE, and websocket paths.
-- Frontend or Electron specs reside in `electron/__tests__/` or `frontend/js/__tests__/` as `*.spec.js`; stub remote calls.
-- Record audio fixtures and AST inputs so SenseVoice runs remain reproducible.
+- Python: tests in `tests/` or `server/tests/` named `test_*.py`; run with `pytest`. Cover REST, SSE, and websockets.
+- Frontend/Electron: tests in `electron/__tests__/` or `frontend/js/__tests__/` as `*.spec.js`; stub remote calls.
+- Record audio fixtures and AST inputs so SenseVoice runs are reproducible.
 
 ## Commit & Pull Request Guidelines
-- Follow Conventional Commits (`feat:`, `fix:`, `chore:`) with subjects under ~70 characters.
-- PRs link issues, outline executed tests, and attach UI captures or API traces when behavior shifts.
-- Call out whether changes touch Flask, FastAPI, or both, and summarize any side effects.
+- Conventional Commits (`feat:`, `fix:`, `chore:`); subjects ~70 characters.
+- PRs link issues, list executed tests, and attach UI captures or API traces when behavior changes.
+- Call out whether changes touch Flask (`server/app.py`), FastAPI (`server/app/main.py`), or both; note side effects.
 
 ## Security & Configuration Tips
-- Keep secrets and local model paths out of git; document SenseVoice/FunASR model download locations and checksums in PR notes.
-- Review Flask (`server/app.py`) and FastAPI (`server/app/main.py`) CORS and websocket origins before deployment.
-- Confirm config edits remain Electron-friendly, especially readiness probes under `/api/stream/comments`.
+- Keep secrets and local model paths out of git; document SenseVoice/FunASR download locations and checksums in PR notes.
+- Review CORS and websocket origins in `server/app.py` and `server/app/main.py` before deployment.
+- Confirm config edits remain Electron-friendly; verify readiness under `/api/stream/comments`.
 
 ## Agent Playbook
 - Lean on Codex for route scaffolding, tuning ring buffers, and iterating hotword detection (`server/nlp/hotwords.py`).

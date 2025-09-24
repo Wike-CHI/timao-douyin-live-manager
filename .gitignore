@@ -93,3 +93,5 @@ Thumbs.db
 
 # 项目特定的忽略文件
 comprehensive_test_report.json
+
+.tmp.driveupload
