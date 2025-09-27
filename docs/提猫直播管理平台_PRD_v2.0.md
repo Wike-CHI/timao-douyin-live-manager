@@ -271,7 +271,7 @@ graph TB
 
     subgraph "本地服务层"
         C[Flask 应用<br/>/api/*] --> D[SSE 评论流]
-        E[FastAPI 应用<br/>/api/transcription & /api/douyin] --> F[WebSocket/SSE 推送]
+        E[FastAPI 应用<br/>/api/live_audio & /api/douyin] --> F[WebSocket/SSE 推送]
     end
 
     subgraph "采集与AI"
@@ -367,11 +367,11 @@ CREATE TABLE emotion_records (
 
 ### 3.4 现有服务落地情况
 
-#### 3.4.1 AST 语音转录链路
+#### 3.4.1 AST 语音转录链路（当前版本约束：本地仅 Small + VAD）
 - **代码位置**: `AST_module/`，核心类 `ASTService` 负责调度音频采集、缓冲和 SenseVoice 推理。
 - **音频采集**: `AudioCapture` 基于 PyAudio 以 16kHz/单声道实时拉流，`AudioBuffer` 控制 10 秒滚动缓存并支持落盘调试。
-- **识别引擎**: `SenseVoiceService` 通过 FunASR 加载 `iic/SenseVoiceSmall` 模型，自动检测依赖并在缺失时提供模拟结果，预留接口支持后续扩展其他离线模型。
-- **服务能力**: `server/app/api/transcription.py` 暴露 REST (`/start`、`/stop`、`/status`) 与 WebSocket (`/ws`) 接口，支持配置块长、置信度阈值、会话 ID，并在回调中聚合统计指标。
+- **识别引擎**: `SenseVoiceService` 通过 FunASR 固定加载 `SenseVoiceSmall` 并启用 VAD；本地禁止切换 Medium/Large 或关闭 VAD。缺少 VAD/依赖将直接报错，不再回退。
+- **服务能力**: `server/app/api/live_audio.py` 暴露 REST (`/start`、`/stop`、`/status`) 与 WebSocket (`/ws`) 接口，支持直播音频直抓与增量/全文推送。
 - **客户端集成**: Electron 主进程按需拉起 `AST_module/test_server.py`，渲染层订阅 WebSocket/SSE 推送实现桌面端实时字幕。
 
 #### 3.4.2 DouyinLiveWebFetcher 抓取服务

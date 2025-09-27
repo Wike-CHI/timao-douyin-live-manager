@@ -1,0 +1,14 @@
+# Unified Python requirements for the whole project
+
+# Root (Flask tools, misc utilities)
+-r requirements.txt
+
+# FastAPI backend (live audio, Douyin relay, AI endpoints)
+-r server/requirements.txt
+
+# AST/SenseVoice stack (local ASR)
+-r AST_module/requirements.txt
+
+# Extra: StreamCap resolver core (only needs streamget; added here for clarity)
+streamget>=4.0.8
+

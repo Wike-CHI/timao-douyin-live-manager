@@ -42,7 +42,7 @@ marshmallow==3.20.1
 python-dateutil==2.8.2
 
 # 日志
-loguru==0.7.2
+loguru>=0.7.3
 
 # 配置管理
 PyYAML==6.0.1

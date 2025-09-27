@@ -249,6 +249,8 @@
             <tr><td colspan="3" style="text-align:center; padding:20px; color: rgba(226,232,240,0.4);">暂无数据</td></tr>
           </tbody>
         </table>
+        <h2 style="margin-top: 20px;">🛰️ 互动事件</h2>
+        <ul id="eventList" style="list-style: none; margin: 0; padding: 0; max-height: 220px; overflow-y: auto;"></ul>
       </section>
     </div>
   </div>
@@ -257,6 +259,7 @@
     const statusBox = document.getElementById('status');
     const chatList = document.getElementById('chatList');
     const rankBody = document.getElementById('rankBody');
+    const eventList = document.getElementById('eventList');
     const liveIdInput = document.getElementById('liveIdInput');
     const startBtn = document.getElementById('startBtn');
     const stopBtn = document.getElementById('stopBtn');
@@ -264,7 +267,9 @@
 
     let eventSource = null;
     let chatBuffer = [];
+    let eventBuffer = [];
     const MAX_CHAT = 80;
+    const MAX_EVENTS = 120;
                 
     function updateStatus(message, tone = 'info') {
       const colorMap = {
@@ -321,6 +326,7 @@
         }
         case 'error': {
           updateStatus(`抓取异常：${payload?.message || '未知错误'}`, 'error');
+          appendEvent({ type: 'error', text: `错误：${payload?.message || '未知错误'}` });
           break;
         }
         case 'chat':
@@ -334,6 +340,18 @@
           break;
         case 'room_rank':
           renderRank(payload?.ranks || []);
+          break;
+        case 'like':
+        case 'member':
+        case 'follow':
+        case 'fansclub':
+        case 'emoji_chat':
+        case 'room_info':
+        case 'room_stats':
+        case 'room_user_stats':
+        case 'room_control':
+        case 'stream_adaptation':
+          appendEvent(buildEvent(type, payload));
           break;
         default:
           break;
@@ -403,6 +421,63 @@
 
         rankBody.appendChild(tr);
       });
+    }
+
+    // Build and append non chat/gift events to the side list
+    function buildEvent(type, payload) {
+      const nick = payload?.nickname || '匿名';
+      switch (type) {
+        case 'like':
+          return { type, text: `${nick} 点赞${payload?.count ? ' +' + payload.count : ''}` };
+        case 'member':
+          return { type, text: `${nick} 进入直播间` };
+        case 'follow':
+          return { type, text: `${nick} 关注了主播` };
+        case 'fansclub':
+          return { type, text: `粉丝团：${payload?.content || ''} — ${nick}` };
+        case 'emoji_chat':
+          return { type, text: `表情：${payload?.default_content || ''} — ${nick}` };
+        case 'room_info':
+          return { type, text: `房间信息更新：${payload?.title || ''}` };
+        case 'room_stats':
+          return { type, text: `统计：人气 ${payload?.total_user ?? '-'} · 点赞 ${payload?.like_count ?? '-'}` };
+        case 'room_user_stats':
+          return { type, text: `在线 ${payload?.current ?? '-'} · 累计 ${payload?.total ?? '-'}` };
+        case 'room_control':
+          return { type, text: `房间控制：状态 ${payload?.status ?? '-'}` };
+        case 'stream_adaptation':
+          return { type, text: `流自适应：type=${payload?.adaptation_type ?? '-'} · 低码率=${payload?.enable_low_quality ? '是' : '否'}` };
+        default:
+          return { type, text: String(type) };
+      }
+    }
+
+    function appendEvent(e) {
+      if (!e || !e.text) return;
+      eventBuffer.push({ text: e.text, type: e.type, ts: Date.now() });
+      if (eventBuffer.length > MAX_EVENTS) {
+        eventBuffer = eventBuffer.slice(eventBuffer.length - MAX_EVENTS);
+      }
+      eventList.innerHTML = '';
+      for (const item of eventBuffer.slice(-MAX_EVENTS).reverse()) {
+        const li = document.createElement('li');
+        li.style.borderBottom = '1px solid rgba(148, 163, 184, 0.08)';
+        li.style.padding = '8px 0';
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.justifyContent = 'space-between';
+        row.style.alignItems = 'center';
+        const left = document.createElement('div');
+        left.textContent = item.text;
+        const right = document.createElement('div');
+        right.style.fontSize = '12px';
+        right.style.color = 'rgba(226,232,240,0.6)';
+        right.textContent = new Date(item.ts).toLocaleTimeString();
+        row.appendChild(left);
+        row.appendChild(right);
+        li.appendChild(row);
+        eventList.appendChild(li);
+      }
     }
 
     async function startMonitor() {

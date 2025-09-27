@@ -2,7 +2,7 @@
 
 ## 📋 项目概述
 
-AST (Audio Speech Transcription) 语音转录测试工具是一个基于 SenseVoice 的实时语音识别测试平台，可以直接使用麦克风测试语音转录效果。
+AST (Audio Speech Transcription) 语音转录测试工具是一个基于 SenseVoice 的实时语音识别组件。当前应用默认采用“直播音频直抓”方案，无需麦克风。
 
 ## 🚀 快速开始
 
@@ -26,7 +26,7 @@ python start_web_server.py
 
 打开浏览器，访问：
 - **测试页面**: http://127.0.0.1:8080/AST_test_page.html
-- **API健康检查**: http://127.0.0.1:8001/api/transcription/health
+- **状态接口**: http://127.0.0.1:8007/api/live_audio/status
 - **API文档**: http://127.0.0.1:8001/docs
 
 ## 🎯 使用步骤
@@ -34,14 +34,14 @@ python start_web_server.py
 ### 基本测试流程
 
 1. **检查连接状态** - 页面加载后会自动检查服务器连接
-2. **测试麦克风** - 点击"测试麦克风"按钮确保浏览器有音频权限
+2. **测试拉流** - 在控制台输入 Douyin 直播地址或 ID，开始转写
 3. **配置参数** - 调整转录设置：
    - 房间ID: 用于标识测试会话
    - 音频块时长: 1-3秒 (推荐1.0秒)
    - 最小置信度: 0.1-1.0 (推荐0.6)
    - 保存音频: 是否保存音频文件到本地
 4. **开始转录** - 点击"开始转录"按钮
-5. **说话测试** - 对着麦克风清晰说话
+5. **查看结果** - 观察实时字幕输出
 6. **查看结果** - 实时查看转录结果和置信度
 
 ### 高级功能
@@ -71,13 +71,12 @@ AST_module/
 ## 📊 API接口
 
 ### REST API
-- `POST /api/transcription/start` - 开始转录
-- `POST /api/transcription/stop` - 停止转录  
-- `GET /api/transcription/status` - 获取状态
-- `GET /api/transcription/health` - 健康检查
+- `POST /api/live_audio/start` - 开始转录（直播直抓）
+- `POST /api/live_audio/stop` - 停止转录  
+- `GET /api/live_audio/status` - 获取状态
 
 ### WebSocket
-- `ws://127.0.0.1:8001/api/transcription/ws` - 实时转录结果推送
+- `ws://127.0.0.1:8007/api/live_audio/ws` - 实时转录结果推送
 
 ## 🎤 语音模型
 
@@ -104,8 +103,8 @@ AST_module/
    - 检查端口8001是否被占用
    - 确保Python环境正确安装依赖
 
-2. **麦克风权限被拒绝**
-   - 浏览器设置中允许网站访问麦克风
+2. **ffmpeg 不可用**
+   - 将 ffmpeg 加入 PATH；或在系统中安装 ffmpeg
    - 确保有可用的音频输入设备
 
 3. **SenseVoice 服务初始化失败**

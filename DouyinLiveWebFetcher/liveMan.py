@@ -187,13 +187,75 @@ class DouyinLiveWebFetcher:
         except Exception as err:
             print("【X】Request the live room url error: ", err)
         else:
-            match = re.search(r'roomId\\":\\"(\d+)\\"', response.text)
-            if match is None or len(match.groups()) < 1:
-                print("【X】No match found for roomId")
-
-            self.__room_id = match.group(1)
-
+            # Try multiple patterns for robustness
+            patterns = [
+                r'roomId\\":\\"(\d+)\\"',
+                r'room_id_str\\":\\"(\d+)\\"',
+                r'roomId_str\\":\\"(\d+)\\"',
+                r'"roomId":"(\d+)"',
+                r'"room_id_str":"(\d+)"',
+                r'"roomId_str":"(\d+)"',
+            ]
+            found = None
+            for pat in patterns:
+                m = re.search(pat, response.text)
+                if m and len(m.groups()) >= 1:
+                    found = m.group(1)
+                    break
+            if not found:
+                # Fallback: call enter API by web_rid only to resolve room_id_str
+                try:
+                    rid = self._resolve_room_id_via_enter()
+                    if rid:
+                        self.__room_id = rid
+                        return self.__room_id
+                except Exception as _:
+                    pass
+                print("【X】No match found for roomId/room_id_str")
+                raise RuntimeError("room_id not found from live page")
+            self.__room_id = found
             return self.__room_id
+
+    def _resolve_room_id_via_enter(self):
+        """Resolve room_id via enter API without prior room_id_str.
+        Returns room_id_str or None on failure.
+        """
+        msToken = generateMsToken()
+        nonce = self.get_ac_nonce()
+        signature = self.get_ac_signature(nonce)
+        url = (
+            "https://live.douyin.com/webcast/room/web/enter/?aid=6383"
+            "&app_name=douyin_web&live_id=1&device_platform=web&language=zh-CN&enter_from=page_refresh"
+            "&cookie_enabled=true&screen_width=1536&screen_height=864&browser_language=zh-CN&browser_platform=Win32"
+            "&browser_name=Edge&browser_version=140.0.0.0"
+            f"&web_rid={self.live_id}"
+            "&enter_source=&is_need_double_stream=false&insert_task_id=&live_reason=&msToken="
+            + msToken
+        )
+        query = parse_url(url).query
+        params = {i[0]: i[1] for i in [j.split("=") for j in query.split("&")]}
+        a_bogus = self.get_a_bogus(params)
+        url += f"&a_bogus={a_bogus}"
+        headers = self.headers.copy()
+        headers.update(
+            {
+                "Referer": f"https://live.douyin.com/{self.live_id}",
+                "Cookie": f"ttwid={self.ttwid};__ac_nonce={nonce}; __ac_signature={signature}",
+            }
+        )
+        resp = self.session.get(url, headers=headers)
+        try:
+            data = resp.json().get("data")
+            if data:
+                room_id_str = (
+                    data.get("room_id_str")
+                    or (data.get("room") or {}).get("id_str")
+                    or None
+                )
+                return room_id_str
+        except Exception:
+            return None
+        return None
 
     def get_ac_nonce(self):
         """

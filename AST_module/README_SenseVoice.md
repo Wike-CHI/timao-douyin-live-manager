@@ -1,4 +1,7 @@
-# SenseVoice 模型使用说明
+# SenseVoice 模型使用说明（本项目限定 Small + VAD）
+
+本项目在本地仅支持 SenseVoiceSmall 搭配 VAD 使用，禁止切换 Medium/Large 或关闭 VAD。
+如需使用 Medium/Large，请改用云端 API（阿里云），本地版本不提供该能力。
 
 ## 问题描述
 
@@ -51,7 +54,7 @@ model_id: str = "./models/SenseVoiceSmall"
 
 1. 网络连接正常
 2. 指定的缓存目录有写入权限
-3. 磁盘空间充足（模型文件大约1-2GB）
+3. 磁盘空间充足（Small 模型+VAD 约 1–2 GB）
 
 ## 测试模型加载
 

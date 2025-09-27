@@ -28,11 +28,17 @@ except ImportError:
 
 @dataclass
 class SenseVoiceConfig:
-    """Configuration for SenseVoice ASR service."""
+    """Configuration for SenseVoice ASR service.
 
+    We hard-lock the backend to SenseVoiceSmall and enable VAD by default.
+    """
+
+    # Prefer local checkout if present; otherwise fall back to ModelScope id.
     model_id: str = "iic/SenseVoiceSmall"
-    # Default: disable external VAD to avoid online downloads and Windows path issues.
-    # If you have the VAD model locally, set this to its local path or a valid modelscope id.
+    # VAD model: we'll try to auto-detect a local path below and otherwise use
+    # the known-good ModelScope id. Keeping this field Optional allows callers
+    # to override with an explicit local path, but the service will enforce a
+    # default if None.
     vad_model_id: Optional[str] = None
     punc_model_id: Optional[str] = None
     language: str = "zh"
@@ -51,6 +57,18 @@ class SenseVoiceService:
         self.is_initialized = False
         # Remember which device we loaded the model on (for logging/debug)
         self._device: str = "cpu"
+
+        # Enforce Small model only. If an external caller passed Medium/Large,
+        # normalize it back to Small. Local paths that already point to
+        # SenseVoiceSmall are kept untouched.
+        try:
+            mid = (self.config.model_id or "")
+            if re.search(r"SenseVoice(?!Small)(Large|Medium)", mid, re.IGNORECASE):
+                self.logger.info("Force model_id to SenseVoiceSmall (was: %s)", mid)
+                self.config.model_id = "iic/SenseVoiceSmall"
+        except Exception:
+            # Best effort; don't fail init due to logging issues
+            self.config.model_id = "iic/SenseVoiceSmall"
 
     async def initialize(self) -> bool:
         """Load SenseVoice model asynchronously."""
@@ -133,34 +151,65 @@ class SenseVoiceService:
             except Exception:
                 pass
 
+            def _resolve_small_model_id() -> str:
+                # Prefer local checkout if exists
+                project_root = Path(__file__).resolve().parents[1]
+                local_dir = project_root / "models" / "models" / "iic" / "SenseVoiceSmall"
+                try:
+                    if local_dir.exists():
+                        return str(local_dir)
+                except Exception:
+                    pass
+                return self.config.model_id
+
+            def _resolve_vad_model_id() -> str:
+                # Try local VAD first
+                project_root = Path(__file__).resolve().parents[1]
+                local_vad = project_root / "models" / "models" / "iic" / "speech_fsmn_vad_zh-cn-16k-common-pytorch"
+                try:
+                    if self.config.vad_model_id:
+                        return self.config.vad_model_id
+                    if local_vad.exists():
+                        return str(local_vad)
+                except Exception:
+                    pass
+                # Fallback to ModelScope id
+                return "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
+
+            def _resolve_punc_model_id() -> Optional[str]:
+                """Prefer a local punctuation model if present; otherwise respect explicit config.
+                Avoid forcing network downloads in offline environments.
+                """
+                try:
+                    if self.config.punc_model_id:
+                        return self.config.punc_model_id
+                    project_root = Path(__file__).resolve().parents[1]
+                    local_punc = project_root / "models" / "models" / "iic" / "punc_ct-transformer_zh-cn-common-vocab272727-pytorch"
+                    if local_punc.exists():
+                        return str(local_punc)
+                except Exception:
+                    pass
+                # No local punc found; return None to skip
+                return None
+
             model_kwargs: Dict[str, Any] = {
-                "model": self.config.model_id,
+                "model": _resolve_small_model_id(),
                 "disable_update": self.config.disable_update,
                 # 添加hub参数以指定模型下载源
                 "hub": "ms",  # ModelScope
                 "device": device,
+                # Always enable external VAD (local or ModelScope id)
+                "vad_model": _resolve_vad_model_id(),
             }
-            if self.config.vad_model_id:
-                model_kwargs["vad_model"] = self.config.vad_model_id
-            if self.config.punc_model_id:
-                model_kwargs["punc_model"] = self.config.punc_model_id
+            punc_id = _resolve_punc_model_id()
+            if punc_id:
+                model_kwargs["punc_model"] = punc_id
 
-            # First try with provided config; if it fails due to VAD, retry without VAD.
-            try:
-                model = AutoModel(**model_kwargs)
-                # persist the selected device for later logging
-                self._device = device
-                return model
-            except Exception as e:
-                # Retry without VAD if the failure seems VAD-related or any download error occurs
-                self.logger.warning(
-                    "SenseVoice primary load failed (%s). Retrying without VAD...",
-                    str(e),
-                )
-                model_kwargs.pop("vad_model", None)
-                model = AutoModel(**model_kwargs)
-                self._device = device
-                return model
+            # Strict: VAD is required. If load fails, bubble up the error.
+            model = AutoModel(**model_kwargs)
+            # persist the selected device for later logging
+            self._device = device
+            return model
 
         try:
             self.logger.info("Loading SenseVoice model: %s", self.config.model_id)

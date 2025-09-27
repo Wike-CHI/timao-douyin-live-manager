@@ -16,7 +16,7 @@
 - 前端渲染：`electron/renderer/`
 - FastAPI 主应用：`server/app/main.py`
 - Douyin → Web 桥接：`server/app/services/douyin_web_relay.py`
-- 转写接口（AST/SenseVoice）：`server/app/api/transcription.py`
+- 转写接口（直播直抓 + SenseVoice）：`server/app/api/live_audio.py`
 - AST 模块（SenseVoice/FunASR）：`AST_module/`
 
 ## 环境变量
@@ -35,8 +35,7 @@
 ## 本地开发
 1) 安装依赖
 - Node：`npm ci`
-- Python：`pip install -r requirements.txt && pip install -r server/requirements.txt`
--（可选）AST/FunASR 生态：`pip install -r AST_module/requirements.txt`
+- Python：`pip install -r requirements.all.txt`（包含 FastAPI + AST + 工具依赖）
 
 2) 一键启动（推荐）
 - `npm run dev`
@@ -108,7 +107,7 @@ CMD ["node","index.js"]
 
 ## 运行拓扑（推荐）
 - 桌面端（本地）：Electron 渲染页（Vite 构建）
-  - 本地 FastAPI：转写（/api/transcription/*）、抖音互动（/api/douyin/web/*）
+  - 本地 FastAPI：转写（/api/live_audio/*）、抖音互动（/api/douyin/web/*）
 - 云端：鉴权/支付（/api/auth/*, /api/payment/*）→ 绑定 `auth.company.com`
 
 ## 故障排查

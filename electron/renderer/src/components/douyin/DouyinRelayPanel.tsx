@@ -1,4 +1,4 @@
-import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DouyinRelayStatus,
   DouyinStreamEvent,
@@ -9,6 +9,7 @@ import {
 } from '../../services/douyin';
 
 const DEFAULT_MAX_MESSAGES = 80;
+const DEFAULT_MAX_EVENTS = 120;
 
 type StatusTone = 'info' | 'success' | 'warning' | 'error';
 
@@ -28,6 +29,29 @@ interface RankEntry {
   score: string;
   avatar?: string | null;
   userId?: string | number | null;
+}
+
+// Non chat/gift events that we will show in a separate panel
+type OtherEventType =
+  | 'like'
+  | 'member'
+  | 'follow'
+  | 'fansclub'
+  | 'emoji_chat'
+  | 'room_info'
+  | 'room_stats'
+  | 'room_user_stats'
+  | 'room_rank'
+  | 'room_control'
+  | 'stream_adaptation'
+  | 'status'
+  | 'error';
+
+interface OtherEventEntry {
+  id: string;
+  type: OtherEventType;
+  text: string;
+  timestamp: number;
 }
 
 interface DouyinRelayPanelProps {
@@ -50,10 +74,10 @@ const chatCategoryLabel: Record<ChatCategory, string> = {
 };
 
 const DouyinRelayPanel = ({ baseUrl, maxMessages = DEFAULT_MAX_MESSAGES }: DouyinRelayPanelProps) => {
-  const [liveIdInput, setLiveIdInput] = useState('');
   const [status, setStatus] = useState<DouyinRelayStatus | null>(null);
   const [chatLog, setChatLog] = useState<ChatEntry[]>([]);
   const [rankList, setRankList] = useState<RankEntry[]>([]);
+  const [eventLog, setEventLog] = useState<OtherEventEntry[]>([]);
   const [banner, setBanner] = useState<{ tone: StatusTone; message: string } | null>({
     tone: 'info',
     message: '等待启动直播互动',
@@ -61,24 +85,34 @@ const DouyinRelayPanel = ({ baseUrl, maxMessages = DEFAULT_MAX_MESSAGES }: Douyi
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [streamConnected, setStreamConnected] = useState(false);
+  const [liveIdInput, setLiveIdInput] = useState('');
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const lastStartedLiveIdRef = useRef<string>('');
 
   const isRunning = status?.is_running ?? false;
 
-  const appendChat = useCallback(
-    (entry: ChatEntry) => {
-      setChatLog((prev) => {
-        const updated = [entry, ...prev];
-        if (updated.length > maxMessages) {
-          updated.length = maxMessages;
-        }
-        return updated;
-      });
-    },
-    [maxMessages]
-  );
+  // Event filter toggles; by default show core interactive events, hide room_* noise
+  const [eventFilters, setEventFilters] = useState<Record<OtherEventType, boolean>>({
+    like: true,
+    member: true,
+    follow: true,
+    fansclub: true,
+    emoji_chat: true,
+    room_info: false,
+    room_stats: false,
+    room_user_stats: false,
+    room_rank: false,
+    room_control: false,
+    stream_adaptation: false,
+    status: true,
+    error: true,
+  });
+
+  const appendChat = useCallback((entry: ChatEntry) => {
+    // 不裁剪条数：完整保留会话中的弹幕/礼物/点赞；滚动列表负责展示
+    setChatLog((prev) => [entry, ...prev]);
+  }, []);
 
   const pushSystemMessage = useCallback(
     (content: string) => {
@@ -100,6 +134,74 @@ const DouyinRelayPanel = ({ baseUrl, maxMessages = DEFAULT_MAX_MESSAGES }: Douyi
     }
     setStreamConnected(false);
   }, []);
+
+  const appendEvent = useCallback((entry: OtherEventEntry) => {
+    // 不裁剪条数：完整保留互动事件历史；滚动列表负责展示
+    setEventLog((prev) => [entry, ...prev]);
+  }, []);
+
+  // Build short text for event panel
+  const buildEventText = (type: OtherEventType, payload: Record<string, unknown> | null | undefined): string => {
+    const p = payload || {};
+    const nick = (p.nickname as string) || '匿名';
+    switch (type) {
+      case 'like': {
+        const c = p.count as number | undefined;
+        return c && c > 1 ? `${nick} 点赞 +${c}` : `${nick} 点赞`;
+      }
+      case 'member':
+        return `${nick} 进入直播间`;
+      case 'follow':
+        return `${nick} 关注了主播`;
+      case 'fansclub': {
+        const content = (p.content as string) || '';
+        return content ? `粉丝团：${content} — ${nick}` : `粉丝团互动 — ${nick}`;
+      }
+      case 'emoji_chat': {
+        const content = (p.default_content as string) || '';
+        return content ? `表情：${content} — ${nick}` : `表情互动 — ${nick}`;
+      }
+      case 'room_info': {
+        const title = (p.title as string) || '';
+        return title ? `房间信息更新：${title}` : '房间信息更新';
+      }
+      case 'room_stats': {
+        const likeCount = (p.like_count as number | undefined) ?? null;
+        const totalUser = (p.total_user as number | undefined) ?? null;
+        const parts = [
+          totalUser != null ? `人气 ${totalUser}` : '',
+          likeCount != null ? `点赞 ${likeCount}` : '',
+        ].filter(Boolean);
+        return parts.length ? `统计：${parts.join(' · ')}` : '统计更新';
+      }
+      case 'room_user_stats': {
+        const current = (p.current as number | undefined) ?? null;
+        const total = (p.total as number | undefined) ?? null;
+        return `在线 ${current ?? '-'} · 累计 ${total ?? '-'}`;
+      }
+      case 'room_control': {
+        const statusTxt = String((p.status as unknown) ?? '-');
+        return `房间控制：状态 ${statusTxt}`;
+      }
+      case 'stream_adaptation': {
+        const t = (p.adaptation_type as number | string | undefined) ?? '-';
+        const low = (p.enable_low_quality as boolean | undefined) ?? false;
+        return `流自适应：type=${t} · 低码率=${low ? '是' : '否'}`;
+      }
+      case 'status': {
+        const stage = (p.stage as string | undefined) || '-';
+        return `状态：${stage}`;
+      }
+      case 'error': {
+        const msg = (p.message as string | undefined) || '未知错误';
+        return `错误：${msg}`;
+      }
+      case 'room_rank':
+        return '排行榜更新';
+      default:
+        return String(type);
+    }
+  };
 
   const handleStreamEvent = useCallback(
     (event: DouyinStreamEvent) => {
@@ -144,6 +246,12 @@ const DouyinRelayPanel = ({ baseUrl, maxMessages = DEFAULT_MAX_MESSAGES }: Douyi
                 : { is_running: false, live_id: null, room_id: null, last_error: null }
             );
           }
+          appendEvent({
+            id: `status-${event.timestamp ?? Date.now()}-${Math.random()}`,
+            type: 'status',
+            text: buildEventText('status', payload),
+            timestamp: Date.now(),
+          });
           break;
         }
         case 'error': {
@@ -154,6 +262,12 @@ const DouyinRelayPanel = ({ baseUrl, maxMessages = DEFAULT_MAX_MESSAGES }: Douyi
               ? { ...prev, last_error: message }
               : { is_running: false, live_id: null, room_id: null, last_error: message }
           );
+          appendEvent({
+            id: `error-${event.timestamp ?? Date.now()}-${Math.random()}`,
+            type: 'error',
+            text: buildEventText('error', payload),
+            timestamp: Date.now(),
+          });
           break;
         }
         case 'chat': {
@@ -181,27 +295,23 @@ const DouyinRelayPanel = ({ baseUrl, maxMessages = DEFAULT_MAX_MESSAGES }: Douyi
           });
           break;
         }
-        case 'like': {
-          const nickname = (payload.nickname as string | undefined) || '匿名';
-          const count = payload.count as number | undefined;
-          appendChat({
-            id: `like-${event.timestamp ?? Date.now()}-${Math.random()}`,
-            nickname,
-            content: `❤️ 点赞${count ? ` ${count} 次` : ''}`,
+        case 'like':
+        case 'member':
+        case 'fansclub':
+        case 'follow':
+        case 'emoji_chat':
+        case 'room_info':
+        case 'room_stats':
+        case 'room_user_stats':
+        case 'room_control':
+        case 'stream_adaptation': {
+          const t = event.type as OtherEventType;
+          appendEvent({
+            id: `${t}-${event.timestamp ?? Date.now()}-${Math.random()}`,
+            type: t,
+            text: buildEventText(t, payload),
             timestamp: Date.now(),
-            category: 'like',
           });
-          break;
-        }
-        case 'member': {
-          const nickname = (payload.nickname as string | undefined) || '访客';
-          pushSystemMessage(`${nickname} 进入直播间`);
-          break;
-        }
-        case 'fansclub': {
-          const nickname = (payload.nickname as string | undefined) || '粉丝';
-          const content = (payload.content as string | undefined) || '加入粉丝团';
-          pushSystemMessage(`${nickname} · ${content}`);
           break;
         }
         case 'room_rank': {
@@ -237,17 +347,11 @@ const DouyinRelayPanel = ({ baseUrl, maxMessages = DEFAULT_MAX_MESSAGES }: Douyi
           break;
         }
         case 'room_control': {
-          const statusValue = payload.status as number | undefined;
-          const tips = (payload.tips as string | undefined) || '';
-          pushSystemMessage(`房间控制状态：${statusValue ?? '未知'} ${tips}`.trim());
+          // 房间控制消息不进入实时弹幕列表
           break;
         }
         case 'room_stats': {
-          const total = payload.total_user as number | undefined;
-          const likes = payload.like_count as number | undefined;
-          if (total || likes) {
-            pushSystemMessage(`热度：${total ?? '-'} · 点赞：${likes ?? '-'}`);
-          }
+          // 统计信息不进入实时弹幕列表
           break;
         }
         default:
@@ -285,7 +389,6 @@ const DouyinRelayPanel = ({ baseUrl, maxMessages = DEFAULT_MAX_MESSAGES }: Douyi
         connectStream();
         if (relayStatus.live_id) {
           lastStartedLiveIdRef.current = relayStatus.live_id;
-          setLiveIdInput((current) => current || relayStatus.live_id || '');
         }
       } else {
         disconnectStream();
@@ -299,6 +402,37 @@ const DouyinRelayPanel = ({ baseUrl, maxMessages = DEFAULT_MAX_MESSAGES }: Douyi
     }
   }, [baseUrl, connectStream, disconnectStream]);
 
+  const handleStart = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const liveId = (liveIdInput || '').trim();
+      if (!liveId) throw new Error('请填写直播间ID或完整链接');
+      await startDouyinRelay(liveId, baseUrl);
+      lastStartedLiveIdRef.current = liveId;
+      await refreshStatus();
+      connectStream();
+    } catch (e) {
+      setError((e as Error).message || '启动失败');
+    } finally {
+      setLoading(false);
+    }
+  }, [baseUrl, connectStream, liveIdInput, refreshStatus]);
+
+  const handleStop = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      await stopDouyinRelay(baseUrl);
+      disconnectStream();
+      await refreshStatus();
+    } catch (e) {
+      setError((e as Error).message || '停止失败');
+    } finally {
+      setLoading(false);
+    }
+  }, [baseUrl, disconnectStream, refreshStatus]);
+
   useEffect(() => {
     refreshStatus();
     return () => {
@@ -306,51 +440,21 @@ const DouyinRelayPanel = ({ baseUrl, maxMessages = DEFAULT_MAX_MESSAGES }: Douyi
     };
   }, [refreshStatus, disconnectStream]);
 
-  const handleStart = useCallback(async () => {
-    const trimmed = liveIdInput.trim();
-    if (!trimmed) {
-      setError('请输入直播间 ID');
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      lastStartedLiveIdRef.current = trimmed;
-      await startDouyinRelay(trimmed, baseUrl);
-      setBanner({ tone: 'info', message: '启动成功，等待建立连接…' });
-      await refreshStatus();
-    } catch (err) {
-      setError((err as Error).message || '启动失败');
-    } finally {
-      setLoading(false);
-    }
-  }, [baseUrl, liveIdInput, refreshStatus]);
-
-  const handleStop = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      await stopDouyinRelay(baseUrl);
-      await refreshStatus();
-      setBanner({ tone: 'info', message: '已停止。' });
-    } catch (err) {
-      setError((err as Error).message || '停止失败');
-    } finally {
-      setLoading(false);
-    }
-  }, [baseUrl, refreshStatus]);
-
-  const handleLiveIdChange = (event: ChangeEvent<HTMLInputElement>) => {
-    setLiveIdInput(event.target.value);
-  };
-
   const currentStatusText = useMemo(() => {
     if (isRunning) {
       const liveIdText = status?.live_id ?? (lastStartedLiveIdRef.current || '未知');
       return `直播间 ${liveIdText} 正在同步`;
     }
-    return '未运行 · 输入直播间号以启动';
+    return '未运行 · 等待上层启动';
   }, [isRunning, status?.live_id]);
+
+  const filteredEvents = useMemo(() => {
+    return eventLog.filter((e) => eventFilters[e.type]);
+  }, [eventLog, eventFilters]);
+
+  const toggleFilter = (key: OtherEventType) => {
+    setEventFilters((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   return (
     <section className="timao-card space-y-4">
@@ -366,23 +470,15 @@ const DouyinRelayPanel = ({ baseUrl, maxMessages = DEFAULT_MAX_MESSAGES }: Douyi
         <div className="flex flex-wrap items-center gap-3">
           <input
             value={liveIdInput}
-            onChange={handleLiveIdChange}
-            className="timao-input w-52 text-sm"
-            placeholder="输入直播间ID"
-            disabled={isRunning || loading}
+            onChange={(e) => setLiveIdInput(e.target.value)}
+            className="timao-input w-48 text-sm"
+            placeholder="直播间ID或完整链接"
+            disabled={loading}
           />
-          <button
-            className="timao-primary-btn"
-            onClick={handleStart}
-            disabled={loading || isRunning || !liveIdInput.trim()}
-          >
-            {loading && !isRunning ? '处理中…' : isRunning ? '运行中' : '开始'}
+          <button className="timao-primary-btn" onClick={handleStart} disabled={loading || isRunning}>
+            {loading ? '处理中...' : '启动'}
           </button>
-          <button
-            className="timao-outline-btn"
-            onClick={handleStop}
-            disabled={loading || !isRunning}
-          >
+          <button className="timao-outline-btn" onClick={handleStop} disabled={loading || !isRunning}>
             停止
           </button>
         </div>
@@ -435,6 +531,71 @@ const DouyinRelayPanel = ({ baseUrl, maxMessages = DEFAULT_MAX_MESSAGES }: Douyi
         </div>
 
         <div className="flex flex-col gap-4">
+          {/* Interaction Events (non chat/gift) */}
+          <div className="timao-soft-card">
+            <div className="mb-3 flex items-center justify-between">
+              <h4 className="flex items-center gap-2 text-sm font-semibold text-purple-600">
+                <span>🛰️</span>
+                互动事件
+              </h4>
+              <span className="text-xs timao-support-text">{filteredEvents.length} 条</span>
+            </div>
+            <div className="mb-2 flex flex-wrap gap-3 text-xs timao-support-text">
+              {([
+                'like',
+                'member',
+                'follow',
+                'fansclub',
+                'emoji_chat',
+                'room_info',
+                'room_stats',
+                'room_user_stats',
+                'room_control',
+                'stream_adaptation',
+                'status',
+                'error',
+              ] as OtherEventType[]).map((k) => (
+                <label key={k} className="inline-flex items-center gap-1 cursor-pointer">
+                  <input type="checkbox" checked={!!eventFilters[k]} onChange={() => toggleFilter(k)} />
+                  <span>{
+                    {
+                      like: '点赞',
+                      member: '进场',
+                      follow: '关注',
+                      fansclub: '粉丝团',
+                      emoji_chat: '表情',
+                      room_info: '房间',
+                      room_stats: '统计',
+                      room_user_stats: '在线',
+                      room_control: '控制',
+                      stream_adaptation: '自适应',
+                      status: '状态',
+                      error: '错误',
+                      room_rank: '排行',
+                    }[k]
+                  }</span>
+                </label>
+              ))}
+            </div>
+            <div className="max-h-[220px] space-y-2 overflow-y-auto pr-1">
+              {filteredEvents.length === 0 ? (
+                <div className="timao-outline-card text-center text-xs timao-support-text">
+                  {isRunning ? '等待互动事件…' : '未启动，请先开始'}
+                </div>
+              ) : (
+                filteredEvents.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between text-sm text-slate-600">
+                    <div className="flex items-center gap-2">
+                      <div className="w-16 text-xs text-slate-400">{new Date(item.timestamp).toLocaleTimeString()}</div>
+                      <div className="text-slate-700">{item.text}</div>
+                    </div>
+                    <div className="text-xs timao-support-text">{item.type}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
           <div className="timao-soft-card">
             <div className="mb-3 flex items-center justify-between">
               <h4 className="flex items-center gap-2 text-sm font-semibold text-purple-600">

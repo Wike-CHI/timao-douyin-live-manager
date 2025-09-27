@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+import asyncio
 
 # 配置日志
 logging.basicConfig(
@@ -32,75 +33,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 导入API路由
+def _include_router_safe(desc: str, import_path: str):
+    """Import and include a router; log error but don't crash on failure."""
+    try:
+        import importlib
+        mod = importlib.import_module(import_path)
+        app.include_router(getattr(mod, "router"))
+        logging.info(f"✅ 路由已加载: {desc}")
+    except Exception as e:
+        logging.error(f"❌ 路由加载失败[{desc}]: {e}")
+
+
+# 分段加载（避免单个模块失败影响全局）
+_include_router_safe("直播音频转写", "server.app.api.live_audio")
+_include_router_safe("直播复盘", "server.app.api.live_report")
+_include_router_safe("AI 测试", "server.app.api.ai_test")
+_include_router_safe("抖音 API", "server.app.api.douyin")
+_include_router_safe("抖音 Web 测试", "server.app.api.douyin_web")
+_include_router_safe("联合测试", "server.app.api.live_test")
+_include_router_safe("NLP 管理", "server.app.api.nlp_hotwords")
+_include_router_safe("AI 实时分析", "server.app.api.ai_live")
+_include_router_safe("资源自检", "server.app.api.bootstrap")
+_include_router_safe("工具", "server.app.api.tools")
+
+# WebSocket 广播与管理服务（容错）
 try:
-    # 使用相对导入
-    from .api.transcription import router as transcription_router
-
-    app.include_router(transcription_router)
-    logging.info("✅ 转录API路由已加载")
-
-    from .api.douyin import router as douyin_router
-
-    app.include_router(douyin_router)
-    logging.info("✅ 抖音API路由已加载")
-
-    from .api.douyin_web import router as douyin_web_router
-    app.include_router(douyin_web_router)
-    logging.info("✅ 抖音Web测试路由已加载")
-
-    from .api.live_test import router as live_test_router
-    app.include_router(live_test_router)
-    logging.info("✅ 联合测试路由已加载")
-
-    # WebSocket 广播与管理服务（相对导入）
     from ..websocket_handler import (start_websocket_services,  # type: ignore
                                      stop_websocket_services)
+    logging.info("✅ WebSocket 服务导入成功")
+except Exception as e:
+    logging.error(f"❌ WebSocket 服务导入失败: {e}")
 
-    logging.info("✅ WebSocket 服务导入成功（相对导入）")
-except ImportError:
-    try:
-        # 如果相对导入失败，使用包路径导入，确保子模块内的相对导入可解析
-        import importlib
-        import sys
-        from pathlib import Path
+    def start_websocket_services():
+        logging.warning("⚠️ start_websocket_services 未加载，跳过启动")
 
-        project_root = Path(
-            __file__
-        ).parent.parent.parent  # 项目根目录（包含 server 包）
-        if str(project_root) not in sys.path:
-            sys.path.append(str(project_root))
-
-        # 以完整包名导入，维持 __package__=server.app.api.*，使相对导入生效
-        transcription_mod = importlib.import_module("server.app.api.transcription")
-        app.include_router(getattr(transcription_mod, "router"))
-        logging.info("✅ 转录API路由已加载")
-
-        douyin_mod = importlib.import_module("server.app.api.douyin")
-        app.include_router(getattr(douyin_mod, "router"))
-        logging.info("✅ 抖音API路由已加载")
-
-        douyin_web_mod = importlib.import_module("server.app.api.douyin_web")
-        app.include_router(getattr(douyin_web_mod, "router"))
-        logging.info("✅ 抖音Web测试路由已加载")
-
-        live_test_mod = importlib.import_module("server.app.api.live_test")
-        app.include_router(getattr(live_test_mod, "router"))
-        logging.info("✅ 联合测试路由已加载")
-
-        ws_mod = importlib.import_module("server.websocket_handler")
-        start_websocket_services = getattr(ws_mod, "start_websocket_services")
-        stop_websocket_services = getattr(ws_mod, "stop_websocket_services")
-        logging.info("✅ WebSocket 服务导入成功（包路径导入）")
-    except ImportError as e:
-        logging.error(f"❌ API路由/WS服务加载失败: {e}")
-
-        # 提供空占位，避免后续引用报错
-        def start_websocket_services():
-            logging.warning("⚠️ start_websocket_services 未加载，跳过启动")
-
-        def stop_websocket_services():
-            logging.warning("⚠️ stop_websocket_services 未加载，跳过停止")
+    def stop_websocket_services():
+        logging.warning("⚠️ stop_websocket_services 未加载，跳过停止")
 
 
 # 静态文件服务 (前端)
@@ -167,7 +135,7 @@ async def root():
 
             <div>
                 <a href="/docs" class="link">📚 API文档</a>
-                <a href="/api/transcription/health" class="link">💚 健康检查</a>
+                <a href="/api/live_audio/status" class="link">💚 转写状态</a>
                 <a href="/static/index.html" class="link">🎯 Web 界面</a>
                 <a href="/static/douyin_test.html" class="link">🧪 Douyin 测试面板</a>
                 <a href="/static/live_test.html" class="link">🧪 联合测试面板</a>
@@ -204,6 +172,20 @@ async def startup_event():
     except Exception as e:
         logging.error(f"❌ WebSocket 服务启动失败: {e}")
     logging.info("✅ FastAPI服务已启动")
+
+    # 后台引导：FFmpeg 与模型（首次启动自动准备）
+    async def _bootstrap():
+        try:
+            from ..utils import bootstrap  # type: ignore
+            bootstrap.start_bootstrap_async()
+            logging.info("🔧 资源自检已开始（后台）")
+        except Exception as e:  # pragma: no cover
+            logging.warning(f"资源自检失败（可忽略）：{e}")
+
+    try:
+        asyncio.create_task(_bootstrap())
+    except Exception:
+        pass
 
 
 # 应用关闭事件

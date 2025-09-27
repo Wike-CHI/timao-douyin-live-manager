@@ -7,6 +7,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Flask服务相关
   checkFlaskHealth: () => ipcRenderer.invoke('flask-health-check'),
   getFlaskUrl: () => ipcRenderer.invoke('get-flask-url'),
+  openPath: (p) => ipcRenderer.invoke('open-path', p),
+  quitApp: () => ipcRenderer.invoke('app-quit'),
+  openLogs: () => ipcRenderer.invoke('open-logs'),
+  bootstrapRetry: () => ipcRenderer.invoke('bootstrap-retry'),
   
   // 系统信息
   platform: process.platform,

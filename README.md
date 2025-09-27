@@ -37,25 +37,30 @@ timao-douyin-live-manager/
 └── docker-compose.yml    # 部署配置
 ```
 
-## 快速开始
+## 快速开始（Electron + FastAPI）
 
 ### 1. 环境准备
 
 ```bash
-# Python 3.11+
-pip install -r server/requirements.txt
+# 安装依赖（一次性安装全栈）
+pip install -r requirements.all.txt
+npm ci
 
-# 启动服务
-cd server
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# 启动（Electron 会自启 FastAPI: 127.0.0.1:8007）
+npm run dev
 ```
 
-### 2. 前端访问
+### 2. 两种工作流
 
-```bash
-# 打开浏览器访问
-http://localhost:3000
-```
+- 直播直抓（推荐）：
+  1) 在“直播音频转写”输入 Douyin 直播地址或 ID；
+  2) 点击“开始转写”，同时启动弹幕抓取与音频拉流→SenseVoice 实时字幕；
+  3) 通过 WS 端点 `/api/live_audio/ws` 接收增量/全文结果。
+
+- 录制复盘（离线）：
+  1) 点击“开始录制”（/api/report/live/start）→ ffmpeg 分段录制（默认30分钟）；
+  2) 点击“停止录制”（/api/report/live/stop）；
+  3) 点击“生成报告”（/api/report/live/generate）→ 生成 comments.jsonl、transcript.txt、report.html。
 
 ### 3. Docker部署
 

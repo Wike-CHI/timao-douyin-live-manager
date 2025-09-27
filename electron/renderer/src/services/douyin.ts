@@ -1,6 +1,7 @@
 import useAuthStore from '../store/useAuthStore';
 
-const DEFAULT_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:8000';
+// Align with FastAPI default port 8007 used by Electron main
+const DEFAULT_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:8007';
 
 const resolveBaseUrl = (baseUrl?: string) => {
   const value = baseUrl && baseUrl.trim() ? baseUrl : DEFAULT_BASE_URL;
@@ -38,6 +39,8 @@ export interface DouyinRelayStatus {
   live_id: string | null;
   room_id: string | null;
   last_error: string | null;
+  persist_enabled?: boolean;
+  persist_root?: string | null;
 }
 
 export interface DouyinRelayResponse {
@@ -116,4 +119,16 @@ export const openDouyinStream = (
   };
 
   return source;
+};
+
+export const updateDouyinPersist = async (
+  payload: { persist_enabled?: boolean; persist_root?: string },
+  baseUrl?: string
+) => {
+  const response = await fetch(joinUrl(baseUrl, '/api/douyin/web/persist'), {
+    method: 'POST',
+    headers: buildHeaders(),
+    body: JSON.stringify(payload || {}),
+  });
+  return handleResponse(response);
 };

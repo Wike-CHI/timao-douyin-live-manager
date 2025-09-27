@@ -16,9 +16,23 @@ router = APIRouter(prefix="/api/douyin", tags=["douyin"])
 
 
 class StartMonitoringRequest(BaseModel):
-    live_id: str
-    # 新增：可选 cookie 字符串（建议为浏览器导出的 Cookie 字符串）
+    live_id: Optional[str] = None
+    live_url: Optional[str] = None
+    # 可选 cookie 字符串（建议为浏览器导出的 Cookie 字符串）
     cookie: Optional[str] = None
+
+
+def _parse_live_id(live_url_or_id: Optional[str]) -> Optional[str]:
+    if not live_url_or_id:
+        return None
+    s = live_url_or_id.strip()
+    import re
+    m = re.search(r"live\.douyin\.com/([A-Za-z0-9_\-]+)", s)
+    if m:
+        return m.group(1)
+    if re.fullmatch(r"[A-Za-z0-9_\-]+", s):
+        return s
+    return None
 
 
 class BaseResponse(BaseModel):
@@ -41,8 +55,12 @@ async def start_monitoring(request: StartMonitoringRequest):
     """
     try:
         service = get_douyin_service()
+        # 支持 live_url 解析 live_id
+        live_id = _parse_live_id(request.live_id) or _parse_live_id(request.live_url)
+        if not live_id:
+            raise HTTPException(status_code=400, detail="live_id 或 live_url 无效")
         # 传递可选 cookie 到服务层
-        result = await service.start_monitoring(request.live_id, cookie=request.cookie)
+        result = await service.start_monitoring(live_id, cookie=request.cookie)
         if result.get("success"):
             return BaseResponse(success=True, message="监控已启动", data=result)
         return BaseResponse(success=False, message=result.get("error", "监控启动失败"), data=result)

@@ -9,6 +9,7 @@ import DashboardPage from './pages/dashboard/DashboardPage';
 import AboutPage from './pages/about/AboutPage';
 import LiveConsolePage from './pages/dashboard/LiveConsolePage';
 import ReportsPlaceholder from './pages/dashboard/ReportsPlaceholder';
+import ToolsPage from './pages/settings/ToolsPage';
 import useAuthGuard from './hooks/useAuthGuard';
 import WalletPage from '@/pages/payment/WalletPage';
 
@@ -41,6 +42,7 @@ const App = () => {
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="live" element={<LiveConsolePage />} />
           <Route path="reports" element={<ReportsPlaceholder />} />
+          <Route path="tools" element={<ToolsPage />} />
           <Route path="about" element={<AboutPage />} />
         </Route>
 

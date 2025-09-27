@@ -1,18 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  createSessionId,
-  getTranscriptionStatus,
-  openTranscriptionWebSocket,
-  startTranscription,
-  stopTranscription,
-  TranscriptionMessage,
-  TranscriptionStatus,
-  TranscriptionDeltaMessage,
-} from '../../services/transcription';
 import DouyinRelayPanel from '../../components/douyin/DouyinRelayPanel';
-import InputLevelMeter from '../../components/InputLevelMeter';
-import { listDevices, updateTranscriptionConfig, AudioDevice } from '../../services/transcription';
-// 新增：钱包与导航相关
+import {
+  getLiveAudioStatus,
+  openLiveAudioWebSocket,
+  startLiveAudio,
+  stopLiveAudio,
+  LiveAudioMessage,
+  LiveAudioStatus,
+  updateLiveAudioAdvanced,
+} from '../../services/liveAudio';
+import { startLiveReport, stopLiveReport, getLiveReportStatus, generateLiveReport } from '../../services/liveReport';
+import { startDouyinRelay, stopDouyinRelay, getDouyinRelayStatus, updateDouyinPersist } from '../../services/douyin';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../store/useAuthStore';
 import { useFirstFree as useFirstFreeApi } from '../../services/auth';
@@ -24,46 +22,77 @@ interface TranscriptEntry {
   confidence: number;
   isFinal: boolean;
   words?: { word: string; start: number; end: number }[];
+  speaker?: string;
 }
 
-const MAX_LOG_ITEMS = 50;
+// Note: Do not cap transcript items; persist to disk is handled by backend.
+// We keep full in-memory log for current session (may grow large for long sessions).
 const FASTAPI_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:8007';
 
 const LiveConsolePage = () => {
-  const [roomId, setRoomId] = useState('default_room');
-  const [sessionId, setSessionId] = useState<string>(createSessionId());
-  const [status, setStatus] = useState<TranscriptionStatus | null>(null);
+  const [liveInput, setLiveInput] = useState(''); // 支持 URL 或 直播间 ID
+  const [status, setStatus] = useState<LiveAudioStatus | null>(null);
   const [latest, setLatest] = useState<TranscriptEntry | null>(null);
   const [log, setLog] = useState<TranscriptEntry[]>([]);
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<'delta' | 'sentence' | 'vad'>('vad');
+  // 引擎已固定：Small
+  const [engine] = useState<'small'>('small');
   const [error, setError] = useState<string | null>(null);
-  // 简化设置：不暴露 VAD/模型等专业术语，后端自动探测
+  const [backendLevel, setBackendLevel] = useState<number>(0);
+  // local confidence aggregator (final sentences only)
+  const [confSum, setConfSum] = useState(0);
+  const [confCount, setConfCount] = useState(0);
+  const [reportBusy, setReportBusy] = useState(false);
+  const [reportPaths, setReportPaths] = useState<{comments?: string; transcript?: string; report?: string} | null>(null);
+  const [reportStatus, setReportStatus] = useState<any>(null);
+  // 保存位置提示
+  const [saveInfo, setSaveInfo] = useState<{ trDir?: string; dmDir?: string; videoDir?: string } | null>(null);
+  // AI 窗口时长（秒）
+  const [aiWindowSec, setAiWindowSec] = useState<number>(60);
+  // 高级选项已移除（保留占位，避免后续误用）
+  const [persistTr, setPersistTr] = useState<boolean>(false);
+  const [persistTrRoot, setPersistTrRoot] = useState<string>('');
+  const [persistDm, setPersistDm] = useState<boolean>(false);
+  const [persistDmRoot, setPersistDmRoot] = useState<string>('');
 
   const socketRef = useRef<WebSocket | null>(null);
-  const [devices, setDevices] = useState<AudioDevice[]>([]);
-  const [selectedDevice, setSelectedDevice] = useState<number | null>(null);
-  const [presetMode, setPresetMode] = useState<'fast' | 'accurate'>('fast');
-  const [silenceGate, setSilenceGate] = useState<number>(0.02);
-  const [backendLevel, setBackendLevel] = useState<number>(0);
+  const deltaModeRef = useRef(false);
 
   const navigate = useNavigate();
   const { balance, firstFreeUsed, setFirstFreeUsed } = useAuthStore();
 
   const isRunning = status?.is_running ?? false;
 
+  // Simple duplicate suppression at UI layer (final-only list)
+  const normalizeText = (s: string) => (s || '')
+    .replace(/[\s\t\n\r]+/g, '')
+    .replace(/[,;:]/g, m => ({',':'，',';':'；',':':'：'} as any)[m])
+    .replace(/[\.!?]/g, '。')
+    .replace(/([，。！？；：,…])\1+/g, '$1');
+
+  const isDupLike = (a: string, b: string) => {
+    const A = normalizeText(a);
+    const B = normalizeText(b);
+    if (!A || !B) return false;
+    if (A === B) return true;
+    if (A.length >= 6 && (A.includes(B) || B.includes(A))) return true;
+    return false;
+  };
+
   const appendLog = useCallback((entry: TranscriptEntry) => {
     setLog((prev) => {
-      const updated = [entry, ...prev];
-      if (updated.length > MAX_LOG_ITEMS) {
-        updated.length = MAX_LOG_ITEMS;
+      const last = prev[0];
+      if (last && isDupLike(entry.text, last.text)) {
+        return prev; // drop duplicate-like final
       }
-      return updated;
+      // 不做数量上限裁剪，保留完整会话历史；滚动容器负责展示。
+      return [entry, ...prev];
     });
   }, []);
 
-  // 当日志更新或切换为折叠视图时，默认选中最新一条
   useEffect(() => {
     if (collapsed) {
       const first = log[0];
@@ -73,25 +102,28 @@ const LiveConsolePage = () => {
     }
   }, [collapsed, log, selectedId]);
 
-  const deltaModeRef = useRef(false);
   const handleSocketMessage = useCallback(
-    (message: TranscriptionMessage) => {
+    (message: LiveAudioMessage) => {
       if (message.type === 'transcription' && message.data) {
-        if (deltaModeRef.current) {
-          // 若已进入增量模式，忽略全文消息避免重复
-          return;
-        }
+        if (deltaModeRef.current) return; // 增量模式下忽略全文
+        const d = message.data as any;
         const entry: TranscriptEntry = {
-          id: `${message.data.timestamp}-${Math.random()}`,
-          text: message.data.text,
-          confidence: message.data.confidence,
-          timestamp: message.data.timestamp,
-          isFinal: message.data.is_final,
-          words: message.data.words,
+          id: `${(d.timestamp ?? Date.now())}-${Math.random()}`,
+          text: d.text,
+          confidence: d.confidence ?? 0,
+          timestamp: d.timestamp ?? Date.now() / 1000,
+          isFinal: !!d.is_final,
+          words: d.words,
+          speaker: d.speaker,
         };
         setLatest(entry);
         if (entry.isFinal && entry.text.trim()) {
           appendLog(entry);
+          const c = Number(entry.confidence || 0);
+          if (!Number.isNaN(c) && c > 0) {
+            setConfSum((s) => s + c);
+            setConfCount((n) => n + 1);
+          }
         }
       }
     },
@@ -99,30 +131,24 @@ const LiveConsolePage = () => {
   );
 
   const connectWebSocket = useCallback(() => {
-    if (socketRef.current) {
-      socketRef.current.close();
-    }
-    const socket = openTranscriptionWebSocket((message) => {
+    if (socketRef.current) socketRef.current.close();
+    const socket = openLiveAudioWebSocket((message) => {
       if (message.type === 'level' && (message as any).data?.rms != null) {
         setBackendLevel(((message as any).data.rms as number) || 0);
       } else if (message.type === 'transcription_delta') {
         deltaModeRef.current = true;
-        const m = message as unknown as TranscriptionDeltaMessage;
-        const op = m.data.op;
-        const ts = m.data.timestamp;
-        const conf = m.data.confidence;
+        const m = message as any;
+        const op = m.data?.op as 'append' | 'replace' | 'final';
+        const ts = (m.data?.timestamp as number) || Date.now() / 1000;
+        const conf = (m.data?.confidence as number) || 0;
+        const deltaText = (m.data?.text as string) || '';
         setLatest((prev) => {
           const baseText = prev?.text ?? '';
           let nextText = baseText;
           let isFinal = false;
-          if (op === 'append') {
-            nextText = baseText + (m.data.text || '');
-          } else if (op === 'replace') {
-            nextText = m.data.text || '';
-          } else if (op === 'final') {
-            nextText = m.data.text || '';
-            isFinal = true;
-          }
+          if (op === 'append') nextText = baseText + deltaText;
+          else if (op === 'replace') nextText = deltaText;
+          else if (op === 'final') { nextText = deltaText; isFinal = true; }
           const entry: TranscriptEntry = {
             id: `${ts}-${Math.random()}`,
             text: nextText,
@@ -130,10 +156,9 @@ const LiveConsolePage = () => {
             timestamp: ts,
             isFinal,
             words: [],
+            speaker: prev?.speaker,
           };
-          if (isFinal && nextText.trim()) {
-            appendLog(entry);
-          }
+          if (isFinal && nextText.trim()) appendLog(entry);
           return entry;
         });
       } else {
@@ -145,8 +170,23 @@ const LiveConsolePage = () => {
 
   const refreshStatus = useCallback(async () => {
     try {
-      const result = await getTranscriptionStatus(FASTAPI_BASE_URL);
+      const result = await getLiveAudioStatus(FASTAPI_BASE_URL);
       setStatus(result);
+      // 简洁模式：不再同步 profile 到 UI
+      // sync persist settings if present（高级选项已移除）
+      try {
+        if ((result as any)?.advanced) {
+          const a = (result as any).advanced || {};
+          if (typeof a.persist_enabled === 'boolean') setPersistTr(a.persist_enabled);
+          if (typeof a.persist_root === 'string') setPersistTrRoot(a.persist_root || '');
+        }
+      } catch {}
+      // sync douyin persist
+      try {
+        const ds = await getDouyinRelayStatus(FASTAPI_BASE_URL);
+        if (typeof (ds as any)?.persist_enabled === 'boolean') setPersistDm((ds as any).persist_enabled);
+        if (typeof (ds as any)?.persist_root === 'string') setPersistDmRoot((ds as any).persist_root || '');
+      } catch {}
       if (result.is_running) {
         if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
           connectWebSocket();
@@ -154,47 +194,50 @@ const LiveConsolePage = () => {
       }
     } catch (err) {
       console.error(err);
-      setError((err as Error).message ?? '获取转录状态失败');
+      setError((err as Error).message ?? '获取直播音频状态失败');
     }
   }, [connectWebSocket]);
 
   useEffect(() => {
     refreshStatus();
-    // 拉取麦克风设备列表
-    (async () => {
-      try {
-        const res = await listDevices(FASTAPI_BASE_URL);
-        setDevices(res.devices || []);
-        // 尝试用系统默认麦克风名称做一次后端匹配
-        try {
-          const s = await navigator.mediaDevices.getUserMedia({ audio: true });
-          const track = s.getAudioTracks()[0];
-          const label = track?.label;
-          if (label) {
-            await updateTranscriptionConfig({ deviceName: label }, FASTAPI_BASE_URL);
-          }
-          s.getTracks().forEach((t) => t.stop());
-        } catch {}
-      } catch (e) {
-        console.warn('获取麦克风设备失败', e);
-      }
-    })();
     return () => {
-      if (socketRef.current) {
-        socketRef.current.close();
-      }
+      if (socketRef.current) socketRef.current.close();
     };
   }, [refreshStatus]);
+
+  // Poll backend live status while running to update累计片段/平均置信度
+  useEffect(() => {
+    if (!isRunning) return;
+    const id = setInterval(() => {
+      getLiveAudioStatus(FASTAPI_BASE_URL)
+        .then(setStatus)
+        .catch(() => {});
+    }, 2000);
+    return () => clearInterval(id);
+  }, [isRunning]);
+
+  // 复盘状态轮询
+  useEffect(() => {
+    let timer: any = null;
+    const poll = async () => {
+      try {
+        const s = await getLiveReportStatus(FASTAPI_BASE_URL);
+        setReportStatus(s);
+      } catch {}
+    };
+    poll();
+    timer = setInterval(poll, 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleStart = async () => {
     setLoading(true);
     setError(null);
     try {
-      // 启动前进行钱包校验：余额>0 或 可用首次免费
+      // 余额校验
       const currentBalance = Number(balance ?? 0);
       if (currentBalance <= 0) {
         if (!firstFreeUsed) {
-          // 尝试使用首次免费
           const res = await useFirstFreeApi();
           if (res?.success) {
             setFirstFreeUsed(true);
@@ -211,30 +254,46 @@ const LiveConsolePage = () => {
         }
       }
 
-      // 先应用当前预设和设备
-      await updateTranscriptionConfig(
-        {
-          deviceIndex: selectedDevice,
-          presetMode,
-        },
-        FASTAPI_BASE_URL
-      );
-      const currentSession = sessionId || createSessionId();
-      setSessionId(currentSession);
-      await startTranscription(
-        {
-          roomId,
-          sessionId: currentSession,
-          // 其余参数由后端 preset 决定，这里保持轻量
-          saveAudio: false,
-        },
-        FASTAPI_BASE_URL
-      );
+      const input = liveInput.trim();
+      if (!input) throw new Error('请填写直播地址或直播间ID');
+      const idMatch = input.match(/live\.douyin\.com\/([A-Za-z0-9_\-]+)/);
+      const liveId = idMatch ? idMatch[1] : input;
+      const liveUrl = idMatch ? input : `https://live.douyin.com/${liveId}`;
+
+      // 1) 弹幕
+      try { await startDouyinRelay(liveId, FASTAPI_BASE_URL); } catch {}
+      // 默认开启弹幕持久化
+      try { await updateDouyinPersist({ persist_enabled: true }, FASTAPI_BASE_URL); } catch {}
+      // 2) 音频（后端固定 Small+VAD，前端不暴露专业选项）
+      await startLiveAudio({ liveUrl }, FASTAPI_BASE_URL);
+      // 默认开启字幕持久化
+      try { await updateLiveAudioAdvanced({ persist_enabled: true }, FASTAPI_BASE_URL); } catch {}
+
+      // 3) 录制整场（30 分钟分段）
+      try { await startLiveReport(liveUrl, 30, FASTAPI_BASE_URL); } catch {}
+
       await refreshStatus();
       connectWebSocket();
+
+      // 4) 计算保存位置
+      try {
+        const day = (() => { const d = new Date(); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; })();
+        const rootTr = (persistTrRoot && persistTrRoot.trim()) || 'records/live_logs';
+        const rootDm = (persistDmRoot && persistDmRoot.trim()) || 'records/live_logs';
+        const trDir = `${rootTr.replace(/\/$/, '')}/${liveId}/${day}`;
+        const dmDir = `${rootDm.replace(/\/$/, '')}/${liveId}/${day}`;
+        // 录制目录从 report status 读取
+        setTimeout(async () => {
+          try {
+            const s = await getLiveReportStatus(FASTAPI_BASE_URL);
+            const videoDir = s?.status?.recording_dir || '';
+            setSaveInfo({ trDir, dmDir, videoDir });
+          } catch { setSaveInfo({ trDir, dmDir, videoDir: '' }); }
+        }, 300);
+      } catch {}
     } catch (err) {
       console.error(err);
-      setError((err as Error).message ?? '启动转录失败');
+      setError((err as Error).message ?? '启动直播音频失败');
     } finally {
       setLoading(false);
     }
@@ -244,18 +303,60 @@ const LiveConsolePage = () => {
     setLoading(true);
     setError(null);
     try {
-      await stopTranscription(FASTAPI_BASE_URL);
+      await stopLiveAudio(FASTAPI_BASE_URL);
+      try { await stopDouyinRelay(FASTAPI_BASE_URL); } catch {}
+      try { await stopLiveReport(FASTAPI_BASE_URL); } catch {}
       setLatest(null);
-      setStatus((prev) => (prev ? { ...prev, is_running: false } : prev));
+      setStatus((prev) => (prev ? { ...prev, is_running: false } as any : prev));
       if (socketRef.current) {
         socketRef.current.close();
         socketRef.current = null;
       }
+      setSaveInfo(null);
     } catch (err) {
       console.error(err);
-      setError((err as Error).message ?? '停止转录失败');
+      setError((err as Error).message ?? '停止直播音频失败');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleReportStart = async () => {
+    try {
+      setReportBusy(true);
+      const input = liveInput.trim();
+      if (!input) throw new Error('请先填写直播地址或ID');
+      const idMatch = input.match(/live\.douyin\.com\/([A-Za-z0-9_\-]+)/);
+      const liveId = idMatch ? idMatch[1] : input;
+      const liveUrl = idMatch ? input : `https://live.douyin.com/${liveId}`;
+      await startLiveReport(liveUrl, 5, FASTAPI_BASE_URL);
+    } catch (e) {
+      setError((e as Error).message || '启动复盘失败');
+    } finally {
+      setReportBusy(false);
+    }
+  };
+
+  const handleReportStop = async () => {
+    try {
+      setReportBusy(true);
+      await stopLiveReport(FASTAPI_BASE_URL);
+    } catch (e) {
+      setError((e as Error).message || '停止复盘失败');
+    } finally {
+      setReportBusy(false);
+    }
+  };
+
+  const handleReportGenerate = async () => {
+    try {
+      setReportBusy(true);
+      const res = await generateLiveReport(FASTAPI_BASE_URL);
+      setReportPaths(res?.data || null);
+    } catch (e) {
+      setError((e as Error).message || '生成报告失败');
+    } finally {
+      setReportBusy(false);
     }
   };
 
@@ -264,52 +365,80 @@ const LiveConsolePage = () => {
     return '运行中';
   }, [isRunning]);
 
+  const modeLabel = useMemo(() => {
+    const m = status?.mode || mode;
+    if (m === 'sentence') return '标准';
+    if (m === 'vad') return '稳妥';
+    return '快速';
+  }, [status?.mode, mode]);
+
+  const engineLabel = useMemo(() => '轻量', []);
+  // AI 实时分析流（SSE）
+  const [aiEvents, setAiEvents] = useState<any[]>([]);
+  const aiSourceRef = useRef<EventSource | null>(null);
+  const connectAIStream = useCallback(() => {
+    if (aiSourceRef.current) return;
+    const url = `${FASTAPI_BASE_URL}/api/ai/live/stream`;
+    const es = new EventSource(url);
+    es.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        if (data?.type === 'ai') {
+          setAiEvents((prev) => [data.payload, ...prev].slice(0, 10));
+        }
+      } catch {}
+    };
+    es.onerror = () => {
+      try { es.close(); } catch {}
+      aiSourceRef.current = null;
+      setTimeout(connectAIStream, 1500);
+    };
+    aiSourceRef.current = es;
+  }, []);
+
+  useEffect(() => {
+    if (isRunning) {
+      const ws = Math.max(30, Math.min(600, Number(aiWindowSec) || 60));
+      fetch(`${FASTAPI_BASE_URL}/api/ai/live/start`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ window_sec: ws }) }).catch(() => {});
+      connectAIStream();
+    } else {
+      try { fetch(`${FASTAPI_BASE_URL}/api/ai/live/stop`, { method: 'POST' }).catch(() => {}); } catch {}
+      if (aiSourceRef.current) { aiSourceRef.current.close(); aiSourceRef.current = null; }
+    }
+    return () => { if (aiSourceRef.current) { aiSourceRef.current.close(); aiSourceRef.current = null; } };
+  }, [isRunning, connectAIStream]);
+
   return (
     <div className="space-y-6">
       <div className="timao-soft-card flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-4">
-          <div className="text-4xl">🎙️</div>
+          <div className="text-4xl">📡</div>
           <div>
-            <div className="text-lg font-semibold text-purple-600">音频转写 · SenseVoiceSmall</div>
-            <div className="text-sm timao-support-text">
-              {isRunning
-                ? `会话 ${status?.current_session_id ?? sessionId} 正在运行`
-                : '未运行 · 点击开始以激活实时转写'}
-            </div>
-            <div className="text-xs text-slate-400">
-              服务地址：{FASTAPI_BASE_URL}
-            </div>
+            <div className="text-lg font-semibold text-purple-600">实时字幕</div>
+            <div className="text-sm timao-support-text">{isRunning ? '运行中' : '未开始'}</div>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <input
-            value={roomId}
-            onChange={(event) => setRoomId(event.target.value)}
-            className="timao-input w-48 text-sm"
-            placeholder="Room ID"
+            value={liveInput}
+            onChange={(event) => setLiveInput(event.target.value)}
+            className="timao-input w-64 text-sm"
+            placeholder="直播地址或ID (e.g. https://live.douyin.com/xxxx)"
             disabled={isRunning || loading}
           />
-          <button
-            className="timao-primary-btn"
-            onClick={handleStart}
-            disabled={loading || isRunning}
-          >
+          {/* 简洁模式：不暴露“预设”选择，保持默认策略 */}
+          {/* 模式/引擎固定：稳妥（VAD）· 轻量（Small） */}
+          <button className="timao-primary-btn" onClick={handleStart} disabled={loading || isRunning}>
             {loading ? '处理中...' : isRunning ? '运行中' : '开始转写'}
           </button>
-          <button
-            className="timao-outline-btn"
-            onClick={handleStop}
-            disabled={loading || !isRunning}
-          >
+          <button className="timao-outline-btn" onClick={handleStop} disabled={loading || !isRunning}>
             停止
           </button>
         </div>
       </div>
 
       {error ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-          {error}
-        </div>
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
       ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[1.2fr_1.2fr_0.8fr] lg:grid-cols-[1fr_1fr]">
@@ -320,9 +449,7 @@ const LiveConsolePage = () => {
               语音转写流
             </h3>
             <div className="flex items-center gap-3">
-              <span className="timao-status-pill text-xs">
-                {isRunning ? '实时更新中' : '已暂停'}
-              </span>
+              <span className="timao-status-pill text-xs">{isRunning ? '实时更新中' : '已暂停'}</span>
               <button
                 className="text-xs timao-support-text hover:text-purple-600"
                 onClick={() => setCollapsed((v) => !v)}
@@ -335,9 +462,12 @@ const LiveConsolePage = () => {
           {collapsed ? (
             <div className="space-y-2">
               <select
+                id="transcript-select"
                 className="timao-input w-full"
                 value={selectedId ?? (log[0]?.id || '')}
                 onChange={(e) => setSelectedId(e.target.value || null)}
+                aria-label="选择转写记录"
+                title="选择转写记录"
               >
                 {log.length === 0 ? (
                   <option value="">暂无转写</option>
@@ -357,115 +487,164 @@ const LiveConsolePage = () => {
               </div>
             </div>
           ) : (
-            <div className="space-y-3 overflow-y-auto pr-1">
+            <>
+            {/* 固定高度+滚动条，避免内容撑高页面；数据不做上限裁剪 */}
+            <div className="space-y-3 overflow-y-auto pr-1 max-h-[360px]">
               {log.length === 0 ? (
                 <div className="timao-outline-card text-sm timao-support-text text-center">
-                  暂无转写结果。{isRunning ? '请说话以生成文本。' : '点击开始转写以开启实时字幕。'}
+                  暂无转写结果。{isRunning ? '等待识别...' : '点击开始转写以开启实时字幕。'}
                 </div>
               ) : (
                 log.map((item) => (
-                  <div
-                    key={item.id}
-                    className="rounded-2xl border border-white/60 shadow-md p-4 bg-white/95"
-                  >
+                  <div key={item.id} className="rounded-2xl border border-white/60 shadow-md p-4 bg-white/95">
                     <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
                       <span>{new Date(item.timestamp * 1000).toLocaleTimeString()}</span>
-                      <span>置信度 {(item.confidence * 100).toFixed(1)}%</span>
+                      <div className="flex items-center gap-2">
+                        <span>稳定度 {(item.confidence * 100).toFixed(0)}%</span>
+                      </div>
                     </div>
                     <div className="text-slate-600 text-sm leading-relaxed">{item.text}</div>
                   </div>
                 ))
               )}
             </div>
+            </>
           )}
         </section>
 
         <section className="flex flex-col gap-4">
-          {/* 设备与模式设置（无专业术语） */}
+          {/* AI 分析卡片：常显，并允许设置分析窗口（秒） */}
           <div className="timao-card">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-                <span>🎛️</span>
-                识别设置
+                <span>🧠</span>
+                直播助手
               </h3>
-            </div>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <div className="text-xs text-slate-500 mb-1">麦克风</div>
-                <select
-                  className="timao-input w-full"
-                  value={selectedDevice ?? ''}
-                  onChange={async (e) => {
-                    const idx = e.target.value === '' ? null : Number(e.target.value);
-                    setSelectedDevice(idx);
+              <div className="flex items-center gap-2">
+                <span className="text-xs timao-support-text">分析窗口</span>
+                <input
+                  type="number"
+                  min={30}
+                  max={600}
+                  step={10}
+                  className="timao-input w-20 text-xs"
+                  value={aiWindowSec}
+                  onChange={(e) => setAiWindowSec(Math.max(30, Math.min(600, Number(e.target.value) || 60)))}
+                  title="每次AI汇总的时间窗口（30-600秒）"
+                />
+                <span className="text-xs timao-support-text">秒</span>
+                <button
+                  className="timao-outline-btn text-xs"
+                  onClick={async () => {
+                    // 应用新的分析窗口：重启 AI 分析服务并重连 SSE
+                    try { await fetch(`${FASTAPI_BASE_URL}/api/ai/live/stop`, { method: 'POST' }).catch(() => {}); } catch {}
+                    const ws = Math.max(30, Math.min(600, Number(aiWindowSec) || 60));
                     try {
-                      await updateTranscriptionConfig({ deviceIndex: idx ?? null }, FASTAPI_BASE_URL);
+                      await fetch(`${FASTAPI_BASE_URL}/api/ai/live/start`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ window_sec: ws }),
+                      }).catch(() => {});
                     } catch {}
+                    try { if (aiSourceRef.current) { aiSourceRef.current.close(); aiSourceRef.current = null; } } catch {}
+                    connectAIStream();
                   }}
-                >
-                  <option value="">系统默认</option>
-                  {devices.map((d) => (
-                    <option key={d.index} value={d.index}>
-                      {d.name}（通道 {d.maxInputChannels}）
-                    </option>
-                  ))}
-                </select>
-                <div className="mt-2"><InputLevelMeter /></div>
-                <div className="text-xs timao-support-text mt-1">后端电平：{Math.round(backendLevel * 100)}%</div>
-              </div>
-
-              <div>
-                <div className="text-xs text-slate-500 mb-1">识别模式</div>
-                <div className="flex items-center gap-3 text-sm">
-                  <label className="inline-flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="preset"
-                      checked={presetMode === 'fast'}
-                      onChange={async () => {
-                        setPresetMode('fast');
-                        try { await updateTranscriptionConfig({ presetMode: 'fast' }, FASTAPI_BASE_URL); } catch {}
-                      }}
-                    />
-                    快速（低延迟）
-                  </label>
-                  <label className="inline-flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="preset"
-                      checked={presetMode === 'accurate'}
-                      onChange={async () => {
-                        setPresetMode('accurate');
-                        try { await updateTranscriptionConfig({ presetMode: 'accurate' }, FASTAPI_BASE_URL); } catch {}
-                      }}
-                    />
-                    准确（更稳）
-                  </label>
-                </div>
-                <div className="text-xs timao-support-text mt-2">
-                  快速：更快出字；准确：更接近完整短句。你也可以先“快速”再切“准确”。
-                </div>
+                  disabled={!isRunning}
+                  title={isRunning ? '应用后，下一个窗口生效' : '请先开始实时字幕'}
+                >应用</button>
               </div>
             </div>
-
-            <div className="mt-4">
-              <div className="text-xs text-slate-500 mb-1">静音门限（防幻觉灵敏度）</div>
-              <input
-                type="range"
-                min={0.005}
-                max={0.03}
-                step={0.001}
-                value={silenceGate}
-                onChange={async (e) => {
-                  const v = Number(e.target.value);
-                  setSilenceGate(v);
-                  try { await updateTranscriptionConfig({ silenceGate: v }, FASTAPI_BASE_URL); } catch {}
-                }}
-                className="w-full"
-              />
-              <div className="text-xs timao-support-text">当前：{silenceGate.toFixed(3)}</div>
-            </div>
+            {aiEvents.length === 0 ? (
+              <div className="timao-outline-card text-sm timao-support-text">{isRunning ? '正在分析直播内容…（开始字幕后，约 1 分钟出现建议）' : '请先在上方开始实时字幕'}
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[260px] overflow-y-auto pr-1">
+                {aiEvents.map((ev, idx) => {
+                  const hasAny = ev?.summary || (Array.isArray(ev?.highlight_points) && ev.highlight_points.length)
+                    || (Array.isArray(ev?.risks) && ev.risks.length)
+                    || (Array.isArray(ev?.suggestions) && ev.suggestions.length)
+                    || (Array.isArray(ev?.top_questions) && ev.top_questions.length)
+                    || (Array.isArray(ev?.scripts) && ev.scripts.length)
+                    || ev?.error || ev?.raw;
+                  return (
+                    <div key={idx} className="rounded-2xl border border-white/60 shadow-md p-3 bg-white/95">
+                      {ev?.error ? (
+                        <div className="text-xs text-red-600">AI 分析错误：{String(ev.error)}</div>
+                      ) : null}
+                      {ev?.raw && !ev?.summary ? (
+                        <div className="text-xs text-slate-500 whitespace-pre-wrap">{String(ev.raw)}</div>
+                      ) : null}
+                      {ev?.summary ? (
+                        <div className="text-sm text-slate-700 mb-2">{ev.summary}</div>
+                      ) : null}
+                      {Array.isArray(ev?.highlight_points) && ev.highlight_points.length ? (
+                        <>
+                          <div className="text-xs text-slate-500 mb-1">亮点</div>
+                          <ul className="list-disc pl-5 text-xs text-slate-600">
+                            {ev.highlight_points.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
+                          </ul>
+                        </>
+                      ) : null}
+                      {Array.isArray(ev?.risks) && ev.risks.length ? (
+                        <>
+                          <div className="text-xs text-slate-500 mt-2 mb-1">风险</div>
+                          <ul className="list-disc pl-5 text-xs text-slate-600">
+                            {ev.risks.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
+                          </ul>
+                        </>
+                      ) : null}
+                      {Array.isArray(ev?.suggestions) && ev.suggestions.length ? (
+                        <>
+                          <div className="text-xs text-slate-500 mt-2 mb-1">建议</div>
+                          <ul className="list-disc pl-5 text-xs text-slate-600">
+                            {ev.suggestions.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
+                          </ul>
+                        </>
+                      ) : null}
+                      {Array.isArray(ev?.top_questions) && ev.top_questions.length ? (
+                        <>
+                          <div className="text-xs text-slate-500 mt-2 mb-1">高频问题</div>
+                          <ul className="list-disc pl-5 text-xs text-slate-600">
+                            {ev.top_questions.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
+                          </ul>
+                        </>
+                      ) : null}
+                      {Array.isArray(ev?.scripts) && ev.scripts.length ? (
+                        <>
+                          <div className="text-xs text-slate-500 mt-2 mb-1">可用话术</div>
+                          <ul className="list-disc pl-5 text-xs text-slate-600">
+                            {ev.scripts.slice(0, 3).map((s: any, i: number) => (
+                              <li key={i}>{String(s?.text || s)}</li>
+                            ))}
+                          </ul>
+                        </>
+                      ) : null}
+                      {!hasAny ? (
+                        <div className="text-xs text-slate-400">暂无可显示内容</div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
+
+          <div className="timao-card">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
+                <span>📶</span>
+                声音输入
+              </h3>
+              <span className="text-xs timao-support-text">{Math.round(backendLevel * 100)}%</span>
+            </div>
+            <progress
+              className="w-full h-2"
+              value={Math.round(backendLevel * 100)}
+              max={100}
+              aria-label="声音输入电平"
+            />
+          </div>
+
           <div className="timao-card">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
@@ -474,62 +653,128 @@ const LiveConsolePage = () => {
               </h3>
               <span className="text-xs timao-support-text">{formattedCountdown}</span>
             </div>
-          <div className="rounded-2xl bg-purple-50/80 border border-purple-100 px-4 py-3 text-slate-700 min-h-[72px] flex items-center">
-            {latest?.text ? latest.text : '等待识别结果...'}
-          </div>
-          {latest ? (
-            <div className="text-xs text-slate-400 mt-3">
-              时间 {new Date(latest.timestamp * 1000).toLocaleTimeString()} · 置信度{' '}
-              {(latest.confidence * 100).toFixed(1)}%
+            <div className="rounded-2xl bg-purple-50/80 border border-purple-100 px-4 py-3 text-slate-700 min-h-[72px] flex items-center">
+              {latest?.text ? latest.text : '等待识别结果...'}
             </div>
-          ) : null}
-          {latest?.words?.length ? (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {latest.words.map((w, i) => (
-                <span key={i} className="px-1.5 py-0.5 rounded bg-white/90 border text-xs text-slate-600">
-                  {w.word}
-                  <span className="ml-1 text-[10px] text-slate-400">{w.start.toFixed(2)}–{w.end.toFixed(2)}s</span>
-                </span>
-              ))}
-            </div>
-          ) : null}
+            {latest ? (
+              <div className="flex items-center justify-between text-xs text-slate-400 mt-3">
+              <span>时间 {new Date(latest.timestamp * 1000).toLocaleTimeString()} · 稳定度 {(latest.confidence * 100).toFixed(0)}%</span>
+                <button
+                  className="timao-outline-btn text-[10px] px-2 py-0.5"
+                  title="复制JSON"
+                  onClick={() => {
+                    try {
+                      const payload = {
+                        type: 'transcription',
+                        text: latest.text,
+                        confidence: latest.confidence,
+                        timestamp: latest.timestamp,
+                        is_final: latest.isFinal,
+                        words: latest.words || [],
+                        speaker: latest.speaker || '?',
+                        room_id: (status as any)?.live_id || null,
+                        session_id: (status as any)?.session_id || null,
+                      };
+                      (window as any).utils?.copyToClipboard(JSON.stringify(payload, null, 2));
+                    } catch {}
+                  }}
+                >复制JSON</button>
+              </div>
+            ) : null}
+            {latest?.words?.length ? (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {latest.words.map((w, i) => (
+                  <span key={i} className="px-1.5 py-0.5 rounded bg-white/90 border text-xs text-slate-600">
+                    {w.word}
+                    <span className="ml-1 text-[10px] text-slate-400">{w.start.toFixed(2)}–{w.end.toFixed(2)}s</span>
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="timao-soft-card">
               <div className="text-sm text-slate-500 mb-1">当前会话</div>
-              <div className="text-lg font-semibold text-purple-600">
-                {status?.current_session_id ?? sessionId}
-              </div>
+              <div className="text-lg font-semibold text-purple-600">{status?.session_id ?? '—'}</div>
               <div className="text-xs timao-support-text mt-2">
-                已累计片段 {status?.stats?.total_audio_chunks ?? 0} · 成功转写{' '}
-                {status?.stats?.successful_transcriptions ?? 0}
+                已累计片段 {status?.stats?.total_audio_chunks ?? 0} · 成功转写 {status?.stats?.successful_transcriptions ?? 0}
               </div>
             </div>
             <div className="timao-soft-card">
               <div className="text-sm text-slate-500 mb-1">平均置信度</div>
-              <div className="text-lg font-semibold text-purple-600">
-                {(status?.stats?.average_confidence ?? 0).toFixed(2)}
-              </div>
-              <div className="text-xs timao-support-text mt-2">
-                失败次数 {status?.stats?.failed_transcriptions ?? 0}
-              </div>
+              <div className="text-lg font-semibold text-purple-600">{
+                (() => {
+                  const backendAvg = Number(status?.stats?.average_confidence || 0);
+                  const localAvg = confCount > 0 ? confSum / confCount : 0;
+                  const pick = backendAvg > 0 ? backendAvg : localAvg;
+                  return pick.toFixed(2);
+                })()
+              }</div>
+              <div className="text-xs timao-support-text mt-2">失败次数 {status?.stats?.failed_transcriptions ?? 0}</div>
             </div>
+            {saveInfo ? (
+              <div className="timao-soft-card">
+                <div className="text-sm text-slate-500 mb-1">保存位置</div>
+                <div className="flex items-center gap-2 text-xs timao-support-text break-all">
+                  <span>字幕：{saveInfo.trDir || '—'}</span>
+                  {saveInfo.trDir ? (
+                    <button className="timao-outline-btn text-[10px] px-2 py-0.5" onClick={() => {
+                      try { (window as any).electronAPI?.openPath(saveInfo.trDir); } catch {}
+                    }}>打开</button>
+                  ) : null}
+                </div>
+                <div className="flex items-center gap-2 text-xs timao-support-text break-all mt-1">
+                  <span>弹幕：{saveInfo.dmDir || '—'}</span>
+                  {saveInfo.dmDir ? (
+                    <button className="timao-outline-btn text-[10px] px-2 py-0.5" onClick={() => {
+                      try { (window as any).electronAPI?.openPath(saveInfo.dmDir); } catch {}
+                    }}>打开</button>
+                  ) : null}
+                </div>
+                <div className="flex items-center gap-2 text-xs timao-support-text break-all mt-1">
+                  <span>视频：{saveInfo.videoDir || '—'}</span>
+                  {saveInfo.videoDir ? (
+                    <button className="timao-outline-btn text-[10px] px-2 py-0.5" onClick={() => {
+                      try { (window as any).electronAPI?.openPath(saveInfo.videoDir); } catch {}
+                    }}>打开</button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </div>
         </section>
 
         <section className="flex flex-col gap-4">
           <div className="timao-card">
-            <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2 mb-3">
-              <span>🔍</span>
-              服务状态
-            </h3>
-            <ul className="space-y-2 text-sm timao-support-text">
-              <li>· 服务状态：{isRunning ? '运行中' : '已停止'}</li>
-              <li>· 当前 Room：{status?.current_room_id ?? 'N/A'}</li>
-              <li>· 监听端点：/api/transcription/ws</li>
-            </ul>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
+                <span>🧾</span>
+                整场回顾
+              </h3>
+              <button className="timao-primary-btn" onClick={handleReportGenerate} disabled={reportBusy}>生成回顾</button>
+            </div>
+            <div className="text-xs timao-support-text mt-1">已自动录制 · 每段约 30 分钟</div>
+            <div className="text-xs timao-support-text mt-1">
+              状态：{reportStatus?.active ? '录制中' : '未开始'}
+              {reportStatus?.status?.segments?.length ? ` · 片段 ${reportStatus.status.segments.length}` : ''}
+            </div>
+            {reportPaths ? (
+              <div className="mt-3 text-xs timao-support-text">
+                <div>· 弹幕：{reportPaths.comments || '—'}</div>
+                <div>· 转写：{reportPaths.transcript || '—'}</div>
+                <div className="flex items-center gap-2">· 报告：{reportPaths.report || '—'}
+                  {reportPaths.report ? (
+                    <button className="timao-outline-btn text-[10px] px-2 py-0.5" onClick={() => {
+                      try { (window as any).electronAPI?.openPath(reportPaths.report as string); } catch {}
+                    }}>打开</button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </div>
+
+          {/* 简洁模式：移除服务状态高级设置卡片 */}
 
           <div className="timao-card">
             <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2 mb-3">
@@ -537,8 +782,8 @@ const LiveConsolePage = () => {
               使用提示
             </h3>
             <ul className="space-y-2 text-sm timao-support-text">
-              <li>· 启动前请确认麦克风或声卡输入已配置。</li>
-              <li>· SenseVoice 模型需提前下载并满足依赖。</li>
+              <li>· 无需麦克风权限，直接从直播流抓取音频。</li>
+              <li>· 需安装 ffmpeg 并确保可执行路径可用。</li>
               <li>· 若启动失败，请查看日志或终端输出。</li>
             </ul>
           </div>

@@ -63,26 +63,40 @@ class TipGenerator(LoggerMixin):
     def _generate_mock_tips(self, comments: List[Dict[str, Any]], hot_words: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """生成模拟话术"""
         mock_tips = [
-            "感谢大家的支持！看到这么多朋友关注我们的产品，真的很开心！",
-            "刚才有朋友问到价格问题，我们现在有特别优惠，大家可以私信了解详情。",
-            "这款产品的质量确实不错，很多老客户都回购了，大家可以放心选择。",
-            "看到有朋友问包邮的问题，我们全国包邮，偏远地区可能需要补运费。",
-            "今天直播间人气很旺啊！新来的朋友记得点个关注，不迷路哦！",
-            "有朋友问现货情况，我们库存充足，下单后24小时内发货。",
-            "这个颜色确实很受欢迎，建议大家尽快下单，库存不多了。",
-            "感谢刚才打赏的朋友们，你们的支持是我最大的动力！"
+            "欢迎新朋友，坐下聊聊～喜欢的话点个关注不迷路哦！",
+            "弹幕区有什么想聊的，随时发出来，我都在看～",
+            "如果觉得有意思，点个赞让我知道你们在！",
+            "想听什么歌/想看什么片段，直接弹幕告诉我！",
+            "有问题尽管问，我会挑几条集中回答～",
+            "等会儿我们换个节奏，来一段互动小游戏，别走开～",
+            "感谢刚才的支持，大家的每一个点赞和弹幕我都看到了！",
+            "如果画面或声音有问题，及时在弹幕提醒我一下～",
+            "今天的主题先这样安排，过程中也欢迎你们提建议！",
+            "老朋友们带带节奏，新来的可以自我介绍下～"
         ]
         
-        # 基于热词生成相关话术
+        # 基于热词生成通用直播相关话术
         if hot_words:
-            top_words = [word['word'] for word in hot_words[:5]]
-            for word in top_words:
-                if word in ['价格', '多少钱', '便宜']:
-                    mock_tips.append(f"关于{word}问题，我们的产品性价比很高，现在还有优惠活动。")
-                elif word in ['质量', '好不好', '怎么样']:
-                    mock_tips.append(f"很多朋友关心{word}，我可以负责任地说，我们的产品质量绝对有保障。")
-                elif word in ['包邮', '运费', '快递']:
-                    mock_tips.append(f"看到大家问{word}，我们承诺全国包邮，顺丰发货。")
+            top_words = [str(word.get('word', '')).strip() for word in hot_words[:8]]
+            for w in top_words:
+                if not w:
+                    continue
+                if any(k in w for k in ['卡顿', '延迟', '网', '掉线', '声音', '画面', '麦']):
+                    mock_tips.append("如果有卡顿或声音问题，试试刷新；也随时在弹幕提醒我～")
+                elif any(k in w for k in ['关注', '粉', '点赞', '投币', '喜欢']):
+                    mock_tips.append("喜欢的话点个关注/赞，后面还有更多精彩～")
+                elif any(k in w for k in ['问题', '怎么', '为什么', '如何']):
+                    mock_tips.append("大家的问题我都看到啦，等会儿集中挑几条来解答～")
+                elif any(k in w for k in ['歌', '曲', '点歌', 'BGM']):
+                    mock_tips.append("想听什么歌可以弹幕留言，我来排个队～")
+                elif any(k in w for k in ['游戏', '挑战', 'Boss']):
+                    mock_tips.append("要不要来个小挑战？弹幕投票决定下一个玩法～")
+                elif any(k in w for k in ['知识', '教程', '教学', '科普']):
+                    mock_tips.append("有想听的知识点也可以提，我选几条讲清楚～")
+                elif any(k in w for k in ['活动', '抽奖', '福利']):
+                    mock_tips.append("等等我们安排个小活动，记得跟上节奏～")
+                elif any(k in w for k in ['打赏', '礼物', '支持']):
+                    mock_tips.append("感谢支持～有你们在，直播会更有动力！")
         
         # 随机选择3-5条话术
         import random
@@ -136,24 +150,25 @@ class TipGenerator(LoggerMixin):
         hot_words_text = ', '.join(hot_word_list)
         
         prompt = f"""
-你是一个专业的直播助手，需要根据观众的评论和热词，为主播生成合适的话术。
+你是通用直播话术助理，适用于聊天、游戏、音乐、知识、户外等各类直播场景。
+请结合“最近评论”和“热词”，为主播生成3-5条可直接念出的短句话术。
 
-最近的观众评论：
+【最近的观众评论节选】
 {comment_text}
 
-当前热词：
+【当前热词】
 {hot_words_text}
 
-请生成3-5条直播话术，要求：
-1. 自然流畅，符合直播场景
-2. 能够回应观众关心的问题
-3. 有助于提升直播间氛围
-4. 每条话术不超过50字
+生成要求：
+1) 语言中立、自然；紧贴评论关切；
+2) 促进互动（如关注、点赞、发弹幕提问、点歌/点梗、参与活动等）；
+3) 有助于节奏与氛围（承上启下、活跃、引导）；
+4) 每条≤50字。
 
-请以JSON格式返回，格式如下：
+输出为严格 JSON 数组，每项格式：
 [
-    {{"content": "话术内容", "type": "类型", "priority": 优先级(1-5)}},
-    ...
+  {{"content":"话术内容","type":"interaction|clarification|humor|engagement|call_to_action|transition","priority":1-5}},
+  ...
 ]
 """
         return prompt

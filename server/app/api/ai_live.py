@@ -1,0 +1,60 @@
+# -*- coding: utf-8 -*-
+"""AI Live Analyzer API (REST + SSE)."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+from typing import AsyncGenerator
+
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
+
+from ..services.ai_live_analyzer import get_ai_live_analyzer
+
+
+router = APIRouter(prefix="/api/ai/live", tags=["ai-live"])
+
+
+class StartReq(BaseModel):
+    window_sec: int = Field(60, ge=30, le=600)
+
+
+@router.post("/start")
+async def start_ai(req: StartReq):
+    svc = get_ai_live_analyzer()
+    res = await svc.start(req.window_sec)
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("message", "failed"))
+    return res
+
+
+@router.post("/stop")
+async def stop_ai():
+    svc = get_ai_live_analyzer()
+    return await svc.stop()
+
+
+@router.get("/status")
+async def ai_status():
+    svc = get_ai_live_analyzer()
+    return svc.status()
+
+
+@router.get("/stream")
+async def ai_stream() -> StreamingResponse:
+    svc = get_ai_live_analyzer()
+    q = await svc.register_client()
+
+    async def gen() -> AsyncGenerator[str, None]:
+        try:
+            while True:
+                ev = await q.get()
+                yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            await svc.unregister_client(q)
+
+    return StreamingResponse(gen(), media_type="text/event-stream")

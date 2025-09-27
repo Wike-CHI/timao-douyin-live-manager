@@ -266,6 +266,10 @@ class DouyinWebRelay:
         self._last_status_event: Optional[Dict[str, Any]] = None
         self._last_rank_event: Optional[Dict[str, Any]] = None
         self._lock = asyncio.Lock()
+        # persistence (默认开启弹幕持久化)
+        self._persist_enabled: bool = True
+        self._persist_root: Optional[str] = "records/live_logs"
+        self._writer = None
 
     # ------------------------------------------------------------------
     # 客户端管理
@@ -355,6 +359,19 @@ class DouyinWebRelay:
                 target=runner, name="DouyinWebRelay", daemon=True
             )
             self._thread.start()
+            # prepare persistence writer
+            if self._persist_enabled:
+                try:
+                    from pathlib import Path
+                    from server.utils.jsonl_writer import JSONLWriter  # type: ignore
+                    root = Path(self._persist_root or "records/live_logs").resolve()
+                    day = time.strftime("%Y-%m-%d", time.localtime())
+                    out_dir = root / (self._status.live_id or "unknown") / day
+                    fn = out_dir / f"danmu_{int(time.time())}.jsonl"
+                    self._writer = JSONLWriter(fn)
+                    self._writer.open()
+                except Exception:
+                    self._writer = None
             return {"success": True, "live_id": live_id}
 
     async def stop(self) -> Dict[str, Any]:
@@ -376,6 +393,13 @@ class DouyinWebRelay:
             self._fetcher = None
             self._thread = None
             self._status.room_id = None
+            # close persistence
+            try:
+                if self._writer is not None:
+                    self._writer.close()
+            except Exception:
+                pass
+            self._writer = None
             return {"success": True}
 
     def _thread_finished(self) -> None:
@@ -407,6 +431,12 @@ class DouyinWebRelay:
                 queue.put_nowait(event)
             except asyncio.QueueFull:
                 pass
+        # Persist non-status events
+        try:
+            if self._writer is not None and event_type not in {"status"}:
+                self._writer.write(event)
+        except Exception:
+            pass
 
     def _emit_status(
         self, stage: str, payload: Optional[Dict[str, Any]] = None
@@ -421,6 +451,19 @@ class DouyinWebRelay:
 
     def get_status(self) -> RelayStatus:
         return self._status
+
+    def get_persist(self) -> Dict[str, Any]:
+        return {
+            "persist_enabled": self._persist_enabled,
+            "persist_root": self._persist_root,
+        }
+
+    def update_persist(self, *, enable: Optional[bool] = None, root: Optional[str] = None) -> Dict[str, Any]:
+        if enable is not None:
+            self._persist_enabled = bool(enable)
+        if root is not None:
+            self._persist_root = str(root)
+        return {"persist_enabled": self._persist_enabled, "persist_root": self._persist_root}
 
 
 _relay_instance: Optional[DouyinWebRelay] = None
