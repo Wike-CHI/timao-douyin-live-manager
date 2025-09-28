@@ -52,6 +52,13 @@ const LiveConsolePage = () => {
   const [saveInfo, setSaveInfo] = useState<{ trDir?: string; dmDir?: string; videoDir?: string } | null>(null);
   // AI 窗口时长（秒）
   const [aiWindowSec, setAiWindowSec] = useState<number>(60);
+  // AI 风格与氛围（从实时分析中学习）
+  const [styleProfile, setStyleProfile] = useState<any>(null);
+  const [vibe, setVibe] = useState<any>(null);
+  // 一句话术即时生成
+  const [genBusy, setGenBusy] = useState(false);
+  const [oneScript, setOneScript] = useState<string>('');
+  const [oneType, setOneType] = useState<string>('interaction');
   // 高级选项已移除（保留占位，避免后续误用）
   const [persistTr, setPersistTr] = useState<boolean>(false);
   const [persistTrRoot, setPersistTrRoot] = useState<string>('');
@@ -385,6 +392,10 @@ const LiveConsolePage = () => {
         const data = JSON.parse(ev.data);
         if (data?.type === 'ai') {
           setAiEvents((prev) => [data.payload, ...prev].slice(0, 10));
+          // 若分析结果包含风格/氛围，更新快照，便于 UI 展示与后续生成复用
+          const p = data.payload || {};
+          if (p.style_profile) setStyleProfile(p.style_profile);
+          if (p.vibe) setVibe(p.vibe);
         }
       } catch {}
     };
@@ -407,6 +418,27 @@ const LiveConsolePage = () => {
     }
     return () => { if (aiSourceRef.current) { aiSourceRef.current.close(); aiSourceRef.current = null; } };
   }, [isRunning, connectAIStream]);
+
+  // 生成一句话术（调用后端，自动带入 style_profile/vibe）
+  const handleGenerateOne = useCallback(async () => {
+    try {
+      setGenBusy(true);
+      setOneScript('');
+      const res = await fetch(`${FASTAPI_BASE_URL}/api/ai/scripts/generate_one`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ script_type: oneType, include_context: true }),
+      });
+      const json = await res.json();
+      const text = json?.data?.content || '';
+      if (text) setOneScript(String(text));
+    } catch (e) {
+      console.error(e);
+      setOneScript('生成失败，请稍后再试');
+    } finally {
+      setGenBusy(false);
+    }
+  }, [oneType]);
 
   return (
     <div className="space-y-6">
@@ -625,6 +657,66 @@ const LiveConsolePage = () => {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+
+          {/* 风格画像与氛围 + 一句话术 */}
+          <div className="timao-card">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
+                <span>🎛️</span>
+                风格画像与氛围
+              </h3>
+              <div className="flex items-center gap-2">
+                <select className="timao-input text-xs" value={oneType} onChange={(e) => setOneType(e.target.value)} title="话术类型">
+                  <option value="interaction">互动</option>
+                  <option value="call_to_action">召唤</option>
+                  <option value="transition">转场</option>
+                  <option value="clarification">澄清</option>
+                  <option value="humor">幽默</option>
+                  <option value="welcome">欢迎</option>
+                  <option value="closing">收尾</option>
+                  <option value="question">答疑</option>
+                  <option value="emotion">情绪</option>
+                  <option value="product">产品</option>
+                </select>
+                <button className="timao-primary-btn text-xs" onClick={handleGenerateOne} disabled={genBusy} title="根据当前风格与氛围生成一句话术">
+                  {genBusy ? '生成中…' : '生成一句话术'}
+                </button>
+              </div>
+            </div>
+            {(!styleProfile && !vibe) ? (
+              <div className="timao-outline-card text-xs timao-support-text">{isRunning ? '正在学习主播风格与氛围…' : '开始实时字幕后自动学习'}</div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3">
+                {styleProfile ? (
+                  <div className="rounded-xl bg-white/90 border p-3">
+                    <div className="text-xs text-slate-500 mb-1">风格画像</div>
+                    <div className="text-xs text-slate-600">
+                      <div>人物：{String(styleProfile.persona ?? '—')}</div>
+                      <div>语气：{String(styleProfile.tone ?? '—')} · 节奏：{String(styleProfile.tempo ?? '—')} · 用词：{String(styleProfile.register ?? '—')}</div>
+                      {Array.isArray(styleProfile.catchphrases) && styleProfile.catchphrases.length ? (
+                        <div>口头禅：{styleProfile.catchphrases.slice(0, 4).join('、')}</div>
+                      ) : null}
+                      {Array.isArray(styleProfile.slang) && styleProfile.slang.length ? (
+                        <div>俚语：{styleProfile.slang.slice(0, 4).join('、')}</div>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+                {vibe ? (
+                  <div className="rounded-xl bg-white/90 border p-3">
+                    <div className="text-xs text-slate-500 mb-1">直播间氛围</div>
+                    <div className="text-xs text-slate-600">热度：{String(vibe.level ?? '—')} · 分数：{String(vibe.score ?? '—')}</div>
+                  </div>
+                ) : null}
+                {oneScript ? (
+                  <div className="rounded-xl bg-purple-50/80 border border-purple-100 p-3">
+                    <div className="text-xs text-slate-500 mb-1">临时话术</div>
+                    <div className="text-sm text-slate-700">{oneScript}</div>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>

@@ -234,7 +234,7 @@ class LiveReportService:
         transcript_path = artifacts_dir / "transcript.txt"
         transcript_path.write_text(transcript_txt, encoding="utf-8")
 
-        # Prefer rolling windows merged summary; fallback to one-shot if env provides
+        # Prefer rolling窗口合并；若无窗口结果，则调用 Qwen3-Max 一次性复盘
         ai_summary: Dict[str, Any] | None = None
         try:
             windows_dir = artifacts_dir / "windows"
@@ -257,7 +257,8 @@ class LiveReportService:
                 (artifacts_dir / "ai_summary.json").write_text(
                     json.dumps(ai_summary, ensure_ascii=False, indent=2), encoding="utf-8"
                 )
-            elif os.getenv("OPENAI_BASE_URL") and os.getenv("OPENAI_API_KEY"):
+            else:
+                # 使用 Qwen3-Max（OpenAI 兼容）进行一次性复盘
                 from ...ai.qwen_openai_compatible import analyze_live_session  # lazy import
                 ai_summary = analyze_live_session(transcript_txt, self._comments)
                 (artifacts_dir / "ai_summary.json").write_text(

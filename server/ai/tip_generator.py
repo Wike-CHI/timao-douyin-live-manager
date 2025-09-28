@@ -13,9 +13,13 @@ from server.utils.logger import LoggerMixin
 
 
 class TipGenerator(LoggerMixin):
-    """AI话术生成器"""
+    """AI话术生成器
+
+    统一改为用 Qwen OpenAI-兼容接口（qwen3-max）生成话术；不再使用纯 NLP/本地模拟。
+    若未配置 API Key，将回退到简单模板/模拟（仅作为容错）。
+    """
     
-    def __init__(self, config=None, ai_service: str = 'deepseek', api_key: str = '', base_url: str = '', model: str = ''):
+    def __init__(self, config=None, ai_service: str = 'qwen', api_key: str = '', base_url: str = '', model: str = ''):
         self.config = config
         self.ai_service = ai_service
         self.api_key = api_key
@@ -28,9 +32,25 @@ class TipGenerator(LoggerMixin):
         self.is_running = False  # 添加运行状态标志
         
         # 模拟数据开关
-        self.use_mock_data = True
+        # 默认使用真模型（Qwen3-Max）；如需关闭网络调用，可手动设 True
+        self.use_mock_data = False
         
         self.logger.info(f"AI话术生成器初始化完成，服务: {ai_service}")
+        # 若未显式配置，默认走 Qwen OpenAI-兼容（与项目一致）
+        try:
+            from .qwen_openai_compatible import (
+                DEFAULT_OPENAI_API_KEY,
+                DEFAULT_OPENAI_BASE_URL,
+                DEFAULT_OPENAI_MODEL,
+            )
+            if not self.base_url:
+                self.base_url = DEFAULT_OPENAI_BASE_URL
+            if not self.model:
+                self.model = DEFAULT_OPENAI_MODEL
+            if not self.api_key:
+                self.api_key = DEFAULT_OPENAI_API_KEY
+        except Exception:
+            pass
     
     def generate_tips(self, comments: List[Dict[str, Any]], hot_words: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """生成话术"""
@@ -123,7 +143,9 @@ class TipGenerator(LoggerMixin):
         prompt = self._build_prompt(comments, hot_words)
         
         try:
-            if self.ai_service == 'deepseek':
+            if self.ai_service == 'qwen':
+                response = self._call_qwen_api(prompt)
+            elif self.ai_service == 'deepseek':
                 response = self._call_deepseek_api(prompt)
             elif self.ai_service == 'openai':
                 response = self._call_openai_api(prompt)
@@ -140,18 +162,18 @@ class TipGenerator(LoggerMixin):
             return self._generate_mock_tips(comments, hot_words)
     
     def _build_prompt(self, comments: List[Dict[str, Any]], hot_words: List[Dict[str, Any]]) -> str:
-        """构建AI提示词"""
-        # 提取最近的评论内容
-        recent_comments = [comment.get('content', '') for comment in comments[-20:]]
-        comment_text = '\n'.join(recent_comments)
-        
+        """构建AI提示词：学习主播风格 + 感知直播间氛围 + 直用话术"""
+        # 提取最近评论（尽量还原口语与节奏）
+        recent_comments = [str((comment or {}).get('content', '')).strip() for comment in comments[-20:]]
+        comment_text = '\n'.join([c for c in recent_comments if c])
+
         # 提取热词
-        hot_word_list = [word['word'] for word in hot_words[:10]]
-        hot_words_text = ', '.join(hot_word_list)
-        
+        hot_word_list = [str(w.get('word', '')).strip() for w in (hot_words or [])[:10] if w]
+        hot_words_text = ', '.join([w for w in hot_word_list if w])
+
         prompt = f"""
-你是通用直播话术助理，适用于聊天、游戏、音乐、知识、户外等各类直播场景。
-请结合“最近评论”和“热词”，为主播生成3-5条可直接念出的短句话术。
+你是资深直播运营的话术助手，会从“最近评论的语气/口头禅/节奏”和“热词/关注点”中学习主播语言风格，
+并生成可直接上嘴、能带动互动与气氛的短句。输出严格为 JSON 数组。
 
 【最近的观众评论节选】
 {comment_text}
@@ -160,12 +182,13 @@ class TipGenerator(LoggerMixin):
 {hot_words_text}
 
 生成要求：
-1) 语言中立、自然；紧贴评论关切；
-2) 促进互动（如关注、点赞、发弹幕提问、点歌/点梗、参与活动等）；
-3) 有助于节奏与氛围（承上启下、活跃、引导）；
-4) 每条≤50字。
+1) 口语化、自然、亲切，尽量贴近主播说话风格；
+2) 促进互动（关注、点赞、弹幕提问、点歌/点梗、活动参与等），可带节奏与转场；
+3) 合规友好，避免生硬广告与敏感词；
+4) 每条 20–50 字；
+5) 类型覆盖尽量多样（interaction/clarification/humor/engagement/call_to_action/transition）。
 
-输出为严格 JSON 数组，每项格式：
+严格输出 JSON 数组（不包含解释），每项格式：
 [
   {{"content":"话术内容","type":"interaction|clarification|humor|engagement|call_to_action|transition","priority":1-5}},
   ...
@@ -195,6 +218,29 @@ class TipGenerator(LoggerMixin):
         response.raise_for_status()
         
         result = response.json()
+        return result['choices'][0]['message']['content']
+
+    def _call_qwen_api(self, prompt: str) -> str:
+        """调用Qwen OpenAI兼容API（DashScope compatible-mode）"""
+        if not self.base_url or not self.api_key or not self.model:
+            raise RuntimeError("Qwen API未配置完整")
+        url = f"{self.base_url.rstrip('/')}/chat/completions"
+        headers = {
+            'Authorization': f'Bearer {self.api_key}',
+            'Content-Type': 'application/json',
+        }
+        data = {
+            'model': self.model,
+            'messages': [
+                {'role': 'system', 'content': '你是资深直播运营的话术助手，请严格输出JSON数组，不要附加解释。'},
+                {'role': 'user', 'content': prompt},
+            ],
+            'temperature': 0.4,
+            'max_tokens': 1000,
+        }
+        resp = requests.post(url, headers=headers, json=data, timeout=30)
+        resp.raise_for_status()
+        result = resp.json()
         return result['choices'][0]['message']['content']
     
     def _call_openai_api(self, prompt: str) -> str:

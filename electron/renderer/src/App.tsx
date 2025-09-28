@@ -8,7 +8,7 @@ import PaymentVerifyPage from './pages/payment/PaymentVerifyPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import AboutPage from './pages/about/AboutPage';
 import LiveConsolePage from './pages/dashboard/LiveConsolePage';
-import ReportsPlaceholder from './pages/dashboard/ReportsPlaceholder';
+import ReportsPage from './pages/dashboard/ReportsPage';
 import ToolsPage from './pages/settings/ToolsPage';
 import useAuthGuard from './hooks/useAuthGuard';
 import WalletPage from '@/pages/payment/WalletPage';
@@ -41,7 +41,7 @@ const App = () => {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="live" element={<LiveConsolePage />} />
-          <Route path="reports" element={<ReportsPlaceholder />} />
+          <Route path="reports" element={<ReportsPage />} />
           <Route path="tools" element={<ToolsPage />} />
           <Route path="about" element={<AboutPage />} />
         </Route>

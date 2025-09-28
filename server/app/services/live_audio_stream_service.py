@@ -115,18 +115,18 @@ class LiveAudioStreamService:
         self._level_callbacks: Dict[str, Callable[[float, float], Awaitable[None] | None]] = {}
 
         # Config
-        # 恢复默认 1.0s 帧长（与 Small+VAD 统一策略一致）
-        self.chunk_seconds: float = 1.0  # feed frequency
+        # 优化音频块大小：减少延迟
+        self.chunk_seconds: float = 0.2  # 原值：1.0，减少80%延迟
         # Output mode: hard-lock to 'vad' per product requirement
         self.mode: str = "vad"
         # Model size: 'small'|'medium'|'large'
         self._model_size: str = "small"
         # VAD params (seconds/levels); used when mode == 'vad'
-        # 恢复保守阈值：更稳，搭配 Small+VAD
-        self.vad_min_silence_sec: float = 1.2
-        self.vad_min_speech_sec: float = 1.0
-        self.vad_hangover_sec: float = 0.30
-        self.vad_min_rms: float = 0.020
+        # 激进VAD参数：优化延迟性能
+        self.vad_min_silence_sec: float = 0.3   # 原值：1.2，减少75%延迟
+        self.vad_min_speech_sec: float = 0.2    # 原值：1.0，减少80%延迟
+        self.vad_hangover_sec: float = 0.1      # 原值：0.30，减少67%延迟
+        self.vad_min_rms: float = 0.012         # 原值：0.020，更敏感检测
         # Track partial text already emitted via delta
         self._partial_text: str = ""
         # VAD runtime state
@@ -609,6 +609,7 @@ class LiveAudioStreamService:
             # enter speech once min_speech satisfied
             if not self._vad_in_speech and self._vad_speech_acc >= self.vad_min_speech_sec:
                 self._vad_in_speech = True
+                print(f"[延迟监控] VAD检测到语音开始，累计语音时长: {self._vad_speech_acc:.3f}s")
             # accumulate audio if speaking or already in speech
             self._vad_buf.extend(pcm16)
         else:
@@ -619,9 +620,12 @@ class LiveAudioStreamService:
 
         # finalize when in_speech and silence >= min_silence
         if self._vad_in_speech and self._vad_silence_acc >= self.vad_min_silence_sec:
+            print(f"[延迟监控] VAD检测到语音结束，静音时长: {self._vad_silence_acc:.3f}s，缓冲区大小: {len(self._vad_buf)}字节")
             await self._finalize_vad_segment()
 
     async def _finalize_vad_segment(self) -> None:
+        # 延迟监控：记录VAD段处理开始时间
+        vad_start_time = _now()
         seg = bytes(self._vad_buf)
         self._vad_buf.clear()
         self._vad_in_speech = False
@@ -632,7 +636,12 @@ class LiveAudioStreamService:
         # 不进行人声检测/音乐过滤与音量归一化（按你的要求精简为 Small+VAD 统一模式）
         self._status.total_audio_chunks += 1
         try:
+            # 延迟监控：记录转录开始时间
+            transcribe_start = _now()
             res = await self._sv.transcribe_audio(seg) if self._sv else None
+            # 延迟监控：计算转录耗时
+            transcribe_duration = _now() - transcribe_start
+            print(f"[延迟监控] VAD段转录耗时: {transcribe_duration:.3f}s, 音频长度: {len(seg)/32000:.3f}s")
         except Exception as e:
             self._status.failed_transcriptions += 1
             await self._emit({

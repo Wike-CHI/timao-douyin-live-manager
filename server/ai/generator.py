@@ -35,7 +35,7 @@ class AIScriptGenerator:
     def _init_ai_client(self):
         """初始化AI客户端"""
         try:
-            service = self.config.get('ai_service', 'deepseek')
+            service = self.config.get('ai_service', 'qwen')
             api_key = self.config.get('ai_api_key', '')
             base_url = self.config.get('ai_base_url', '')
             
@@ -43,7 +43,20 @@ class AIScriptGenerator:
                 self.logger.warning("AI API密钥未配置")
                 return
             
-            if service == 'deepseek':
+            if service == 'qwen':
+                # Align with DashScope OpenAI-compatible endpoint (Qwen3 family)
+                from .qwen_openai_compatible import (
+                    DEFAULT_OPENAI_API_KEY,
+                    DEFAULT_OPENAI_BASE_URL,
+                    DEFAULT_OPENAI_MODEL,
+                )
+                self.client = OpenAI(
+                    api_key=api_key or DEFAULT_OPENAI_API_KEY,
+                    base_url=base_url or DEFAULT_OPENAI_BASE_URL,
+                )
+                self.model = self.config.get('ai_model', DEFAULT_OPENAI_MODEL)
+
+            elif service == 'deepseek':
                 self.client = OpenAI(
                     api_key=api_key,
                     base_url=base_url or "https://api.deepseek.com"
@@ -263,7 +276,11 @@ class AIScriptGenerator:
                 messages=[
                     {
                         "role": "system",
-                        "content": "你是一个专业的直播话术生成助手，能够根据直播间的实时情况生成合适的互动话术。话术要自然、亲切、有趣，能够有效引导观众互动。"
+                        "content": (
+                            "你是资深直播运营的话术助手，能够从主播语言风格与直播间氛围中学习并生成可直接上嘴的口语化话术。"
+                            "若给出 style_profile(人物设定/语气/节奏/用词/口头禅/句式) 与 vibe(冷/中/热、score)，请尽量贴合；"
+                            "话术需自然、亲切、有趣，避免生硬广告和敏感词，目标是有效带动互动与气氛。只输出一句话术。"
+                        )
                     },
                     {
                         "role": "user",
@@ -290,11 +307,30 @@ class AIScriptGenerator:
         prompt_parts = []
         
         # 基础要求
-        prompt_parts.append(f"请生成一条{script_type}类型的直播话术，要求：")
-        prompt_parts.append("1. 语言自然亲切，符合直播场景")
-        prompt_parts.append("2. 长度控制在50字以内")
-        prompt_parts.append("3. 能够引导观众互动")
-        
+        prompt_parts.append(f"请生成一条{script_type}类型的直播话术。")
+        prompt_parts.append("要求：1) 语言自然亲切、口语化；2) 20-50字；3) 能引导互动或带节奏；")
+
+        # 风格与氛围（可选）
+        sp = context.get('style_profile') or {}
+        if sp:
+            style_text = []
+            if sp.get('persona'): style_text.append(f"persona={sp.get('persona')}")
+            if sp.get('tone'): style_text.append(f"tone={sp.get('tone')}")
+            if sp.get('tempo'): style_text.append(f"tempo={sp.get('tempo')}")
+            if sp.get('register'): style_text.append(f"register={sp.get('register')}")
+            slang = ",".join(sp.get('slang', [])[:5]) if isinstance(sp.get('slang'), list) else ''
+            catch = ",".join(sp.get('catchphrases', [])[:5]) if isinstance(sp.get('catchphrases'), list) else ''
+            if slang: style_text.append(f"slang=[{slang}]")
+            if catch: style_text.append(f"catchphrases=[{catch}]")
+            if style_text:
+                prompt_parts.append("主播风格(style_profile)：" + "; ".join(style_text))
+
+        vibe = context.get('vibe') or {}
+        if vibe:
+            v_level = vibe.get('level') or 'neutral'
+            v_score = vibe.get('score')
+            prompt_parts.append(f"直播间氛围(vibe)：level={v_level}, score={v_score}")
+
         # 热词信息
         if context.get('hot_words'):
             hot_words_text = "、".join([hw['word'] for hw in context['hot_words'][:5]])
@@ -320,8 +356,8 @@ class AIScriptGenerator:
         }
         
         if script_type in type_requirements:
-            prompt_parts.append(f"7. {type_requirements[script_type]}")
-        
+            prompt_parts.append(f"类型要求：{type_requirements[script_type]}")
+
         return "\n".join(prompt_parts)
     
     def _generate_with_template(self, context: Dict[str, Any], script_type: str) -> str:

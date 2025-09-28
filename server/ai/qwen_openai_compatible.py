@@ -73,14 +73,33 @@ def _digest(transcript: str, comments: List[Dict[str, Any]]):
 
 
 def build_messages(transcript: str, comments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Builds the prompt for a full-session review.
+
+    Refined to: (1) learn the host's speaking style from transcript; (2) sense
+    room vibe from comments; (3) output human-like, directly usable scripts that
+    follow the host's style to warm up the room.
+    """
     transcript_clip, comments_digest, top_users_text = _digest(transcript, comments)
 
+    # System prompt focuses on style learning + vibe sensing while keeping
+    # backward-compatible keys used by UI: highlight_points/risks/suggestions/
+    # top_questions/scripts. Additional fields are additive.
     system = (
-        "你是通用直播复盘教练，适用于聊天、游戏、音乐、知识、户外等各类直播场景。"
-        "请基于‘主播口播转写’与‘弹幕概览’，输出结构化 JSON："
-        "{highlight_points:[], risks:[], suggestions:[], top_questions:[], scripts:[{text,type,tags}]}。"
-        "要求：语言中立、可执行；建议围绕内容节奏、互动质量、信息清晰度、情绪与氛围等；"
-        "脚本 3-5 条，每条 1-2 句，可用于引导互动（如关注、点赞、弹幕提问、点歌/点梗、参与活动等）。"
+        "你是直播运营总监风格的AI教练，擅长从‘主播口播转写’和‘弹幕氛围’中学习语言风格，"
+        "并给出可执行的复盘与可直接上嘴的话术。请输出严格JSON，包含但不限于以下字段："
+        "{highlight_points:[], risks:[], suggestions:[], top_questions:[], scripts:[{text,type,tags}],"
+        " style_profile:{persona,tone,tempo,register,slang:[],catchphrases:[],rhetoric:[]},"
+        " vibe:{level: \"cold|neutral|hot\", score: 0-100, trends: []}}。"
+        "要求："
+        "1) 先从口播转写中总结‘语言风格画像（style_profile）’，含语气(俏皮/专业/热情等)、节奏(慢/中/快)、"
+        "常用词与口头禅、句式与修辞；"
+        "2) 结合弹幕密度/情绪与热点，判断当前氛围（vibe）与可带动点；"
+        "3) highlight/risks/suggestions 要具体、可执行；"
+        "4) scripts 生成 3-5 条，每条 1-2 句、20-50字，口语化，尽量贴近主播风格；"
+        "   - 覆盖：互动引导/澄清回应/情绪带动/转场/关注点赞召唤；"
+        "   - 文案避免生硬广告语和敏感词，合规友好；"
+        "   - 每条给出 {text,type,tags}，type 可为 interaction|clarification|humor|engagement|call_to_action|transition；"
+        "5) 只输出JSON，不要多余解释。"
     )
     user_text = (
         f"【口播转写（节选）】\n{transcript_clip}\n\n"
@@ -133,10 +152,19 @@ def analyze_window(transcript: str, comments: List[Dict[str, Any]], prev_summary
     model = DEFAULT_OPENAI_MODEL
     t_clip, comments_digest, top_users_text = _digest(transcript, comments)
 
+    # Window-level prompt emphasizes continuity: carry over the style and
+    # actionable next-step scripts to heat up the room.
     system = (
-        "你是通用直播的运营复盘教练，帮助主播针对最近窗口做节奏复盘与下一步建议（适用于聊天、游戏、音乐、知识、户外等）。"
-        "输出 JSON：{summary, highlight_points:[], risks:[], suggestions:[], top_questions:[], scripts:[{text,type,tags}], carry}。"
-        "carry 为 1-3 句、<=160 字的可传递摘要，用于下一窗口延续与优化。"
+        "你是直播运营总监风格的AI教练，针对最近窗口做‘节奏复盘+下一步建议’，并延续上一窗口风格。"
+        "输出严格JSON：{summary, highlight_points:[], risks:[], suggestions:[], top_questions:[],"
+        " scripts:[{text,type,tags}], style_profile:{persona,tone,tempo,register,slang:[],catchphrases:[]},"
+        " vibe:{level: \"cold|neutral|hot\", score: 0-100, trends: []}, carry}。"
+        "要求："
+        "1) 先快速归纳本窗的风格与氛围变化；"
+        "2) scripts 贴合主播语言风格（如口头禅/语气/节奏），3-5 条，20-50字/条，口语自然；"
+        "   - 覆盖互动引导/关注点赞/转场/澄清回应/情绪带动中的至少两类；"
+        "3) carry 用 1-3 句、<=160 字总结‘延续点’，下个窗口可直接承接；"
+        "4) 只输出JSON，不要多余解释。"
     )
     user_blocks = [
         f"【上一窗口摘要】\n{(prev_summary or '（无）')}",
@@ -153,7 +181,8 @@ def analyze_window(transcript: str, comments: List[Dict[str, Any]], prev_summary
     resp = client.chat.completions.create(
         model=model,
         messages=messages,
-        temperature=0.2,
+        # 略微提高创造性以使话术更有人味，但仍保持可控
+        temperature=0.4,
         response_format={"type": "json_object"},
     )
     txt = resp.choices[0].message.content or "{}"

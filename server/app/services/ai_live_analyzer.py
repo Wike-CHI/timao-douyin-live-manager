@@ -35,6 +35,9 @@ class AIState:
     last_result: Dict[str, Any] = field(default_factory=dict)
     sentences: List[str] = field(default_factory=list)
     comments: List[Dict[str, Any]] = field(default_factory=list)
+    # Persisted context for other modules to reuse/style-mimic
+    style_profile: Dict[str, Any] = field(default_factory=dict)
+    vibe: Dict[str, Any] = field(default_factory=dict)
 
 
 class AILiveAnalyzer:
@@ -79,6 +82,9 @@ class AILiveAnalyzer:
             "last_result": s.last_result,
             "sentences_in_window": len(s.sentences),
             "comments_in_window": len(s.comments),
+            # Expose learned style & vibe snapshot for consumers (frontend/other services)
+            "style_profile": s.style_profile,
+            "vibe": s.vibe,
         }
 
     async def register_client(self) -> asyncio.Queue:
@@ -196,6 +202,11 @@ class AILiveAnalyzer:
             if isinstance(ai, dict):
                 s.carry = str(ai.get("carry") or "")[:200]
                 s.last_result = ai
+                # update style & vibe snapshots if provided
+                if isinstance(ai.get("style_profile"), dict):
+                    s.style_profile = ai.get("style_profile") or {}
+                if isinstance(ai.get("vibe"), dict):
+                    s.vibe = ai.get("vibe") or {}
             else:
                 s.last_result = {"summary": str(ai)}
         except Exception as e:

@@ -42,6 +42,22 @@ async def ai_status():
     return svc.status()
 
 
+@router.get("/context")
+async def ai_context():
+    """Expose the latest learned style_profile and vibe for consumers.
+
+    This allows other modules (or frontend) to mimic the host's language style
+    when generating scripts outside the main analyzer loop.
+    """
+    svc = get_ai_live_analyzer()
+    st = svc.status()
+    return {
+        "style_profile": st.get("style_profile") or {},
+        "vibe": st.get("vibe") or {},
+        "updated_from": "ai_live_analyzer:last_result",
+    }
+
+
 @router.get("/stream")
 async def ai_stream() -> StreamingResponse:
     svc = get_ai_live_analyzer()

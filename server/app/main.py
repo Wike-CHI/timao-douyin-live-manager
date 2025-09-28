@@ -53,6 +53,7 @@ _include_router_safe("抖音 Web 测试", "server.app.api.douyin_web")
 _include_router_safe("联合测试", "server.app.api.live_test")
 _include_router_safe("NLP 管理", "server.app.api.nlp_hotwords")
 _include_router_safe("AI 实时分析", "server.app.api.ai_live")
+_include_router_safe("AI 话术生成", "server.app.api.ai_scripts")
 _include_router_safe("资源自检", "server.app.api.bootstrap")
 _include_router_safe("工具", "server.app.api.tools")
 
