@@ -21,7 +21,7 @@
 
 ## 环境变量
 - 渲染进程（Vite）：
-  - `VITE_FASTAPI_URL` 本地 FastAPI 地址（默认 `http://127.0.0.1:8000`）
+  - `VITE_FASTAPI_URL` 本地 FastAPI 地址（Electron 默认 `http://127.0.0.1:8007`）
   - `VITE_AUTH_BASE_URL` 云端鉴权/支付后端地址（未设置则使用本地 mock）
 - 主进程（Electron）：
   - `ELECTRON_START_API` 是否由 Electron 自启本地 FastAPI（默认 `true`；设置为 `false` 跳过）
@@ -39,7 +39,7 @@
 
 2) 一键启动（推荐）
 - `npm run dev`
-- 行为：启动 Vite(5173) + Electron；Electron 自动拉起 FastAPI（uvicorn:8000）
+- 行为：启动 Vite(5173) + Electron；Electron 自动拉起 FastAPI（uvicorn:8007）
 
 3) 模型缓存（建议）
 - 设置模型缓存目录，避免下载到系统盘：
@@ -103,7 +103,7 @@ CMD ["node","index.js"]
 
 ### 三、渲染端指向云端鉴权
 - 设置 `VITE_AUTH_BASE_URL='https://auth.company.com'`
-- AST/抖音互动继续走 `VITE_FASTAPI_URL`（默认 `http://127.0.0.1:8000`）
+- AST/抖音互动继续走 `VITE_FASTAPI_URL`（Electron 默认 `http://127.0.0.1:8007`）
 
 ## 运行拓扑（推荐）
 - 桌面端（本地）：Electron 渲染页（Vite 构建）
@@ -112,7 +112,19 @@ CMD ["node","index.js"]
 
 ## 故障排查
 - Electron 白屏（开发）：确认已启动 Vite(5173)
-- 端口冲突（8000）：避免重复拉起 uvicorn；或改端口并设置 `VITE_FASTAPI_URL`
+- 端口冲突（8007）：避免重复拉起 uvicorn；或改端口并设置 `VITE_FASTAPI_URL`
+
+## 模型与生成物不入库（重要）
+- 仓库已清理并忽略模型权重、音频日志与运行记录（例如 `models/**`, `records/**`, `**/audio_logs/**`, `**/artifacts/**`）。
+- 运行前请配置模型缓存目录与路径，避免下载到系统盘：
+  - Windows/Powershell 示例：
+    - `$env:MODELSCOPE_CACHE='D:\\models'`
+    - `$env:HF_HOME='D:\\models\\huggingface'`
+  - Bash 示例：
+    - `export MODELSCOPE_CACHE="$HOME/models"`
+    - `export HF_HOME="$HOME/models/huggingface"`
+- 可选：在 `AST_module/config.py` 中将 SenseVoice Small 与 VAD 指到本地目录；详见 `AST_module/README_SenseVoice.md`。
+- 生成的直播记录/话术等运行产物默认写入 `records/`，不会被 Git 跟踪，可按需自行清理。
 - SSE/WS 断开：检查反向代理超时；前端已含重连提示
 - 云端 4xx/5xx：核对 CORS、域名生效、证书、接口路径
 
