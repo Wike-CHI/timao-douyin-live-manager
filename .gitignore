@@ -95,3 +95,21 @@ Thumbs.db
 comprehensive_test_report.json
 
 .tmp.driveupload
+
+# Large models, datasets, and generated artifacts (repo cleanup)
+models/**
+records/**
+**/audio_logs/**
+**/artifacts/**
+tmp_chunk.wav
+# common heavy data dirs
+data/**
+datasets/**
+sample/**
+samples/**
+assets/audio/**
+audio/**
+audios/**
+videos/**
+# third-party model dirs (e.g., VOSK)
+vosk-api/**
