@@ -14,6 +14,7 @@ import { startDouyinRelay, stopDouyinRelay, getDouyinRelayStatus, updateDouyinPe
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../store/useAuthStore';
 import { useFirstFree as useFirstFreeApi } from '../../services/auth';
+import { startAILiveAnalysis, stopAILiveAnalysis, openAILiveStream, generateOneScript } from '../../services/ai';
 
 interface TranscriptEntry {
   id: string;
@@ -139,6 +140,8 @@ const LiveConsolePage = () => {
 
   const connectWebSocket = useCallback(() => {
     if (socketRef.current) socketRef.current.close();
+    // 重置 deltaModeRef，确保新连接能正常接收所有消息类型
+    deltaModeRef.current = false;
     const socket = openLiveAudioWebSocket((message) => {
       if (message.type === 'level' && (message as any).data?.rms != null) {
         setBackendLevel(((message as any).data.rms as number) || 0);
@@ -173,7 +176,7 @@ const LiveConsolePage = () => {
       }
     }, FASTAPI_BASE_URL);
     socketRef.current = socket;
-  }, [handleSocketMessage]);
+  }, [handleSocketMessage, appendLog]);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -279,6 +282,8 @@ const LiveConsolePage = () => {
       // 3) 录制整场（30 分钟分段）
       try { await startLiveReport(liveUrl, 30, FASTAPI_BASE_URL); } catch {}
 
+      // 重置 deltaModeRef，确保新会话能正常接收全文消息
+      deltaModeRef.current = false;
       await refreshStatus();
       connectWebSocket();
 
@@ -319,6 +324,8 @@ const LiveConsolePage = () => {
         socketRef.current.close();
         socketRef.current = null;
       }
+      // 重置 deltaModeRef，确保下次会话能正常接收全文消息
+      deltaModeRef.current = false;
       setSaveInfo(null);
     } catch (err) {
       console.error(err);
@@ -380,57 +387,59 @@ const LiveConsolePage = () => {
   }, [status?.mode, mode]);
 
   const engineLabel = useMemo(() => '轻量', []);
-  // AI 实时分析流（SSE）
+  // AI 实时分析流（SSE，带鉴权）
   const [aiEvents, setAiEvents] = useState<any[]>([]);
   const aiSourceRef = useRef<EventSource | null>(null);
   const connectAIStream = useCallback(() => {
     if (aiSourceRef.current) return;
-    const url = `${FASTAPI_BASE_URL}/api/ai/live/stream`;
-    const es = new EventSource(url);
-    es.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(ev.data);
-        if (data?.type === 'ai') {
-          setAiEvents((prev) => [data.payload, ...prev].slice(0, 10));
-          // 若分析结果包含风格/氛围，更新快照，便于 UI 展示与后续生成复用
-          const p = data.payload || {};
-          if (p.style_profile) setStyleProfile(p.style_profile);
-          if (p.vibe) setVibe(p.vibe);
-        }
-      } catch {}
-    };
-    es.onerror = () => {
-      try { es.close(); } catch {}
-      aiSourceRef.current = null;
-      setTimeout(connectAIStream, 1500);
-    };
+    // 使用统一的鉴权 SSE 流
+    const es = openAILiveStream(
+      (ev) => {
+        try {
+          const data = JSON.parse(ev.data);
+          if (data?.type === 'ai') {
+            setAiEvents((prev) => [data.payload, ...prev].slice(0, 10));
+            // 若分析结果包含风格/氛围，更新快照，便于 UI 展示与后续生成复用
+            const p = data.payload || {};
+            if (p.style_profile) setStyleProfile(p.style_profile);
+            if (p.vibe) setVibe(p.vibe);
+          }
+        } catch {}
+      },
+      () => {
+        // 错误处理：关闭并重连
+        try { if (aiSourceRef.current) aiSourceRef.current.close(); } catch {}
+        aiSourceRef.current = null;
+        setTimeout(connectAIStream, 1500);
+      },
+      FASTAPI_BASE_URL
+    );
     aiSourceRef.current = es;
   }, []);
 
   useEffect(() => {
     if (isRunning) {
       const ws = Math.max(30, Math.min(600, Number(aiWindowSec) || 60));
-      fetch(`${FASTAPI_BASE_URL}/api/ai/live/start`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ window_sec: ws }) }).catch(() => {});
+      // 使用统一的鉴权接口启动 AI 分析
+      startAILiveAnalysis({ window_sec: ws }, FASTAPI_BASE_URL).catch(() => {});
       connectAIStream();
     } else {
-      try { fetch(`${FASTAPI_BASE_URL}/api/ai/live/stop`, { method: 'POST' }).catch(() => {}); } catch {}
+      try { stopAILiveAnalysis(FASTAPI_BASE_URL).catch(() => {}); } catch {}
       if (aiSourceRef.current) { aiSourceRef.current.close(); aiSourceRef.current = null; }
     }
     return () => { if (aiSourceRef.current) { aiSourceRef.current.close(); aiSourceRef.current = null; } };
   }, [isRunning, connectAIStream]);
 
-  // 生成一句话术（调用后端，自动带入 style_profile/vibe）
+  // 生成一句话术（调用后端，自动带入 style_profile/vibe，使用统一鉴权）
   const handleGenerateOne = useCallback(async () => {
     try {
       setGenBusy(true);
       setOneScript('');
-      const res = await fetch(`${FASTAPI_BASE_URL}/api/ai/scripts/generate_one`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ script_type: oneType, include_context: true }),
-      });
-      const json = await res.json();
-      const text = json?.data?.content || '';
+      const res = await generateOneScript(
+        { script_type: oneType, include_context: true },
+        FASTAPI_BASE_URL
+      );
+      const text = res?.data?.content || '';
       if (text) setOneScript(String(text));
     } catch (e) {
       console.error(e);
@@ -568,15 +577,11 @@ const LiveConsolePage = () => {
                 <button
                   className="timao-outline-btn text-xs"
                   onClick={async () => {
-                    // 应用新的分析窗口：重启 AI 分析服务并重连 SSE
-                    try { await fetch(`${FASTAPI_BASE_URL}/api/ai/live/stop`, { method: 'POST' }).catch(() => {}); } catch {}
+                    // 应用新的分析窗口：重启 AI 分析服务并重连 SSE（使用统一鉴权）
+                    try { await stopAILiveAnalysis(FASTAPI_BASE_URL).catch(() => {}); } catch {}
                     const ws = Math.max(30, Math.min(600, Number(aiWindowSec) || 60));
                     try {
-                      await fetch(`${FASTAPI_BASE_URL}/api/ai/live/start`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ window_sec: ws }),
-                      }).catch(() => {});
+                      await startAILiveAnalysis({ window_sec: ws }, FASTAPI_BASE_URL).catch(() => {});
                     } catch {}
                     try { if (aiSourceRef.current) { aiSourceRef.current.close(); aiSourceRef.current = null; } } catch {}
                     connectAIStream();

@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>支付审核状态机可视化测试</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+    
+    h1 {
+      color: #667eea;
+      margin-bottom: 10px;
+    }
+    
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+    }
+    
+    .state-machine {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 30px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 12px;
+    }
+    
+    .state {
+      flex: 1;
+      padding: 20px;
+      margin: 0 10px;
+      border-radius: 8px;
+      text-align: center;
+      transition: all 0.3s;
+      border: 2px solid transparent;
+    }
+    
+    .state.unpaid { background: #e9ecef; color: #6c757d; }
+    .state.pending { background: #f0e7ff; color: #764ba2; }
+    .state.approved { background: #d4edda; color: #155724; }
+    .state.rejected { background: #f8d7da; color: #721c24; }
+    
+    .state.active {
+      border-color: #667eea;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+      transform: scale(1.05);
+    }
+    
+    .state-icon {
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+    
+    .state-title {
+      font-weight: bold;
+      font-size: 16px;
+      margin-bottom: 5px;
+    }
+    
+    .state-desc {
+      font-size: 12px;
+      opacity: 0.8;
+    }
+    
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 30px;
+    }
+    
+    button {
+      padding: 12px 20px;
+      font-size: 14px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 500;
+    }
+    
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+    
+    .btn-success {
+      background: #28a745;
+      color: white;
+    }
+    
+    .btn-danger {
+      background: #dc3545;
+      color: white;
+    }
+    
+    .btn-warning {
+      background: #ffc107;
+      color: #333;
+    }
+    
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+    
+    .progress-section {
+      margin-bottom: 30px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 12px;
+      display: none;
+    }
+    
+    .progress-section.active {
+      display: block;
+    }
+    
+    .progress-bar {
+      height: 20px;
+      background: #e9ecef;
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 10px 0;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea, #764ba2);
+      transition: width 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 15px;
+    }
+    
+    .stat {
+      text-align: center;
+      padding: 10px;
+      background: white;
+      border-radius: 8px;
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 5px;
+    }
+    
+    .stat-value {
+      font-size: 20px;
+      font-weight: bold;
+      color: #667eea;
+    }
+    
+    .log {
+      background: #2d3748;
+      color: #e2e8f0;
+      padding: 20px;
+      border-radius: 12px;
+      height: 400px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    
+    .log-entry {
+      margin-bottom: 8px;
+      border-left: 3px solid #667eea;
+      padding-left: 10px;
+    }
+    
+    .log-time {
+      color: #a0aec0;
+      margin-right: 10px;
+    }
+    
+    .log-info { border-color: #4299e1; }
+    .log-success { border-color: #48bb78; }
+    .log-warning { border-color: #ed8936; }
+    .log-error { border-color: #f56565; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 支付审核状态机可视化测试</h1>
+    <p class="subtitle">验证完整的状态流转：UNPAID → PENDING → APPROVED/REJECTED</p>
+    
+    <!-- 状态机可视化 -->
+    <div class="state-machine">
+      <div class="state unpaid active" id="state-unpaid">
+        <div class="state-icon">📄</div>
+        <div class="state-title">UNPAID</div>
+        <div class="state-desc">等待提交</div>
+      </div>
+      <div class="state pending" id="state-pending">
+        <div class="state-icon">⏳</div>
+        <div class="state-title">PENDING</div>
+        <div class="state-desc">审核中</div>
+      </div>
+      <div class="state approved" id="state-approved">
+        <div class="state-icon">✅</div>
+        <div class="state-title">APPROVED</div>
+        <div class="state-desc">审核通过</div>
+      </div>
+      <div class="state rejected" id="state-rejected">
+        <div class="state-icon">❌</div>
+        <div class="state-title">REJECTED</div>
+        <div class="state-desc">审核未通过</div>
+      </div>
+    </div>
+    
+    <!-- 轮询进度 -->
+    <div class="progress-section" id="progress-section">
+      <h3>轮询进度</h3>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill">0%</div>
+      </div>
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-label">轮询次数</div>
+          <div class="stat-value" id="stat-attempts">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">已等待（秒）</div>
+          <div class="stat-value" id="stat-elapsed">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">进度</div>
+          <div class="stat-value" id="stat-progress">0%</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 控制按钮 -->
+    <div class="controls">
+      <button class="btn-primary" onclick="submitPayment()">1️⃣ 提交支付凭证</button>
+      <button class="btn-success" onclick="approvePayment()" id="btn-approve">2️⃣ 后台批准审核</button>
+      <button class="btn-danger" onclick="rejectPayment()" id="btn-reject">3️⃣ 后台拒绝审核</button>
+      <button class="btn-warning" onclick="cancelPolling()" id="btn-cancel" disabled>4️⃣ 用户取消轮询</button>
+      <button class="btn-secondary" onclick="resetTest()">🔄 重置测试</button>
+      <button class="btn-secondary" onclick="runAutoTest()">🤖 自动测试</button>
+    </div>
+    
+    <!-- 日志 -->
+    <h3>操作日志</h3>
+    <div class="log" id="log"></div>
+  </div>
+  
+  <script>
+    // 状态机配置
+    const POLL_INTERVAL = 1000; // 1秒（测试用，实际应为3秒）
+    const MAX_ATTEMPTS = 30;
+    const TIMEOUT = 30000; // 30秒（测试用，实际应为5分钟）
+    
+    // 全局变量
+    let currentState = 'UNPAID';
+    let backendStatus = 'pending'; // 模拟后端审核状态
+    let polling = null;
+    let attempts = 0;
+    let startTime = 0;
+    let testResults = [];
+    
+    // 工具函数
+    function log(message, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const time = new Date().toLocaleTimeString();
+      const entry = document.createElement('div');
+      entry.className = `log-entry log-${type}`;
+      entry.innerHTML = `<span class="log-time">[${time}]</span>${message}`;
+      logDiv.appendChild(entry);
+      logDiv.scrollTop = logDiv.scrollHeight;
+      
+      console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+    
+    function setState(newState) {
+      // 移除所有 active 类
+      document.querySelectorAll('.state').forEach(el => el.classList.remove('active'));
+      
+      // 添加新状态的 active 类
+      const stateEl = document.getElementById(`state-${newState.toLowerCase()}`);
+      if (stateEl) {
+        stateEl.classList.add('active');
+      }
+      
+      currentState = newState;
+      updateUI();
+    }
+    
+    function updateUI() {
+      const progressSection = document.getElementById('progress-section');
+      const btnCancel = document.getElementById('btn-cancel');
+      const btnApprove = document.getElementById('btn-approve');
+      const btnReject = document.getElementById('btn-reject');
+      
+      if (currentState === 'PENDING') {
+        progressSection.classList.add('active');
+        btnCancel.disabled = false;
+        btnApprove.disabled = false;
+        btnReject.disabled = false;
+      } else {
+        progressSection.classList.remove('active');
+        btnCancel.disabled = true;
+        btnApprove.disabled = true;
+        btnReject.disabled = true;
+      }
+    }
+    
+    function updateProgress() {
+      if (currentState !== 'PENDING') return;
+      
+      const elapsed = Date.now() - startTime;
+      const timeProgress = Math.min((elapsed / TIMEOUT) * 100, 100);
+      const attemptProgress = Math.min((attempts / MAX_ATTEMPTS) * 100, 100);
+      const progress = Math.max(timeProgress, attemptProgress);
+      
+      document.getElementById('stat-attempts').textContent = attempts;
+      document.getElementById('stat-elapsed').textContent = Math.floor(elapsed / 1000);
+      document.getElementById('stat-progress').textContent = Math.round(progress) + '%';
+      document.getElementById('progress-fill').style.width = progress + '%';
+      document.getElementById('progress-fill').textContent = Math.round(progress) + '%';
+    }
+    
+    // 状态机操作
+    function submitPayment() {
+      if (currentState !== 'UNPAID' && currentState !== 'REJECTED') {
+        log('⚠️ 只能在 UNPAID 或 REJECTED 状态下提交', 'warning');
+        return;
+      }
+      
+      setState('PENDING');
+      backendStatus = 'pending';
+      attempts = 0;
+      startTime = Date.now();
+      log('📤 提交支付凭证成功，开始轮询审核状态', 'success');
+      startPolling();
+    }
+    
+    function startPolling() {
+      log('🔄 启动轮询...', 'info');
+      
+      if (polling) {
+        clearInterval(polling);
+      }
+      
+      polling = setInterval(async () => {
+        attempts += 1;
+        log(`🔍 查询审核状态（第 ${attempts} 次）`, 'info');
+        updateProgress();
+        
+        // 检查超时
+        const elapsed = Date.now() - startTime;
+        if (elapsed >= TIMEOUT) {
+          stopPolling();
+          log(`⏱️ 轮询超时（已轮询 ${attempts} 次，耗时 ${Math.floor(elapsed / 1000)} 秒）`, 'warning');
+          addTestResult('超时处理', true, `正确停止轮询并提示用户`);
+          return;
+        }
+        
+        // 检查最大次数
+        if (attempts >= MAX_ATTEMPTS) {
+          stopPolling();
+          log(`⏱️ 已达最大轮询次数（${attempts} 次）`, 'warning');
+          addTestResult('最大次数限制', true, `正确停止轮询`);
+          return;
+        }
+        
+        // 模拟查询后端
+        if (backendStatus === 'approved') {
+          stopPolling();
+          setState('APPROVED');
+          log('✅ 审核通过！', 'success');
+          addTestResult('审核通过流程', true, `轮询 ${attempts} 次后正确检测到 APPROVED`);
+        } else if (backendStatus === 'rejected') {
+          stopPolling();
+          setState('REJECTED');
+          log('❌ 审核未通过', 'error');
+          addTestResult('审核拒绝流程', true, `轮询 ${attempts} 次后正确检测到 REJECTED`);
+        } else {
+          log(`⏳ 仍在审核中...`, 'info');
+        }
+      }, POLL_INTERVAL);
+    }
+    
+    function stopPolling() {
+      if (polling) {
+        clearInterval(polling);
+        polling = null;
+        log('⏹️ 停止轮询', 'info');
+      }
+    }
+    
+    function approvePayment() {
+      if (currentState !== 'PENDING') {
+        log('⚠️ 只能在 PENDING 状态下批准', 'warning');
+        return;
+      }
+      backendStatus = 'approved';
+      log('🎯 [后台操作] 审核状态设为 APPROVED', 'success');
+    }
+    
+    function rejectPayment() {
+      if (currentState !== 'PENDING') {
+        log('⚠️ 只能在 PENDING 状态下拒绝', 'warning');
+        return;
+      }
+      backendStatus = 'rejected';
+      log('🎯 [后台操作] 审核状态设为 REJECTED', 'error');
+    }
+    
+    function cancelPolling() {
+      if (currentState !== 'PENDING') {
+        log('⚠️ 只能在 PENDING 状态下取消', 'warning');
+        return;
+      }
+      
+      stopPolling();
+      setState('UNPAID');
+      attempts = 0;
+      log('🚫 用户取消轮询，返回 UNPAID 状态', 'warning');
+      addTestResult('用户取消', true, '正确停止轮询并重置状态');
+    }
+    
+    function resetTest() {
+      stopPolling();
+      setState('UNPAID');
+      backendStatus = 'pending';
+      attempts = 0;
+      testResults = [];
+      document.getElementById('log').innerHTML = '';
+      log('🔄 测试已重置', 'info');
+    }
+    
+    // 测试结果记录
+    function addTestResult(testName, passed, details) {
+      testResults.push({ testName, passed, details });
+      const icon = passed ? '✅' : '❌';
+      const type = passed ? 'success' : 'error';
+      log(`${icon} 测试: ${testName} - ${details}`, type);
+    }
+    
+    // 自动测试
+    async function runAutoTest() {
+      log('🤖 开始自动测试...', 'info');
+      resetTest();
+      
+      await sleep(1000);
+      
+      // 测试1：审核通过流程
+      log('=== 测试1：审核通过流程 ===', 'info');
+      submitPayment();
+      await sleep(3000);
+      approvePayment();
+      await sleep(3000);
+      
+      if (currentState === 'APPROVED') {
+        addTestResult('审核通过流程', true, '状态正确转换到 APPROVED');
+      } else {
+        addTestResult('审核通过流程', false, `状态错误: ${currentState}`);
+      }
+      
+      await sleep(2000);
+      
+      // 测试2：审核拒绝流程
+      log('=== 测试2：审核拒绝流程 ===', 'info');
+      resetTest();
+      await sleep(1000);
+      submitPayment();
+      await sleep(3000);
+      rejectPayment();
+      await sleep(3000);
+      
+      if (currentState === 'REJECTED') {
+        addTestResult('审核拒绝流程', true, '状态正确转换到 REJECTED');
+      } else {
+        addTestResult('审核拒绝流程', false, `状态错误: ${currentState}`);
+      }
+      
+      await sleep(2000);
+      
+      // 测试3：用户取消
+      log('=== 测试3：用户取消 ===', 'info');
+      resetTest();
+      await sleep(1000);
+      submitPayment();
+      await sleep(2000);
+      cancelPolling();
+      
+      if (currentState === 'UNPAID') {
+        addTestResult('用户取消', true, '状态正确返回 UNPAID');
+      } else {
+        addTestResult('用户取消', false, `状态错误: ${currentState}`);
+      }
+      
+      // 输出结果
+      log('=== 自动测试完成 ===', 'success');
+      const passed = testResults.filter(r => r.passed).length;
+      const failed = testResults.filter(r => !r.passed).length;
+      log(`总计: ${testResults.length} 个测试，通过: ${passed} 个，失败: ${failed} 个`, 
+        failed === 0 ? 'success' : 'error');
+    }
+    
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+    
+    // 初始化
+    log('✨ 支付审核状态机测试工具已就绪', 'success');
+    log('💡 提示：点击按钮模拟用户操作和后台审核', 'info');
+    updateUI();
+  </script>
+</body>
+</html>
+
