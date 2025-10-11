@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import os
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 try:
     from openai import OpenAI
@@ -29,6 +29,13 @@ except Exception:  # pragma: no cover
 DEFAULT_OPENAI_API_KEY = "sk-92045f0a33984350925ce3ccffb3489e"
 DEFAULT_OPENAI_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 DEFAULT_OPENAI_MODEL = "qwen3-max"
+
+try:  # pragma: no cover - optional style memory
+    from .style_memory import StyleMemoryManager
+
+    _STYLE_MANAGER = StyleMemoryManager()
+except Exception:  # pragma: no cover
+    _STYLE_MANAGER = None  # type: ignore
 
 
 def _get_client():
@@ -72,7 +79,20 @@ def _digest(transcript: str, comments: List[Dict[str, Any]]):
     return transcript[:20000], comments_digest, top_users_text
 
 
-def build_messages(transcript: str, comments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _style_context(anchor_id: Optional[str]) -> str:
+    if _STYLE_MANAGER and _STYLE_MANAGER.available():
+        try:
+            return _STYLE_MANAGER.fetch_context(anchor_id, k=6)
+        except Exception:
+            return ""
+    return ""
+
+
+def build_messages(
+    transcript: str,
+    comments: List[Dict[str, Any]],
+    style_notes: str = "",
+) -> List[Dict[str, Any]]:
     """Builds the prompt for a full-session review.
 
     Refined to: (1) learn the host's speaking style from transcript; (2) sense
@@ -84,6 +104,13 @@ def build_messages(transcript: str, comments: List[Dict[str, Any]]) -> List[Dict
     # System prompt focuses on style learning + vibe sensing while keeping
     # backward-compatible keys used by UI: highlight_points/risks/suggestions/
     # top_questions/scripts. Additional fields are additive.
+    style_block = ""
+    if style_notes:
+        style_block = (
+            "【历史画像与口头禅（来自累计记忆）】\n"
+            f"{style_notes.strip()}\n\n"
+        )
+
     system = (
         "你是直播运营总监风格的AI教练，擅长从‘主播口播转写’和‘弹幕氛围’中学习语言风格，"
         "并给出可执行的复盘与可直接上嘴的话术。请输出严格JSON，包含但不限于以下字段："
@@ -102,6 +129,7 @@ def build_messages(transcript: str, comments: List[Dict[str, Any]]) -> List[Dict
         "5) 只输出JSON，不要多余解释。"
     )
     user_text = (
+        f"{style_block}"
         f"【口播转写（节选）】\n{transcript_clip}\n\n"
         f"【弹幕Top用户】{top_users_text}\n\n"
         f"【弹幕节选】\n{comments_digest}"
@@ -119,10 +147,15 @@ def build_messages(transcript: str, comments: List[Dict[str, Any]]) -> List[Dict
     ]
 
 
-def analyze_live_session(transcript: str, comments: List[Dict[str, Any]]) -> Dict[str, Any]:
+def analyze_live_session(
+    transcript: str,
+    comments: List[Dict[str, Any]],
+    anchor_id: Optional[str] = None,
+) -> Dict[str, Any]:
     client = _get_client()
     model = DEFAULT_OPENAI_MODEL
-    messages = build_messages(transcript, comments)
+    notes = _style_context(anchor_id)
+    messages = build_messages(transcript, comments, style_notes=notes)
     # Ask model to output JSON strictly
     messages.append({
         "role": "user",
@@ -137,12 +170,24 @@ def analyze_live_session(transcript: str, comments: List[Dict[str, Any]]) -> Dic
     )
     txt = resp.choices[0].message.content or "{}"
     try:
-        return json.loads(txt)
+        result = json.loads(txt)
     except Exception:
-        return {"raw": txt}
+        result = {"raw": txt}
+
+    if anchor_id and _STYLE_MANAGER and _STYLE_MANAGER.available():
+        try:
+            _STYLE_MANAGER.ingest_summary(anchor_id, result)
+        except Exception:
+            pass
+    return result
 
 
-def analyze_window(transcript: str, comments: List[Dict[str, Any]], prev_summary: str | None = None) -> Dict[str, Any]:
+def analyze_window(
+    transcript: str,
+    comments: List[Dict[str, Any]],
+    prev_summary: str | None = None,
+    anchor_id: Optional[str] = None,
+) -> Dict[str, Any]:
     """Analyze a 5-min window with optional previous summary to maintain continuity.
 
     Returns a dict JSON with fields similar to analyze_live_session, and a short
@@ -151,6 +196,10 @@ def analyze_window(transcript: str, comments: List[Dict[str, Any]], prev_summary
     client = _get_client()
     model = DEFAULT_OPENAI_MODEL
     t_clip, comments_digest, top_users_text = _digest(transcript, comments)
+    style_notes = _style_context(anchor_id)
+    style_block = ""
+    if style_notes:
+        style_block = f"【历史画像与口头禅】\n{style_notes.strip()}\n\n"
 
     # Window-level prompt emphasizes continuity: carry over the style and
     # actionable next-step scripts to heat up the room.
@@ -167,7 +216,7 @@ def analyze_window(transcript: str, comments: List[Dict[str, Any]], prev_summary
         "4) 只输出JSON，不要多余解释。"
     )
     user_blocks = [
-        f"【上一窗口摘要】\n{(prev_summary or '（无）')}",
+        style_block + f"【上一窗口摘要】\n{(prev_summary or '（无）')}",
         f"【本窗口口播（节选）】\n{t_clip}",
         f"【弹幕Top用户】{top_users_text}",
         f"【弹幕节选】\n{comments_digest}",
@@ -193,4 +242,9 @@ def analyze_window(transcript: str, comments: List[Dict[str, Any]], prev_summary
     if "carry" not in out:
         # derive carry from summary if absent
         out["carry"] = (out.get("summary") or "")[:160]
+    if anchor_id and _STYLE_MANAGER and _STYLE_MANAGER.available():
+        try:
+            _STYLE_MANAGER.ingest_summary(anchor_id, out)
+        except Exception:
+            pass
     return out

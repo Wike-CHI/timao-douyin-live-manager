@@ -6,10 +6,16 @@
 import time
 import json
 import uuid
+import random
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import requests
 from server.utils.logger import LoggerMixin
+
+try:  # pragma: no cover - optional style memory
+    from .style_memory import StyleMemoryManager
+except Exception:  # pragma: no cover
+    StyleMemoryManager = None  # type: ignore
 
 
 class TipGenerator(LoggerMixin):
@@ -30,6 +36,10 @@ class TipGenerator(LoggerMixin):
         self.generation_interval = 300  # 5分钟
         self.last_generation = 0
         self.is_running = False  # 添加运行状态标志
+        self.anchor_id = self._resolve_anchor_id(config)
+        self.style_memory = StyleMemoryManager() if StyleMemoryManager else None
+        if not self.style_memory or not self.style_memory.available():
+            self.logger.debug("Style memory unavailable; falling back to runtime context only.")
         
         # 模拟数据开关
         # 默认使用真模型（Qwen3-Max）；如需关闭网络调用，可手动设 True
@@ -134,7 +144,7 @@ class TipGenerator(LoggerMixin):
                 'source': 'mock'
             }
             tips.append(tip)
-        
+        self._remember_scripts(tips)
         return tips
     
     def _generate_ai_tips(self, comments: List[Dict[str, Any]], hot_words: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -155,6 +165,7 @@ class TipGenerator(LoggerMixin):
             
             # 解析响应
             tips = self._parse_ai_response(response)
+            self._remember_scripts(tips)
             return tips
             
         except Exception as e:
@@ -171,11 +182,21 @@ class TipGenerator(LoggerMixin):
         hot_word_list = [str(w.get('word', '')).strip() for w in (hot_words or [])[:10] if w]
         hot_words_text = ', '.join([w for w in hot_word_list if w])
 
+        style_notes = ""
+        if self.style_memory and self.style_memory.available():
+            try:
+                style_notes = self.style_memory.fetch_context(self.anchor_id, k=6)
+            except Exception:
+                style_notes = ""
+        style_block = ""
+        if style_notes:
+            style_block = f"【历史画像与口头禅】\n{style_notes.strip()}\n\n"
+
         prompt = f"""
 你是资深直播运营的话术助手，会从“最近评论的语气/口头禅/节奏”和“热词/关注点”中学习主播语言风格，
 并生成可直接上嘴、能带动互动与气氛的短句。输出严格为 JSON 数组。
 
-【最近的观众评论节选】
+{style_block}【最近的观众评论节选】
 {comment_text}
 
 【当前热词】
@@ -253,8 +274,8 @@ class TipGenerator(LoggerMixin):
         try:
             # 尝试解析JSON
             tips_data = json.loads(response)
-            
-            tips = []
+
+            tips: List[Dict[str, Any]] = []
             for tip_data in tips_data:
                 tip = {
                     'id': str(uuid.uuid4()),
@@ -266,12 +287,34 @@ class TipGenerator(LoggerMixin):
                     'source': 'ai'
                 }
                 tips.append(tip)
-            
+
             return tips
-            
+
         except json.JSONDecodeError:
             self.logger.error("AI响应格式错误，无法解析JSON")
             return []
+
+    def _resolve_anchor_id(self, config) -> Optional[str]:
+        try:
+            if hasattr(config, "get"):
+                anchor = config.get("anchor_id") or config.get("douyin_room_id") or config.get("anchor_name")
+                if anchor:
+                    return str(anchor)
+            if isinstance(config, dict):
+                anchor = config.get("anchor_id") or config.get("douyin_room_id") or config.get("anchor_name")
+                if anchor:
+                    return str(anchor)
+        except Exception:
+            pass
+        return None
+
+    def _remember_scripts(self, scripts: List[Dict[str, Any]]) -> None:
+        if not scripts or not self.style_memory or not self.style_memory.available():
+            return
+        try:
+            self.style_memory.ingest_scripts(self.anchor_id, scripts)
+        except Exception:
+            pass
     
     def _add_tip_to_cache(self, tip: Dict[str, Any]):
         """添加话术到缓存"""

@@ -372,7 +372,7 @@ CREATE TABLE emotion_records (
 - **音频采集**: `AudioCapture` 基于 PyAudio 以 16kHz/单声道实时拉流，`AudioBuffer` 控制 10 秒滚动缓存并支持落盘调试。
 - **识别引擎**: `SenseVoiceService` 通过 FunASR 固定加载 `SenseVoiceSmall` 并启用 VAD；本地禁止切换 Medium/Large 或关闭 VAD。缺少 VAD/依赖将直接报错，不再回退。
 - **服务能力**: `server/app/api/live_audio.py` 暴露 REST (`/start`、`/stop`、`/status`) 与 WebSocket (`/ws`) 接口，支持直播音频直抓与增量/全文推送。
-- **客户端集成**: Electron 主进程按需拉起 `AST_module/test_server.py`，渲染层订阅 WebSocket/SSE 推送实现桌面端实时字幕。
+- **客户端集成**: Electron 主进程按需拉起 `AST_module/local_server.py`，渲染层订阅 WebSocket/SSE 推送实现桌面端实时字幕。
 
 #### 3.4.2 DouyinLiveWebFetcher 抓取服务
 - **抓取引擎**: `DouyinLiveWebFetcher/liveMan.py` 维护完整的抖音签名逻辑（`_ac_signature`、`X-Bogus` 生成）并通过 WebSocket 拉取弹幕、礼物、排行榜等事件。

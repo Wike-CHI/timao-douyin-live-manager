@@ -121,12 +121,28 @@ class LiveReportService:
         if handler is None:
             raise RuntimeError("Unsupported live URL")
         info = await handler.get_stream_info(live_url)
-        record_url = getattr(info, "flv_url", None) or getattr(info, "record_url", None)
-        if not record_url:
-            raise RuntimeError("Failed to resolve record URL")
+        if isinstance(info, dict):
+            is_live = info.get("is_live")
+            record_url = info.get("record_url") or info.get("flv_url") or info.get("m3u8_url")
+            anchor_raw = info.get("anchor_name", "")
+            platform = info.get("platform", "douyin") or "douyin"
+        else:
+            is_live = getattr(info, "is_live", None)
+            record_url = (
+                getattr(info, "record_url", None)
+                or getattr(info, "flv_url", None)
+                or getattr(info, "m3u8_url", None)
+            )
+            anchor_raw = getattr(info, "anchor_name", "")
+            platform = getattr(info, "platform", "douyin") or "douyin"
 
-        anchor = _safe_name(getattr(info, "anchor_name", ""))
-        platform = getattr(info, "platform", "douyin") or "douyin"
+        if is_live is False:
+            raise RuntimeError(f"直播间当前未开播，无法开始录制：{anchor_raw or live_id}")
+
+        if not record_url:
+            raise RuntimeError("Failed to resolve record URL (streams unavailable)")
+
+        anchor = _safe_name(anchor_raw)
         day = time.strftime("%Y-%m-%d", time.localtime())
         session_id = f"live_{platform}_{anchor}_{int(time.time())}"
         out_dir = self.records_root / platform / anchor / day / session_id
@@ -260,7 +276,11 @@ class LiveReportService:
             else:
                 # 使用 Qwen3-Max（OpenAI 兼容）进行一次性复盘
                 from ...ai.qwen_openai_compatible import analyze_live_session  # lazy import
-                ai_summary = analyze_live_session(transcript_txt, self._comments)
+                ai_summary = analyze_live_session(
+                    transcript_txt,
+                    self._comments,
+                    anchor_id=self._session.anchor_name,
+                )
                 (artifacts_dir / "ai_summary.json").write_text(
                     json.dumps(ai_summary, ensure_ascii=False, indent=2), encoding="utf-8"
                 )
@@ -425,7 +445,12 @@ class LiveReportService:
             # Qwen window analysis with carry-over
             try:
                 from ...ai.qwen_openai_compatible import analyze_window  # type: ignore
-                ai = analyze_window(text, comments, self._carry)
+                ai = analyze_window(
+                    text,
+                    comments,
+                    self._carry,
+                    anchor_id=self._session.anchor_name,
+                )
                 self._carry = str(ai.get("carry") or "")[:200]
             except Exception:
                 ai = {"error": "ai_unavailable"}

@@ -19,7 +19,7 @@ npm start
 ## 环境变量
 
 - `ALLOW_ORIGINS` 允许跨域来源，逗号分隔，例如：
-  - `ALLOW_ORIGINS=http://127.0.0.1:5173,https://auth.company.com`
+  - `ALLOW_ORIGINS=http://127.0.0.1:30013,https://auth.company.com`
 - `PORT` 服务端口（默认 8080）
 
 ## 镜像构建与部署（TCR + 云托管）

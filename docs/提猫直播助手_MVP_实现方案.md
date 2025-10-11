@@ -68,15 +68,15 @@ from typing import AsyncIterator
 
 class CommentCrawler:
     """评论爬取器 - MVP版本使用模拟数据"""
-    
+  
     def __init__(self, room_id: str):
         self.room_id = room_id
         self.is_running = False
-        
+      
     async def start_crawling(self) -> AsyncIterator[dict]:
         """开始爬取评论"""
         self.is_running = True
-        
+      
         # 模拟评论数据
         mock_comments = [
             "主播好棒！", "这个产品怎么样？", "有没有优惠券？",
@@ -84,7 +84,7 @@ class CommentCrawler:
             "支持主播！", "什么时候发货？", "有现货吗？",
             "颜色好看", "尺码怎么选", "包邮吗？"
         ]
-        
+      
         while self.is_running:
             comment = {
                 "id": f"c_{int(time.time())}{random.randint(100, 999)}",
@@ -93,10 +93,10 @@ class CommentCrawler:
                 "timestamp": datetime.now().isoformat(),
                 "room_id": self.room_id
             }
-            
+          
             yield comment
             await asyncio.sleep(random.uniform(1, 4))  # 1-4秒间隔
-    
+  
     def stop_crawling(self):
         """停止爬取"""
         self.is_running = False
@@ -113,10 +113,10 @@ from pathlib import Path
 
 class AudioService:
     """音频转录服务"""
-    
+  
     def __init__(self, openai_api_key: str):
         openai.api_key = openai_api_key
-    
+  
     async def transcribe_audio(self, audio_data: bytes) -> dict:
         """转录音频"""
         try:
@@ -124,7 +124,7 @@ class AudioService:
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
                 temp_file.write(audio_data)
                 temp_path = temp_file.name
-            
+          
             # 调用Whisper API
             with open(temp_path, "rb") as audio_file:
                 transcript = openai.Audio.transcribe(
@@ -132,16 +132,16 @@ class AudioService:
                     file=audio_file,
                     language="zh"
                 )
-            
+          
             # 清理临时文件
             os.unlink(temp_path)
-            
+          
             return {
                 "success": True,
                 "text": transcript.text,
                 "language": "zh"
             }
-            
+          
         except Exception as e:
             return {
                 "success": False,
@@ -160,23 +160,23 @@ from typing import List, Dict
 
 class AIAnalyzer:
     """AI分析引擎"""
-    
+  
     def __init__(self, openai_api_key: str):
         openai.api_key = openai_api_key
-    
+  
     async def analyze_comments(self, comments: List[str]) -> dict:
         """分析评论情感和话题"""
         if not comments:
             return {"topics": [], "sentiment": 0, "suggestions": []}
-            
+          
         comments_text = "\n".join(comments[-20:])  # 最近20条
-        
+      
         prompt = f"""
         分析以下直播评论，返回JSON格式结果：
-        
+      
         评论内容：
         {comments_text}
-        
+      
         请返回：
         {{
             "hot_topics": ["话题1", "话题2"],
@@ -185,7 +185,7 @@ class AIAnalyzer:
             "main_questions": ["问题1", "问题2"]
         }}
         """
-        
+      
         try:
             response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
@@ -193,27 +193,27 @@ class AIAnalyzer:
                 temperature=0.3,
                 max_tokens=500
             )
-            
+          
             result = json.loads(response.choices[0].message.content)
             return result
-            
+          
         except Exception as e:
             print(f"AI分析失败: {e}")
             return {"topics": [], "sentiment": 0, "suggestions": []}
-    
+  
     async def generate_suggestions(self, analysis: dict, transcript: str = "") -> List[str]:
         """生成AI建议"""
-        
+      
         prompt = f"""
         基于以下分析为主播生成3个实用建议：
-        
+      
         评论分析：{json.dumps(analysis, ensure_ascii=False)}
         主播最近说话：{transcript}
-        
+      
         请生成简洁实用的建议，每个不超过30字。
         返回JSON数组格式：["建议1", "建议2", "建议3"]
         """
-        
+      
         try:
             response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
@@ -221,10 +221,10 @@ class AIAnalyzer:
                 temperature=0.7,
                 max_tokens=300
             )
-            
+          
             suggestions = json.loads(response.choices[0].message.content)
             return suggestions if isinstance(suggestions, list) else []
-            
+          
         except Exception as e:
             print(f"建议生成失败: {e}")
             return ["关注观众提问", "保持互动热情", "适时介绍产品"]
@@ -240,33 +240,33 @@ import json
 
 class WebSocketManager:
     """WebSocket连接管理器"""
-    
+  
     def __init__(self):
         # room_id -> List[WebSocket]
         self.active_connections: Dict[str, List[WebSocket]] = {}
-    
+  
     async def connect(self, websocket: WebSocket, room_id: str):
         """建立连接"""
         await websocket.accept()
-        
+      
         if room_id not in self.active_connections:
             self.active_connections[room_id] = []
-            
+          
         self.active_connections[room_id].append(websocket)
         print(f"客户端连接到房间 {room_id}")
-    
+  
     def disconnect(self, websocket: WebSocket, room_id: str):
         """断开连接"""
         if room_id in self.active_connections:
             self.active_connections[room_id].remove(websocket)
-            
+          
         print(f"客户端从房间 {room_id} 断开")
-    
+  
     async def send_to_room(self, room_id: str, message: dict):
         """向房间内所有客户端发送消息"""
         if room_id not in self.active_connections:
             return
-            
+          
         disconnected = []
         for connection in self.active_connections[room_id]:
             try:
@@ -274,7 +274,7 @@ class WebSocketManager:
             except Exception as e:
                 print(f"发送消息失败: {e}")
                 disconnected.append(connection)
-        
+      
         # 清理断开的连接
         for conn in disconnected:
             self.active_connections[room_id].remove(conn)
@@ -296,24 +296,24 @@ import { useWebSocket } from '../hooks/useWebSocket';
 const CommentStream = ({ roomId }) => {
     const [comments, setComments] = useState([]);
     const { socket, isConnected } = useWebSocket();
-    
+  
     useEffect(() => {
         if (socket && isConnected) {
             socket.on('new_comment', (comment) => {
                 setComments(prev => [comment, ...prev.slice(0, 19)]); // 保持20条
             });
-            
+          
             // 加入房间
             socket.emit('join_room', { room_id: roomId });
         }
-        
+      
         return () => {
             if (socket) {
                 socket.off('new_comment');
             }
         };
     }, [socket, isConnected, roomId]);
-    
+  
     return (
         <Card 
             title={
@@ -361,7 +361,7 @@ import api from '../services/api';
 const AIPanel = ({ roomId }) => {
     const [suggestions, setSuggestions] = useState([]);
     const [loading, setLoading] = useState(false);
-    
+  
     const fetchSuggestions = async () => {
         setLoading(true);
         try {
@@ -373,15 +373,15 @@ const AIPanel = ({ roomId }) => {
             setLoading(false);
         }
     };
-    
+  
     useEffect(() => {
         fetchSuggestions();
-        
+      
         // 每30秒自动刷新
         const interval = setInterval(fetchSuggestions, 30000);
         return () => clearInterval(interval);
     }, [roomId]);
-    
+  
     return (
         <Card 
             title={
@@ -437,37 +437,37 @@ const AudioRecorder = ({ roomId }) => {
     const [transcripts, setTranscripts] = useState([]);
     const mediaRecorderRef = useRef(null);
     const chunksRef = useRef([]);
-    
+  
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const mediaRecorder = new MediaRecorder(stream);
             mediaRecorderRef.current = mediaRecorder;
             chunksRef.current = [];
-            
+          
             mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) {
                     chunksRef.current.push(event.data);
                 }
             };
-            
+          
             mediaRecorder.onstop = async () => {
                 const audioBlob = new Blob(chunksRef.current, { type: 'audio/wav' });
                 await uploadAudio(audioBlob);
-                
+              
                 // 停止所有音频轨道
                 stream.getTracks().forEach(track => track.stop());
             };
-            
+          
             mediaRecorder.start();
             setIsRecording(true);
             message.success('开始录音');
-            
+          
         } catch (error) {
             message.error('无法访问麦克风');
         }
     };
-    
+  
     const stopRecording = () => {
         if (mediaRecorderRef.current) {
             mediaRecorderRef.current.stop();
@@ -475,12 +475,12 @@ const AudioRecorder = ({ roomId }) => {
             message.success('录音已停止');
         }
     };
-    
+  
     const uploadAudio = async (audioBlob) => {
         const formData = new FormData();
         formData.append('audio', audioBlob, 'recording.wav');
         formData.append('room_id', roomId);
-        
+      
         try {
             const response = await api.post('/audio/upload', formData);
             const newTranscript = {
@@ -488,15 +488,15 @@ const AudioRecorder = ({ roomId }) => {
                 text: response.data.transcript,
                 timestamp: new Date().toLocaleTimeString()
             };
-            
+          
             setTranscripts(prev => [newTranscript, ...prev.slice(0, 9)]);
             message.success('音频转录完成');
-            
+          
         } catch (error) {
             message.error('音频上传失败');
         }
     };
-    
+  
     return (
         <Card 
             title="🎤 语音转录"
@@ -617,7 +617,8 @@ DEBUG=true
 ---
 
 **实现要点**:
+
 1. 使用模拟数据确保3天内可完成
-2. 优先核心功能，界面简洁实用  
+2. 优先核心功能，界面简洁实用
 3. 集成现成AI服务，避免重复造轮子
 4. Docker化部署，便于演示和测试

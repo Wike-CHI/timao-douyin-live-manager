@@ -14,6 +14,11 @@ from openai import OpenAI
 
 from ..models import AIScript, HotWord, Comment, create_success_response, create_error_response
 
+try:  # pragma: no cover - optional style memory
+    from .style_memory import StyleMemoryManager
+except Exception:  # pragma: no cover
+    StyleMemoryManager = None  # type: ignore
+
 
 class AIScriptGenerator:
     """AI话术生成器"""
@@ -31,6 +36,14 @@ class AIScriptGenerator:
         
         # 生成历史
         self.generation_history = []
+        self.anchor_id = (
+            self.config.get('anchor_id')
+            or self.config.get('douyin_room_id')
+            or self.config.get('anchor_name')
+        )
+        self.style_memory = StyleMemoryManager() if StyleMemoryManager else None
+        if not self.style_memory or not self.style_memory.available():
+            self.logger.debug("Style memory unavailable; fall back to request context only.")
     
     def _init_ai_client(self):
         """初始化AI客户端"""
@@ -165,6 +178,7 @@ class AIScriptGenerator:
             
             # 记录生成历史
             self._record_generation(script, generation_context)
+            self._remember_script(script)
             
             self.logger.info(f"话术生成成功: {script_type}")
             return script
@@ -206,6 +220,14 @@ class AIScriptGenerator:
         # 合并额外上下文
         if context:
             generation_context.update(context)
+
+        if self.style_memory and self.style_memory.available():
+            try:
+                notes = self.style_memory.fetch_context(self.anchor_id, k=6)
+            except Exception:
+                notes = ""
+            if notes:
+                generation_context.setdefault('style_memory_notes', notes)
         
         return generation_context
     
@@ -340,6 +362,13 @@ class AIScriptGenerator:
         if context.get('user_emotions'):
             emotions_text = "、".join(context['user_emotions'])
             prompt_parts.append(f"5. 观众情绪偏向：{emotions_text}")
+
+        style_memory_notes = context.get('style_memory_notes')
+        if style_memory_notes:
+            prompt_parts.append(
+                "请模仿以下历史记忆中总结的语言特征/口头禅（可择要借用，避免逐字复述）：\n"
+                f"{style_memory_notes}"
+            )
         
         # 问题信息
         if context.get('questions'):
@@ -490,6 +519,17 @@ class AIScriptGenerator:
         # 限制历史记录数量
         if len(self.generation_history) > 100:
             self.generation_history = self.generation_history[-50:]
+
+    def _remember_script(self, script: AIScript) -> None:
+        if not script or not self.style_memory or not self.style_memory.available():
+            return
+        try:
+            self.style_memory.ingest_scripts(
+                self.anchor_id,
+                [{"content": script.content, "type": script.type}],
+            )
+        except Exception:
+            pass
     
     def get_generation_stats(self) -> Dict[str, Any]:
         """获取生成统计信息"""

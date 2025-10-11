@@ -57,6 +57,7 @@ select {
   border-radius: 28px;
   box-shadow: 0 24px 40px rgba(var(--accent-rgb), 0.18);
   border: 1px solid rgba(255, 255, 255, 0.6);
+  -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
 }
 

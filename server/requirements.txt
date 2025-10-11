@@ -13,7 +13,7 @@ sqlalchemy>=2.0.0
 srt>=3.5.0
 requests>=2.31.0
 tqdm>=4.65.0
-numpy>=1.24.0
+numpy>=1.24.0,<2.0.0
 # sounddevice>=0.4.6  # 使用pyaudio替代
 pyaudio>=0.2.11
 aiohttp>=3.8.0
@@ -39,6 +39,11 @@ streamget>=4.0.8
 PyExecJS>=1.5.1
 py-mini-racer>=0.6.0
 betterproto>=2.0.0b6
+
+# LangChain style memory
+langchain>=0.1.16
+langchain-community>=0.0.38
+docarray>=0.32.2
 
 # 开发工具
 pytest>=7.4.0

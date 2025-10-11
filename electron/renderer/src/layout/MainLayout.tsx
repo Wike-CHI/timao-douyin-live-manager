@@ -18,6 +18,9 @@ const MainLayout = () => {
   const [bootstrap, setBootstrap] = useState<any>(null);
   const [showBoot, setShowBoot] = useState<boolean>(true);
   const [wsOk, setWsOk] = useState<boolean | null>(null);
+  const defaultApiBase = 'http://127.0.0.1:8007';
+  const injectedApiBase = ((import.meta.env?.VITE_FASTAPI_URL as string | undefined) || '').trim() || defaultApiBase;
+  const [apiBase, setApiBase] = useState<string>(injectedApiBase);
 
   const handleLogout = () => {
     logout();
@@ -32,22 +35,40 @@ const MainLayout = () => {
   useEffect(() => {
     let mounted = true;
     let t: any = null;
-    const base = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:8007';
     // quick WS probe (one-shot)
     const probeWS = () => {
       try {
-        const wsUrl = base.replace(/^http/i, 'ws').replace(/\/$/, '') + '/api/live_audio/ws';
+        const wsUrl = apiBase.replace(/^http/i, 'ws').replace(/\/$/, '') + '/api/live_audio/ws';
         const ws = new WebSocket(wsUrl);
-        const timer = setTimeout(() => { try { ws.close(); } catch {} if (mounted) setWsOk(false); }, 2000);
+        let settled = false;
+        const timer = setTimeout(() => {
+          if (!settled) {
+            try { ws.close(); } catch {}
+            if (mounted) setWsOk(false);
+          }
+        }, 2000);
         ws.onopen = () => { try { ws.send(JSON.stringify({ type: 'ping' })); } catch {} };
-        ws.onmessage = (ev) => { try { const m = JSON.parse(ev.data); if (m?.type === 'pong' && mounted) { setWsOk(true); } } catch {} };
+        ws.onmessage = (ev) => {
+          try {
+            const m = JSON.parse(ev.data);
+            if (m?.type === 'pong') {
+              settled = true;
+              clearTimeout(timer);
+              if (mounted) setWsOk(true);
+              try { ws.close(); } catch {}
+            }
+          } catch {}
+        };
         ws.onclose = () => { clearTimeout(timer); };
-        ws.onerror = () => { clearTimeout(timer); if (mounted) setWsOk(false); };
+        ws.onerror = () => {
+          clearTimeout(timer);
+          if (!settled && mounted) setWsOk(false);
+        };
       } catch { if (mounted) setWsOk(false); }
     };
     const poll = async () => {
       try {
-        const resp = await fetch(`${base}/api/bootstrap/status`);
+        const resp = await fetch(`${apiBase}/api/bootstrap/status`);
         const data = await resp.json();
         if (!mounted) return;
         setBootstrap(data || {});
@@ -57,25 +78,30 @@ const MainLayout = () => {
           setTimeout(() => setShowBoot(false), 2000);
           return;
         }
-      } catch {}
+      } catch {
+        if (apiBase !== defaultApiBase) {
+          setApiBase(defaultApiBase);
+          setWsOk(null);
+          return;
+        }
+      }
       t = setTimeout(poll, 1200);
     };
     poll();
     probeWS();
     return () => { mounted = false; if (t) clearTimeout(t); };
-  }, []);
+  }, [apiBase]);
 
   // 立即自检（前端触发一次性检查：bootstrap状态 + WS ping + 模型健康）
   const runQuickSelfTest = async () => {
-    const base = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:8007';
     setShowBoot(true);
     try {
       // refresh bootstrap status
-      const r0 = await fetch(`${base}/api/bootstrap/status`).catch(() => null);
+      const r0 = await fetch(`${apiBase}/api/bootstrap/status`).catch(() => null);
       const d0 = r0 ? await r0.json().catch(() => null) : null;
       if (d0) setBootstrap(d0);
       // model/VAD health
-      const r1 = await fetch(`${base}/api/live_audio/health`).catch(() => null);
+      const r1 = await fetch(`${apiBase}/api/live_audio/health`).catch(() => null);
       const d1 = r1 ? await r1.json().catch(() => null) : null;
       if (d1 && bootstrap) {
         setBootstrap({
@@ -86,15 +112,41 @@ const MainLayout = () => {
       }
       // WS probe
       try {
-        const wsUrl = base.replace(/^http/i, 'ws').replace(/\/$/, '') + '/api/live_audio/ws';
+        const wsUrl = apiBase.replace(/^http/i, 'ws').replace(/\/$/, '') + '/api/live_audio/ws';
         const ws = new WebSocket(wsUrl);
-        const timer = setTimeout(() => { try { ws.close(); } catch {} setWsOk(false); }, 2000);
+        let settled = false;
+        const timer = setTimeout(() => {
+          if (!settled) {
+            try { ws.close(); } catch {}
+            setWsOk(false);
+          }
+        }, 2000);
         ws.onopen = () => { try { ws.send(JSON.stringify({ type: 'ping' })); } catch {} };
-        ws.onmessage = (ev) => { try { const m = JSON.parse(ev.data); if (m?.type === 'pong') { setWsOk(true); } } catch {} };
+        ws.onmessage = (ev) => {
+          try {
+            const m = JSON.parse(ev.data);
+            if (m?.type === 'pong') {
+              settled = true;
+              clearTimeout(timer);
+              setWsOk(true);
+              try { ws.close(); } catch {}
+            }
+          } catch {}
+        };
         ws.onclose = () => { clearTimeout(timer); };
-        ws.onerror = () => { clearTimeout(timer); setWsOk(false); };
-      } catch { setWsOk(false); }
-    } catch {}
+        ws.onerror = () => { clearTimeout(timer); if (!settled) setWsOk(false); };
+      } catch {
+        if (apiBase !== defaultApiBase) {
+          setApiBase(defaultApiBase);
+          return;
+        }
+        setWsOk(false);
+      }
+    } catch {
+      if (apiBase !== defaultApiBase) {
+        setApiBase(defaultApiBase);
+      }
+    }
   };
 
   return (

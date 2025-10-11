@@ -10,7 +10,7 @@ const app = express();
 const upload = multer({ limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB
 
 // CORS：允许来源由环境变量控制，逗号分隔
-const allowOrigins = (process.env.ALLOW_ORIGINS || 'http://127.0.0.1:5173').split(',').map(s => s.trim());
+const allowOrigins = (process.env.ALLOW_ORIGINS || 'http://127.0.0.1:30013').split(',').map(s => s.trim());
 app.use(cors({ origin: (origin, cb) => cb(null, !origin || allowOrigins.includes(origin)), credentials: true }));
 app.use(express.json());
 

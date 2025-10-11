@@ -6,7 +6,7 @@
   "scripts": {
     "start": "electron .",
     "dev:renderer": "npm --prefix electron/renderer run dev",
-    "dev:electron": "wait-on http://localhost:5173 && electron .",
+    "dev:electron": "wait-on http://localhost:30013 && electron .",
     "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:electron\"",
     "build": "electron-builder",
     "test": "jest",

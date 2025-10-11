@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import React, { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { login } from '../../services/auth';
 import useAuthStore from '../../store/useAuthStore';
@@ -45,30 +45,42 @@ const LoginPage = () => {
         欢迎回来
       </h2>
       <p className="text-sm timao-support-text mb-6">使用已注册账号登录，体验 AI 直播助手。</p>
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-5" noValidate>
         <div>
-          <label className="block text-sm font-medium timao-support-text mb-2">邮箱</label>
+          <label htmlFor="login-email" className="block text-sm font-medium timao-support-text mb-2">
+            邮箱
+          </label>
           <input
+            id="login-email"
             type="email"
             className="timao-input"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="name@example.com"
             required
+            autoComplete="email"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium timao-support-text mb-2">密码</label>
+          <label htmlFor="login-password" className="block text-sm font-medium timao-support-text mb-2">
+            密码
+          </label>
           <input
+            id="login-password"
             type="password"
             className="timao-input"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="请输入密码"
             required
+            autoComplete="current-password"
           />
         </div>
-        {error && <div className="text-sm text-red-500 bg-red-50 rounded-xl px-3 py-2">{error}</div>}
+        {error && (
+          <div className="text-sm text-red-500 bg-red-50 rounded-xl px-3 py-2" role="alert">
+            {error}
+          </div>
+        )}
         <button type="submit" className="timao-primary-btn w-full" disabled={loading}>
           {loading ? '登录中...' : '登录'}
         </button>

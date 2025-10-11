@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import React, { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { register } from '../../services/auth';
 
@@ -54,51 +54,75 @@ const RegisterPage = () => {
         注册提猫账号
       </h2>
       <p className="text-sm timao-support-text mb-6">注册后即可体验直播管理与 AI 助手功能。</p>
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <div>
-          <label className="block text-sm font-medium timao-support-text mb-2">邮箱</label>
+          <label htmlFor="register-email" className="block text-sm font-medium timao-support-text mb-2">
+            邮箱
+          </label>
           <input
+            id="register-email"
             type="email"
             value={formData.email}
             onChange={(e) => handleChange('email', e.target.value)}
             className="timao-input"
             required
+            autoComplete="email"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium timao-support-text mb-2">昵称</label>
+          <label htmlFor="register-nickname" className="block text-sm font-medium timao-support-text mb-2">
+            昵称
+          </label>
           <input
+            id="register-nickname"
             value={formData.nickname}
             onChange={(e) => handleChange('nickname', e.target.value)}
             className="timao-input"
             placeholder="直播间昵称"
             required
+            autoComplete="nickname"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium timao-support-text mb-2">密码</label>
+          <label htmlFor="register-password" className="block text-sm font-medium timao-support-text mb-2">
+            密码
+          </label>
           <input
+            id="register-password"
             type="password"
             value={formData.password}
             onChange={(e) => handleChange('password', e.target.value)}
             className="timao-input"
             required
             minLength={6}
+            autoComplete="new-password"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium timao-support-text mb-2">确认密码</label>
+          <label htmlFor="register-confirm-password" className="block text-sm font-medium timao-support-text mb-2">
+            确认密码
+          </label>
           <input
+            id="register-confirm-password"
             type="password"
             value={formData.confirmPassword}
             onChange={(e) => handleChange('confirmPassword', e.target.value)}
             className="timao-input"
             required
             minLength={6}
+            autoComplete="new-password"
           />
         </div>
-        {error && <div className="text-sm text-red-500 bg-red-50 rounded-xl px-3 py-2">{error}</div>}
-        {success && <div className="text-sm text-green-500 bg-green-50 rounded-xl px-3 py-2">注册成功，即将跳转登录</div>}
+        {error && (
+          <div className="text-sm text-red-500 bg-red-50 rounded-xl px-3 py-2" role="alert">
+            {error}
+          </div>
+        )}
+        {success && (
+          <div className="text-sm text-green-500 bg-green-50 rounded-xl px-3 py-2" role="status">
+            注册成功，即将跳转登录
+          </div>
+        )}
         <button type="submit" className="timao-primary-btn w-full" disabled={loading}>
           {loading ? '注册中...' : '注册'}
         </button>

@@ -39,7 +39,7 @@
 
 2) 一键启动（推荐）
 - `npm run dev`
-- 行为：启动 Vite(5173) + Electron；Electron 自动拉起 FastAPI（uvicorn:8007）
+- 行为：启动 Vite(30013) + Electron；Electron 自动拉起 FastAPI（uvicorn:8007）
 
 3) 模型缓存（建议）
 - 设置模型缓存目录，避免下载到系统盘：
@@ -99,7 +99,7 @@ CMD ["node","index.js"]
 
 5) CORS 配置
 - 云端后端返回：`Access-Control-Allow-Origin: <你的来源>`, `Access-Control-Allow-Credentials: true`
-- 开发来源：`http://127.0.0.1:5173`；发行版 Electron 可能 `Origin:null`，可显式放行或通过本地后端转发
+- 开发来源：`http://127.0.0.1:30013`；发行版 Electron 可能 `Origin:null`，可显式放行或通过本地后端转发
 
 ### 三、渲染端指向云端鉴权
 - 设置 `VITE_AUTH_BASE_URL='https://auth.company.com'`
@@ -111,7 +111,7 @@ CMD ["node","index.js"]
 - 云端：鉴权/支付（/api/auth/*, /api/payment/*）→ 绑定 `auth.company.com`
 
 ## 故障排查
-- Electron 白屏（开发）：确认已启动 Vite(5173)
+- Electron 白屏（开发）：确认已启动 Vite(30013)
 - 端口冲突（8007）：避免重复拉起 uvicorn；或改端口并设置 `VITE_FASTAPI_URL`
 
 ## 模型与生成物不入库（重要）

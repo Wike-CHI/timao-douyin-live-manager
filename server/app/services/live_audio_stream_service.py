@@ -115,18 +115,16 @@ class LiveAudioStreamService:
         self._level_callbacks: Dict[str, Callable[[float, float], Awaitable[None] | None]] = {}
 
         # Config
-        # 优化音频块大小：减少延迟
-        self.chunk_seconds: float = 0.2  # 原值：1.0，减少80%延迟
         # Output mode: hard-lock to 'vad' per product requirement
         self.mode: str = "vad"
         # Model size: 'small'|'medium'|'large'
         self._model_size: str = "small"
-        # VAD params (seconds/levels); used when mode == 'vad'
-        # 激进VAD参数：优化延迟性能
-        self.vad_min_silence_sec: float = 0.3   # 原值：1.2，减少75%延迟
-        self.vad_min_speech_sec: float = 0.2    # 原值：1.0，减少80%延迟
-        self.vad_hangover_sec: float = 0.1      # 原值：0.30，减少67%延迟
-        self.vad_min_rms: float = 0.012         # 原值：0.020，更敏感检测
+        # Streaming/VAD parameters are applied via profile presets (default -> stable)
+        self.chunk_seconds: float = 0.8
+        self.vad_min_silence_sec: float = 0.80
+        self.vad_min_speech_sec: float = 0.50
+        self.vad_hangover_sec: float = 0.30
+        self.vad_min_rms: float = 0.018
         # Track partial text already emitted via delta
         self._partial_text: str = ""
         # VAD runtime state
@@ -137,7 +135,7 @@ class LiveAudioStreamService:
         # Duplicate suppression (final sentence level)
         self._last_sent_norms: List[str] = []  # keep recent normalized sentences
         # Soft constraints
-        self.min_sentence_chars: int = 8  # 恢复更稳默认，避免过短句
+        self.min_sentence_chars: int = 8  # 默认稳定配置，可通过 profile 覆盖
         # Stability gating for non-punctuation finals
         self._stable_prev_norm: str = ""
         self._stable_hits: int = 0
@@ -145,7 +143,13 @@ class LiveAudioStreamService:
         self._preload_busy: set[str] = set()
 
         # Profile name（fast|stable），用于一键切换参数
-        self.profile: str = "fast"
+        self.profile: str = "stable"
+        default_profile = os.environ.get("LIVE_AUDIO_PROFILE", self.profile)
+        try:
+            self.apply_profile(default_profile)
+        except Exception:
+            # Ensure at least stable defaults when profile application fails
+            self.apply_profile("stable")
 
         # Advanced filters removed (simplified pipeline)
         # Persistence (transcriptions)
@@ -168,9 +172,29 @@ class LiveAudioStreamService:
         if handler is None:
             raise RuntimeError("unsupported live URL")
         info = await handler.get_stream_info(f"https://live.douyin.com/{live_id}")
-        record_url = getattr(info, "flv_url", None) or getattr(info, "record_url", None)
+        # StreamCap returns a StreamData object (attrs) but defensive fallback supports dict
+        if isinstance(info, dict):
+            is_live = info.get("is_live")
+            record_url = info.get("record_url") or info.get("flv_url") or info.get("m3u8_url")
+            anchor_name = info.get("anchor_name")
+            resolved_live_url = info.get("live_url")
+        else:
+            is_live = getattr(info, "is_live", None)
+            record_url = (
+                getattr(info, "record_url", None)
+                or getattr(info, "flv_url", None)
+                or getattr(info, "m3u8_url", None)
+            )
+            anchor_name = getattr(info, "anchor_name", None)
+            resolved_live_url = getattr(info, "live_url", None)
+
+        if is_live is False:
+            raise RuntimeError(
+                f"直播间未开播，无法拉流（{anchor_name or live_id}）。请确认直播已开始后再试。"
+            )
+
         if not record_url:
-            raise RuntimeError("failed to resolve record URL")
+            raise RuntimeError("failed to resolve record URL (streams unavailable)")
 
         # Init SenseVoice on demand
         await self._ensure_sv()
@@ -179,7 +203,7 @@ class LiveAudioStreamService:
 
         self._status = LiveAudioStatus(
             is_running=True,
-            live_url=str(getattr(info, "live_url", f"https://live.douyin.com/{live_id}")),
+            live_url=str(resolved_live_url or f"https://live.douyin.com/{live_id}"),
             live_id=live_id,
             session_id=session_id or f"live_{int(time.time())}",
             started_at=_now(),
@@ -649,22 +673,48 @@ class LiveAudioStreamService:
                 "data": {"message": str(e)},
             })
             return
-        text_raw = (res or {}).get("text") or ""
+        raw_text = ""
+        if isinstance(res, dict):
+            raw_text = str(res.get("text") or "").strip()
+            if not raw_text:
+                raw_text = str(res.get("text_postprocessed") or "").strip()
+            if not raw_text:
+                segs = res.get("segments")
+                if isinstance(segs, list):
+                    parts: List[str] = []
+                    for seg in segs:
+                        if isinstance(seg, dict):
+                            t = str(seg.get("text") or "").strip()
+                            if t:
+                                parts.append(t)
+                    raw_text = " ".join(parts).strip()
         conf = float((res or {}).get("confidence") or 0.0)
         # 不进行说话人分离
         speaker = None
-        clean = self._cleaner.clean(text_raw)
+        clean = self._cleaner.clean(raw_text) if raw_text else ""
+        if not clean:
+            clean = raw_text
+        clean = (clean or "").strip()
         if not clean:
             return
         # Secondary segmentation inside VAD segment: split by punctuation and length
+        pending_short: str = ""
         for sent in self._split_sentences(clean):
             if not sent:
                 continue
-            if self.min_sentence_chars and len(sent) < self.min_sentence_chars:
-                # merge into next (skip short)
+            candidate = f"{pending_short}{sent}" if pending_short else sent
+            candidate = candidate.strip()
+            if self.min_sentence_chars and len(candidate) < self.min_sentence_chars:
+                pending_short = candidate
                 continue
-            if not self._is_duplicate_sentence(sent):
-                await self._emit_delta("final", sent, conf)
+            pending_short = ""
+            if not self._is_duplicate_sentence(candidate):
+                await self._emit_delta("final", candidate, conf)
+        if pending_short:
+            candidate = pending_short.strip()
+            if candidate:
+                if not self._is_duplicate_sentence(candidate):
+                    await self._emit_delta("final", candidate, conf)
         self._status.successful_transcriptions += 1
         s = self._status
         s.average_confidence = (

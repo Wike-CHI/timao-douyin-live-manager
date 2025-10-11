@@ -346,14 +346,6 @@ const DouyinRelayPanel = ({ baseUrl, maxMessages = DEFAULT_MAX_MESSAGES }: Douyi
           setRankList(parsedRanks);
           break;
         }
-        case 'room_control': {
-          // 房间控制消息不进入实时弹幕列表
-          break;
-        }
-        case 'room_stats': {
-          // 统计信息不进入实时弹幕列表
-          break;
-        }
         default:
           break;
       }

@@ -60,6 +60,15 @@ def generate_one(req: GenOneReq) -> Dict[str, Any]:
             "ai_base_url": os.getenv("AI_BASE_URL", DEFAULT_OPENAI_BASE_URL),
             "ai_model": os.getenv("AI_MODEL", DEFAULT_OPENAI_MODEL),
         }
+        anchor_id = None
+        if ctx.get("anchor_id"):
+            anchor_id = ctx["anchor_id"]
+        elif os.getenv("ANCHOR_ID"):
+            anchor_id = os.getenv("ANCHOR_ID")
+        elif os.getenv("DOUYIN_ROOM_ID"):
+            anchor_id = os.getenv("DOUYIN_ROOM_ID")
+        if anchor_id:
+            cfg["anchor_id"] = anchor_id
         gen = AIScriptGenerator(cfg)
 
         # 3) 生成单条话术（如果未配置 API Key，则走模板回退）

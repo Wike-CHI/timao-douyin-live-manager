@@ -15,7 +15,7 @@
    - 登录、注册、支付页面整体套用可爱风样式，并复用主题切换组件。
 2. **Electron / Vite 联调**
 
-   - 修改 `electron/main.js`：开发环境指向 `http://127.0.0.1:5173`，生产模式加载构建产物，必要时回退旧界面。
+   - 修改 `electron/main.js`：开发环境指向 `http://127.0.0.1:30013`，生产模式加载构建产物，必要时回退旧界面。
    - 更新根 `package.json` 脚本，使用 `concurrently` 启动 Renderer + Electron；新增 `postinstall` 自动安装子项目依赖。
    - Renderer 侧配置 Vite 端口、TypeScript 别名和 Tailwind.
 3. **认证与支付流程**

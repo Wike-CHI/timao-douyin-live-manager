@@ -26,11 +26,13 @@ class WindowReq(BaseModel):
     transcript: str = Field(..., description="5分钟口播文本")
     comments: List[CommentItem] = Field(default_factory=list)
     prev_summary: Optional[str] = Field(None, description="上一窗口carry摘要，可为空")
+    anchor_id: Optional[str] = Field(None, description="主播ID或名称，用于检索历史记忆")
 
 
 class LiveReq(BaseModel):
     transcript: str
     comments: List[CommentItem] = Field(default_factory=list)
+    anchor_id: Optional[str] = Field(None, description="主播ID或名称，用于检索历史记忆")
 
 
 @router.post("/test_window")
@@ -46,7 +48,7 @@ def test_window(req: WindowReq) -> Dict[str, Any]:
             }
             for c in req.comments
         ]
-        out = analyze_window(req.transcript, comments, req.prev_summary)
+        out = analyze_window(req.transcript, comments, req.prev_summary, anchor_id=req.anchor_id)
         return {"success": True, "data": out}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -65,8 +67,7 @@ def test_live(req: LiveReq) -> Dict[str, Any]:
             }
             for c in req.comments
         ]
-        out = analyze_live_session(req.transcript, comments)
+        out = analyze_live_session(req.transcript, comments, anchor_id=req.anchor_id)
         return {"success": True, "data": out}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-

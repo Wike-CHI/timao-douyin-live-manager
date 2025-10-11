@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getWallet, recharge } from '../../services/auth';
 import useAuthStore from '../../store/useAuthStore';
@@ -56,15 +56,20 @@ const WalletPage = () => {
       </div>
 
       <div className="mt-6">
-        <label className="block text-sm mb-2">充值金额</label>
+        <label htmlFor="wallet-amount" className="block text-sm mb-2">
+          充值金额
+        </label>
         <div className="flex gap-2">
           <input
+            id="wallet-amount"
             type="number"
             min={1}
             step={1}
             value={amount}
             onChange={(e) => setAmount(Number(e.target.value || 0))}
             className="flex-1 px-3 py-2 rounded bg-white/10 outline-none focus:ring-2 focus:ring-purple-500"
+            aria-describedby="wallet-amount-help"
+            required
           />
           <button
             onClick={handleRecharge}
@@ -80,7 +85,7 @@ const WalletPage = () => {
         <div className="mt-4 text-sm text-red-400">{error}</div>
       )}
 
-      <div className="mt-8 text-sm text-gray-400">
+      <div id="wallet-amount-help" className="mt-8 text-sm text-gray-400">
         说明：余额可用于启动一次实时转写；若余额不足且未使用过首次免费，将在启动时自动使用首次免费额度。
       </div>
     </div>

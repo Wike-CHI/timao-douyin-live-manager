@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 
 const isDev = !app.isPackaged;
-const rendererDevServerURL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.0.1:5173';
+const rendererDevServerURL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.0.1:30013';
 
 // 保持对窗口对象的全局引用，如果不这样做，窗口会在JavaScript对象被垃圾回收时自动关闭
 let mainWindow;

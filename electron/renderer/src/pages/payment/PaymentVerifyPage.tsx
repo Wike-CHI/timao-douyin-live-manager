@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useState } from 'react';
+import React, { ChangeEvent, FormEvent, useState } from 'react';
 import useAuthStore from '../../store/useAuthStore';
 import { pollPayment, uploadPayment } from '../../services/auth';
 
@@ -61,13 +61,21 @@ const PaymentVerifyPage = () => {
       <p className={`text-sm mb-4 ${statusColor}`}>{message}</p>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="border-2 border-dashed border-purple-200/70 rounded-3xl p-6 text-center bg-white/70">
+          <label htmlFor="payment-proof" className="block text-sm font-medium text-purple-500 mb-3">
+            上传支付凭证
+          </label>
           <input
+            id="payment-proof"
             type="file"
             accept="image/png,image/jpeg"
             onChange={handleFileChange}
             className="w-full text-sm text-slate-500"
+            aria-describedby="payment-proof-help"
+            required
           />
-          <p className="text-xs timao-support-text mt-2">支持 PNG/JPG，大小 &lt; 5MB</p>
+          <p id="payment-proof-help" className="text-xs timao-support-text mt-2">
+            支持 PNG/JPG，大小 &lt; 5MB
+          </p>
         </div>
         <button type="submit" className="timao-primary-btn w-full" disabled={loading}>
           {loading ? '审核中...' : '提交审核'}

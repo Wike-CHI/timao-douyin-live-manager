@@ -4,7 +4,7 @@ const FASTAPI_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefine
 
 const HOTWORDS_PLACEHOLDER = '{ "replace": { "正确词": ["变体1", "变体2"] } }';
 
-const ToolsPage = () => {
+const ToolsPage: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [hotwords, setHotwords] = useState<any>({ replace: {} });
   const [message, setMessage] = useState<string | null>(null);
@@ -263,12 +263,14 @@ const ToolsPage = () => {
           </h3>
         </div>
         <div className="flex items-center gap-3 mb-3">
+          <label htmlFor="hotwords-file" className="text-sm font-medium timao-support-text">
+            导入热词 JSON
+          </label>
           <input
             id="hotwords-file"
             type="file"
             accept="application/json"
-            aria-label="导入热词JSON"
-            title="导入热词JSON"
+            aria-describedby="hotwords-file-help"
             onChange={(e) => {
             const f = e.target.files?.[0];
             if (f) importJson(f);
@@ -288,7 +290,7 @@ const ToolsPage = () => {
           }} disabled={busy}>恢复默认</button>
           <button className="timao-outline-btn" onClick={fetchHotwords} disabled={busy}>刷新</button>
         </div>
-        <div className="text-xs timao-support-text mb-2">可直接编辑 JSON：正确词 → 变体列表</div>
+        <div id="hotwords-file-help" className="text-xs timao-support-text mb-2">可直接编辑 JSON：正确词 → 变体列表</div>
         <textarea
           id="hotwords-json-editor"
           className="timao-input w-full h-64 font-mono text-xs"

@@ -1,42 +1,96 @@
 <!doctype html>
-<meta charset="utf-8">
-<title>跳转 · 提猫直播助手</title>
-<style>
-  body{font-family:Segoe UI,Arial,sans-serif;background:#f7f7fb;color:#344;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
-  .card{background:#fff;border-radius:16px;box-shadow:0 12px 28px rgba(0,0,0,.06);padding:24px 20px;max-width:520px}
-  h1{font-size:18px;margin:0 0 10px}
-  .muted{color:#778}
-  a{color:#6a5acd;text-decoration:none}
-  a:hover{text-decoration:underline}
-  .tips{font-size:12px;color:#99a;margin-top:10px}
-  .btn{display:inline-block;margin-top:12px;background:#6a5acd;color:#fff;border-radius:8px;padding:8px 12px}
-  .btn:hover{background:#5a4abc}
-  code{background:#f0ebff;padding:2px 6px;border-radius:6px}
-  ul{margin:8px 0 0 18px}
-</style>
-<div class="card">
-  <h1>正在跳转到“直播音频转写”控制台…</h1>
-  <div class="muted">如果没有自动跳转，请手动点击下面的链接。</div>
-  <div style="margin-top:10px">
-    <a id="link-dev" href="http://127.0.0.1:5173/#/live" class="btn">打开开发服务器控制台</a>
-  </div>
-  <div class="tips">
-    备用链接：<a id="link-static" href="http://127.0.0.1:8007/static/live_test.html">/static/live_test.html</a>
-    <ul>
-      <li>确保 FastAPI 已启动：<code>uvicorn server.app.main:app --port 8007</code></li>
-      <li>确保 Electron 已启动：<code>npm run dev</code></li>
-    </ul>
-  </div>
-</div>
-<script>
-  (async function(){
-    try {
-      const ok = await fetch('http://127.0.0.1:5173', { method:'HEAD' }).then(r=>r.ok).catch(()=>false);
-      if (ok) { location.replace('http://127.0.0.1:5173/#/live'); return; }
-    } catch {}
-    try {
-      const ok2 = await fetch('http://127.0.0.1:8007/health').then(r=>r.ok).catch(()=>false);
-      if (ok2) { location.replace('http://127.0.0.1:8007/static/live_test.html'); return; }
-    } catch {}
-  })();
-</script>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>跳转 · 提猫直播助手</title>
+    <style>
+      body {
+        font-family: Segoe UI, Arial, sans-serif;
+        background: #f7f7fb;
+        color: #344;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        margin: 0;
+      }
+      .card {
+        background: #fff;
+        border-radius: 16px;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, .06);
+        padding: 24px 20px;
+        max-width: 520px;
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0 0 10px;
+      }
+      .muted {
+        color: #778;
+      }
+      a {
+        color: #6a5acd;
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      .tips {
+        font-size: 12px;
+        color: #99a;
+        margin-top: 10px;
+      }
+      .btn {
+        display: inline-block;
+        margin-top: 12px;
+        background: #6a5acd;
+        color: #fff;
+        border-radius: 8px;
+        padding: 8px 12px;
+      }
+      .btn:hover {
+        background: #5a4abc;
+      }
+      .link-area {
+        margin-top: 10px;
+      }
+      code {
+        background: #f0ebff;
+        padding: 2px 6px;
+        border-radius: 6px;
+      }
+      ul {
+        margin: 8px 0 0 18px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>正在跳转到“直播音频转写”控制台…</h1>
+      <div class="muted">如果没有自动跳转，请手动点击下面的链接。</div>
+      <div class="link-area">
+        <a id="link-dev" href="http://127.0.0.1:30013/#/live" class="btn">打开开发服务器控制台</a>
+      </div>
+      <div class="tips">
+        备用链接：<a id="link-static" href="http://127.0.0.1:8007/static/live_test.html">/static/live_test.html</a>
+        <ul>
+          <li>确保 FastAPI 已启动：<code>uvicorn server.app.main:app --port 8007</code></li>
+          <li>确保 Electron 已启动：<code>npm run dev</code></li>
+        </ul>
+      </div>
+    </div>
+    <script>
+      (async function(){
+        try {
+          const ok = await fetch('http://127.0.0.1:30013', { method: 'HEAD' }).then(r => r.ok).catch(() => false);
+          if (ok) { location.replace('http://127.0.0.1:30013/#/live'); return; }
+        } catch {}
+        try {
+          const ok2 = await fetch('http://127.0.0.1:8007/health').then(r => r.ok).catch(() => false);
+          if (ok2) { location.replace('http://127.0.0.1:8007/static/live_test.html'); return; }
+        } catch {}
+      })();
+    </script>
+  </body>
+</html>
