@@ -36,6 +36,12 @@ try:  # pragma: no cover - optional style memory
     _STYLE_MANAGER = StyleMemoryManager()
 except Exception:  # pragma: no cover
     _STYLE_MANAGER = None  # type: ignore
+try:  # pragma: no cover - optional feedback memory
+    from .feedback_memory import get_feedback_manager
+
+    _FEEDBACK_MANAGER = get_feedback_manager()
+except Exception:  # pragma: no cover
+    _FEEDBACK_MANAGER = None  # type: ignore
 
 
 def _get_client():
@@ -88,10 +94,20 @@ def _style_context(anchor_id: Optional[str]) -> str:
     return ""
 
 
+def _feedback_context(anchor_id: Optional[str]) -> str:
+    if _FEEDBACK_MANAGER and _FEEDBACK_MANAGER.available():
+        try:
+            return _FEEDBACK_MANAGER.build_guidance(anchor_id, top_k=4)
+        except Exception:
+            return ""
+    return ""
+
+
 def build_messages(
     transcript: str,
     comments: List[Dict[str, Any]],
     style_notes: str = "",
+    feedback_notes: str = "",
 ) -> List[Dict[str, Any]]:
     """Builds the prompt for a full-session review.
 
@@ -111,12 +127,20 @@ def build_messages(
             f"{style_notes.strip()}\n\n"
         )
 
+    guidance_block = ""
+    if feedback_notes:
+        guidance_block = (
+            "\n【人工评分反馈】请保留以下优点并避免风险表达：\n"
+            f"{feedback_notes}\n"
+        )
+
     system = (
         "你是直播运营总监风格的AI教练，擅长从‘主播口播转写’和‘弹幕氛围’中学习语言风格，"
         "并给出可执行的复盘与可直接上嘴的话术。请输出严格JSON，包含但不限于以下字段："
         "{highlight_points:[], risks:[], suggestions:[], top_questions:[], scripts:[{text,type,tags}],"
         " style_profile:{persona,tone,tempo,register,slang:[],catchphrases:[],rhetoric:[]},"
         " vibe:{level: \"cold|neutral|hot\", score: 0-100, trends: []}}。"
+        f"{guidance_block}"
         "要求："
         "1) 先从口播转写中总结‘语言风格画像（style_profile）’，含语气(俏皮/专业/热情等)、节奏(慢/中/快)、"
         "常用词与口头禅、句式与修辞；"
@@ -155,7 +179,13 @@ def analyze_live_session(
     client = _get_client()
     model = DEFAULT_OPENAI_MODEL
     notes = _style_context(anchor_id)
-    messages = build_messages(transcript, comments, style_notes=notes)
+    feedback_notes = _feedback_context(anchor_id)
+    messages = build_messages(
+        transcript,
+        comments,
+        style_notes=notes,
+        feedback_notes=feedback_notes,
+    )
     # Ask model to output JSON strictly
     messages.append({
         "role": "user",
@@ -197,9 +227,12 @@ def analyze_window(
     model = DEFAULT_OPENAI_MODEL
     t_clip, comments_digest, top_users_text = _digest(transcript, comments)
     style_notes = _style_context(anchor_id)
+    feedback_notes = _feedback_context(anchor_id)
     style_block = ""
     if style_notes:
         style_block = f"【历史画像与口头禅】\n{style_notes.strip()}\n\n"
+    if feedback_notes:
+        style_block += f"【人工评分反馈】\n{feedback_notes.strip()}\n\n"
 
     # Window-level prompt emphasizes continuity: carry over the style and
     # actionable next-step scripts to heat up the room.

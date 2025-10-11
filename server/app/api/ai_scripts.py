@@ -9,7 +9,7 @@ Falls back to template generation if AI key is not configured.
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -24,6 +24,17 @@ class GenOneReq(BaseModel):
     include_context: bool = Field(True, description="是否注入 style_profile/vibe")
     # 可选直传热词或其他上下文
     context: Optional[Dict[str, Any]] = Field(None, description="额外上下文，覆盖/补充生成上下文")
+
+
+class FeedbackReq(BaseModel):
+    script_id: str = Field(..., description="AI 生成结果的唯一标识")
+    script_text: str = Field(..., description="AI 输出的原始话术内容")
+    score: int = Field(..., ge=1, le=5, description="人工评分，1-2 视为负面，4-5 视为正面")
+    tags: List[str] = Field(default_factory=list, description="可选标签，如语气、风险等")
+    anchor_id: Optional[str] = Field(None, description="主播或房间ID，用于区分记忆")
+    metadata: Optional[Dict[str, Any]] = Field(
+        None, description="额外上下文，如style_profile/vibe等，便于后端记录"
+    )
 
 
 @router.post("/generate_one")
@@ -76,3 +87,38 @@ def generate_one(req: GenOneReq) -> Dict[str, Any]:
         return {"success": True, "data": script.to_dict()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/feedback")
+def submit_feedback(req: FeedbackReq) -> Dict[str, Any]:
+    try:
+        from ...ai.feedback_memory import get_feedback_manager  # lazy import
+    except Exception as exc:  # pragma: no cover
+        raise HTTPException(status_code=500, detail=f"反馈模块不可用: {exc}") from exc
+
+    manager = get_feedback_manager()
+    manager.record_feedback(
+        anchor_id=req.anchor_id,
+        script_id=req.script_id,
+        script_text=req.script_text,
+        score=req.score,
+        tags=req.tags,
+        metadata=req.metadata,
+    )
+
+    # 高分脚本同步写入风格记忆，帮助 LangChain 检索更精确
+    if req.score >= 4:
+        try:
+            from ...ai.style_memory import StyleMemoryManager  # type: ignore
+
+            style_manager = StyleMemoryManager()
+            if style_manager and style_manager.available():
+                style_manager.ingest_scripts(
+                    req.anchor_id,
+                    [{"text": req.script_text, "tags": req.tags, "score": req.score}],
+                )
+        except Exception:
+            # 如果写入失败不影响主流程
+            pass
+
+    return {"success": True}

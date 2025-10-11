@@ -18,6 +18,10 @@ try:  # pragma: no cover - optional style memory
     from .style_memory import StyleMemoryManager
 except Exception:  # pragma: no cover
     StyleMemoryManager = None  # type: ignore
+try:  # pragma: no cover - optional feedback memory
+    from .feedback_memory import FeedbackMemoryManager
+except Exception:  # pragma: no cover
+    FeedbackMemoryManager = None  # type: ignore
 
 
 class AIScriptGenerator:
@@ -44,6 +48,9 @@ class AIScriptGenerator:
         self.style_memory = StyleMemoryManager() if StyleMemoryManager else None
         if not self.style_memory or not self.style_memory.available():
             self.logger.debug("Style memory unavailable; fall back to request context only.")
+        self.feedback_memory = FeedbackMemoryManager() if FeedbackMemoryManager else None
+        if not self.feedback_memory or not self.feedback_memory.available():
+            self.logger.debug("Feedback memory unavailable; prompts will not include human ratings.")
     
     def _init_ai_client(self):
         """初始化AI客户端"""
@@ -228,6 +235,14 @@ class AIScriptGenerator:
                 notes = ""
             if notes:
                 generation_context.setdefault('style_memory_notes', notes)
+
+        if self.feedback_memory and self.feedback_memory.available():
+            try:
+                guidance = self.feedback_memory.build_guidance(self.anchor_id, top_k=4)
+            except Exception:
+                guidance = ""
+            if guidance:
+                generation_context.setdefault('feedback_guidance', guidance)
         
         return generation_context
     
@@ -368,6 +383,13 @@ class AIScriptGenerator:
             prompt_parts.append(
                 "请模仿以下历史记忆中总结的语言特征/口头禅（可择要借用，避免逐字复述）：\n"
                 f"{style_memory_notes}"
+            )
+
+        feedback_guidance = context.get('feedback_guidance')
+        if feedback_guidance:
+            prompt_parts.append(
+                "参考近期人工评分反馈，保留优点并避免风险表达：\n"
+                f"{feedback_guidance}"
             )
         
         # 问题信息
