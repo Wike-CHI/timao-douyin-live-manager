@@ -9,7 +9,7 @@
   - 直播事件：通过 `DouyinLiveWebFetcher` 采集弹幕/礼物/点赞等事件。
 - 分析与生成：
   - 实时分析：`AILiveAnalyzer` 将“最终转写句子 + 弹幕事件”按时间窗聚合，调用 Qwen（OpenAI 兼容接口）做风格/氛围分析与脚本建议，结果通过 SSE 推送。
-  - 单条话术生成：`AIScriptGenerator` 在上下文（style_profile/vibe）与模板/AI之间选择生成；支持人工评分写入记忆。
+  - 单条话术生成：`AIScriptGenerator` 在注入 style_profile/vibe 等上下文后调用 Qwen（OpenAI 兼容接口）生成话术；支持人工评分写入记忆。
 - 记忆与检索：可选的 LangChain 向量记忆用于“风格画像”和“反馈指导”的积累与检索，提升后续提示词质量。
 
 ## 模块与数据流
@@ -60,7 +60,7 @@ flowchart LR
   - StreamCap 解析 → ffmpeg 拉流 → SenseVoice+VAD → Cleaner/Guard/Assembler → 最终句回调
   - 相关 API：`server/app/api/live_audio.py`
 - 单条话术生成：`server/ai/generator.py` + `server/app/api/ai_scripts.py`
-  - 读取 `style_profile/vibe` 上下文，优先使用 Qwen（OpenAI 兼容）生成；无密钥时走模板回退
+  - 读取 `style_profile/vibe` 上下文，调用 Qwen（OpenAI 兼容）生成；缺少密钥将直接返回错误提示配置。
   - 人工评分通过 `FeedbackMemory` 写入记忆，提升后续提示词
 
 ## LangChain / LangGraph 使用情况
@@ -81,12 +81,11 @@ flowchart LR
 ## 接口与交互摘要
 - `/api/live_audio/*`：启动/停止/状态/健康检查/预加载模型等（WebSocket 用于转写流与输入电平广播）。
 - `/api/ai/live/*`：启动/停止/状态/上下文/流（SSE 推送实时分析结果）。
-- `/api/ai/scripts/generate_one`：结合上下文生成单条可上嘴话术（模板/AI）；`/feedback` 记录人工评分并同步写入风格记忆。
+- `/api/ai/scripts/generate_one`：结合上下文调用 Qwen 生成单条可上嘴话术；`/feedback` 记录人工评分并同步写入风格记忆。
 
 ## 依赖与配置
 - SenseVoice 与 VAD 本地模型位于 `models/models/iic/...`，首次运行建议执行工具脚本下载。
-- Qwen（DashScope 兼容）默认密钥/地址/模型在 `server/ai/qwen_openai_compatible.py` 中配置，可通过环境变量覆盖：
-  - `AI_SERVICE`、`AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL`、`ANCHOR_ID/DOUYIN_ROOM_ID`。
+- Qwen（DashScope 兼容）默认使用环境变量加载密钥/地址/模型（如 `.env` 中的 `AI_SERVICE`、`AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL`、`ANCHOR_ID/DOUYIN_ROOM_ID`）。
 - LangChain 记忆为可选，安装 `langchain`、`langchain-community`、`langchain-huggingface` 可启用更优嵌入与检索；缺失时自动回退。
 
 ## 结论与建议

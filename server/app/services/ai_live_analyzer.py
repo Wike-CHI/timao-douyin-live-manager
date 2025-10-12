@@ -10,13 +10,26 @@ from __future__ import annotations
 
 import asyncio
 import time
+import logging
+import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set
 
 try:
-    from ...ai.qwen_openai_compatible import analyze_window  # type: ignore
+    from ...ai.qwen_openai_compatible import (  # type: ignore
+        analyze_window,
+        DEFAULT_OPENAI_API_KEY,
+        DEFAULT_OPENAI_BASE_URL,
+        DEFAULT_OPENAI_MODEL,
+    )
 except Exception:  # pragma: no cover
     analyze_window = None  # type: ignore
+    DEFAULT_OPENAI_API_KEY = ""
+    DEFAULT_OPENAI_BASE_URL = ""
+    DEFAULT_OPENAI_MODEL = ""
+
+from ...ai.generator import AIScriptGenerator
+from ...ai.langgraph_live_workflow import LiveWorkflowConfig, ensure_workflow
 
 from .live_audio_stream_service import get_live_audio_service
 from .douyin_web_relay import get_douyin_web_relay
@@ -24,6 +37,9 @@ from .douyin_web_relay import get_douyin_web_relay
 
 def _now_ms() -> int:
     return int(time.time() * 1000)
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -38,6 +54,7 @@ class AIState:
     # Persisted context for other modules to reuse/style-mimic
     style_profile: Dict[str, Any] = field(default_factory=dict)
     vibe: Dict[str, Any] = field(default_factory=dict)
+    anchor_id: Optional[str] = None
 
 
 class AILiveAnalyzer:
@@ -50,13 +67,21 @@ class AILiveAnalyzer:
         # hook ids for live_audio callbacks
         self._cb_name: Optional[str] = None
         self._relay_queue: Optional[asyncio.Queue] = None
+        self._anchor_id = self._resolve_anchor_id()
+        self._generator: Optional[AIScriptGenerator] = None
+        self._workflow = None
+        self._init_workflow()
 
     # -------------- Public API --------------
     async def start(self, window_sec: int = 90) -> Dict[str, Any]:
         async with self._lock:
             if self._state.active:
                 return {"success": True, "message": "already running"}
-            self._state = AIState(active=True, window_sec=max(30, int(window_sec)))
+            self._state = AIState(
+                active=True,
+                window_sec=max(30, int(window_sec)),
+                anchor_id=self._anchor_id,
+            )
             await self._attach_hooks()
             self._task = asyncio.create_task(self._run_loop())
             return {"success": True}
@@ -106,6 +131,75 @@ class AILiveAnalyzer:
         self._clients.discard(q)
 
     # -------------- Internals --------------
+    def _resolve_anchor_id(self) -> Optional[str]:
+        return (
+            os.getenv("ANCHOR_ID")
+            or os.getenv("DOUYIN_ROOM_ID")
+            or os.getenv("AI_ANCHOR_ID")
+            or None
+        )
+
+    def _build_generator_config(self, anchor_id: Optional[str]) -> Dict[str, Any]:
+        cfg = {
+            "ai_service": os.getenv("AI_SERVICE", "qwen"),
+            "ai_api_key": os.getenv("AI_API_KEY", DEFAULT_OPENAI_API_KEY),
+            "ai_base_url": os.getenv("AI_BASE_URL", DEFAULT_OPENAI_BASE_URL),
+            "ai_model": os.getenv("AI_MODEL", DEFAULT_OPENAI_MODEL),
+        }
+        if anchor_id:
+            cfg["anchor_id"] = anchor_id
+        return cfg
+
+    def _init_workflow(self) -> None:
+        try:
+            cfg = self._build_generator_config(self._anchor_id)
+            self._generator = AIScriptGenerator(cfg)
+            wf_config = LiveWorkflowConfig(anchor_id=self._anchor_id)
+            self._workflow = ensure_workflow(self._generator, wf_config)
+            self._state.anchor_id = self._anchor_id
+        except Exception as exc:  # pragma: no cover
+            logger.warning("Failed to initialize LangGraph workflow: %s", exc)
+            self._generator = None
+            self._workflow = None
+
+    def _format_workflow_payload(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        planner = {
+            "route": result.get("planner_route"),
+            "notes": result.get("planner_notes") or {},
+        }
+        payload = {
+            "summary": result.get("summary"),
+            "highlight_points": result.get("highlight_points", []),
+            "risks": result.get("risks", []),
+            "suggestions": result.get("suggestions", []),
+            "top_questions": result.get("top_questions", []),
+            "scripts": result.get("scripts", []),
+            "score_summary": result.get("score_summary", {}),
+            "topic_candidates": result.get("topic_candidates", []),
+            "planner": planner,
+            "style_profile": result.get("persona", {}),
+            "vibe": result.get("vibe", {}),
+        }
+        return payload
+
+    def _run_workflow(
+        self,
+        sentences: List[str],
+        comments: List[Dict[str, Any]],
+        window_start: float,
+    ) -> Dict[str, Any]:
+        if self._workflow is None:
+            raise RuntimeError("LangGraph workflow not available")
+        state: Dict[str, Any] = {
+            "anchor_id": self._anchor_id or "default",
+            "broadcaster_id": self._anchor_id or "default",
+            "window_start": window_start,
+            "sentences": sentences,
+            "comments": comments,
+        }
+        result = self._workflow.invoke(state)  # type: ignore[arg-type]
+        return self._format_workflow_payload(result)
+
     async def _attach_hooks(self) -> None:
         # Subscribe to live_audio final sentences
         svc = get_live_audio_service()
@@ -184,33 +278,52 @@ class AILiveAnalyzer:
         if _now_ms() - s.last_window_ts < s.window_sec * 1000:
             return
         # prepare window
-        transcript = "\n".join(s.sentences[-100:])  # last 100 sentences
-        comments = list(s.comments[-200:])  # last 200 events
+        window_sentences = list(s.sentences[-100:])
+        comments_window = list(s.comments[-200:])
+        transcript = "\n".join(window_sentences)
+        window_started_at = time.time()
         s.last_window_ts = _now_ms()
         s.sentences.clear()
         s.comments.clear()
 
-        if not transcript and not comments:
+        if not transcript and not comments_window:
             return
 
         # call AI
         try:
+            payload = self._run_workflow(window_sentences, comments_window, window_started_at)
+        except Exception as exc:
+            logger.exception("LangGraph workflow failed, fallback to legacy analyzer: %s", exc)
             if analyze_window is None:
-                raise RuntimeError("AI analyzer not available")
-            ai = analyze_window(transcript, comments, s.carry)  # type: ignore
-            # persist carry for continuity if present
-            if isinstance(ai, dict):
-                s.carry = str(ai.get("carry") or "")[:200]
-                s.last_result = ai
-                # update style & vibe snapshots if provided
-                if isinstance(ai.get("style_profile"), dict):
-                    s.style_profile = ai.get("style_profile") or {}
-                if isinstance(ai.get("vibe"), dict):
-                    s.vibe = ai.get("vibe") or {}
+                payload = {"error": str(exc)}
             else:
-                s.last_result = {"summary": str(ai)}
-        except Exception as e:
-            s.last_result = {"error": str(e)}
+                legacy = analyze_window(transcript, comments_window, s.carry, anchor_id=self._anchor_id)  # type: ignore[arg-type]
+                if isinstance(legacy, dict):
+                    payload = legacy
+                else:
+                    payload = {"summary": str(legacy)}
+
+        # persist carry & context snapshots
+        s.carry = str(payload.get("summary") or "")[:200]
+        if isinstance(payload.get("style_profile"), dict):
+            s.style_profile = payload.get("style_profile") or {}
+        elif isinstance(payload.get("persona"), dict):
+            # defensive fallback if legacy result used persona key
+            s.style_profile = payload.get("persona") or {}
+            payload.setdefault("style_profile", s.style_profile)
+        else:
+            payload.setdefault("style_profile", s.style_profile)
+
+        if isinstance(payload.get("vibe"), dict):
+            s.vibe = payload.get("vibe") or {}
+        else:
+            payload.setdefault("vibe", s.vibe)
+
+        payload.setdefault("carry", s.carry)
+        payload.setdefault("planner", {"route": None, "notes": {}})
+        payload.setdefault("topic_candidates", [])
+
+        s.last_result = payload
         await self._broadcast({"type": "ai", "payload": s.last_result, "timestamp": time.time()})
 
     async def _broadcast(self, event: Dict[str, Any]) -> None:

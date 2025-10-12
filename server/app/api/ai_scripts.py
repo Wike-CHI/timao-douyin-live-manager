@@ -3,7 +3,7 @@
 
 Expose a lightweight endpoint to generate a single, directly-usable live script
 line by leveraging the latest style_profile/vibe learned by the AI live analyzer.
-Falls back to template generation if AI key is not configured.
+Requires Qwen Max credentials to be configured via environment variables.
 """
 
 from __future__ import annotations
@@ -82,7 +82,7 @@ def generate_one(req: GenOneReq) -> Dict[str, Any]:
             cfg["anchor_id"] = anchor_id
         gen = AIScriptGenerator(cfg)
 
-        # 3) 生成单条话术（如果未配置 API Key，则走模板回退）
+        # 3) 生成单条话术（若未配置 API Key 会抛出异常）
         script = gen.generate_script(script_type=req.script_type, context=ctx)
         return {"success": True, "data": script.to_dict()}
     except Exception as e:

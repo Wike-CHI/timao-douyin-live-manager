@@ -1,12 +1,11 @@
 """
 提猫直播助手 - AI话术生成器
-基于热词和评论内容生成直播互动话术
+基于 Qwen Max 生成直播互动话术
 """
 
-import os
-import json
-import random
 import logging
+import re
+from collections import Counter
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import requests
@@ -35,9 +34,6 @@ class AIScriptGenerator:
         self.client = None
         self._init_ai_client()
         
-        # 话术模板
-        self.templates = self._load_templates()
-        
         # 生成历史
         self.generation_history = []
         self.anchor_id = (
@@ -51,6 +47,52 @@ class AIScriptGenerator:
         self.feedback_memory = FeedbackMemoryManager() if FeedbackMemoryManager else None
         if not self.feedback_memory or not self.feedback_memory.available():
             self.logger.debug("Feedback memory unavailable; prompts will not include human ratings.")
+
+    # ------------------------------------------------------------------ LangGraph helpers
+    def generate_bundle(
+        self,
+        route: str,
+        hot_words: Optional[List[Dict[str, Any]]] = None,
+        questions: Optional[List[str]] = None,
+        persona: Optional[Dict[str, Any]] = None,
+        vibe: Optional[Dict[str, Any]] = None,
+        recent_comments: Optional[List[Comment]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Generate 2-3 conversational scripts tailored for a given planner route."""
+        script_plan = {
+            'deep_dive': ['interaction', 'question', 'product'],
+            'warm_up': ['welcome', 'emotion', 'interaction'],
+            'promo': ['product', 'question', 'interaction'],
+        }
+        types = script_plan.get(route, script_plan['deep_dive'])
+        hw_objects = self._convert_hot_words(hot_words or [])
+        bundle: List[Dict[str, Any]] = []
+        for script_type in types:
+            context: Dict[str, Any] = {
+                'route': route,
+                'questions': questions or [],
+                'style_profile': persona or {},
+                'vibe': vibe or {},
+            }
+            script = self.generate_script(
+                hot_words=hw_objects,
+                recent_comments=recent_comments,
+                script_type=script_type,
+                context=context,
+            )
+            payload = script.to_dict()
+            payload.update({
+                'content': script.content,
+                'vibe': (vibe or {}).get('level', 'neutral'),
+                'keywords': self._extract_keywords(script.content),
+                'rationale': self._build_rationale(route, script_type, questions or []),
+            })
+            bundle.append(payload)
+        return bundle
+
+    def score_text(self, content: str) -> float:
+        """Expose scoring utility for downstream assessors."""
+        return self._calculate_script_score(content, {})
     
     def _init_ai_client(self):
         """初始化AI客户端"""
@@ -104,60 +146,6 @@ class AIScriptGenerator:
             self.logger.error(f"AI客户端初始化失败: {e}")
             self.client = None
     
-    def _load_templates(self) -> Dict[str, List[str]]:
-        """加载话术模板"""
-        templates = {
-            'welcome': [
-                "欢迎{user}来到直播间！",
-                "感谢{user}的关注！",
-                "欢迎新朋友{user}！",
-                "{user}来了，大家欢迎！"
-            ],
-            'product': [
-                "这款产品{product}真的很不错，{feature}特别棒！",
-                "刚才有朋友问{product}，我来详细介绍一下{feature}",
-                "今天推荐的{product}，{feature}是它的亮点",
-                "{product}现在有优惠，{feature}值得入手！"
-            ],
-            'interaction': [
-                "看到大家都在聊{topic}，我也来说说看法",
-                "关于{topic}这个话题，我觉得{opinion}",
-                "有朋友提到{topic}，这确实是个好问题",
-                "{topic}是大家关心的，让我们一起讨论"
-            ],
-            'closing': [
-                "今天的直播就到这里，感谢大家的陪伴！",
-                "时间过得真快，谢谢大家的支持！",
-                "今天聊得很开心，明天同一时间再见！",
-                "感谢所有朋友的参与，我们下次再聊！"
-            ],
-            'question': [
-                "刚才{user}问{question}，这个问题很好",
-                "关于{question}，我来解答一下",
-                "有朋友问{question}，大家都想知道吧",
-                "{question}确实是常见问题，我说说我的看法"
-            ],
-            'emotion': [
-                "看到大家这么{emotion}，我也很开心！",
-                "感受到了大家的{emotion}，太棒了！",
-                "直播间的氛围真{emotion}，我很喜欢！",
-                "大家的{emotion}感染了我，谢谢！"
-            ]
-        }
-        
-        # 尝试从文件加载自定义模板
-        try:
-            template_file = os.path.join(os.path.dirname(__file__), 'templates.json')
-            if os.path.exists(template_file):
-                with open(template_file, 'r', encoding='utf-8') as f:
-                    custom_templates = json.load(f)
-                    templates.update(custom_templates)
-                    self.logger.info("自定义模板加载成功")
-        except Exception as e:
-            self.logger.warning(f"加载自定义模板失败: {e}")
-        
-        return templates
-    
     def generate_script(self, 
                        hot_words: List[HotWord] = None, 
                        recent_comments: List[Comment] = None,
@@ -169,10 +157,9 @@ class AIScriptGenerator:
             generation_context = self._prepare_context(hot_words, recent_comments, context)
             
             # 根据类型选择生成策略
-            if self.client and self._should_use_ai():
-                script_content = self._generate_with_ai(generation_context, script_type)
-            else:
-                script_content = self._generate_with_template(generation_context, script_type)
+            if not self.client:
+                raise RuntimeError("AI 客户端不可用，请检查 Qwen Max 配置")
+            script_content = self._generate_with_ai(generation_context, script_type)
             
             # 创建话术对象
             script = AIScript(
@@ -192,8 +179,7 @@ class AIScriptGenerator:
             
         except Exception as e:
             self.logger.error(f"话术生成失败: {e}")
-            # 返回默认话术
-            return self._generate_fallback_script(script_type)
+            raise
     
     def _prepare_context(self, 
                         hot_words: List[HotWord], 
@@ -245,6 +231,30 @@ class AIScriptGenerator:
                 generation_context.setdefault('feedback_guidance', guidance)
         
         return generation_context
+
+    def _convert_hot_words(self, hot_words: List[Any]) -> Optional[List[HotWord]]:
+        """Normalize external hot word payloads into HotWord models."""
+        if not hot_words:
+            return None
+        normalized: List[HotWord] = []
+        for item in hot_words:
+            if isinstance(item, HotWord):
+                normalized.append(item)
+                continue
+            if not isinstance(item, dict):
+                continue
+            word = str(item.get('word') or item.get('topic') or '').strip()
+            if not word:
+                continue
+            normalized.append(
+                HotWord(
+                    word=word,
+                    count=int(item.get('count') or item.get('weight') or 1),
+                    score=float(item.get('score') or item.get('confidence') or 0.0),
+                    category=str(item.get('category') or 'general'),
+                )
+            )
+        return normalized or None
     
     def _analyze_comments(self, comments: List[Comment]) -> Dict[str, Any]:
         """分析评论内容"""
@@ -287,20 +297,6 @@ class AIScriptGenerator:
         
         return analysis
     
-    def _should_use_ai(self) -> bool:
-        """判断是否应该使用AI生成"""
-        if not self.client:
-            return False
-        
-        # 避免频繁调用AI
-        recent_ai_generations = [
-            g for g in self.generation_history[-10:]
-            if g.get('source') == 'ai' and 
-            (datetime.now().timestamp() - g.get('timestamp', 0)) < 60
-        ]
-        
-        return len(recent_ai_generations) < 3
-    
     def _generate_with_ai(self, context: Dict[str, Any], script_type: str) -> str:
         """使用AI生成话术"""
         try:
@@ -314,9 +310,10 @@ class AIScriptGenerator:
                     {
                         "role": "system",
                         "content": (
-                            "你是资深直播运营的话术助手，能够从主播语言风格与直播间氛围中学习并生成可直接上嘴的口语化话术。"
-                            "若给出 style_profile(人物设定/语气/节奏/用词/口头禅/句式) 与 vibe(冷/中/热、score)，请尽量贴合；"
-                            "话术需自然、亲切、有趣，避免生硬广告和敏感词，目标是有效带动互动与气氛。只输出一句话术。"
+                            "你是主播身边的实时话术助理，能够理解主播风格、直播节奏与观众情绪，并给出可直接上嘴的自然口语化话术。"
+                            "无论直播主题为何（娱乐、知识分享、游戏、聊天等），都要帮助主播维持互动、回应观众、引导氛围。"
+                            "若给出 style_profile（人物设定/语气/节奏/口头禅/句式）与 vibe（冷/中/热、score），请务必贴合；"
+                            "输出的话术需真诚友好、易于朗读，避免敏感词与过度营销语，只返回一句话术。"
                         )
                     },
                     {
@@ -378,6 +375,15 @@ class AIScriptGenerator:
             emotions_text = "、".join(context['user_emotions'])
             prompt_parts.append(f"5. 观众情绪偏向：{emotions_text}")
 
+        route_requirements = {
+            'deep_dive': "策略：聚焦当前高频话题或问题，补充细节并推动更有深度的对话。",
+            'warm_up': "策略：暖场补能，多用陪伴式语气和互动问题，调动整体氛围。",
+            'promo': "策略：行动号召，引导观众参与、反馈或执行下一步动作（关注、留言、投票等）。",
+        }
+        route = context.get('route')
+        if route in route_requirements:
+            prompt_parts.append(route_requirements[route])
+
         style_memory_notes = context.get('style_memory_notes')
         if style_memory_notes:
             prompt_parts.append(
@@ -399,10 +405,10 @@ class AIScriptGenerator:
         # 类型特定要求
         type_requirements = {
             'welcome': "重点是欢迎新观众，营造温馨氛围",
-            'product': "重点是介绍产品特点，激发购买兴趣",
+            'product': "重点是介绍核心信息或主题亮点，帮助观众快速理解重点",
             'interaction': "重点是引导观众参与讨论，增加互动",
-            'closing': "重点是感谢观众，预告下次直播",
-            'question': "重点是回答观众问题，展现专业性",
+            'closing': "重点是感谢观众，收束话题并可预告下次互动",
+            'question': "重点是回答观众问题，展现专业性或亲和力",
             'emotion': "重点是回应观众情绪，增强共鸣"
         }
         
@@ -410,57 +416,6 @@ class AIScriptGenerator:
             prompt_parts.append(f"类型要求：{type_requirements[script_type]}")
 
         return "\n".join(prompt_parts)
-    
-    def _generate_with_template(self, context: Dict[str, Any], script_type: str) -> str:
-        """使用模板生成话术"""
-        templates = self.templates.get(script_type, self.templates.get('interaction', []))
-        
-        if not templates:
-            return "感谢大家的支持，让我们继续精彩的直播！"
-        
-        # 随机选择模板
-        template = random.choice(templates)
-        
-        # 填充变量
-        script_content = self._fill_template_variables(template, context)
-        
-        return script_content
-    
-    def _fill_template_variables(self, template: str, context: Dict[str, Any]) -> str:
-        """填充模板变量"""
-        variables = {
-            'user': '朋友',
-            'product': '产品',
-            'feature': '特色功能',
-            'topic': '话题',
-            'opinion': '观点',
-            'question': '问题',
-            'emotion': '开心'
-        }
-        
-        # 从上下文中提取变量
-        if context.get('hot_words'):
-            hot_word = context['hot_words'][0]['word']
-            variables.update({
-                'topic': hot_word,
-                'product': hot_word if len(hot_word) > 1 else '产品'
-            })
-        
-        if context.get('user_emotions'):
-            emotion = context['user_emotions'][0]
-            emotion_map = {
-                'positive': '开心',
-                'excited': '兴奋',
-                'curious': '好奇',
-                'supportive': '支持'
-            }
-            variables['emotion'] = emotion_map.get(emotion, '开心')
-        
-        # 替换变量
-        for var, value in variables.items():
-            template = template.replace(f'{{{var}}}', value)
-        
-        return template
     
     def _clean_script_content(self, content: str) -> str:
         """清理话术内容"""
@@ -475,6 +430,23 @@ class AIScriptGenerator:
             content = content[:97] + '...'
         
         return content.strip()
+
+    def _extract_keywords(self, content: str, limit: int = 5) -> List[str]:
+        """Extract lightweight keywords for downstream ranking."""
+        tokens = re.findall(r"[\w\u4e00-\u9fff]{2,}", content.lower())
+        counter = Counter(tokens)
+        keywords = [word for word, _ in counter.most_common(limit)]
+        return keywords
+
+    def _build_rationale(self, route: str, script_type: str, questions: List[str]) -> str:
+        """Explain why a script fits the planner decision."""
+        if route == 'promo':
+            return "行动号召：引导观众关注、互动或参与下一步。"
+        if route == 'warm_up':
+            return "暖场补能：陪伴式互动提升热度。"
+        if script_type == 'question' and questions:
+            return f"针对弹幕提问：{questions[0][:24]}"
+        return "围绕当前高频话题延展互动。"
     
     def _calculate_script_score(self, content: str, context: Dict[str, Any]) -> float:
         """计算话术质量评分"""
@@ -504,26 +476,6 @@ class AIScriptGenerator:
         score += interactive_count * 0.2
         
         return min(10.0, max(1.0, score))
-    
-    def _generate_fallback_script(self, script_type: str) -> AIScript:
-        """生成备用话术"""
-        fallback_scripts = {
-            'welcome': "欢迎新朋友来到直播间！",
-            'product': "这款产品真的很不错，大家可以了解一下！",
-            'interaction': "感谢大家的支持，让我们继续精彩的直播！",
-            'closing': "今天的直播就到这里，谢谢大家的陪伴！",
-            'question': "这个问题很好，让我来为大家解答！",
-            'emotion': "看到大家这么开心，我也很高兴！"
-        }
-        
-        content = fallback_scripts.get(script_type, "感谢大家的支持！")
-        
-        return AIScript(
-            content=content,
-            type=script_type,
-            source="fallback",
-            score=3.0
-        )
     
     def _record_generation(self, script: AIScript, context: Dict[str, Any]):
         """记录生成历史"""

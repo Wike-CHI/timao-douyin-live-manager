@@ -25,10 +25,22 @@ try:
 except Exception:  # pragma: no cover
     httpx = None  # type: ignore
 
-# Hardcoded DashScope OpenAI-compatible config (per user request)
-DEFAULT_OPENAI_API_KEY = "sk-92045f0a33984350925ce3ccffb3489e"
-DEFAULT_OPENAI_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-DEFAULT_OPENAI_MODEL = "qwen3-max"
+# DashScope OpenAI-compatible config sourced from environment (.env recommended)
+DEFAULT_OPENAI_API_KEY = (
+    os.getenv("AI_API_KEY")
+    or os.getenv("OPENAI_API_KEY")
+    or ""
+)
+DEFAULT_OPENAI_BASE_URL = (
+    os.getenv("AI_BASE_URL")
+    or os.getenv("OPENAI_BASE_URL")
+    or "https://dashscope.aliyuncs.com/compatible-mode/v1"
+)
+DEFAULT_OPENAI_MODEL = (
+    os.getenv("AI_MODEL")
+    or os.getenv("OPENAI_MODEL")
+    or "qwen-max"
+)
 
 try:  # pragma: no cover - optional style memory
     from .style_memory import StyleMemoryManager
