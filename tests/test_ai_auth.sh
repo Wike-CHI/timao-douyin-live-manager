@@ -4,7 +4,7 @@
 #
 # 运行方式：bash tests/test_ai_auth.sh
 
-BASE_URL="${FASTAPI_URL:-http://127.0.0.1:8007}"
+BASE_URL="${FASTAPI_URL:-http://127.0.0.1:8090}"
 TOKEN="test_token_frontend_challenge_12345"
 
 echo "========================================"

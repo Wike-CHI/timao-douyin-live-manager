@@ -56,5 +56,5 @@
 示例（单文件/接口调试）
 
 - 启动 FastAPI 并调试：uvicorn server.app.main:app --reload
-- 连接转写 WS：ws://127.0.0.1:8007/api/live_audio/ws
+- 连接转写 WS：ws://127.0.0.1:8090/api/live_audio/ws
 - 订阅 Flask SSE：curl -N http://127.0.0.1:5001/api/stream/comments

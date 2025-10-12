@@ -94,8 +94,8 @@ setSaveInfo(null);
 
 const WebSocket = require('ws');
 
-const FASTAPI_BASE_URL = 'http://127.0.0.1:8007';
-const WS_URL = 'ws://127.0.0.1:8007/api/live_audio/ws';
+const FASTAPI_BASE_URL = 'http://127.0.0.1:8090';
+const WS_URL = 'ws://127.0.0.1:8090/api/live_audio/ws';
 
 async function testDeltaModeLifecycle() {
   console.log('测试一：正常启动与停止');
@@ -324,7 +324,7 @@ const handleGenerateOne = useCallback(async () => {
 ```bash
 # .env 文件
 VITE_AUTH_ENABLED=true  # 是否启用鉴权
-VITE_FASTAPI_URL=http://127.0.0.1:8007  # API 地址
+VITE_FASTAPI_URL=http://127.0.0.1:8090  # API 地址
 ```
 
 #### 后端配置（FastAPI）
@@ -408,7 +408,7 @@ async def ai_live_stream(token_data: str = Depends(verify_token)):
 #!/bin/bash
 # AI 接口鉴权测试
 
-BASE_URL="http://127.0.0.1:8007"
+BASE_URL="http://127.0.0.1:8090"
 TOKEN="test_token_12345"
 
 echo "测试一：无 Token 访问（应失败）"

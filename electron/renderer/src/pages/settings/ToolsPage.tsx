@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 
-const FASTAPI_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:8007';
+const FASTAPI_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:8090';
 
 const HOTWORDS_PLACEHOLDER = '{ "replace": { "正确词": ["变体1", "变体2"] } }';
 

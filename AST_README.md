@@ -26,7 +26,7 @@ python start_web_server.py
 
 打开浏览器，访问：
 - **测试页面**: http://127.0.0.1:8080/AST_test_page.html
-- **状态接口**: http://127.0.0.1:8007/api/live_audio/status
+- **状态接口**: http://127.0.0.1:8090/api/live_audio/status
 - **API文档**: http://127.0.0.1:8001/docs
 
 ## 🎯 使用步骤
@@ -76,7 +76,7 @@ AST_module/
 - `GET /api/live_audio/status` - 获取状态
 
 ### WebSocket
-- `ws://127.0.0.1:8007/api/live_audio/ws` - 实时转录结果推送
+- `ws://127.0.0.1:8090/api/live_audio/ws` - 实时转录结果推送
 
 ## 🎤 语音模型
 

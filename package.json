@@ -27,7 +27,7 @@
     "electron",
     "flask"
   ],
-  "author": "提猫团队",
+  "author": "杭州星炬耀森人工智能科技有限公司提猫直播助手团队",
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^8.2.2",

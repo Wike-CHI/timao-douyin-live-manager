@@ -6,7 +6,7 @@
 ```bash
 # 1. 启动 FastAPI 后端
 cd timao-douyin-live-manager
-uvicorn server.app.main:app --reload --port 8007
+uvicorn server.app.main:app --reload --port 8090
 
 # 2. 新终端启动 Electron 前端
 npm run dev
@@ -120,17 +120,17 @@ open tests/test_payment_state_machine.html
 ### 1. 后端服务不可用
 ```bash
 # 检查后端是否启动
-curl http://127.0.0.1:8007/health
+curl http://127.0.0.1:8090/health
 
 # 如果失败，重新启动
-uvicorn server.app.main:app --reload --port 8007
+uvicorn server.app.main:app --reload --port 8090
 ```
 
 ### 2. WebSocket 连接失败
 ```
 # 检查防火墙
-# 确保 8007 端口可访问
-netstat -an | grep 8007
+# 确保 8090 端口可访问
+netstat -an | grep 8090
 ```
 
 ### 3. 测试脚本权限错误

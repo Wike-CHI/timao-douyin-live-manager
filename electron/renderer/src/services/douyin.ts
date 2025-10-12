@@ -1,7 +1,7 @@
 import useAuthStore from '../store/useAuthStore';
 
-// Align with FastAPI default port 8007 used by Electron main
-const DEFAULT_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:8007';
+// Align with FastAPI default port 8090 used by Electron main
+const DEFAULT_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:8090';
 
 const resolveBaseUrl = (baseUrl?: string) => {
   const value = baseUrl && baseUrl.trim() ? baseUrl : DEFAULT_BASE_URL;

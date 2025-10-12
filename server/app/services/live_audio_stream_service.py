@@ -143,13 +143,13 @@ class LiveAudioStreamService:
         self._preload_busy: set[str] = set()
 
         # Profile name（fast|stable），用于一键切换参数
-        self.profile: str = "stable"
+        self.profile: str = "fast"
         default_profile = os.environ.get("LIVE_AUDIO_PROFILE", self.profile)
         try:
             self.apply_profile(default_profile)
         except Exception:
-            # Ensure at least stable defaults when profile application fails
-            self.apply_profile("stable")
+            # 确保至少回退到快速档，保障低延迟体验
+            self.apply_profile("fast")
 
         # Advanced filters removed (simplified pipeline)
         # Persistence (transcriptions)
@@ -313,17 +313,17 @@ class LiveAudioStreamService:
         self.profile = p
         if p == "fast":
             # Streaming granularity
-            self.chunk_seconds = 0.5
+            self.chunk_seconds = 0.4
             # VAD
-            self.vad_min_rms = 0.015
-            self.vad_min_speech_sec = 0.35
-            self.vad_min_silence_sec = 0.55
-            self.vad_hangover_sec = 0.22
+            self.vad_min_rms = 0.012
+            self.vad_min_speech_sec = 0.30
+            self.vad_min_silence_sec = 0.45
+            self.vad_hangover_sec = 0.18
             # Guard
-            self._guard = HallucinationGuard(min_rms=0.016, min_len=2, low_conf=0.55)
+            self._guard = HallucinationGuard(min_rms=0.014, min_len=2, low_conf=0.55)
             # Assembler
-            self._assembler = SentenceAssembler(max_wait=2.2, max_chars=60, silence_flush=1)
-            self.min_sentence_chars = 6
+            self._assembler = SentenceAssembler(max_wait=1.8, max_chars=60, silence_flush=1)
+            self.min_sentence_chars = 5
         else:  # stable
             self.chunk_seconds = 0.8
             self.vad_min_rms = 0.018

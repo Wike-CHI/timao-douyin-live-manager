@@ -85,19 +85,19 @@ function startFastAPI() {
                 return resolve({ success: true, message: 'FastAPI already running' });
             }
 
-            // If port 8007 is already in use (e.g., user started uvicorn manually),
+            // If port 8090 is already in use (e.g., user started uvicorn manually),
             // do not spawn another process to avoid EADDRINUSE and noisy logs.
-            const available = await isPortAvailable(8007);
+            const available = await isPortAvailable(8090);
             if (!available) {
-                console.log('[electron] Port 8007 is already in use; assuming FastAPI is running.');
+                console.log('[electron] Port 8090 is already in use; assuming FastAPI is running.');
                 return resolve({ success: true, message: 'FastAPI already running (external)' });
             }
 
-            // Use uvicorn to run server.app.main:app on 127.0.0.1:8007 (changed from 8006)
+            // Use uvicorn to run server.app.main:app on 127.0.0.1:8090 (default FastAPI port for Electron)
             // Spawn with project root as cwd so Python can import local packages
             apiProcess = spawn(
                 process.platform === 'win32' ? 'python' : 'python3',
-                ['-m', 'uvicorn', 'server.app.main:app', '--host', '127.0.0.1', '--port', '8007'],
+                ['-m', 'uvicorn', 'server.app.main:app', '--host', '127.0.0.1', '--port', '8090'],
                 {
                     cwd: path.join(__dirname, '..'),
                     env: {
@@ -157,29 +157,45 @@ const shouldStartApi = (process.env.ELECTRON_START_API || 'true') !== 'false';
 let splashWindow = null;
 
 function createSplash() {
+    const logoPath = path.join(__dirname, '..', 'assets', 'logo_cat_headset.jpg');
+    const logoUrl = fs.existsSync(logoPath) ? 'file://' + logoPath.replace(/\\/g, '/') : '';
+    const logoTag = logoUrl ? `<img class="logo" src="${logoUrl}" alt="logo"/>` : '<div class="logo fallback">🐱</div>';
     splashWindow = new BrowserWindow({
         width: 520,
         height: 320,
         frame: false,
         resizable: false,
-        alwaysOnTop: true,
         transparent: false,
+        alwaysOnTop: false,
         show: true,
         webPreferences: { nodeIntegration: false, contextIsolation: true, preload: path.join(__dirname, 'preload.js') }
     });
     const html = `<!doctype html><meta charset="utf-8"/><title>启动中…</title>
-    <style>body{font-family:system-ui,Segoe UI,Arial;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#faf7ff;color:#5b34b3}
-    .box{background:#fff;border-radius:16px;box-shadow:0 18px 32px rgba(91,52,179,.18);padding:24px 28px;min-width:420px}
+    <style>
+    body{font-family:system-ui,Segoe UI,Arial;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#faf7ff;color:#5b34b3}
+    .box{background:#fff;border-radius:16px;box-shadow:0 18px 32px rgba(91,52,179,.18);padding:24px 28px;min-width:420px;position:relative}
+    .drag-zone{position:absolute;top:0;left:0;right:0;height:36px;-webkit-app-region:drag}
+    .toolbar{position:absolute;top:12px;right:16px;display:flex;gap:6px;-webkit-app-region:no-drag}
+    .logo-wrap{display:flex;align-items:center;gap:12px;margin-bottom:12px;-webkit-app-region:no-drag}
+    .logo{width:56px;height:56px;border-radius:16px;object-fit:cover;box-shadow:0 8px 20px rgba(91,52,179,.20);background:#f0eaff}
+    .logo.fallback{display:flex;align-items:center;justify-content:center;font-size:28px}
     h1{font-size:18px;margin:0 0 10px}.msg{font-size:14px;color:#6b5a99;white-space:pre-wrap}
     .hint{margin-top:10px;color:#8c7bbf;font-size:12px}
     .bar{height:8px;background:#f0eaff;border-radius:999px;margin:10px 0;overflow:hidden}
     .bar>div{height:100%;width:0;background:linear-gradient(90deg,#a78bfa,#f472b6);transition:width .3s}
     .btns{display:flex;gap:8px;margin-top:10px}
-    button{border:1px solid #e6d8ff;background:#fff;color:#5b34b3;border-radius:999px;padding:6px 10px;font-size:12px;cursor:pointer}
+    button{border:1px solid #e6d8ff;background:#fff;color:#5b34b3;border-radius:999px;padding:6px 10px;font-size:12px;cursor:pointer;-webkit-app-region:no-drag}
     button[disabled]{opacity:.4;cursor:not-allowed}
     </style>
-    <div class=box>
-      <h1>提猫直播助手 · 正在准备</h1>
+    <div class="box">
+      <div class="drag-zone"></div>
+      <div class="toolbar">
+        <button id="btn-pin">置顶</button>
+      </div>
+      <div class="logo-wrap">
+        ${logoTag}
+        <h1 style="margin:0">提猫直播助手 · 正在准备</h1>
+      </div>
       <div id=msg class=msg>启动后端服务…</div>
       <div class=bar><div id=bar></div></div>
       <div id=hint class=hint></div>
@@ -192,8 +208,23 @@ function createSplash() {
         <button id=btn-exit>退出</button>
       </div>
       <script>
-        let paths = { model:'', vad:'', ff:'' };
         const E = (id)=>document.getElementById(id);
+        const btnPin = E('btn-pin');
+        const updatePinLabel = (pinned) => { if (btnPin) btnPin.textContent = pinned ? '取消置顶' : '置顶'; };
+        const togglePin = async () => {
+          try {
+            const res = await window.electronAPI?.toggleSplashPin?.();
+            if (res?.success) {
+              updatePinLabel(res.pinned);
+            }
+          } catch (_) {}
+        };
+        updatePinLabel(false);
+        const dragZone = document.querySelector('.drag-zone');
+        if (dragZone) dragZone.addEventListener('dblclick', togglePin);
+        if (btnPin) btnPin.onclick = togglePin;
+
+        let paths = { model:'', vad:'', ff:'' };
         E('btn-exit').onclick = ()=>{ try{ window.electronAPI?.quitApp(); }catch(e){} };
         E('btn-open-model').onclick = ()=>{ if(paths.model) try{ window.electronAPI?.openPath(paths.model);}catch(e){} };
         E('btn-open-vad').onclick = ()=>{ if(paths.vad) try{ window.electronAPI?.openPath(paths.vad);}catch(e){} };
@@ -229,7 +260,7 @@ async function httpJson(url, timeoutMs = 5000) {
 }
 
 async function waitForBackendAndBootstrap() {
-    const base = 'http://127.0.0.1:8007';
+    const base = 'http://127.0.0.1:8090';
     // 1) 启动后端
     if (shouldStartApi) {
         try { await startFastAPI(); } catch (e) { console.error('Auto start FastAPI failed:', e); }
@@ -250,7 +281,7 @@ async function waitForBackendAndBootstrap() {
         await new Promise(r => setTimeout(r, 500));
     }
     if (!okHealth) {
-        await setMsg('后端启动超时', '请稍后重试，或检查端口 8007 是否被占用');
+        await setMsg('后端启动超时', '请稍后重试，或检查端口 8090 是否被占用');
         return false;
     }
 
@@ -286,6 +317,7 @@ app.on('ready', async () => {
 });
 
 // Allow retry from splash
+
 ipcMain.handle('bootstrap-retry', async () => {
     try {
         const ok = await waitForBackendAndBootstrap();
@@ -344,6 +376,19 @@ ipcMain.handle('open-path', async (_event, targetPath) => {
         const res = await shell.openPath(String(targetPath));
         if (res) return { success: false, message: res };
         return { success: true };
+    } catch (e) {
+        return { success: false, message: String(e) };
+    }
+});
+
+
+// IPC - Toggle splash pinning
+ipcMain.handle('toggle-splash-pin', async () => {
+    if (!splashWindow) return { success: false };
+    try {
+        const next = !splashWindow.isAlwaysOnTop();
+        splashWindow.setAlwaysOnTop(next);
+        return { success: true, pinned: next };
     } catch (e) {
         return { success: false, message: String(e) };
     }

@@ -28,7 +28,7 @@ interface TranscriptEntry {
 
 // Note: Do not cap transcript items; persist to disk is handled by backend.
 // We keep full in-memory log for current session (may grow large for long sessions).
-const FASTAPI_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:8007';
+const FASTAPI_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:8090';
 
 const LiveConsolePage = () => {
   const [liveInput, setLiveInput] = useState(''); // 支持 URL 或 直播间 ID

@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   quitApp: () => ipcRenderer.invoke('app-quit'),
   openLogs: () => ipcRenderer.invoke('open-logs'),
   bootstrapRetry: () => ipcRenderer.invoke('bootstrap-retry'),
+  toggleSplashPin: () => ipcRenderer.invoke('toggle-splash-pin'),
   
   // 系统信息
   platform: process.platform,

@@ -73,9 +73,9 @@
         <a id="link-dev" href="http://127.0.0.1:30013/#/live" class="btn">打开开发服务器控制台</a>
       </div>
       <div class="tips">
-        备用链接：<a id="link-static" href="http://127.0.0.1:8007/static/live_test.html">/static/live_test.html</a>
+        备用链接：<a id="link-static" href="http://127.0.0.1:8090/static/live_test.html">/static/live_test.html</a>
         <ul>
-          <li>确保 FastAPI 已启动：<code>uvicorn server.app.main:app --port 8007</code></li>
+          <li>确保 FastAPI 已启动：<code>uvicorn server.app.main:app --port 8090</code></li>
           <li>确保 Electron 已启动：<code>npm run dev</code></li>
         </ul>
       </div>
@@ -87,8 +87,8 @@
           if (ok) { location.replace('http://127.0.0.1:30013/#/live'); return; }
         } catch {}
         try {
-          const ok2 = await fetch('http://127.0.0.1:8007/health').then(r => r.ok).catch(() => false);
-          if (ok2) { location.replace('http://127.0.0.1:8007/static/live_test.html'); return; }
+          const ok2 = await fetch('http://127.0.0.1:8090/health').then(r => r.ok).catch(() => false);
+          if (ok2) { location.replace('http://127.0.0.1:8090/static/live_test.html'); return; }
         } catch {}
       })();
     </script>

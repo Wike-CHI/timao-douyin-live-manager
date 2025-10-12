@@ -25,7 +25,7 @@
    - 积累状态存储，保证刷新后仍保持登录信息。
 4. **AST/SenseVoice 集成**
 
-- 新增 `services/liveAudio.ts` 调用 FastAPI `/api/live_audio` Start/Stop/Status + WebSocket，默认基于 `http://127.0.0.1:8007`；支持 `VITE_FASTAPI_URL`。
+- 新增 `services/liveAudio.ts` 调用 FastAPI `/api/live_audio` Start/Stop/Status + WebSocket，默认基于 `http://127.0.0.1:8090`；支持 `VITE_FASTAPI_URL`。
    - “直播控制台”页面 `LiveConsolePage` 重建：提供 Room ID、启停按钮、实时字幕、日志、统计卡片同步真实服务。
 
 ## 尚待事项

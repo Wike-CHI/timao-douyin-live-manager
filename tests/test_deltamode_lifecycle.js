@@ -8,7 +8,7 @@
 
 const WebSocket = require('ws');
 
-const FASTAPI_BASE_URL = process.env.FASTAPI_URL || 'http://127.0.0.1:8007';
+const FASTAPI_BASE_URL = process.env.FASTAPI_URL || 'http://127.0.0.1:8090';
 const WS_URL = FASTAPI_BASE_URL.replace(/^http/i, 'ws') + '/api/live_audio/ws';
 
 let testResults = [];
