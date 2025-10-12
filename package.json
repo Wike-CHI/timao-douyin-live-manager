@@ -4,6 +4,7 @@
   "description": "抖音直播评论实时分析与AI话术生成工具",
   "main": "electron/main.js",
   "scripts": {
+    "prepare:torch": "python tools/prepare_torch.py",
     "start": "electron .",
     "dev:renderer": "npm --prefix electron/renderer run dev",
     "dev:electron": "wait-on http://localhost:30013 && electron .",

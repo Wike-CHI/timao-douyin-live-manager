@@ -207,12 +207,18 @@ const MainLayout = () => {
         {/* 顶部资源提示条 */}
         {showBoot && (
           <div className="mx-8 -mt-2 mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span>🧩</span>
+            <div className="flex items-center gap-3">
+              <span className="relative flex items-center justify-center">
+                {(bootstrap?.running || wsOk === null) ? (
+                  <span className="inline-block w-3.5 h-3.5 border-2 border-amber-300 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <span>🧩</span>
+                )}
+              </span>
               <span>
                 {bootstrap?.running ? '正在准备运行所需资源…' : '资源检查完成'}
                 {bootstrap?.models ? `（模型: ${bootstrap.models.model_present ? 'OK' : '缺失'} · VAD: ${bootstrap.models.vad_present ? 'OK' : '缺失'}）` : ''}
-                {wsOk != null ? ` · WS: ${wsOk ? '可用' : '不可用'}` : ''}
+                {wsOk != null ? ` · WS: ${wsOk ? '可用' : '不可用'}` : ' · 正在检测 WS'}
               </span>
             </div>
             <div className="flex items-center gap-2">

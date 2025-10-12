@@ -10,8 +10,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openPath: (p) => ipcRenderer.invoke('open-path', p),
   quitApp: () => ipcRenderer.invoke('app-quit'),
   openLogs: () => ipcRenderer.invoke('open-logs'),
-  bootstrapRetry: () => ipcRenderer.invoke('bootstrap-retry'),
-  toggleSplashPin: () => ipcRenderer.invoke('toggle-splash-pin'),
+  getRuntimeInfo: () => ipcRenderer.invoke('runtime-info'),
+  runPrepareTorch: () => ipcRenderer.invoke('run-prepare-torch'),
+  setRuntimeDevice: (device) => ipcRenderer.invoke('set-runtime-device', device),
   
   // 系统信息
   platform: process.platform,

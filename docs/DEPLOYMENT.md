@@ -41,7 +41,10 @@
 - `npm run dev`
 - 行为：启动 Vite(30013) + Electron；Electron 自动拉起 FastAPI（uvicorn:8090）
 
-3) 模型缓存（建议）
+3) GPU 依赖准备
+- `npm run prepare:torch` (Windows) 或 `python tools/prepare_torch.py` (Linux/macOS) 确保安装 GPU 版 torch；可通过 `FORCE_TORCH_MODE=cpu|gpu` 控制安装策略
+
+4) 模型缓存（建议）
 - 设置模型缓存目录，避免下载到系统盘：
   - `MODELSCOPE_CACHE=./models`，`HF_HOME=./models/huggingface`
 

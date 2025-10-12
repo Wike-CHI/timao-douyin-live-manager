@@ -13,6 +13,10 @@ const ToolsPage: React.FC = () => {
   const [selfTest, setSelfTest] = useState<{ backendOk?: boolean; modelOk?: boolean; wsOk?: boolean; details?: string } | null>(null);
   const [cleanPreview, setCleanPreview] = useState<string[] | null>(null);
   const [autoReload, setAutoReload] = useState<boolean>(true);
+  const [runtimeInfo, setRuntimeInfo] = useState<any>(null);
+  const [forcedDevice, setForcedDevice] = useState<string>('auto');
+  const [prepareLog, setPrepareLog] = useState<string>('');
+  const [prepareBusy, setPrepareBusy] = useState<boolean>(false);
 
   const fetchHotwords = async () => {
     try {
@@ -26,6 +30,7 @@ const ToolsPage: React.FC = () => {
 
   useEffect(() => {
     fetchHotwords();
+    void fetchRuntimeInfo();
   }, []);
 
   const preload = async (sizes: string[]) => {
@@ -54,6 +59,20 @@ const ToolsPage: React.FC = () => {
       const data = await resp.json();
       setModelStatus(data || null);
     } catch {}
+  };
+
+  const fetchRuntimeInfo = async () => {
+    try {
+      const info = await (window as any).electronAPI?.getRuntimeInfo();
+      if (info?.success) {
+        setRuntimeInfo(info.info || null);
+        if (info.info?.env?.LIVE_FORCE_DEVICE != null) {
+          setForcedDevice(info.info.env.LIVE_FORCE_DEVICE || 'auto');
+        }
+      }
+    } catch (e) {
+      console.error('runtime info failed', e);
+    }
   };
 
   const runSelfTest = async () => {
@@ -145,6 +164,68 @@ const ToolsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <div className="timao-card">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
+            <span>🖥️</span>
+            运行环境（Torch / 设备）
+          </h3>
+          <div className="flex items-center gap-3 text-xs timao-support-text">
+            <span>强制设备</span>
+            <select
+              className="timao-select"
+              value={forcedDevice}
+              onChange={async (e) => {
+                const value = e.target.value;
+                setForcedDevice(value);
+                try {
+                  await (window as any).electronAPI?.setRuntimeDevice(value === 'auto' ? '' : value);
+                  await fetchRuntimeInfo();
+                  setMessage(`已设置强制设备为 ${value}`);
+                } catch (err: any) {
+                  setMessage(err?.message || '设置失败');
+                }
+              }}
+            >
+              <option value="auto">自动</option>
+              <option value="cpu">CPU</option>
+              <option value="cuda:0">GPU (cuda:0)</option>
+            </select>
+            <button
+              className="timao-outline-btn text-[10px] px-2 py-0.5"
+              disabled={prepareBusy}
+              onClick={async () => {
+                try {
+                  setPrepareBusy(true);
+                  setPrepareLog('');
+                  const res = await (window as any).electronAPI?.runPrepareTorch();
+                  if (res?.success) {
+                    setPrepareLog(res.output || '准备完成');
+                    setMessage('GPU 依赖准备完成');
+                  } else {
+                    setPrepareLog(res?.output || '执行失败');
+                    setMessage('GPU 依赖准备失败');
+                  }
+                  await fetchRuntimeInfo();
+                } catch (err: any) {
+                  setPrepareLog(String(err));
+                  setMessage('执行 prepare:torch 失败');
+                } finally {
+                  setPrepareBusy(false);
+                }
+              }}
+            >{prepareBusy ? '执行中…' : '准备 GPU 依赖'}</button>
+          </div>
+        </div>
+        <div className="text-xs timao-support-text space-y-1">
+          <div>{runtimeInfo ? `OS: ${runtimeInfo.platform} · Node ${runtimeInfo.node} · Electron ${runtimeInfo.electron}` : '尚未获取运行信息'}</div>
+          <div>{runtimeInfo?.torch ? `Torch ${runtimeInfo.torch.version} · CUDA ${runtimeInfo.torch.cuda ? 'YES' : 'NO'}` : 'Torch 信息未检测'}</div>
+          {prepareLog ? (
+            <pre className="mt-2 max-h-[160px] overflow-y-auto bg-slate-50 border rounded p-2 text-[11px]">{prepareLog}</pre>
+          ) : null}
+        </div>
+      </div>
+
       <div className="timao-card">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">

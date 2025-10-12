@@ -142,14 +142,26 @@ class SenseVoiceService:
             os.environ["MS_CACHE_HOME"] = str(cache_root)
             os.environ.setdefault("FUNASR_HOME", str(cache_root / "funasr"))
 
-            # Choose device: prefer CUDA if available
-            device = 'cpu'
-            try:
-                import torch  # type: ignore
-                if torch.cuda.is_available():
-                    device = 'cuda:0'
-            except Exception:
-                pass
+            # Choose device: honor override, otherwise prefer CUDA if available
+            device_override = os.environ.get("LIVE_FORCE_DEVICE") or os.environ.get("SENSEVOICE_DEVICE")
+            device = (device_override or "cpu").strip()
+            if device.lower() == "auto":
+                device = "cpu"
+            if device == "cpu":
+                try:
+                    import torch  # type: ignore
+                    if torch.cuda.is_available():
+                        device = "cuda:0"
+                except Exception:
+                    device = "cpu"
+            elif device.startswith("cuda"):
+                try:
+                    import torch  # type: ignore
+                    if not torch.cuda.is_available():
+                        self.logger.warning("Requested GPU device %s but CUDA not available, falling back to CPU", device)
+                        device = "cpu"
+                except Exception:
+                    device = "cpu"
 
             def _resolve_small_model_id() -> str:
                 # Prefer local checkout if exists
