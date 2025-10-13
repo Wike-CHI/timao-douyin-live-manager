@@ -3,6 +3,22 @@ const { spawn, spawnSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
+// Ensure packaged app ships with a working AI backend without manual env setup.
+const defaultAiEnv = {
+    AI_SERVICE: 'qwen',
+    AI_BASE_URL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    AI_MODEL: 'qwen3-max',
+    AI_API_KEY: 'sk-92045f0a33984350925ce3ccffb3489e',
+    OPENAI_API_KEY: 'sk-92045f0a33984350925ce3ccffb3489e',
+    OPENAI_BASE_URL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    OPENAI_MODEL: 'qwen3-max',
+};
+for (const [key, value] of Object.entries(defaultAiEnv)) {
+    if (!process.env[key]) {
+        process.env[key] = value;
+    }
+}
+
 const isDev = !app.isPackaged;
 const rendererDevServerURL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.0.1:30013';
 

@@ -1,0 +1,51 @@
+{
+  "appId": "com.xingjuai.talkingcat",
+  "productName": "提猫直播助手",
+  "artifactName": "TalkingCat-Setup-${version}-${arch}.exe",
+  "directories": {
+    "output": "dist",
+    "buildResources": "assets"
+  },
+  "files": [
+    "electron/**/*",
+    "AST_module/**/*",
+    "DouyinLiveWebFetcher/**/*",
+    "server/**/*",
+    "frontend/**/*",
+    "package.json",
+    "!node_modules",
+    "!.git",
+    "!.vscode",
+    "!test",
+    "!tests",
+    "!docs",
+    "!*.md",
+    "!.env*",
+    "!.tmp*"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64", "ia32"]
+      }
+    ],
+    "icon": "assets/icon.ico",
+    "artifactName": "TalkingCat-Setup-${version}-${arch}.exe",
+    "requestedExecutionLevel": "asInvoker",
+    "verifyUpdateCodeSignature": false
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowElevation": true,
+    "allowToChangeInstallationDirectory": true,
+    "installerIcon": "assets/icon.ico",
+    "uninstallerIcon": "assets/icon.ico",
+    "installerHeaderIcon": "assets/icon.ico",
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "提猫直播助手",
+    "include": "installer.nsh"
+  },
+  "publish": null
+}

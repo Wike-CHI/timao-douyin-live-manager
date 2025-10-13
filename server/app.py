@@ -32,6 +32,9 @@ _load_env_once()
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from server.utils.ai_defaults import ensure_default_ai_env
+ensure_default_ai_env()
+
 # 导入自定义模块
 from server.utils.config import Config
 from server.utils.logger import setup_logger

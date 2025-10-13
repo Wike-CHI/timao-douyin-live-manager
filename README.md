@@ -70,7 +70,13 @@ npm run dev
 docker-compose up -d
 ```
 
-### 4. Git 使用
+### 4. 打包发布（内置 AI 配置）
+
+- 执行 `npm run release` 完成 Electron 打包并生成 `release/` 目录
+- `release/.env` 会自动写入默认的 Qwen DashScope 配置，终端用户无需再手动配置 AI 服务
+- 若需自定义云端模型，可在运行前手动覆盖 `release/.env`
+
+### 5. Git 使用
 
 有关 Git 使用的详细说明，请参阅以下文档：
 

@@ -6,11 +6,16 @@
   "main": "electron/main.js",
   "scripts": {
     "prepare:torch": "python tools/prepare_torch.py",
-    "start": "electron .",
+    "start": "electron-forge start",
     "dev:renderer": "npm --prefix electron/renderer run dev",
     "dev:electron": "wait-on http://localhost:30013 && electron .",
     "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:electron\"",
     "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:win64": "electron-builder --win --x64",
+    "build:win32": "electron-builder --win --ia32",
+    "build:config": "electron-builder --config build-config.json",
+    "release": "npm run build && python tools/create_release.py",
     "test": "jest",
     "lint": "eslint electron/",
     "server": "python server/app.py",
@@ -18,7 +23,9 @@
     "clean": "python tools/clean_caches.py",
     "clean:apply": "python tools/clean_caches.py --apply",
     "clean3": "python3 tools/clean_caches.py",
-    "clean3:apply": "python3 tools/clean_caches.py --apply"
+    "clean3:apply": "python3 tools/clean_caches.py --apply",
+    "package": "electron-forge package",
+    "make": "electron-forge make"
   },
   "postinstall": "npm --prefix electron/renderer install",
   "keywords": [
@@ -32,15 +39,23 @@
   "author": "杭州星炬耀森人工智能科技有限公司提猫直播助手团队",
   "license": "MIT",
   "devDependencies": {
+    "@electron-forge/cli": "^7.8.3",
+    "@electron-forge/maker-deb": "^7.10.2",
+    "@electron-forge/maker-rpm": "^7.10.2",
+    "@electron-forge/maker-squirrel": "^7.10.2",
+    "@electron-forge/maker-zip": "^7.10.2",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.10.2",
+    "@electron-forge/plugin-fuses": "^7.10.2",
+    "@electron/fuses": "^1.8.0",
     "concurrently": "^8.2.2",
     "electron": "^38.1.2",
-    "electron-builder": "^24.6.4",
     "eslint": "^8.50.0",
     "jest": "^29.7.0",
     "wait-on": "^7.0.1"
   },
   "dependencies": {
-    "axios": "^1.5.0"
+    "axios": "^1.5.0",
+    "electron-squirrel-startup": "^1.0.1"
   },
   "build": {
     "appId": "com.xingjuai.talkingcat",
@@ -58,9 +73,9 @@
       "package.json"
     ],
     "win": {
-      "target": "nsis",
+      "target": "portable",
       "icon": "assets/icon.ico",
-      "artifactName": "TalkingCat-Setup-${version}-${arch}.exe"
+      "artifactName": "TalkingCat-Portable-${version}-${arch}.exe"
     },
     "mac": {
       "target": "dmg",

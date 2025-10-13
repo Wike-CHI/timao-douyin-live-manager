@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 import asyncio
 from dotenv import load_dotenv
+from ..utils.ai_defaults import ensure_default_ai_env
 
 def _load_env_once() -> None:
     """Load .env from project root regardless of working directory."""
@@ -26,6 +27,7 @@ def _load_env_once() -> None:
 
 # 预先加载环境变量，确保下游模块（Qwen 等）能读取 .env
 _load_env_once()
+ensure_default_ai_env()
 
 # 配置日志
 logging.basicConfig(
