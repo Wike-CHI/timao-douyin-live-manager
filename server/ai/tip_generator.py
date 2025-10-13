@@ -6,7 +6,6 @@
 import time
 import json
 import uuid
-import random
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import requests
@@ -19,11 +18,7 @@ except Exception:  # pragma: no cover
 
 
 class TipGenerator(LoggerMixin):
-    """AI话术生成器
-
-    统一改为用 Qwen OpenAI-兼容接口（qwen3-max）生成话术；不再使用纯 NLP/本地模拟。
-    若未配置 API Key，将回退到简单模板/模拟（仅作为容错）。
-    """
+    """AI话术生成器，统一使用 Qwen OpenAI-兼容接口生成话术。"""
     
     def __init__(self, config=None, ai_service: str = 'qwen', api_key: str = '', base_url: str = '', model: str = ''):
         self.config = config
@@ -40,10 +35,6 @@ class TipGenerator(LoggerMixin):
         self.style_memory = StyleMemoryManager() if StyleMemoryManager else None
         if not self.style_memory or not self.style_memory.available():
             self.logger.debug("Style memory unavailable; falling back to runtime context only.")
-        
-        # 模拟数据开关
-        # 默认使用真模型（Qwen3-Max）；如需关闭网络调用，可手动设 True
-        self.use_mock_data = False
         
         self.logger.info(f"AI话术生成器初始化完成，服务: {ai_service}")
         # 若未显式配置，默认走 Qwen OpenAI-兼容（与项目一致）
@@ -62,7 +53,11 @@ class TipGenerator(LoggerMixin):
         except Exception:
             pass
     
-    def generate_tips(self, comments: List[Dict[str, Any]], hot_words: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def generate_tips(
+        self,
+        comments: List[Dict[str, Any]],
+        hot_words: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         """生成话术"""
         current_time = time.time()
         
@@ -71,11 +66,12 @@ class TipGenerator(LoggerMixin):
             self.logger.info("距离上次生成时间过短，跳过本次生成")
             return []
         
+        if not self.api_key:
+            self.logger.warning("AI API密钥未配置，跳过话术生成")
+            return []
+        
         try:
-            if self.use_mock_data or not self.api_key:
-                tips = self._generate_mock_tips(comments, hot_words)
-            else:
-                tips = self._generate_ai_tips(comments, hot_words)
+            tips = self._generate_ai_tips(comments, hot_words)
             
             # 添加到缓存
             for tip in tips:
@@ -90,64 +86,11 @@ class TipGenerator(LoggerMixin):
             self.logger.error(f"生成话术失败: {e}")
             return []
     
-    def _generate_mock_tips(self, comments: List[Dict[str, Any]], hot_words: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """生成模拟话术"""
-        mock_tips = [
-            "欢迎新朋友，坐下聊聊～喜欢的话点个关注不迷路哦！",
-            "弹幕区有什么想聊的，随时发出来，我都在看～",
-            "如果觉得有意思，点个赞让我知道你们在！",
-            "想听什么歌/想看什么片段，直接弹幕告诉我！",
-            "有问题尽管问，我会挑几条集中回答～",
-            "等会儿我们换个节奏，来一段互动小游戏，别走开～",
-            "感谢刚才的支持，大家的每一个点赞和弹幕我都看到了！",
-            "如果画面或声音有问题，及时在弹幕提醒我一下～",
-            "今天的主题先这样安排，过程中也欢迎你们提建议！",
-            "老朋友们带带节奏，新来的可以自我介绍下～"
-        ]
-        
-        # 基于热词生成通用直播相关话术
-        if hot_words:
-            top_words = [str(word.get('word', '')).strip() for word in hot_words[:8]]
-            for w in top_words:
-                if not w:
-                    continue
-                if any(k in w for k in ['卡顿', '延迟', '网', '掉线', '声音', '画面', '麦']):
-                    mock_tips.append("如果有卡顿或声音问题，试试刷新；也随时在弹幕提醒我～")
-                elif any(k in w for k in ['关注', '粉', '点赞', '投币', '喜欢']):
-                    mock_tips.append("喜欢的话点个关注/赞，后面还有更多精彩～")
-                elif any(k in w for k in ['问题', '怎么', '为什么', '如何']):
-                    mock_tips.append("大家的问题我都看到啦，等会儿集中挑几条来解答～")
-                elif any(k in w for k in ['歌', '曲', '点歌', 'BGM']):
-                    mock_tips.append("想听什么歌可以弹幕留言，我来排个队～")
-                elif any(k in w for k in ['游戏', '挑战', 'Boss']):
-                    mock_tips.append("要不要来个小挑战？弹幕投票决定下一个玩法～")
-                elif any(k in w for k in ['知识', '教程', '教学', '科普']):
-                    mock_tips.append("有想听的知识点也可以提，我选几条讲清楚～")
-                elif any(k in w for k in ['活动', '抽奖', '福利']):
-                    mock_tips.append("等等我们安排个小活动，记得跟上节奏～")
-                elif any(k in w for k in ['打赏', '礼物', '支持']):
-                    mock_tips.append("感谢支持～有你们在，直播会更有动力！")
-        
-        # 随机选择3-5条话术
-        import random
-        selected_tips = random.sample(mock_tips, min(5, len(mock_tips)))
-        
-        tips = []
-        for i, content in enumerate(selected_tips):
-            tip = {
-                'id': str(uuid.uuid4()),
-                'content': content,
-                'type': 'general',
-                'priority': random.randint(1, 5),
-                'timestamp': time.time(),
-                'used': False,
-                'source': 'mock'
-            }
-            tips.append(tip)
-        self._remember_scripts(tips)
-        return tips
-    
-    def _generate_ai_tips(self, comments: List[Dict[str, Any]], hot_words: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _generate_ai_tips(
+        self,
+        comments: List[Dict[str, Any]],
+        hot_words: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         """使用AI生成话术"""
         # 构建提示词
         prompt = self._build_prompt(comments, hot_words)
@@ -170,17 +113,30 @@ class TipGenerator(LoggerMixin):
             
         except Exception as e:
             self.logger.error(f"AI API调用失败: {e}")
-            return self._generate_mock_tips(comments, hot_words)
+            return []
     
-    def _build_prompt(self, comments: List[Dict[str, Any]], hot_words: List[Dict[str, Any]]) -> str:
-        """构建AI提示词：学习主播风格 + 感知直播间氛围 + 直用话术"""
+    def _build_prompt(
+        self,
+        comments: List[Dict[str, Any]],
+        hot_words: Optional[List[Dict[str, Any]]] = None,
+    ) -> str:
+        """构建AI提示词：强调原始评论，由模型自主判断语境。"""
         # 提取最近评论（尽量还原口语与节奏）
         recent_comments = [str((comment or {}).get('content', '')).strip() for comment in comments[-20:]]
         comment_text = '\n'.join([c for c in recent_comments if c])
+        if not comment_text:
+            comment_text = "（暂无实时评论，请结合风格记忆输出基础互动话术）"
 
         # 提取热词
         hot_word_list = [str(w.get('word', '')).strip() for w in (hot_words or [])[:10] if w]
         hot_words_text = ', '.join([w for w in hot_word_list if w])
+        hot_word_block = ""
+        if hot_words_text:
+            hot_word_block = (
+                "【NLP参考热词】\n"
+                f"{hot_words_text}\n"
+                "（这些热词仅为粗糙提取，若与你的理解不符，请优先相信原始评论。）\n\n"
+            )
 
         style_notes = ""
         if self.style_memory and self.style_memory.available():
@@ -192,29 +148,20 @@ class TipGenerator(LoggerMixin):
         if style_notes:
             style_block = f"【历史画像与口头禅】\n{style_notes.strip()}\n\n"
 
-        prompt = f"""
-你是资深直播运营的话术助手，会从“最近评论的语气/口头禅/节奏”和“热词/关注点”中学习主播语言风格，
-并生成可直接上嘴、能带动互动与气氛的短句。输出严格为 JSON 数组。
-
-{style_block}【最近的观众评论节选】
-{comment_text}
-
-【当前热词】
-{hot_words_text}
-
-生成要求：
-1) 口语化、自然、亲切，尽量贴近主播说话风格；
-2) 促进互动（关注、点赞、弹幕提问、点歌/点梗、活动参与等），可带节奏与转场；
-3) 合规友好，避免生硬广告与敏感词；
-4) 每条 20–50 字；
-5) 类型覆盖尽量多样（interaction/clarification/humor/engagement/call_to_action/transition）。
-
-严格输出 JSON 数组（不包含解释），每项格式：
-[
-  {{"content":"话术内容","type":"interaction|clarification|humor|engagement|call_to_action|transition","priority":1-5}},
-  ...
-]
-"""
+        prompt = (
+            "你是资深直播运营的话术助手，需要独立理解直播间语境。\n"
+            "请优先依据原始评论推断观众关注点；若提供的热词与你的判断冲突，可忽略热词。\n"
+            "输出严格为 JSON 数组，每个元素形如 {\"content\":\"...\",\"type\":\"interaction|emotion|product|question|transition\",\"tags\":[],\"priority\":1-5}。\n\n"
+            f"{style_block}"
+            f"【最近的观众评论节选】\n{comment_text}\n"
+            f"{hot_word_block}"
+            "生成要求：\n"
+            "1) 文案需口语化、自然、贴近主播语言习惯；\n"
+            "2) 鼓励互动或行动（关注/点赞/弹幕/提问/活动），可含转场、提醒、感谢等元素；\n"
+            "3) 合规友好，避开敏感词、夸张承诺，照顾不同观众感受；\n"
+            "4) 每条 18~40 个汉字，结构紧凑，避免重复口头禅；\n"
+            "5) 至少返回 3 条候选话术，按 priority 从高到低排序。"
+        )
         return prompt
     
     def _call_deepseek_api(self, prompt: str) -> str:
@@ -353,6 +300,20 @@ class TipGenerator(LoggerMixin):
             if tip.get('id') == tip_id:
                 return tip
         return None
+
+    def reset_memory(self, anchor_id: Optional[str] = None) -> None:
+        """清除指定主播的风格记忆缓存"""
+        target_anchor = anchor_id or self.anchor_id
+        if not target_anchor or not self.style_memory:
+            return
+        if hasattr(self.style_memory, "reset_anchor_memory"):
+            try:
+                self.style_memory.reset_anchor_memory(target_anchor)
+                self.logger.info("TipGenerator: 已重置主播 %s 的风格记忆", target_anchor)
+            except Exception as exc:
+                self.logger.warning("TipGenerator: 重置风格记忆失败: %s", exc)
+        else:
+            self.logger.debug("当前 StyleMemoryManager 不支持重置记忆接口")
     
     def clear_cache(self):
         """清空缓存"""
@@ -369,8 +330,7 @@ class TipGenerator(LoggerMixin):
             'used_tips': used_tips,
             'unused_tips': total_tips - used_tips,
             'last_generation': self.last_generation,
-            'ai_service': self.ai_service,
-            'use_mock_data': self.use_mock_data
+            'ai_service': self.ai_service
         }
     
     def start_generating(self):

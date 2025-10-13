@@ -1,14 +1,14 @@
 """
 提猫直播助手 - AI话术生成器
-基于 Qwen Max 生成直播互动话术
+基于 Qwen3 Max 生成直播互动话术
 """
 
+import json
 import logging
 import re
 from collections import Counter
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-import requests
 from openai import OpenAI
 
 from ..models import AIScript, HotWord, Comment, create_success_response, create_error_response
@@ -153,30 +153,36 @@ class AIScriptGenerator:
                        context: Dict[str, Any] = None) -> AIScript:
         """生成AI话术"""
         try:
-            # 准备生成上下文
             generation_context = self._prepare_context(hot_words, recent_comments, context)
-            
-            # 根据类型选择生成策略
+
             if not self.client:
-                raise RuntimeError("AI 客户端不可用，请检查 Qwen Max 配置")
-            script_content = self._generate_with_ai(generation_context, script_type)
-            
-            # 创建话术对象
+                raise RuntimeError("AI 客户端不可用，请检查 Qwen3 Max 配置")
+
+            ai_result = self._generate_with_ai(generation_context, script_type)
+            script_content = ai_result["line"]
+            rationale = ai_result.get("rationale")
+            tone_hint = ai_result.get("tone")
+
             script = AIScript(
                 content=script_content,
                 type=script_type,
                 context=[hw.word for hw in (hot_words or [])],
-                source="ai" if self.client else "template",
-                score=self._calculate_script_score(script_content, generation_context)
+                source="ai",
+                score=round(self._calculate_script_score(script_content, generation_context), 2)
             )
-            
-            # 记录生成历史
+            detail_tags = []
+            if tone_hint:
+                detail_tags.append(f"tone:{tone_hint}")
+            if rationale:
+                detail_tags.append(f"reason:{rationale}")
+            script.tags.extend(detail_tags)
+
             self._record_generation(script, generation_context)
             self._remember_script(script)
-            
+
             self.logger.info(f"话术生成成功: {script_type}")
             return script
-            
+
         except Exception as e:
             self.logger.error(f"话术生成失败: {e}")
             raise
@@ -297,23 +303,24 @@ class AIScriptGenerator:
         
         return analysis
     
-    def _generate_with_ai(self, context: Dict[str, Any], script_type: str) -> str:
-        """使用AI生成话术"""
+    def _generate_with_ai(self, context: Dict[str, Any], script_type: str) -> Dict[str, Any]:
+        """使用AI生成话术，并返回解析后的结果。"""
         try:
-            # 构建提示词
             prompt = self._build_ai_prompt(context, script_type)
-            
-            # 调用AI API
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {
                         "role": "system",
                         "content": (
-                            "你是主播身边的实时话术助理，能够理解主播风格、直播节奏与观众情绪，并给出可直接上嘴的自然口语化话术。"
-                            "无论直播主题为何（娱乐、知识分享、游戏、聊天等），都要帮助主播维持互动、回应观众、引导氛围。"
-                            "若给出 style_profile（人物设定/语气/节奏/口头禅/句式）与 vibe（冷/中/热、score），请务必贴合；"
-                            "输出的话术需真诚友好、易于朗读，避免敏感词与过度营销语，只返回一句话术。"
+                            "你正在进行抖音直播，需要马上开口说话。"
+                            "你只以第一人称口语表达，并自行体会语气、节奏与背景。"
+                            "话术要自然但精炼，不啰嗦。"
+                            "line 字数控制在 18~32 个中文字符（约 10~20 词），避免重复口头禅。"
+                            "除非 style_profile 明确要求，否则不要使用“哎呀”“宝宝们”等公式化称呼。"
+                            "请阅读现场线索后，仅输出一个 JSON 对象，如："
+                            '{"line":"口播内容","tone":"可选语气提示","rationale":"可选生成思路"}'
+                            "tone/rationale 可省略，禁止输出任何额外文字。"
                         )
                     },
                     {
@@ -321,30 +328,27 @@ class AIScriptGenerator:
                         "content": prompt
                     }
                 ],
-                max_tokens=200,
-                temperature=0.8
+                max_tokens=300,
+                temperature=0.7
             )
-            
-            script_content = response.choices[0].message.content.strip()
-            
-            # 清理和优化内容
-            script_content = self._clean_script_content(script_content)
-            
-            return script_content
-            
+
+            raw_content = response.choices[0].message.content.strip()
+            parsed = self._parse_ai_response(raw_content)
+            line = parsed.get("line", "").strip()
+            if not line:
+                raise RuntimeError(f"AI 未生成有效话术：{raw_content}")
+            parsed["line"] = self._clean_script_content(line)
+            return parsed
+
         except Exception as e:
             self.logger.error(f"AI生成话术失败: {e}")
             raise
     
     def _build_ai_prompt(self, context: Dict[str, Any], script_type: str) -> str:
         """构建AI提示词"""
-        prompt_parts = []
-        
-        # 基础要求
-        prompt_parts.append(f"请生成一条{script_type}类型的直播话术。")
-        prompt_parts.append("要求：1) 语言自然亲切、口语化；2) 20-50字；3) 能引导互动或带节奏；")
+        prompt_parts: List[str] = []
+        prompt_parts.append(f"【话术目标】{script_type}")
 
-        # 风格与氛围（可选）
         sp = context.get('style_profile') or {}
         if sp:
             style_text = []
@@ -357,79 +361,101 @@ class AIScriptGenerator:
             if slang: style_text.append(f"slang=[{slang}]")
             if catch: style_text.append(f"catchphrases=[{catch}]")
             if style_text:
-                prompt_parts.append("主播风格(style_profile)：" + "; ".join(style_text))
+                prompt_parts.append("【主播习惯】" + "；".join(style_text))
 
         vibe = context.get('vibe') or {}
         if vibe:
             v_level = vibe.get('level') or 'neutral'
             v_score = vibe.get('score')
-            prompt_parts.append(f"直播间氛围(vibe)：level={v_level}, score={v_score}")
+            prompt_parts.append(f"【现场氛围】level={v_level}, score={v_score}")
 
-        # 热词信息
         if context.get('hot_words'):
             hot_words_text = "、".join([hw['word'] for hw in context['hot_words'][:5]])
-            prompt_parts.append(f"4. 可以适当融入这些热词：{hot_words_text}")
-        
-        # 情感信息
+            prompt_parts.append(f"【热词参考（可忽略）】{hot_words_text}")
+
         if context.get('user_emotions'):
             emotions_text = "、".join(context['user_emotions'])
-            prompt_parts.append(f"5. 观众情绪偏向：{emotions_text}")
+            prompt_parts.append(f"【观众情绪】{emotions_text}")
 
-        route_requirements = {
-            'deep_dive': "策略：聚焦当前高频话题或问题，补充细节并推动更有深度的对话。",
-            'warm_up': "策略：暖场补能，多用陪伴式语气和互动问题，调动整体氛围。",
-            'promo': "策略：行动号召，引导观众参与、反馈或执行下一步动作（关注、留言、投票等）。",
-        }
+        questions = context.get('questions') or []
+        if questions:
+            prompt_parts.append("【观众提问】" + " | ".join(questions[:2]))
+
         route = context.get('route')
-        if route in route_requirements:
-            prompt_parts.append(route_requirements[route])
+        if route == 'deep_dive':
+            prompt_parts.append("【节奏提示】延展话题、补充细节。")
+        elif route == 'warm_up':
+            prompt_parts.append("【节奏提示】陪伴式暖场，拉高气氛。")
+        elif route == 'promo':
+            prompt_parts.append("【节奏提示】引导互动或行动。")
 
         style_memory_notes = context.get('style_memory_notes')
         if style_memory_notes:
             prompt_parts.append(
-                "请模仿以下历史记忆中总结的语言特征/口头禅（可择要借用，避免逐字复述）：\n"
-                f"{style_memory_notes}"
+                "【历史记忆】" + style_memory_notes
             )
 
         feedback_guidance = context.get('feedback_guidance')
         if feedback_guidance:
             prompt_parts.append(
-                "参考近期人工评分反馈，保留优点并避免风险表达：\n"
-                f"{feedback_guidance}"
+                "【主播打分提醒】" + feedback_guidance
             )
-        
-        # 问题信息
-        if context.get('questions'):
-            prompt_parts.append("6. 有观众提出了问题，可以适当回应")
-        
-        # 类型特定要求
-        type_requirements = {
-            'welcome': "重点是欢迎新观众，营造温馨氛围",
-            'product': "重点是介绍核心信息或主题亮点，帮助观众快速理解重点",
-            'interaction': "重点是引导观众参与讨论，增加互动",
-            'closing': "重点是感谢观众，收束话题并可预告下次互动",
-            'question': "重点是回答观众问题，展现专业性或亲和力",
-            'emotion': "重点是回应观众情绪，增强共鸣"
-        }
-        
-        if script_type in type_requirements:
-            prompt_parts.append(f"类型要求：{type_requirements[script_type]}")
+
+        prompt_parts.append(
+            "请直接输出 JSON："
+            '{"line":"...","tone":"可选语气提示","rationale":"可选生成思路"}'
+            "。line ≤ 32 个汉字，语气需与现场氛围一致，避免空泛鼓劲或无意义寒暄。"
+        )
 
         return "\n".join(prompt_parts)
-    
+
     def _clean_script_content(self, content: str) -> str:
         """清理话术内容"""
         # 移除多余的标点符号
         content = content.replace('。。', '。').replace('！！', '！').replace('？？', '？')
-        
+
         # 移除引号
         content = content.replace('"', '').replace('"', '').replace('"', '')
-        
+
+        fillers = ("哎呀", "哇塞", "宝宝们", "宝贝们", "大家伙", "姐妹们", "兄弟们")
+        stripped = content.lstrip()
+        for filler in fillers:
+            if stripped.startswith(filler):
+                stripped = stripped[len(filler):].lstrip("，,。.!  ")
+        if stripped:
+            content = stripped
+
+        max_len = 32
+        if len(content) > max_len:
+            cut_points = [idx for idx, ch in enumerate(content) if ch in "。！？" and idx <= max_len]
+            if cut_points:
+                content = content[: cut_points[0] + 1]
+            else:
+                content = content[:max_len]
+
         # 限制长度
         if len(content) > 100:
             content = content[:97] + '...'
-        
+
         return content.strip()
+
+    def _parse_ai_response(self, raw: str) -> Dict[str, Any]:
+        """解析模型 JSON 输出，宽容包裹文本。"""
+        try:
+            candidate = raw.strip()
+            match = re.search(r"\{.*\}", candidate, re.S)
+            if match:
+                candidate = match.group(0)
+            data = json.loads(candidate)
+            if not isinstance(data, dict):
+                raise ValueError("AI 输出不是对象")
+            return {
+                "line": str(data.get("line", "")).strip(),
+                "tone": str(data.get("tone", "")).strip(),
+                "rationale": str(data.get("rationale", "")).strip(),
+            }
+        except Exception as exc:
+            raise RuntimeError(f"无法解析 AI 输出，请检查：{raw}") from exc
 
     def _extract_keywords(self, content: str, limit: int = 5) -> List[str]:
         """Extract lightweight keywords for downstream ranking."""
@@ -485,7 +511,7 @@ class AIScriptGenerator:
             'source': script.source,
             'score': script.score,
             'timestamp': datetime.now().timestamp(),
-            'context_size': len(str(context))
+            'context_size': len(str(context)),
         }
         
         self.generation_history.append(record)
@@ -536,9 +562,42 @@ class AIScriptGenerator:
     
     def update_config(self, config: Dict[str, Any]):
         """更新配置"""
+        reset_flag = bool(config.get("reset_memory"))
+        if "reset_memory" in config:
+            config = {**config}
+            config.pop("reset_memory", None)
         self.config.update(config)
+        previous_anchor = self.anchor_id
+        candidate_anchor = (
+            self.config.get('anchor_id')
+            or self.config.get('douyin_room_id')
+            or self.config.get('anchor_name')
+        )
+        self.anchor_id = str(candidate_anchor) if candidate_anchor else None
         self._init_ai_client()
+        if reset_flag:
+            self.reset_memory(self.anchor_id or previous_anchor)
+        elif previous_anchor and self.anchor_id and previous_anchor != self.anchor_id:
+            self.logger.info("Anchor switched from %s to %s; using isolated memory scope.", previous_anchor, self.anchor_id)
         self.logger.info("AI生成器配置已更新")
+
+    def reset_memory(self, anchor_id: Optional[str] = None) -> None:
+        """清除指定主播的记忆数据（向下传递到 Style/Feedback memory 管理器）"""
+        target_anchor = anchor_id or self.anchor_id
+        if not target_anchor:
+            return
+        if self.style_memory and hasattr(self.style_memory, "reset_anchor_memory"):
+            try:
+                self.style_memory.reset_anchor_memory(target_anchor)
+                self.logger.info("已重置主播 %s 的风格记忆", target_anchor)
+            except Exception as exc:
+                self.logger.warning("重置风格记忆失败: %s", exc)
+        if self.feedback_memory and hasattr(self.feedback_memory, "reset_anchor_memory"):
+            try:
+                self.feedback_memory.reset_anchor_memory(target_anchor)
+                self.logger.info("已重置主播 %s 的反馈记忆", target_anchor)
+            except Exception as exc:
+                self.logger.warning("重置反馈记忆失败: %s", exc)
 
 
 # 批量生成器

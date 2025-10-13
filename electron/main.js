@@ -232,7 +232,7 @@ ipcMain.handle('runtime-info', async () => {
             }
         };
         try {
-            const pyCmd = 'import torch, json;print(json.dumps({\"version\": getattr(torch, \"__version__\", \"unknown\"), \"cuda\": torch.cuda.is_available() if hasattr(torch, \"cuda\") else False}))';
+            const pyCmd = 'import torch, json;print(json.dumps({"version": getattr(torch, "__version__", "unknown"), "cuda": torch.cuda.is_available() if hasattr(torch, "cuda") else False}))';
             const result = spawnSync(process.platform === 'win32' ? 'python' : 'python3', ['-c', pyCmd], { timeout: 5000 });
             if (result.status === 0) {
                 const parsed = JSON.parse(result.stdout.toString() || '{}');

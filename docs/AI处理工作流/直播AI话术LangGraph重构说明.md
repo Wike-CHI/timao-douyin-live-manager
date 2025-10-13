@@ -61,6 +61,7 @@ SSE 推送 payload 样例：
 - 所有记忆/反馈文件仍位于 `records/memory/<anchor_id>/`，新增的写入逻辑会自动创建文件并控制历史行数（默认 120）。
 - 高分话术同步写入 `history.jsonl` 与 `feedback_good.jsonl`，低分则进 `feedback_bad.jsonl`，后续可被反馈记忆模块读取。
 - 若运行环境缺少 LangChain/LangGraph 依赖，工作流将退化为顺序执行，不影响持久化逻辑。
+- Qwen DashScope 配置统一放在项目根目录 `.env` 中（`AI_SERVICE`、`AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL` 等）；FastAPI / Flask 在启动时会主动读取该文件，确保所有子模块拿到密钥。
 
 ## 5. 测试与验证
 

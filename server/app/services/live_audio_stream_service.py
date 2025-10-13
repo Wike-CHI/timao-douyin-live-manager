@@ -228,7 +228,15 @@ class LiveAudioStreamService:
         # Start ffmpeg to pipe raw PCM s16le 16k mono to stdout
         headers = []
         if "douyin" in record_url:
-            headers = ["-headers", "referer:https://live.douyin.com"]
+            # Add compatible headers for Douyin CDN, especially HLS
+            ua = (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/127 Safari/537.36"
+            )
+            headers.extend(["-headers", f"referer:https://live.douyin.com"])
+            headers.extend(["-headers", f"user-agent:{ua}"])
+            if ".m3u8" in (record_url or ""):
+                headers.extend(["-headers", "accept:application/vnd.apple.mpegurl"])
         # Resolve ffmpeg binary: env FFMPEG_BIN > PATH > local tools/ffmpeg/*/bin
         ffmpeg_bin = os.environ.get("FFMPEG_BIN") or shutil.which("ffmpeg") or str(
             (PROJECT_ROOT / "tools" / "ffmpeg" / ("win64" if os.name == "nt" else ("mac" if sys.platform == "darwin" else "linux")) / "bin" / ("ffmpeg.exe" if os.name == "nt" else "ffmpeg")).resolve()

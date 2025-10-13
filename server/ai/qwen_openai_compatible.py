@@ -4,7 +4,7 @@ OpenAI-compatible client for Aliyun DashScope (Qwen MAX / Qwen Omni families).
 Reads standard envs:
 - OPENAI_API_KEY
 - OPENAI_BASE_URL (e.g. https://dashscope.aliyuncs.com/compatible-mode/v1)
-- OPENAI_MODEL (examples: qwen-max, qwen-max-longcontext, qwen-omni-turbo; default: qwen-max)
+- OPENAI_MODEL (examples: qwen3-max, qwen-max-longcontext, qwen-omni-turbo; default: qwen3-max)
 
 We default to text-only fusion: transcript + aggregated comments.
 If later we add image/audio packaging (base64 or upload), extend build_messages().
@@ -20,10 +20,6 @@ try:
     from openai import OpenAI
 except Exception:  # pragma: no cover
     OpenAI = None  # type: ignore
-try:
-    import httpx  # type: ignore
-except Exception:  # pragma: no cover
-    httpx = None  # type: ignore
 
 # DashScope OpenAI-compatible config sourced from environment (.env recommended)
 DEFAULT_OPENAI_API_KEY = (
@@ -39,7 +35,7 @@ DEFAULT_OPENAI_BASE_URL = (
 DEFAULT_OPENAI_MODEL = (
     os.getenv("AI_MODEL")
     or os.getenv("OPENAI_MODEL")
-    or "qwen-max"
+    or "qwen3-max"
 )
 
 try:  # pragma: no cover - optional style memory
@@ -59,23 +55,11 @@ except Exception:  # pragma: no cover
 def _get_client():
     if OpenAI is None:
         raise RuntimeError("openai package not installed")
-    # Build a minimal httpx client explicitly to avoid version-mismatch issues
-    # with deprecated 'proxies' kw in httpx.Client.
-    kwargs = {}
-    http_client = None
-    if httpx is not None:
-        try:
-            http_client = httpx.Client(timeout=30.0, **kwargs)
-        except TypeError:
-            # Fallback: create client with no extra kwargs
-            http_client = httpx.Client(timeout=30.0)
-        except Exception:
-            http_client = None
-
+    if not DEFAULT_OPENAI_API_KEY:
+        raise RuntimeError("AI_API_KEY 未配置，无法初始化 Qwen3 Max 客户端")
     return OpenAI(
         api_key=DEFAULT_OPENAI_API_KEY,
-        base_url=DEFAULT_OPENAI_BASE_URL,
-        http_client=http_client,
+        base_url=DEFAULT_OPENAI_BASE_URL or None,
     )
 
 

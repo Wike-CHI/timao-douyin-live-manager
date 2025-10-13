@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import shutil
 
 try:  # pragma: no cover - optional dependency
     from langchain_community.vectorstores import DocArrayInMemorySearch
@@ -34,8 +35,13 @@ try:  # pragma: no cover - optional dependency
 except Exception:  # pragma: no cover
     STYLE_MEMORY_AVAILABLE = LANGCHAIN_AVAILABLE and False  # default to False
 
-    def _sanitize_anchor_id(anchor_id: Optional[str]) -> str:
-        return "default" if not anchor_id else anchor_id.replace(" ", "_")[:120]
+    def _sanitize_anchor_id(anchor_id: Optional[str]) -> Optional[str]:
+        if anchor_id is None:
+            return None
+        text = str(anchor_id).strip()
+        if not text:
+            return None
+        return text.replace(" ", "_")[:120] or None
 
     class _BagOfWordsEmbeddings:  # type: ignore
         """Fallback embedding identical to style memory fallback."""
@@ -158,6 +164,8 @@ class FeedbackMemoryManager:
             return
         tags = tags or []
         anchor_key = _sanitize_anchor_id(anchor_id)
+        if not anchor_key:
+            return
         sentiment = self._score_to_sentiment(score)
         bundle = self._load_store(anchor_key, sentiment, create=True)
         if self.available() and bundle and Document is not None:
@@ -196,6 +204,8 @@ class FeedbackMemoryManager:
         if not self.available():
             return ""
         anchor_key = _sanitize_anchor_id(anchor_id)
+        if not anchor_key:
+            return ""
         sections: List[str] = []
         for sentiment, title_positive, title_negative in (
             ("positive", "偏受欢迎的话术特征：", "常见优点标签："),
@@ -235,6 +245,18 @@ class FeedbackMemoryManager:
         if score <= 2:
             return "negative"
         return "neutral"
+
+    def reset_anchor_memory(self, anchor_id: Optional[str]) -> None:
+        """Remove cached and on-disk feedback memory for the specified anchor."""
+        anchor_key = _sanitize_anchor_id(anchor_id)
+        if not anchor_key:
+            return
+        self._stores.pop(anchor_key, None)
+        target_dir = self.base_dir / anchor_key
+        try:
+            shutil.rmtree(target_dir, ignore_errors=True)
+        except Exception:
+            pass
 
 
 _feedback_manager: Optional[FeedbackMemoryManager] = None

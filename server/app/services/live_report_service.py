@@ -22,6 +22,7 @@ import signal
 import sys
 import time
 from dataclasses import dataclass, field
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -35,6 +36,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from StreamCap.app.core.platforms.platform_handlers import (  # type: ignore
     get_platform_handler,
 )
+from StreamCap.app.core.media.ffmpeg_builders import create_builder  # type: ignore
 
 # Douyin web relay (existing service in this repo)
 # NOTE: live_report_service.py lives in server/app/services/, so the sibling
@@ -49,6 +51,8 @@ from AST_module.sensevoice_service import (  # type: ignore
     SenseVoiceConfig,
     SenseVoiceService,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _now_ts() -> int:
@@ -78,6 +82,8 @@ class LiveReportStatus:
     stopped_at: Optional[int] = None
     recording_pid: Optional[int] = None
     recording_dir: Optional[str] = None
+    session_date: str = ""
+    session_index: int = 1
     segment_seconds: int = 1800
     segments: List[Dict[str, Any]] = field(default_factory=list)  # {seq, path, start_ts, end_ts}
     comments_count: int = 0
@@ -110,6 +116,30 @@ class LiveReportService:
             "like_total": 0,
             "gifts": {},  # name -> count
         }
+        try:  # Lazy optional imports for style summarisation
+            from ...ai.style_profile_builder import StyleProfileBuilder  # type: ignore
+        except Exception:  # pragma: no cover
+            StyleProfileBuilder = None  # type: ignore
+        try:
+            from ...ai.style_memory import StyleMemoryManager  # type: ignore
+        except Exception:  # pragma: no cover
+            StyleMemoryManager = None  # type: ignore
+        if "StyleProfileBuilder" in locals() and StyleProfileBuilder:
+            try:
+                self._style_builder = StyleProfileBuilder()
+            except Exception as exc:  # pragma: no cover
+                logger.warning("StyleProfileBuilder unavailable: %s", exc)
+                self._style_builder = None
+        else:
+            self._style_builder = None
+        if "StyleMemoryManager" in locals() and StyleMemoryManager:
+            try:
+                self._style_memory = StyleMemoryManager()
+            except Exception as exc:  # pragma: no cover
+                logger.warning("StyleMemoryManager unavailable: %s", exc)
+                self._style_memory = None
+        else:
+            self._style_memory = None
 
     # ---------- Public API ----------
     async def start(self, live_url: str, segment_minutes: int = 30) -> LiveReportStatus:
@@ -139,13 +169,17 @@ class LiveReportService:
         if is_live is False:
             raise RuntimeError(f"直播间当前未开播，无法开始录制：{anchor_raw or live_id}")
 
+
         if not record_url:
             raise RuntimeError("Failed to resolve record URL (streams unavailable)")
 
         anchor = _safe_name(anchor_raw)
         day = time.strftime("%Y-%m-%d", time.localtime())
         session_id = f"live_{platform}_{anchor}_{int(time.time())}"
-        out_dir = self.records_root / platform / anchor / day / session_id
+        day_dir = self.records_root / platform / anchor / day
+        existing_sessions = [p for p in day_dir.glob("live_*") if p.is_dir()]
+        session_index = len(existing_sessions) + 1
+        out_dir = day_dir / session_id
         out_dir.mkdir(parents=True, exist_ok=True)
 
         seg_secs = max(300, int(segment_minutes) * 60)
@@ -158,6 +192,8 @@ class LiveReportService:
             anchor_name=anchor,
             platform_key=platform,
             recording_dir=str(out_dir),
+            session_date=day,
+            session_index=session_index,
             segment_seconds=seg_secs,
         )
 
@@ -249,6 +285,7 @@ class LiveReportService:
         self._session.transcript_chars = len(transcript_txt)
         transcript_path = artifacts_dir / "transcript.txt"
         transcript_path.write_text(transcript_txt, encoding="utf-8")
+        self._update_style_profile(transcript_txt, artifacts_dir)
 
         # Prefer rolling窗口合并；若无窗口结果，则调用 Qwen3-Max 一次性复盘
         ai_summary: Dict[str, Any] | None = None
@@ -313,28 +350,52 @@ class LiveReportService:
         return self._session
 
     # ---------- Internals ----------
+    def _update_style_profile(self, transcript: str, artifacts_dir: Path) -> None:
+        """Summarize transcript into long-term style memory repository."""
+        if not transcript or not self._session:
+            return
+        if not self._style_builder or not self._style_memory or not self._style_memory.available():
+            return
+        try:
+            session_date = self._session.session_date or time.strftime("%Y-%m-%d", time.localtime())
+            session_index = getattr(self._session, "session_index", 1)
+            summary = self._style_builder.build_profile(
+                anchor_id=self._session.anchor_name,
+                transcript=transcript,
+                session_date=session_date,
+                session_index=session_index,
+            )
+            if not summary:
+                return
+            self._style_memory.ingest_summary(self._session.anchor_name, summary)
+            try:
+                (artifacts_dir / "style_profile.json").write_text(
+                    json.dumps(summary, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+            except Exception:
+                pass
+        except Exception as exc:  # pragma: no cover - fail gracefully
+            logger.warning("Failed to update style memory: %s", exc)
+
     async def _start_ffmpeg(self, record_url: str, seg_secs: int, pattern: str) -> asyncio.subprocess.Process:
-        headers = []
+        headers = None
         if "douyin" in record_url:
-            headers = ["-headers", "referer:https://live.douyin.com"]
-        cmd = [
-            "ffmpeg",
-            "-y",
-            *headers,
-            "-i",
-            record_url,
-            "-c",
-            "copy",
-            "-movflags",
-            "+faststart",
-            "-f",
-            "segment",
-            "-segment_time",
-            str(seg_secs),
-            "-reset_timestamps",
-            "1",
-            pattern,
-        ]
+            headers = "referer:https://live.douyin.com"
+        builder = create_builder(
+            "mp4",
+            record_url=record_url,
+            segment_record=True,
+            segment_time=str(seg_secs),
+            full_path=pattern,
+            headers=headers,
+        )
+        cmd = builder.build_command()
+        if ("%Y" in pattern or "%H" in pattern or "%M" in pattern or "%S" in pattern) and "-strftime" not in cmd:
+            # Insert strftime flag right before the output pattern so rotated files carry wall-clock timestamps.
+            output_idx = len(cmd) - 1
+            cmd.insert(output_idx, "1")
+            cmd.insert(output_idx, "-strftime")
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,

@@ -49,8 +49,18 @@ class DirectStreamDownloader:
     async def _download_stream(self) -> None:
         try:
             os.makedirs(os.path.dirname(self.save_path), exist_ok=True)
+            # Prepare default headers for Douyin/CDN compatibility
+            default_headers = dict(self.headers)
+            if "douyin" in (self.record_url or ""):
+                default_headers.setdefault(
+                    "User-Agent",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127 Safari/537.36",
+                )
+                default_headers.setdefault("Referer", "https://live.douyin.com/")
+                if ".m3u8" in self.record_url:
+                    default_headers.setdefault("Accept", "application/vnd.apple.mpegurl")
 
-            async with httpx.AsyncClient(headers=self.headers, proxy=self.proxy, timeout=None) as client:
+            async with httpx.AsyncClient(headers=default_headers, proxy=self.proxy, timeout=None, follow_redirects=True) as client:
                 async with client.stream("GET", self.record_url) as response:
                     if response.status_code != 200:
                         logger.error(f"Request Stream Failed, Status Code: {response.status_code}")

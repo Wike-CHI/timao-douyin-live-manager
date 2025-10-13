@@ -1,4 +1,4 @@
-import React, { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
+import React, { ChangeEvent, FormEvent, useEffect, useId, useRef, useState } from 'react';
 import useAuthStore from '../../store/useAuthStore';
 import { pollPayment, uploadPayment } from '../../services/auth';
 
@@ -25,8 +25,9 @@ const PaymentVerifyPage = () => {
   const [pollAttempts, setPollAttempts] = useState(0);
   const [pollProgress, setPollProgress] = useState(0); // 轮询进度（0-100）
   
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(0);
+  const progressLabelId = useId();
 
   // 清理轮询定时器
   useEffect(() => {
@@ -180,6 +181,11 @@ const PaymentVerifyPage = () => {
     stopPolling();
   };
 
+  const normalizedProgress = Math.min(Math.max(pollProgress, 0), 100);
+  const progressValue = Math.round(normalizedProgress);
+  const progressStep = Math.round(progressValue / 5) * 5;
+  const progressFillClass = `timao-progress-fill progress-${progressStep}`;
+
   const statusConfig = {
     UNPAID: {
       color: 'text-slate-500',
@@ -228,14 +234,18 @@ const PaymentVerifyPage = () => {
       {status === 'PENDING' && pollProgress > 0 && (
         <div className="mb-4">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-            <span>审核进度</span>
+            <span id={progressLabelId}>审核进度</span>
             <span>{pollAttempts} 次查询 · {Math.round(pollProgress)}%</span>
           </div>
-          <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-purple-500 transition-all duration-300"
-              style={{ width: `${Math.min(pollProgress, 100)}%` }}
-            />
+          <progress
+            className="sr-only"
+            aria-labelledby={progressLabelId}
+            aria-valuetext={`${progressValue}%`}
+            value={progressValue}
+            max={100}
+          />
+          <div className="timao-progress-track" aria-hidden="true">
+            <div className={progressFillClass} />
           </div>
         </div>
       )}

@@ -10,8 +10,11 @@ let cachedAuth: any;
 
 export function getApp() {
   if (cachedApp) return cachedApp;
-  const envId = (import.meta as any)?.env?.VITE_TCB_ENV_ID as string | undefined;
-  cachedApp = cloudbase.init({ env: envId || undefined });
+  const envId = (import.meta as any)?.env?.VITE_TCB_ENV_ID;
+  if (typeof envId !== 'string' || !envId.trim()) {
+    throw new Error('VITE_TCB_ENV_ID 未配置，无法初始化 CloudBase');
+  }
+  cachedApp = cloudbase.init({ env: envId });
   return cachedApp;
 }
 

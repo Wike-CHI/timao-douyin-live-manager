@@ -2,11 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DouyinRelayPanel from '../../components/douyin/DouyinRelayPanel';
 import {
   getLiveAudioStatus,
-  openLiveAudioWebSocket,
   startLiveAudio,
   stopLiveAudio,
-  LiveAudioMessage,
-  LiveAudioStatus,
   updateLiveAudioAdvanced,
 } from '../../services/liveAudio';
 import { startLiveReport, stopLiveReport, getLiveReportStatus, generateLiveReport } from '../../services/liveReport';
@@ -15,91 +12,72 @@ import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../store/useAuthStore';
 import { useFirstFree as useFirstFreeApi } from '../../services/auth';
 import { startAILiveAnalysis, stopAILiveAnalysis, openAILiveStream, generateOneScript } from '../../services/ai';
-
-interface TranscriptEntry {
-  id: string;
-  text: string;
-  timestamp: number;
-  confidence: number;
-  isFinal: boolean;
-  words?: { word: string; start: number; end: number }[];
-  speaker?: string;
-}
+import { useLiveConsoleStore, getLiveConsoleSocket } from '../../store/useLiveConsoleStore';
 
 // Note: Do not cap transcript items; persist to disk is handled by backend.
 // We keep full in-memory log for current session (may grow large for long sessions).
 const FASTAPI_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:8090';
 
 const LiveConsolePage = () => {
-  const [liveInput, setLiveInput] = useState(''); // 支持 URL 或 直播间 ID
-  const [status, setStatus] = useState<LiveAudioStatus | null>(null);
-  const [latest, setLatest] = useState<TranscriptEntry | null>(null);
-  const [log, setLog] = useState<TranscriptEntry[]>([]);
+  const {
+    liveInput,
+    status,
+    latest,
+    log,
+    mode,
+    error,
+    backendLevel,
+    confSum,
+    confCount,
+    reportPaths,
+    reportStatus,
+    saveInfo,
+    aiWindowSec,
+    styleProfile,
+    vibe,
+    oneScript,
+    oneType,
+    persistTr,
+    persistTrRoot,
+    persistDm,
+    persistDmRoot,
+    aiEvents,
+    setLiveInput,
+    setStatus,
+    setLatest,
+    setMode,
+    setError,
+    setBackendLevel,
+    setReportPaths,
+    setReportStatus,
+    setSaveInfo,
+    setAiWindowSec,
+    setStyleProfile,
+    setVibe,
+    setOneScript,
+    setOneType,
+    setPersistTr,
+    setPersistTrRoot,
+    setPersistDm,
+    setPersistDmRoot,
+    pushAiEvent,
+    resetSessionState,
+    connectWebSocket,
+    disconnectWebSocket,
+  } = useLiveConsoleStore();
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<'delta' | 'sentence' | 'vad'>('vad');
   // 引擎已固定：Small
   const [engine] = useState<'small'>('small');
-  const [error, setError] = useState<string | null>(null);
-  const [backendLevel, setBackendLevel] = useState<number>(0);
-  // local confidence aggregator (final sentences only)
-  const [confSum, setConfSum] = useState(0);
-  const [confCount, setConfCount] = useState(0);
   const [reportBusy, setReportBusy] = useState(false);
-  const [reportPaths, setReportPaths] = useState<{comments?: string; transcript?: string; report?: string} | null>(null);
-  const [reportStatus, setReportStatus] = useState<any>(null);
-  // 保存位置提示
-  const [saveInfo, setSaveInfo] = useState<{ trDir?: string; dmDir?: string; videoDir?: string } | null>(null);
-  // AI 窗口时长（秒）
-  const [aiWindowSec, setAiWindowSec] = useState<number>(60);
-  // AI 风格与氛围（从实时分析中学习）
-  const [styleProfile, setStyleProfile] = useState<any>(null);
-  const [vibe, setVibe] = useState<any>(null);
   // 一句话术即时生成
   const [genBusy, setGenBusy] = useState(false);
-  const [oneScript, setOneScript] = useState<string>('');
-  const [oneType, setOneType] = useState<string>('interaction');
-  // 高级选项已移除（保留占位，避免后续误用）
-  const [persistTr, setPersistTr] = useState<boolean>(false);
-  const [persistTrRoot, setPersistTrRoot] = useState<string>('');
-  const [persistDm, setPersistDm] = useState<boolean>(false);
-  const [persistDmRoot, setPersistDmRoot] = useState<string>('');
-
-  const socketRef = useRef<WebSocket | null>(null);
-  const deltaModeRef = useRef(false);
 
   const navigate = useNavigate();
   const { balance, firstFreeUsed, setFirstFreeUsed } = useAuthStore();
 
   const isRunning = status?.is_running ?? false;
-
-  // Simple duplicate suppression at UI layer (final-only list)
-  const normalizeText = (s: string) => (s || '')
-    .replace(/[\s\t\n\r]+/g, '')
-    .replace(/[,;:]/g, m => ({',':'，',';':'；',':':'：'} as any)[m])
-    .replace(/[\.!?]/g, '。')
-    .replace(/([，。！？；：,…])\1+/g, '$1');
-
-  const isDupLike = (a: string, b: string) => {
-    const A = normalizeText(a);
-    const B = normalizeText(b);
-    if (!A || !B) return false;
-    if (A === B) return true;
-    if (A.length >= 6 && (A.includes(B) || B.includes(A))) return true;
-    return false;
-  };
-
-  const appendLog = useCallback((entry: TranscriptEntry) => {
-    setLog((prev) => {
-      const last = prev[0];
-      if (last && isDupLike(entry.text, last.text)) {
-        return prev; // drop duplicate-like final
-      }
-      // 不做数量上限裁剪，保留完整会话历史；滚动容器负责展示。
-      return [entry, ...prev];
-    });
-  }, []);
 
   useEffect(() => {
     if (collapsed) {
@@ -109,74 +87,6 @@ const LiveConsolePage = () => {
       }
     }
   }, [collapsed, log, selectedId]);
-
-  const handleSocketMessage = useCallback(
-    (message: LiveAudioMessage) => {
-      if (message.type === 'transcription' && message.data) {
-        if (deltaModeRef.current) return; // 增量模式下忽略全文
-        const d = message.data as any;
-        const entry: TranscriptEntry = {
-          id: `${(d.timestamp ?? Date.now())}-${Math.random()}`,
-          text: d.text,
-          confidence: d.confidence ?? 0,
-          timestamp: d.timestamp ?? Date.now() / 1000,
-          isFinal: !!d.is_final,
-          words: d.words,
-          speaker: d.speaker,
-        };
-        setLatest(entry);
-        if (entry.isFinal && entry.text.trim()) {
-          appendLog(entry);
-          const c = Number(entry.confidence || 0);
-          if (!Number.isNaN(c) && c > 0) {
-            setConfSum((s) => s + c);
-            setConfCount((n) => n + 1);
-          }
-        }
-      }
-    },
-    [appendLog]
-  );
-
-  const connectWebSocket = useCallback(() => {
-    if (socketRef.current) socketRef.current.close();
-    // 重置 deltaModeRef，确保新连接能正常接收所有消息类型
-    deltaModeRef.current = false;
-    const socket = openLiveAudioWebSocket((message) => {
-      if (message.type === 'level' && (message as any).data?.rms != null) {
-        setBackendLevel(((message as any).data.rms as number) || 0);
-      } else if (message.type === 'transcription_delta') {
-        deltaModeRef.current = true;
-        const m = message as any;
-        const op = m.data?.op as 'append' | 'replace' | 'final';
-        const ts = (m.data?.timestamp as number) || Date.now() / 1000;
-        const conf = (m.data?.confidence as number) || 0;
-        const deltaText = (m.data?.text as string) || '';
-        setLatest((prev) => {
-          const baseText = prev?.text ?? '';
-          let nextText = baseText;
-          let isFinal = false;
-          if (op === 'append') nextText = baseText + deltaText;
-          else if (op === 'replace') nextText = deltaText;
-          else if (op === 'final') { nextText = deltaText; isFinal = true; }
-          const entry: TranscriptEntry = {
-            id: `${ts}-${Math.random()}`,
-            text: nextText,
-            confidence: conf,
-            timestamp: ts,
-            isFinal,
-            words: [],
-            speaker: prev?.speaker,
-          };
-          if (isFinal && nextText.trim()) appendLog(entry);
-          return entry;
-        });
-      } else {
-        handleSocketMessage(message);
-      }
-    }, FASTAPI_BASE_URL);
-    socketRef.current = socket;
-  }, [handleSocketMessage, appendLog]);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -198,21 +108,21 @@ const LiveConsolePage = () => {
         if (typeof (ds as any)?.persist_root === 'string') setPersistDmRoot((ds as any).persist_root || '');
       } catch {}
       if (result.is_running) {
-        if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
-          connectWebSocket();
+        const socket = getLiveConsoleSocket();
+        if (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
+          connectWebSocket(FASTAPI_BASE_URL);
         }
+      } else {
+        disconnectWebSocket();
       }
     } catch (err) {
       console.error(err);
       setError((err as Error).message ?? '获取直播音频状态失败');
     }
-  }, [connectWebSocket]);
+  }, [connectWebSocket, disconnectWebSocket, setPersistDm, setPersistDmRoot, setPersistTr, setPersistTrRoot, setStatus, setError]);
 
   useEffect(() => {
     refreshStatus();
-    return () => {
-      if (socketRef.current) socketRef.current.close();
-    };
   }, [refreshStatus]);
 
   // Poll backend live status while running to update累计片段/平均置信度
@@ -238,7 +148,7 @@ const LiveConsolePage = () => {
     poll();
     timer = setInterval(poll, 5000);
     return () => clearInterval(timer);
-  }, []);
+  }, [setReportStatus]);
 
   const handleStart = async () => {
     setLoading(true);
@@ -282,10 +192,7 @@ const LiveConsolePage = () => {
       // 3) 录制整场（30 分钟分段）
       try { await startLiveReport(liveUrl, 30, FASTAPI_BASE_URL); } catch {}
 
-      // 重置 deltaModeRef，确保新会话能正常接收全文消息
-      deltaModeRef.current = false;
       await refreshStatus();
-      connectWebSocket();
 
       // 4) 计算保存位置
       try {
@@ -318,15 +225,8 @@ const LiveConsolePage = () => {
       await stopLiveAudio(FASTAPI_BASE_URL);
       try { await stopDouyinRelay(FASTAPI_BASE_URL); } catch {}
       try { await stopLiveReport(FASTAPI_BASE_URL); } catch {}
-      setLatest(null);
-      setStatus((prev) => (prev ? { ...prev, is_running: false } as any : prev));
-      if (socketRef.current) {
-        socketRef.current.close();
-        socketRef.current = null;
-      }
-      // 重置 deltaModeRef，确保下次会话能正常接收全文消息
-      deltaModeRef.current = false;
-      setSaveInfo(null);
+      resetSessionState();
+      disconnectWebSocket();
     } catch (err) {
       console.error(err);
       setError((err as Error).message ?? '停止直播音频失败');
@@ -382,13 +282,12 @@ const LiveConsolePage = () => {
   const modeLabel = useMemo(() => {
     const m = status?.mode || mode;
     if (m === 'sentence') return '标准';
-    if (m === 'vad') return '稳妥';
+    if (m === 'vad') return '稳态';
     return '快速';
   }, [status?.mode, mode]);
 
   const engineLabel = useMemo(() => '轻量', []);
   // AI 实时分析流（SSE，带鉴权）
-  const [aiEvents, setAiEvents] = useState<any[]>([]);
   const aiSourceRef = useRef<EventSource | null>(null);
   const connectAIStream = useCallback(() => {
     if (aiSourceRef.current) return;
@@ -398,7 +297,7 @@ const LiveConsolePage = () => {
         try {
           const data = JSON.parse(ev.data);
           if (data?.type === 'ai') {
-            setAiEvents((prev) => [data.payload, ...prev].slice(0, 10));
+            if (data.payload) pushAiEvent(data.payload);
             // 若分析结果包含风格/氛围，更新快照，便于 UI 展示与后续生成复用
             const p = data.payload || {};
             if (p.style_profile) setStyleProfile(p.style_profile);
@@ -415,7 +314,7 @@ const LiveConsolePage = () => {
       FASTAPI_BASE_URL
     );
     aiSourceRef.current = es;
-  }, []);
+  }, [pushAiEvent, setStyleProfile, setVibe]);
 
   useEffect(() => {
     if (isRunning) {
@@ -447,8 +346,9 @@ const LiveConsolePage = () => {
     } finally {
       setGenBusy(false);
     }
-  }, [oneType]);
+  }, [oneType, setOneScript]);
 
+  // --------------- State persistence ---------------
   return (
     <div className="space-y-6">
       <div className="timao-soft-card flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

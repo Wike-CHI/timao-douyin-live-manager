@@ -3,6 +3,8 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "baseUrl": "./src",
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
     "paths": {
       "@/*": ["./*"]
     }

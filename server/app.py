@@ -10,13 +10,24 @@ from datetime import datetime
 from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 from dotenv import load_dotenv
+from pathlib import Path
 import json
 import time
 import threading
 from typing import Dict, Any
 
-# 加载环境变量
-load_dotenv()
+# 加载环境变量（确保从项目根目录读取 .env）
+def _load_env_once() -> None:
+    try:
+        root_env = Path(__file__).resolve().parent.parent / ".env"
+        if root_env.exists():
+            load_dotenv(dotenv_path=root_env, override=False)
+        else:
+            load_dotenv(override=False)
+    except Exception:
+        load_dotenv(override=False)
+
+_load_env_once()
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

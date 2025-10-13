@@ -11,11 +11,28 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 import asyncio
+from dotenv import load_dotenv
+
+def _load_env_once() -> None:
+    """Load .env from project root regardless of working directory."""
+    try:
+        root_env = Path(__file__).resolve().parents[2] / ".env"
+        if root_env.exists():
+            load_dotenv(dotenv_path=root_env, override=False)
+        else:
+            load_dotenv(override=False)
+    except Exception:
+        load_dotenv(override=False)
+
+# 预先加载环境变量，确保下游模块（Qwen 等）能读取 .env
+_load_env_once()
 
 # 配置日志
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
+# Reduce noisy httpx logs (e.g., HEAD 405 from CDN probes)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # 创建FastAPI应用
 app = FastAPI(

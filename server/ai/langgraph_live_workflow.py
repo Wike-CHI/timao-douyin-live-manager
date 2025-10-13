@@ -12,6 +12,7 @@ import json
 import logging
 import random
 import re
+import uuid
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,13 +34,16 @@ from .generator import AIScriptGenerator
 try:  # pragma: no cover - optional reuse of helpers
     from .style_memory import _sanitize_anchor_id  # type: ignore
 except Exception:  # pragma: no cover
-    def _sanitize_anchor_id(anchor_id: Optional[str]) -> str:
-        if not anchor_id:
-            return "default"
-        cleaned = re.sub(r"[\\s/]+", "_", anchor_id.strip())
+    def _sanitize_anchor_id(anchor_id: Optional[str]) -> Optional[str]:
+        if anchor_id is None:
+            return None
+        text = str(anchor_id).strip()
+        if not text:
+            return None
+        cleaned = re.sub(r"[\\s/]+", "_", text)
         cleaned = re.sub(r"[^0-9A-Za-z_\\-]+", "_", cleaned)
-        cleaned = cleaned.strip("_") or "default"
-        return cleaned[:120]
+        cleaned = cleaned.strip("_")
+        return cleaned[:120] or None
 
 
 logger = logging.getLogger(__name__)
@@ -70,8 +74,8 @@ class ScoreSummary(TypedDict, total=False):
 
 
 class GraphState(TypedDict, total=False):
-    broadcaster_id: str
-    anchor_id: str
+    broadcaster_id: Optional[str]
+    anchor_id: Optional[str]
     window_start: float
     sentences: List[str]
     comments: List[Dict[str, Any]]
@@ -207,16 +211,14 @@ class LangGraphLiveWorkflow:
 
     # ------------------------------------------------------------------ public
     def invoke(self, state: GraphState) -> GraphState:
-        anchor_id = state.get("anchor_id") or self.config.anchor_id
-        state["anchor_id"] = anchor_id or "default"
-        state.setdefault("broadcaster_id", state.get("anchor_id") or "default")
+        anchor_input = state.get("anchor_id") or self.config.anchor_id
+        anchor_key = _sanitize_anchor_id(anchor_input)
+        state["anchor_id"] = anchor_key  # may be None if unresolved
+        state["broadcaster_id"] = anchor_key
+        thread_id = anchor_key or f"session_{uuid.uuid4().hex}"
         if self._workflow is None:
             return self._fallback_run(dict(state))
-        cfg = {
-            "configurable": {
-                "thread_id": _sanitize_anchor_id(state["broadcaster_id"]),
-            }
-        }
+        cfg = {"configurable": {"thread_id": thread_id}}
         result: GraphState = self._workflow.invoke(state, config=cfg)  # type: ignore[arg-type]
         return result
 
@@ -269,12 +271,17 @@ class LangGraphLiveWorkflow:
 
     # ------------------------------------------------------------------ nodes
     def _memory_loader(self, state: GraphState) -> Dict[str, Any]:
-        anchor_id = _sanitize_anchor_id(state.get("anchor_id"))
-        base = (self.config.memory_root / anchor_id).resolve()
-        persona = _read_json(base / "profile.json")
-        history = _read_jsonl(base / "history.jsonl", limit=40)
-        good_fb = _read_jsonl(base / "feedback_good.jsonl", limit=40)
-        bad_fb = _read_jsonl(base / "feedback_bad.jsonl", limit=40)
+        anchor_key = _sanitize_anchor_id(state.get("anchor_id"))
+        persona: Dict[str, Any] = {}
+        history: List[Dict[str, Any]] = []
+        good_fb: List[Dict[str, Any]] = []
+        bad_fb: List[Dict[str, Any]] = []
+        if anchor_key:
+            base = (self.config.memory_root / anchor_key).resolve()
+            persona = _read_json(base / "profile.json")
+            history = _read_jsonl(base / "history.jsonl", limit=40)
+            good_fb = _read_jsonl(base / "feedback_good.jsonl", limit=40)
+            bad_fb = _read_jsonl(base / "feedback_bad.jsonl", limit=40)
 
         persona.setdefault("tone", persona.get("tone") or "自然口语+陪伴")
         persona.setdefault("taboo", persona.get("taboo") or [])
@@ -525,8 +532,10 @@ class LangGraphLiveWorkflow:
         }
 
     def _memory_updater(self, state: GraphState) -> Dict[str, Any]:
-        anchor_id = _sanitize_anchor_id(state.get("anchor_id"))
-        base = (self.config.memory_root / anchor_id).resolve()
+        anchor_key = _sanitize_anchor_id(state.get("anchor_id"))
+        if not anchor_key:
+            return {}
+        base = (self.config.memory_root / anchor_key).resolve()
         scripts = state.get("score_summary", {}).get("high_quality") or []
         bad_scripts = state.get("score_summary", {}).get("low_quality") or []
         if scripts:

@@ -13,6 +13,7 @@ import json
 import logging
 import math
 import re
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional
@@ -39,13 +40,16 @@ if TYPE_CHECKING:
     from langchain_core.vectorstores import VectorStore as _VectorStoreT
 
 
-def _sanitize_anchor_id(anchor_id: Optional[str]) -> str:
-    if not anchor_id:
-        return "default"
-    cleaned = re.sub(r"[\\s/]+", "_", anchor_id.strip())
-    cleaned = re.sub(r"[^0-9A-Za-z_\\-]+", "_", cleaned)
-    cleaned = cleaned.strip("_") or "default"
-    return cleaned[:120]
+def _sanitize_anchor_id(anchor_id: Optional[str]) -> Optional[str]:
+    if anchor_id is None:
+        return None
+    text = str(anchor_id).strip()
+    if not text:
+        return None
+    cleaned = re.sub(r"[\s/]+", "_", text)
+    cleaned = re.sub(r"[^0-9A-Za-z_\-]+", "_", cleaned)
+    cleaned = cleaned.strip("_")
+    return cleaned[:120] or None
 
 
 class _BagOfWordsEmbeddings(Embeddings):  # pragma: no cover - deterministic fallback
@@ -97,10 +101,16 @@ class StyleMemoryManager:
         if not LANGCHAIN_AVAILABLE:
             return
         anchor_key = _sanitize_anchor_id(anchor_id)
+        if not anchor_key:
+            logger.debug("Skip style memory ingest: missing anchor_id.")
+            return
         texts = self._extract_summary_snippets(summary)
         if not texts:
             return
         bundle = self._load_store(anchor_key, create=True)
+        if not bundle:
+            logger.debug("Style memory store unavailable for %s", anchor_key)
+            return
         memory = self._build_memory(bundle.store)
         for text in texts:
             memory.save_context(
@@ -114,11 +124,17 @@ class StyleMemoryManager:
         if not LANGCHAIN_AVAILABLE:
             return
         anchor_key = _sanitize_anchor_id(anchor_id)
+        if not anchor_key:
+            logger.debug("Skip script memory ingest: missing anchor_id.")
+            return
         texts = [str(s.get("text") or s.get("content") or "").strip() for s in scripts or []]
         texts = [t for t in texts if t]
         if not texts:
             return
         bundle = self._load_store(anchor_key, create=True)
+        if not bundle:
+            logger.debug("Style memory store unavailable for %s", anchor_key)
+            return
         memory = self._build_memory(bundle.store)
         for text in texts:
             memory.save_context(
@@ -132,6 +148,8 @@ class StyleMemoryManager:
         if not LANGCHAIN_AVAILABLE:
             return ""
         anchor_key = _sanitize_anchor_id(anchor_id)
+        if not anchor_key:
+            return ""
         bundle = self._load_store(anchor_key, create=False)
         if bundle is None:
             return ""
@@ -255,6 +273,18 @@ class StyleMemoryManager:
             if level:
                 snippets.append(f"Room vibe {level} (score={score})")
         return [s for s in snippets if s]
+
+    def reset_anchor_memory(self, anchor_id: Optional[str]) -> None:
+        """Remove cached and persisted style memory for the specified anchor."""
+        anchor_key = _sanitize_anchor_id(anchor_id)
+        if not anchor_key:
+            return
+        self._stores.pop(anchor_key, None)
+        target_dir = self.base_dir / anchor_key
+        try:
+            shutil.rmtree(target_dir, ignore_errors=True)
+        except Exception as exc:
+            logger.warning("Failed to reset style memory for %s: %s", anchor_key, exc)
 
 
 def load_latest_summary(path: Path) -> Optional[Dict[str, object]]:
