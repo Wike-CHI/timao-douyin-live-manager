@@ -1,0 +1,207 @@
+"""
+Live analysis card generator for the TiMao Douyin Live Manager.
+
+This module produces analysis-only cards (no scripts) by sending the latest
+transcript snippets and chat signals to a Qwen3-Max compatible endpoint.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from typing import Any, Dict, List, Optional
+
+from openai import OpenAI
+
+logger = logging.getLogger(__name__)
+
+
+class LiveAnalysisGenerator:
+    """Generate live analysis cards via Qwen3-Max."""
+
+    def __init__(self, config: Dict[str, Any]) -> None:
+        self.config = config
+        self.client: Optional[OpenAI] = None
+        self.model: str = config.get("ai_model", "qwen3-max")
+        self._init_client()
+
+    def _init_client(self) -> None:
+        try:
+            api_key = self.config.get("ai_api_key")
+            base_url = self.config.get("ai_base_url")
+            if not api_key:
+                raise ValueError("缺少 AI API 密钥，无法生成直播分析卡片")
+            self.client = OpenAI(
+                api_key=api_key,
+                base_url=base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            )
+            logger.info("LiveAnalysisGenerator initialized with Qwen endpoint.")
+        except Exception as exc:  # pragma: no cover
+            logger.error("Failed to initialize LiveAnalysisGenerator: %s", exc)
+            self.client = None
+
+    def _format_chat_samples(self, chat_signals: List[Dict[str, Any]]) -> str:
+        lines: List[str] = []
+        for idx, signal in enumerate(chat_signals[:12], start=1):
+            category = signal.get("category") or "other"
+            weight = signal.get("weight")
+            text = signal.get("text") or ""
+            prefix = f"{idx}. [{category}]"
+            if weight is not None:
+                prefix += f"(w={weight})"
+            lines.append(f"{prefix} {text}")
+        return "\n".join(lines) or "（本窗口暂无有效弹幕）"
+
+    def _format_topic_candidates(self, topics: List[Dict[str, Any]]) -> str:
+        if not topics:
+            return "（未检测到稳定话题）"
+        parts: List[str] = []
+        for rank, topic in enumerate(topics[:5], start=1):
+            name = topic.get("topic") or ""
+            conf = topic.get("confidence")
+            if conf is not None:
+                parts.append(f"{rank}. {name} (置信 {conf})")
+            else:
+                parts.append(f"{rank}. {name}")
+        return "\n".join(parts)
+
+    def _format_category_stats(self, stats: Dict[str, Any]) -> str:
+        total = stats.get("total_messages", 0)
+        window_seconds = stats.get("window_seconds")
+        by_cat = stats.get("category_counts") or {}
+        lines = [f"总量: {total}"]
+        if window_seconds is not None:
+            lines.append(f"窗口时长: {window_seconds}s")
+        for key in ("question", "product", "support", "emotion", "other"):
+            if key in by_cat:
+                lines.append(f"{key}: {by_cat[key]}")
+        return "\n".join(lines)
+
+    def _format_speech_stats(self, stats: Dict[str, Any]) -> str:
+        sentences = int(stats.get("sentence_count") or 0)
+        total_chars = int(stats.get("total_chars") or 0)
+        last_sentence = str(stats.get("last_sentence") or "").strip()
+        window_seconds = stats.get("window_seconds")
+        speaking_ratio = stats.get("speaking_ratio")
+        other_ratio = stats.get("other_like_ratio")
+        host_ratio = stats.get("host_like_ratio")
+        possible_other = stats.get("possible_other_speaker")
+        host_examples = stats.get("host_examples") or []
+        other_examples = stats.get("other_examples") or []
+        rows = [
+            f"最终句数: {sentences}",
+            f"总字数: {total_chars}",
+        ]
+        if window_seconds is not None:
+            rows.append(f"窗口时长: {window_seconds}s")
+        if speaking_ratio is not None:
+            rows.append(f"说话占比: {round(float(speaking_ratio)*100, 1)}%")
+        if host_ratio is not None:
+            rows.append(f"判定为主播的句占比: {round(float(host_ratio)*100, 1)}%")
+        if other_ratio is not None:
+            rows.append(f"疑似对手发言占比: {round(float(other_ratio)*100, 1)}%")
+        if last_sentence:
+            preview = last_sentence if len(last_sentence) <= 30 else last_sentence[:30] + "…"
+            rows.append(f"最近一句: {preview}")
+        else:
+            rows.append("最近一句: （暂无）")
+        if possible_other:
+            rows.append("提示：对方主播发言较多")
+        if host_examples:
+            rows.append("主播示例：" + " | ".join(str(x)[:20] for x in host_examples))
+        if other_examples:
+            rows.append("可能来自对手：" + " | ".join(str(x)[:20] for x in other_examples))
+        return "\n".join(rows)
+
+    def _build_prompt(self, context: Dict[str, Any]) -> List[Dict[str, Any]]:
+        transcript = context.get("transcript") or ""
+        chat_summary = self._format_chat_samples(context.get("chat_signals") or [])
+        topics = self._format_topic_candidates(context.get("topics") or [])
+        stats = self._format_category_stats(context.get("chat_stats") or {})
+        raw_speech_stats = context.get("speech_stats") or {}
+        speech_stats = self._format_speech_stats(raw_speech_stats)
+        window_seconds = raw_speech_stats.get("window_seconds") or context.get("chat_stats", {}).get("window_seconds")
+        window_label = f"最近 {int(window_seconds)} 秒" if window_seconds else "最近 1 分钟"
+        vibe = context.get("vibe") or {}
+        persona = context.get("persona") or {}
+        planner_focus = context.get("planner_focus") or ""
+        focus_notes = ""
+        if planner_focus:
+            focus_notes = f"【系统聚焦建议】{planner_focus}\n\n"
+
+        vibe_line = (
+            f"level={vibe.get('level', 'unknown')}, "
+            f"score={vibe.get('score', 'N/A')}, "
+            f"mood={context.get('mood', 'unknown')}"
+        )
+
+        system_prompt = (
+            "你是一名资深直播运营教练。每 30-60 秒收到主播口播、弹幕与统计，需要写一份给主播看的《实时观察》。"
+            "请专注分析与建议，不要输出固定口播模板或引导观众的脚本文字。"
+            "回复必须是 JSON 对象，字段包括："
+            '{"analysis_overview":"一句自然语言总结(≤35字)",'
+            '"audience_sentiment":{"label":"热|平稳|冷","signals":["两条以内的证据"]},'
+            '"engagement_highlights":["两条以内的真实观察"],'
+            '"risks":["两条以内的潜在问题与原因"],'
+            '"next_actions":["三条以内的行动指引"],'
+            '"confidence":0.0~1.0,'
+            '"style_profile":{"persona":"","tone":"","tempo":"","register":"","catchphrases":[],"slang":[]},'
+            '"vibe":{"level":"cold|neutral|hot","score":0,"trends":["两条趋势"]}}'
+            "。若信息不足，也要保留字段并说明“暂无数据”。"
+            "写作要求："
+            "1) 用主播能听懂的口语表达，避免重复句式和僵硬用词；"
+            "2) 每条 highlights/risks/next_actions 最多 16 个字，聚焦现象或原因；"
+            "3) next_actions 写可执行方向（如“围绕宿舍话题提问”“点名欢迎新观众”），不要给出口播样板；"
+            "4) 引用提供的弹幕、口播、统计线索，必要时说明数量或关键词；"
+            "5) style_profile 结合近期语气和历史画像总结语气、节奏、常用表达；"
+            "6) 提醒互动时可参考关键词，但不要让主播照念任何模板。"
+        )
+
+        persona_notes = ""
+        if persona:
+            persona_notes = (
+                "【主播画像】\n"
+                + json.dumps(persona, ensure_ascii=False)
+                + "\n\n"
+            )
+
+        user_prompt = (
+            f"{focus_notes}"
+            f"{persona_notes}"
+            f"【时间窗口】{window_label}\n"
+            "【口播节选】\n"
+            f"{transcript or '（暂无口播文本）'}\n\n"
+            "【观众互动摘录】\n"
+            f"{chat_summary}\n\n"
+            "【互动分类统计】\n"
+            f"{stats}\n\n"
+            "【主播口播情况】\n"
+            f"{speech_stats}\n\n"
+            "【讨论焦点候选】\n"
+            f"{topics}\n\n"
+            "【系统氛围评估】\n"
+            f"{vibe_line}"
+        )
+
+        return [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+
+    def generate(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        if not self.client:
+            raise RuntimeError("LiveAnalysisGenerator 未初始化成功")
+        messages = self._build_prompt(context)
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=0.3,
+            response_format={"type": "json_object"},
+            max_tokens=800,
+        )
+        raw = response.choices[0].message.content or "{}"
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            logger.warning("无法解析 Qwen 返回的 JSON：%s", raw)
+            return {"analysis_overview": raw}

@@ -11,7 +11,7 @@ import { startDouyinRelay, stopDouyinRelay, getDouyinRelayStatus, updateDouyinPe
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../store/useAuthStore';
 import { useFirstFree as useFirstFreeApi } from '../../services/auth';
-import { startAILiveAnalysis, stopAILiveAnalysis, openAILiveStream, generateOneScript } from '../../services/ai';
+import { startAILiveAnalysis, stopAILiveAnalysis, openAILiveStream, generateAnswerScripts } from '../../services/ai';
 import { useLiveConsoleStore, getLiveConsoleSocket } from '../../store/useLiveConsoleStore';
 
 // Note: Do not cap transcript items; persist to disk is handled by backend.
@@ -27,21 +27,17 @@ const LiveConsolePage = () => {
     mode,
     error,
     backendLevel,
-    confSum,
-    confCount,
     reportPaths,
     reportStatus,
     saveInfo,
-    aiWindowSec,
     styleProfile,
     vibe,
-    oneScript,
-    oneType,
     persistTr,
     persistTrRoot,
     persistDm,
     persistDmRoot,
     aiEvents,
+    answerScripts,
     setLiveInput,
     setStatus,
     setLatest,
@@ -51,16 +47,14 @@ const LiveConsolePage = () => {
     setReportPaths,
     setReportStatus,
     setSaveInfo,
-    setAiWindowSec,
     setStyleProfile,
     setVibe,
-    setOneScript,
-    setOneType,
     setPersistTr,
     setPersistTrRoot,
     setPersistDm,
     setPersistDmRoot,
     pushAiEvent,
+    setAnswerScripts,
     resetSessionState,
     connectWebSocket,
     disconnectWebSocket,
@@ -71,9 +65,9 @@ const LiveConsolePage = () => {
   // 引擎已固定：Small
   const [engine] = useState<'small'>('small');
   const [reportBusy, setReportBusy] = useState(false);
-  // 一句话术即时生成
-  const [genBusy, setGenBusy] = useState(false);
-
+  const [selectedQuestions, setSelectedQuestions] = useState<string[]>([]);
+  const [answerLoading, setAnswerLoading] = useState(false);
+  const [answerError, setAnswerError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { balance, firstFreeUsed, setFirstFreeUsed } = useAuthStore();
 
@@ -124,6 +118,14 @@ const LiveConsolePage = () => {
   useEffect(() => {
     refreshStatus();
   }, [refreshStatus]);
+
+  useEffect(() => {
+    if (!isRunning) {
+      setSelectedQuestions([]);
+      setAnswerError(null);
+      setAnswerScripts([]);
+    }
+  }, [isRunning, setAnswerScripts, setAnswerError]);
 
   // Poll backend live status while running to update累计片段/平均置信度
   useEffect(() => {
@@ -186,6 +188,7 @@ const LiveConsolePage = () => {
       try { await updateDouyinPersist({ persist_enabled: true }, FASTAPI_BASE_URL); } catch {}
       // 2) 音频（后端固定 Small+VAD，前端不暴露专业选项）
       await startLiveAudio({ liveUrl }, FASTAPI_BASE_URL);
+      connectWebSocket(FASTAPI_BASE_URL);
       // 默认开启字幕持久化
       try { await updateLiveAudioAdvanced({ persist_enabled: true }, FASTAPI_BASE_URL); } catch {}
 
@@ -193,6 +196,11 @@ const LiveConsolePage = () => {
       try { await startLiveReport(liveUrl, 30, FASTAPI_BASE_URL); } catch {}
 
       await refreshStatus();
+
+      try { await stopAILiveAnalysis(FASTAPI_BASE_URL).catch(() => {}); } catch {}
+      await startAILiveAnalysis({ window_sec: 30 }, FASTAPI_BASE_URL).catch(() => {});
+      analysisBootRef.current = true;
+      connectAIStream();
 
       // 4) 计算保存位置
       try {
@@ -225,8 +233,10 @@ const LiveConsolePage = () => {
       await stopLiveAudio(FASTAPI_BASE_URL);
       try { await stopDouyinRelay(FASTAPI_BASE_URL); } catch {}
       try { await stopLiveReport(FASTAPI_BASE_URL); } catch {}
+      try { await stopAILiveAnalysis(FASTAPI_BASE_URL).catch(() => {}); } catch {}
       resetSessionState();
       disconnectWebSocket();
+      analysisBootRef.current = false;
     } catch (err) {
       console.error(err);
       setError((err as Error).message ?? '停止直播音频失败');
@@ -274,11 +284,6 @@ const LiveConsolePage = () => {
     }
   };
 
-  const formattedCountdown = useMemo(() => {
-    if (!isRunning) return '暂停';
-    return '运行中';
-  }, [isRunning]);
-
   const modeLabel = useMemo(() => {
     const m = status?.mode || mode;
     if (m === 'sentence') return '标准';
@@ -289,6 +294,45 @@ const LiveConsolePage = () => {
   const engineLabel = useMemo(() => '轻量', []);
   // AI 实时分析流（SSE，带鉴权）
   const aiSourceRef = useRef<EventSource | null>(null);
+  const analysisBootRef = useRef(false);
+  const normalizeAiEvent = useCallback((payload: any, timestamp?: number) => {
+    if (!payload || typeof payload !== 'object') {
+      return {
+        summary: typeof payload === 'string' ? payload : '',
+        raw: payload,
+        timestamp: timestamp ?? Date.now(),
+      };
+    }
+    const card = payload.analysis_card && typeof payload.analysis_card === 'object'
+      ? payload.analysis_card
+      : null;
+    const toArray = (value: any): any[] => (Array.isArray(value) ? value : []);
+    const chooseList = (primary: any, fallback: any): any[] => {
+      const primaryArr = toArray(primary);
+      if (primaryArr.length) return primaryArr;
+      return toArray(fallback);
+    };
+    const summaryText = payload.summary && String(payload.summary).trim().length
+      ? payload.summary
+      : (card?.analysis_overview || '');
+    const normalized: any = {
+      ...payload,
+      summary: summaryText,
+      highlight_points: chooseList(payload.highlight_points, card?.engagement_highlights),
+      risks: chooseList(payload.risks, card?.risks),
+      suggestions: chooseList(payload.suggestions, card?.next_actions),
+      top_questions: toArray(payload.top_questions),
+      analysis_focus: payload.analysis_focus || '',
+      audience_sentiment: card && typeof card === 'object' ? card.audience_sentiment || null : null,
+      analysis_card: card || undefined,
+      timestamp: timestamp ?? Date.now(),
+    };
+    if (payload.answer_scripts !== undefined) {
+      normalized.answer_scripts = toArray(payload.answer_scripts);
+    }
+    return normalized;
+  }, []);
+
   const connectAIStream = useCallback(() => {
     if (aiSourceRef.current) return;
     // 使用统一的鉴权 SSE 流
@@ -297,11 +341,17 @@ const LiveConsolePage = () => {
         try {
           const data = JSON.parse(ev.data);
           if (data?.type === 'ai') {
-            if (data.payload) pushAiEvent(data.payload);
+            if (data.payload) {
+              const normalized = normalizeAiEvent(data.payload, data.timestamp);
+              pushAiEvent(normalized);
+              const p = normalized || {};
+              if (p.style_profile) setStyleProfile(p.style_profile);
+              if (p.vibe) setVibe(p.vibe);
+              if (Array.isArray(p.answer_scripts)) {
+                setAnswerScripts(p.answer_scripts);
+              }
+            }
             // 若分析结果包含风格/氛围，更新快照，便于 UI 展示与后续生成复用
-            const p = data.payload || {};
-            if (p.style_profile) setStyleProfile(p.style_profile);
-            if (p.vibe) setVibe(p.vibe);
           }
         } catch {}
       },
@@ -314,39 +364,86 @@ const LiveConsolePage = () => {
       FASTAPI_BASE_URL
     );
     aiSourceRef.current = es;
-  }, [pushAiEvent, setStyleProfile, setVibe]);
+  }, [normalizeAiEvent, pushAiEvent, setStyleProfile, setVibe, setAnswerScripts]);
 
   useEffect(() => {
     if (isRunning) {
-      const ws = Math.max(30, Math.min(600, Number(aiWindowSec) || 60));
-      // 使用统一的鉴权接口启动 AI 分析
-      startAILiveAnalysis({ window_sec: ws }, FASTAPI_BASE_URL).catch(() => {});
+      if (!analysisBootRef.current) {
+        startAILiveAnalysis({ window_sec: 30 }, FASTAPI_BASE_URL).catch(() => {});
+        analysisBootRef.current = true;
+      }
       connectAIStream();
     } else {
+      analysisBootRef.current = false;
       try { stopAILiveAnalysis(FASTAPI_BASE_URL).catch(() => {}); } catch {}
       if (aiSourceRef.current) { aiSourceRef.current.close(); aiSourceRef.current = null; }
     }
-    return () => { if (aiSourceRef.current) { aiSourceRef.current.close(); aiSourceRef.current = null; } };
+    return () => {
+      if (!isRunning && aiSourceRef.current) {
+        aiSourceRef.current.close();
+        aiSourceRef.current = null;
+      }
+    };
   }, [isRunning, connectAIStream]);
 
-  // 生成一句话术（调用后端，自动带入 style_profile/vibe，使用统一鉴权）
-  const handleGenerateOne = useCallback(async () => {
+  const handleCopyAnswer = useCallback(async (text: string) => {
+    if (!text) return;
     try {
-      setGenBusy(true);
-      setOneScript('');
-      const res = await generateOneScript(
-        { script_type: oneType, include_context: true },
-        FASTAPI_BASE_URL
-      );
-      const text = res?.data?.content || '';
-      if (text) setOneScript(String(text));
-    } catch (e) {
-      console.error(e);
-      setOneScript('生成失败，请稍后再试');
-    } finally {
-      setGenBusy(false);
+      await navigator.clipboard.writeText(text);
+    } catch (err) {
+      console.error('复制话术失败', err);
     }
-  }, [oneType, setOneScript]);
+  }, []);
+
+  const handleSelectQuestion = useCallback((entry: { content: string }) => {
+    const text = String(entry?.content || '').trim();
+    if (!text) return;
+    setSelectedQuestions((prev) => {
+      if (prev.includes(text)) return prev;
+      const next = [text, ...prev];
+      return next.slice(0, 5);
+    });
+    setAnswerError(null);
+  }, [setSelectedQuestions, setAnswerError]);
+
+  const handleRemoveQuestion = useCallback((question: string) => {
+    setSelectedQuestions((prev) => prev.filter((q) => q !== question));
+  }, [setSelectedQuestions]);
+
+  const handleClearQuestions = useCallback(() => {
+    setSelectedQuestions([]);
+    setAnswerError(null);
+  }, [setSelectedQuestions, setAnswerError]);
+
+  const handleGenerateAnswers = useCallback(async () => {
+    if (!selectedQuestions.length) {
+      setAnswerError('请先选择至少一个弹幕问题');
+      return;
+    }
+    try {
+      setAnswerLoading(true);
+      setAnswerError(null);
+      const transcriptSnippet = log
+        .slice(0, 6)
+        .reverse()
+        .map((item) => item.text)
+        .filter(Boolean)
+        .join('\n');
+      const payload: any = {
+        questions: selectedQuestions,
+      };
+      if (transcriptSnippet) payload.transcript = transcriptSnippet;
+      if (styleProfile) payload.style_profile = styleProfile;
+      if (vibe) payload.vibe = vibe;
+      const res = await generateAnswerScripts(payload, FASTAPI_BASE_URL);
+      const scripts = res?.data?.scripts || [];
+      setAnswerScripts(scripts);
+    } catch (err) {
+      setAnswerError((err as Error)?.message || '生成失败，请稍后再试');
+    } finally {
+      setAnswerLoading(false);
+    }
+  }, [selectedQuestions, log, styleProfile, vibe, setAnswerScripts, FASTAPI_BASE_URL]);
 
   // --------------- State persistence ---------------
   return (
@@ -438,12 +535,9 @@ const LiveConsolePage = () => {
               ) : (
                 log.map((item) => (
                   <div key={item.id} className="rounded-2xl border border-white/60 shadow-md p-4 bg-white/95">
-                    <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                      <span>{new Date(item.timestamp * 1000).toLocaleTimeString()}</span>
-                      <div className="flex items-center gap-2">
-                        <span>稳定度 {(item.confidence * 100).toFixed(0)}%</span>
+                      <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+                        <span>{new Date(item.timestamp * 1000).toLocaleTimeString()}</span>
                       </div>
-                    </div>
                     <div className="text-slate-600 text-sm leading-relaxed">{item.text}</div>
                   </div>
                 ))
@@ -454,54 +548,31 @@ const LiveConsolePage = () => {
         </section>
 
         <section className="flex flex-col gap-4">
-          {/* AI 分析卡片：常显，并允许设置分析窗口（秒） */}
+          {/* AI 分析卡片：固定 60 秒窗口自动刷新 */}
           <div className="timao-card">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2 mb-3">
               <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
                 <span>🧠</span>
-                直播助手
+                直播分析卡片
               </h3>
-              <div className="flex items-center gap-2">
-                <span className="text-xs timao-support-text">分析窗口</span>
-                <input
-                  type="number"
-                  min={30}
-                  max={600}
-                  step={10}
-                  className="timao-input w-20 text-xs"
-                  value={aiWindowSec}
-                  onChange={(e) => setAiWindowSec(Math.max(30, Math.min(600, Number(e.target.value) || 60)))}
-                  title="每次AI汇总的时间窗口（30-600秒）"
-                />
-                <span className="text-xs timao-support-text">秒</span>
-                <button
-                  className="timao-outline-btn text-xs"
-                  onClick={async () => {
-                    // 应用新的分析窗口：重启 AI 分析服务并重连 SSE（使用统一鉴权）
-                    try { await stopAILiveAnalysis(FASTAPI_BASE_URL).catch(() => {}); } catch {}
-                    const ws = Math.max(30, Math.min(600, Number(aiWindowSec) || 60));
-                    try {
-                      await startAILiveAnalysis({ window_sec: ws }, FASTAPI_BASE_URL).catch(() => {});
-                    } catch {}
-                    try { if (aiSourceRef.current) { aiSourceRef.current.close(); aiSourceRef.current = null; } } catch {}
-                    connectAIStream();
-                  }}
-                  disabled={!isRunning}
-                  title={isRunning ? '应用后，下一个窗口生效' : '请先开始实时字幕'}
-                >应用</button>
-              </div>
+              <span className="text-xs timao-support-text">系统默认每 60 秒更新一次</span>
             </div>
             {aiEvents.length === 0 ? (
-              <div className="timao-outline-card text-sm timao-support-text">{isRunning ? '正在分析直播内容…（开始字幕后，约 1 分钟出现建议）' : '请先在上方开始实时字幕'}
+              <div className="timao-outline-card text-sm timao-support-text">{isRunning ? '正在生成直播分析卡片…（开始字幕后约 1 分钟内出现结果）' : '请先在上方开始实时字幕'}
               </div>
             ) : (
               <div className="space-y-3 max-h-[260px] overflow-y-auto pr-1">
                 {aiEvents.map((ev, idx) => {
-                  const hasAny = ev?.summary || (Array.isArray(ev?.highlight_points) && ev.highlight_points.length)
+                  const sentiment = ev?.audience_sentiment
+                    || (ev?.analysis_card && typeof ev.analysis_card === 'object' ? ev.analysis_card.audience_sentiment : null);
+                  const sentimentSignals = Array.isArray(sentiment?.signals) ? sentiment.signals : [];
+                  const hasAny = ev?.summary
+                    || (Array.isArray(ev?.highlight_points) && ev.highlight_points.length)
                     || (Array.isArray(ev?.risks) && ev.risks.length)
                     || (Array.isArray(ev?.suggestions) && ev.suggestions.length)
                     || (Array.isArray(ev?.top_questions) && ev.top_questions.length)
-                    || (Array.isArray(ev?.scripts) && ev.scripts.length)
+                    || (sentiment && (sentiment.label || sentimentSignals.length))
+                    || ev?.analysis_focus
                     || ev?.error || ev?.raw;
                   return (
                     <div key={idx} className="rounded-2xl border border-white/60 shadow-md p-3 bg-white/95">
@@ -512,7 +583,10 @@ const LiveConsolePage = () => {
                         <div className="text-xs text-slate-500 whitespace-pre-wrap">{String(ev.raw)}</div>
                       ) : null}
                       {ev?.summary ? (
-                        <div className="text-sm text-slate-700 mb-2">{ev.summary}</div>
+                        <div className="text-sm text-slate-700 mb-2 whitespace-pre-wrap">{ev.summary}</div>
+                      ) : null}
+                      {ev?.analysis_focus ? (
+                        <div className="text-xs text-purple-600 mb-2">关注点：{ev.analysis_focus}</div>
                       ) : null}
                       {Array.isArray(ev?.highlight_points) && ev.highlight_points.length ? (
                         <>
@@ -528,6 +602,19 @@ const LiveConsolePage = () => {
                           <ul className="list-disc pl-5 text-xs text-slate-600">
                             {ev.risks.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
                           </ul>
+                        </>
+                      ) : null}
+                      {sentiment && (sentiment.label || sentimentSignals.length) ? (
+                        <>
+                          <div className="text-xs text-slate-500 mt-2 mb-1">观众情绪</div>
+                          <div className="text-xs text-slate-600">
+                            状态：{sentiment.label || '—'}
+                          </div>
+                          {sentimentSignals.length ? (
+                            <ul className="list-disc pl-5 text-xs text-slate-600 mt-1">
+                              {sentimentSignals.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
+                            </ul>
+                          ) : null}
                         </>
                       ) : null}
                       {Array.isArray(ev?.suggestions) && ev.suggestions.length ? (
@@ -546,16 +633,6 @@ const LiveConsolePage = () => {
                           </ul>
                         </>
                       ) : null}
-                      {Array.isArray(ev?.scripts) && ev.scripts.length ? (
-                        <>
-                          <div className="text-xs text-slate-500 mt-2 mb-1">可用话术</div>
-                          <ul className="list-disc pl-5 text-xs text-slate-600">
-                            {ev.scripts.slice(0, 3).map((s: any, i: number) => (
-                              <li key={i}>{String(s?.text || s)}</li>
-                            ))}
-                          </ul>
-                        </>
-                      ) : null}
                       {!hasAny ? (
                         <div className="text-xs text-slate-400">暂无可显示内容</div>
                       ) : null}
@@ -566,30 +643,13 @@ const LiveConsolePage = () => {
             )}
           </div>
 
-          {/* 风格画像与氛围 + 一句话术 */}
+          {/* 风格画像与氛围 */}
           <div className="timao-card">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
                 <span>🎛️</span>
                 风格画像与氛围
               </h3>
-              <div className="flex items-center gap-2">
-                <select className="timao-input text-xs" value={oneType} onChange={(e) => setOneType(e.target.value)} title="话术类型">
-                  <option value="interaction">互动</option>
-                  <option value="call_to_action">召唤</option>
-                  <option value="transition">转场</option>
-                  <option value="clarification">澄清</option>
-                  <option value="humor">幽默</option>
-                  <option value="welcome">欢迎</option>
-                  <option value="closing">收尾</option>
-                  <option value="question">答疑</option>
-                  <option value="emotion">情绪</option>
-                  <option value="product">产品</option>
-                </select>
-                <button className="timao-primary-btn text-xs" onClick={handleGenerateOne} disabled={genBusy} title="根据当前风格与氛围生成一句话术">
-                  {genBusy ? '生成中…' : '生成一句话术'}
-                </button>
-              </div>
             </div>
             {(!styleProfile && !vibe) ? (
               <div className="timao-outline-card text-xs timao-support-text">{isRunning ? '正在学习主播风格与氛围…' : '开始实时字幕后自动学习'}</div>
@@ -616,14 +676,105 @@ const LiveConsolePage = () => {
                     <div className="text-xs text-slate-600">热度：{String(vibe.level ?? '—')} · 分数：{String(vibe.score ?? '—')}</div>
                   </div>
                 ) : null}
-                {oneScript ? (
-                  <div className="rounded-xl bg-purple-50/80 border border-purple-100 p-3">
-                    <div className="text-xs text-slate-500 mb-1">临时话术</div>
-                    <div className="text-sm text-slate-700">{oneScript}</div>
-                  </div>
-                ) : null}
               </div>
             )}
+          </div>
+
+          <div className="timao-card">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
+                <span>🗣️</span>
+                智能话术建议
+              </h3>
+              <span className="text-xs timao-support-text">在弹幕中点“生成答疑话术”即可添加</span>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <div className="text-xs text-slate-500 mb-1">已选问题</div>
+                {selectedQuestions.length ? (
+                  <ul className="space-y-2">
+                    {selectedQuestions.map((q) => (
+                      <li key={q} className="flex items-start justify-between gap-3 rounded-xl border bg-white/90 px-3 py-2 text-xs text-slate-600">
+                        <span className="flex-1 leading-relaxed">{q}</span>
+                        <button
+                          className="timao-support-text text-[11px] hover:text-rose-500"
+                          onClick={() => handleRemoveQuestion(q)}
+                          title="移除该问题"
+                        >
+                          移除
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="timao-outline-card text-xs timao-support-text">
+                    在实时弹幕列表中点击对应按钮，即可将问题加入这里。
+                  </div>
+                )}
+                <div className="mt-3 flex items-center gap-2">
+                  <button
+                    className="timao-primary-btn text-xs"
+                    onClick={handleGenerateAnswers}
+                    disabled={!selectedQuestions.length || answerLoading || !isRunning}
+                  >
+                    {answerLoading ? '生成中…' : '生成话术'}
+                  </button>
+                  <button
+                    className="timao-outline-btn text-xs"
+                    onClick={handleClearQuestions}
+                    disabled={!selectedQuestions.length || answerLoading}
+                  >
+                    清空
+                  </button>
+                </div>
+                {answerError ? (
+                  <div className="mt-2 text-xs text-rose-500">{answerError}</div>
+                ) : null}
+              </div>
+
+              <div>
+                <div className="text-xs text-slate-500 mb-1">生成结果</div>
+                {Array.isArray(answerScripts) && answerScripts.length ? (
+                  <div className="space-y-3">
+                    {answerScripts.slice(0, 3).map((item, idx) => (
+                      <div key={idx} className="rounded-xl bg-white/90 border p-3 text-xs text-slate-600 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {item?.question ? (
+                            <span className="text-[11px] text-purple-500">
+                              问：{String(item.question)}
+                            </span>
+                          ) : null}
+                          {item?.style ? (
+                            <span className="rounded-full border border-purple-200 bg-purple-50 px-2 py-[1px] text-[10px] text-purple-600">
+                              {String(item.style)}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="text-sm text-slate-800 leading-relaxed">
+                          {String(item?.line || '')}
+                        </div>
+                        <div className="flex items-center justify-between">
+                          {item?.notes ? (
+                            <span className="text-[11px] text-slate-400">{String(item.notes)}</span>
+                          ) : <span />}
+                          <button
+                            className="timao-outline-btn text-[11px] px-2 py-0.5"
+                            onClick={() => handleCopyAnswer(String(item?.line || ''))}
+                            title="复制话术"
+                          >
+                            复制
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="timao-outline-card text-xs timao-support-text">
+                    生成后的话术会展示在此，帮助你用主播语气快速回复观众。
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="timao-card">
@@ -648,14 +799,13 @@ const LiveConsolePage = () => {
                 <span>💡</span>
                 实时字幕
               </h3>
-              <span className="text-xs timao-support-text">{formattedCountdown}</span>
             </div>
             <div className="rounded-2xl bg-purple-50/80 border border-purple-100 px-4 py-3 text-slate-700 min-h-[72px] flex items-center">
               {latest?.text ? latest.text : '等待识别结果...'}
             </div>
             {latest ? (
               <div className="flex items-center justify-between text-xs text-slate-400 mt-3">
-              <span>时间 {new Date(latest.timestamp * 1000).toLocaleTimeString()} · 稳定度 {(latest.confidence * 100).toFixed(0)}%</span>
+              <span>时间 {new Date(latest.timestamp * 1000).toLocaleTimeString()}</span>
                 <button
                   className="timao-outline-btn text-[10px] px-2 py-0.5"
                   title="复制JSON"
@@ -697,18 +847,6 @@ const LiveConsolePage = () => {
               <div className="text-xs timao-support-text mt-2">
                 已累计片段 {status?.stats?.total_audio_chunks ?? 0} · 成功转写 {status?.stats?.successful_transcriptions ?? 0}
               </div>
-            </div>
-            <div className="timao-soft-card">
-              <div className="text-sm text-slate-500 mb-1">平均置信度</div>
-              <div className="text-lg font-semibold text-purple-600">{
-                (() => {
-                  const backendAvg = Number(status?.stats?.average_confidence || 0);
-                  const localAvg = confCount > 0 ? confSum / confCount : 0;
-                  const pick = backendAvg > 0 ? backendAvg : localAvg;
-                  return pick.toFixed(2);
-                })()
-              }</div>
-              <div className="text-xs timao-support-text mt-2">失败次数 {status?.stats?.failed_transcriptions ?? 0}</div>
             </div>
             {saveInfo ? (
               <div className="timao-soft-card">
@@ -787,7 +925,7 @@ const LiveConsolePage = () => {
         </section>
       </div>
 
-      <DouyinRelayPanel baseUrl={FASTAPI_BASE_URL} />
+      <DouyinRelayPanel baseUrl={FASTAPI_BASE_URL} onSelectQuestion={handleSelectQuestion} />
     </div>
   );
 };

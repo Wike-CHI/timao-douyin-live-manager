@@ -41,16 +41,14 @@ interface LiveConsoleState {
   reportPaths: ReportArtifacts | null;
   reportStatus: any;
   saveInfo: SaveInfo | null;
-  aiWindowSec: number;
   styleProfile: any;
   vibe: any;
-  oneScript: string;
-  oneType: string;
   persistTr: boolean;
   persistTrRoot: string;
   persistDm: boolean;
   persistDmRoot: string;
   aiEvents: any[];
+  answerScripts: any[];
   setLiveInput: (value: string) => void;
   setStatus: (value: LiveAudioStatus | null) => void;
   setLatest: (value: TranscriptEntry | null) => void;
@@ -61,16 +59,14 @@ interface LiveConsoleState {
   setReportPaths: (value: ReportArtifacts | null) => void;
   setReportStatus: (value: any) => void;
   setSaveInfo: (value: SaveInfo | null) => void;
-  setAiWindowSec: (value: number) => void;
   setStyleProfile: (value: any) => void;
   setVibe: (value: any) => void;
-  setOneScript: (value: string) => void;
-  setOneType: (value: string) => void;
   setPersistTr: (value: boolean) => void;
   setPersistTrRoot: (value: string) => void;
   setPersistDm: (value: boolean) => void;
   setPersistDmRoot: (value: string) => void;
   setAiEvents: (value: any[]) => void;
+  setAnswerScripts: (value: any[]) => void;
   pushAiEvent: (value: any) => void;
   appendLog: (entry: TranscriptEntry) => void;
   resetSessionState: () => void;
@@ -114,16 +110,14 @@ export const useLiveConsoleStore = create<LiveConsoleState>()(
       reportPaths: null,
       reportStatus: null,
       saveInfo: null,
-      aiWindowSec: 60,
       styleProfile: null,
       vibe: null,
-      oneScript: '',
-      oneType: 'interaction',
       persistTr: false,
       persistTrRoot: '',
       persistDm: false,
       persistDmRoot: '',
       aiEvents: [],
+      answerScripts: [],
       setLiveInput: (value) => set({ liveInput: value }),
       setStatus: (value) => set({ status: value }),
       setLatest: (value) => set({ latest: value }),
@@ -142,16 +136,14 @@ export const useLiveConsoleStore = create<LiveConsoleState>()(
       setReportPaths: (value) => set({ reportPaths: value }),
       setReportStatus: (value) => set({ reportStatus: value }),
       setSaveInfo: (value) => set({ saveInfo: value }),
-      setAiWindowSec: (value) => set({ aiWindowSec: value }),
       setStyleProfile: (value) => set({ styleProfile: value }),
       setVibe: (value) => set({ vibe: value }),
-      setOneScript: (value) => set({ oneScript: value }),
-      setOneType: (value) => set({ oneType: value }),
       setPersistTr: (value) => set({ persistTr: value }),
       setPersistTrRoot: (value) => set({ persistTrRoot: value }),
       setPersistDm: (value) => set({ persistDm: value }),
       setPersistDmRoot: (value) => set({ persistDmRoot: value }),
       setAiEvents: (value) => set({ aiEvents: value }),
+      setAnswerScripts: (value) => set({ answerScripts: value }),
       pushAiEvent: (value) =>
         set((state) => ({
           ...state,
@@ -312,16 +304,14 @@ export const useLiveConsoleStore = create<LiveConsoleState>()(
         reportPaths: state.reportPaths,
         reportStatus: state.reportStatus,
         saveInfo: state.saveInfo,
-        aiWindowSec: state.aiWindowSec,
         styleProfile: state.styleProfile,
         vibe: state.vibe,
-        oneScript: state.oneScript,
-        oneType: state.oneType,
         persistTr: state.persistTr,
         persistTrRoot: state.persistTrRoot,
         persistDm: state.persistDm,
         persistDmRoot: state.persistDmRoot,
         aiEvents: state.aiEvents,
+        answerScripts: state.answerScripts,
       }),
     }
   )

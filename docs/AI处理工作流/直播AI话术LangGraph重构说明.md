@@ -1,84 +1,87 @@
-# 直播 AI 话术 LangGraph 重构说明
+# 直播 AI 分析卡片 LangGraph 重构说明
 
-> 创建时间：2025-02-15  
+> 更新时间：2025-02-15  
 > 关联规划文档：`docs/AI处理工作流/直播AI话术LangGraph规划.md`
 
-本说明记录本轮落地 LangGraph 工作流的主要改动、实现细节与验证手段，供研发与运营团队参考。
+本文记录“直播助手卡片”升级为“直播分析卡片”的主要实现细节、接口输出与验证策略，供研发及运营团队参考。
 
 ## 1. 改动概览
 
-- 新增 `server/ai/langgraph_live_workflow.py`，将 MemoryLoader → SignalCollector → TopicDetector → MoodEstimator → Planner → ScriptGenerator → ScoreAssessor → SummaryNode → MemoryUpdater 整体串联为 LangGraph（若环境缺少 LangGraph 依赖自动回退顺序执行）。
-- 扩展 `AIScriptGenerator`：
-  - 新增 `generate_bundle()` 支持根据 Planner route 一次生成 2-3 条话术，并补充 `keywords`/`rationale`。
-  - 暴露 `score_text()` 供 ScoreAssessor 对脚本进行统一打分。
-  - 补充热词归一化、关键词抽取和 route-specific prompt 提示，确保所有脚本均由 Qwen-Max 生成。
-- 重写 `AILiveAnalyzer` 服务：
-  - 启动时自动加载 Anchor 记忆/配置，调用 LangGraph Workflow。
-  - SSE 推流 payload 统一输出 `summary/highlight_points/risks/suggestions/top_questions/scripts/score_summary/style_profile/vibe/planner`，前端直接展示并同步风格画像。
-  - 若 LangGraph/脚本生成失败，自动降级为历史 `analyze_window` 能力（Qwen JSON 输出）。
-- 新增单元测试 `server/tests/test_langgraph_workflow.py`，在检测到 Qwen-Max 客户端可用时运行工作流校验；若测试环境缺少 API Key 会自动跳过。
+- **LangGraph 工作流改造**
+  - 保持 MemoryLoader → SignalCollector → TopicDetector → MoodEstimator → Planner → AnalysisGenerator → SummaryNode 结构，聚焦实时分析。
+- **Qwen3-Max 分析卡片生成**
+  - 新增 `server/ai/live_analysis_generator.py`。模型提示要求产出 `analysis_overview`、`audience_sentiment`、`engagement_highlights`、`risks`、`next_actions`、`confidence` 等字段，不允许返回口播话术。
+  - 输入包含口播节选、弹幕样本、互动分类统计、话题候选、氛围评估及系统给出的 `analysis_focus`。
+- **Qwen3-Max 智能话术生成（手动）**
+  - 新增 `server/ai/live_question_responder.py`，并通过 `POST /api/ai/live/answers` 提供手动触发接口。
+  - 前端从弹幕面板选择问题后调用接口，返回形如 `{question, line, notes}` 的主播口吻话术列表。
+- **AILiveAnalyzer 集成**
+  - `server/app/services/ai_live_analyzer.py` 实例化 `LiveAnalysisGenerator`（用于实时分析）并复用 `LiveQuestionResponder` 提供手动答疑接口。
+  - 出现异常时返回结构化失败提示，不再回退到旧 `analyze_window` 话术接口，确保无话术输出。
+- **文档同步**
+  - 更新规划与重构说明文档，明确“分析卡片”定位及输出结构。
 
-## 2. LangGraph 节点与职责
+## 2. LangGraph 节点职责
 
-| 节点 | 功能摘要 | 说明 |
+| 节点 | 输入/输出 | 说明 |
 | ---- | -------- | ---- |
-| MemoryLoader | 读取 `records/memory/<anchor_id>/profile.json`、历史话术、反馈 | 自动兜底缺失字段，确保 persona/tone/taboo 可用 |
-| SignalCollector | 整理 30-60s 窗口内的转写+弹幕信号 | 分类 question/product/support/emotion，生成 `chat_signals` |
-| TopicDetector | 基于窗口文本提取高频词 | 输出带置信度的 `topic_candidates`，无热点时默认“互动” |
-| MoodEstimator | 规则评估情绪/热度 | 生成 `vibe = {level, score, trends}` 与 `mood` |
-| Planner | 依据话题&情绪选 route（deep_dive / warm_up / promo） | `promo` 用于行动号召型脚本（关注、互动、参与任务等），保留 heuristics trace 便于调试 |
-| ScriptGenerator | 调用 `AIScriptGenerator.generate_bundle` | 输出包含 `text/type/route/vibe/keywords/score/rationale` 的脚本列表 |
-| ScoreAssessor | 汇总评分，拆分优/劣脚本 | 结果写入 `score_summary.avg_score/high_quality/low_quality` |
-| SummaryNode | 组织 summary/highlight/风险/建议/问题 | 风险自动提示低热度/低分话术，建议遵循 route |
-| MemoryUpdater | 写入 `history.jsonl`/`feedback_good.jsonl`/`feedback_bad.jsonl` | 带上限裁剪，避免记忆膨胀 |
+| MemoryLoader | `anchor_id` → `persona` | 读取主播画像（tone/taboo），无其他持久化依赖。 |
+| SignalCollector | 口播/弹幕 → `chat_signals` + `chat_stats` + `top_questions` | 提取最近 6 句口播与 200 条弹幕，分类并统计互动。 |
+| TopicDetector | `chat_signals` → `topic_candidates` | 高频词提取，提供最多 5 个话题候选及置信度。 |
+| MoodEstimator | `chat_signals` → `mood` + `vibe` | 规则评估直播氛围等级与得分。 |
+| Planner | 汇总上下文 → `analysis_focus` + `planner_notes` | 根据提问数量、氛围、话题推导助理关注点。 |
+| AnalysisGenerator | 上述上下文 → `analysis_card` | 调用 Qwen3-Max 输出 JSON 分析卡片，不含话术。 |
+| SummaryNode | `analysis_card` + 话题/氛围 | 生成 SSE 展示用简要文本。 |
 
-## 3. 数据输出格式
-
-SSE 推送 payload 样例：
+## 3. SSE 输出示例
 
 ```json
 {
-  "summary": "当前主轴：舞蹈挑战 (置信 0.72)；直播氛围：neutral，热度分 63.5；推荐话术 3 条，可用于 promo 场景",
-  "highlight_points": ["高频话题：舞蹈挑战", "氛围评分 63.5 (neutral)"],
-  "risks": ["存在评分偏低的话术，建议谨慎使用。"],
-  "suggestions": ["适时抛出行动号召，引导观众刷弹幕或参与互动。"],
-  "top_questions": ["这首歌叫什么？"],
-  "scripts": [
-    {"text": "想挑战的朋友扣个1，我待会儿点你名字上墙，一起嗨起来！", "route": "promo", "score": 7.8, "keywords": ["挑战", "扣1"]},
-    ...
+  "summary": "当前状态：问题集中在色号咨询；氛围 neutral 分 63.5。",
+  "highlight_points": [
+    "观众主要纠结在色号和真实试色反馈",
+    "互动节奏适中，可引导出真实体验"
   ],
-  "score_summary": {"avg_score": 7.1, "high_quality": [...], "low_quality": [...]},
-  "style_profile": {"tone": "...", "taboo": [...]},
+  "risks": [
+    "若一直未给出明确对比，观众可能流失"
+  ],
+  "suggestions": [
+    "提醒主播快速整理可对比的真实试色数据",
+    "引导观众在弹幕留下肤色信息便于推荐"
+  ],
+  "analysis_card": {
+    "analysis_overview": "...",
+    "audience_sentiment": {"label": "平稳", "signals": ["..."]},
+    "engagement_highlights": ["..."],
+    "risks": ["..."],
+    "next_actions": ["..."],
+    "confidence": 0.74
+  },
+  "analysis_focus": "重点观察观众提问，尽快帮助主播澄清或回应。",
+  "topic_candidates": [{"topic": "色号", "confidence": 0.78}],
+  "style_profile": {"tone": "自然陪伴", "taboo": []},
   "vibe": {"level": "neutral", "score": 63.5, "trends": ["supporting", "interaction_light"]},
-  "planner": {"route": "promo", "notes": {"selected_topic": {...}}}
+  "top_questions": ["这个色号偏黄还是偏粉？"],
+  "carry": "当前状态：问题集中在色号咨询；氛围 neutral 分 63.5。"
 }
 ```
 
-该结构与前端“话术窗口”预期字段保持兼容，并新增 `planner`、`score_summary` 供后续可视化得分及 route 诊断使用。
+## 4. 回退策略
 
-## 4. 文件与持久化更新
+- 若 LangGraph 或 Qwen 接口调用失败，返回带 `analysis_overview="分析卡片生成失败：..."` 的结构化信息，并提示检查配置。
+- 旧 `analyze_window` 不再被调用，保证不会出现话术或模板字段。
 
-- 所有记忆/反馈文件仍位于 `records/memory/<anchor_id>/`，新增的写入逻辑会自动创建文件并控制历史行数（默认 120）。
-- 高分话术同步写入 `history.jsonl` 与 `feedback_good.jsonl`，低分则进 `feedback_bad.jsonl`，后续可被反馈记忆模块读取。
-- 若运行环境缺少 LangChain/LangGraph 依赖，工作流将退化为顺序执行，不影响持久化逻辑。
-- Qwen DashScope 配置统一放在项目根目录 `.env` 中（`AI_SERVICE`、`AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL` 等）；FastAPI / Flask 在启动时会主动读取该文件，确保所有子模块拿到密钥。
+## 5. 验证与测试建议
 
-## 5. 测试与验证
+1. **接口巡检**：启动 `npm run dev` 后，访问 `/api/ai/live/stream`，确认 SSE payload 不再包含旧的 `scripts/score_summary` 字段。
+2. **窗口测试**：模拟弹幕分类（问题/支持/情绪）与不同口播节奏，观察 `analysis_focus` 与 `audience_sentiment.label` 是否符合预期。
+3. **错误处理**：拔除 Qwen API Key，确认 SSE 返回失败结构，前端可容错展示。
+4. **前端适配**：更新“智能话术建议”卡片，支持从弹幕中点选问题并调用 `POST /api/ai/live/answers` 获取 Qwen3-Max 生成的主播口吻话术。
 
-1. 自动化：新增 `pytest server/tests/test_langgraph_workflow.py`，若检测到 Qwen-Max 客户端可用会执行工作流校验，否则自动跳过。  
-   > 当前 CLI 环境未预装 `pytest`，需先 `pip install pytest` 后执行。
-2. 手动联调建议：
-   - 启动实时字幕 → 等待约一个窗口周期，确认 SSE 推送包含 `planner.route` 与脚本评分。
-   - 检查 `records/memory/<anchor_id>/` 下文件是否追加且被裁剪。
-   - 切换不同情绪/话题（如弹幕刷产品 vs. 提问）观察 route 切换与脚本输出差异。
+## 6. 后续优化
 
-## 6. 后续可选优化
+- 为 AnalysisGenerator 引入多窗口趋势数据，帮助判断热度上升/下降。
+- 接入成交/转化等业务指标，拓展 `engagement_highlights` 的数据来源。
+- 对 SummaryNode 结果增加敏感词检测，必要时提示人工介入。
 
-1. **ScoreAssessor LLM 化**：当前为规则评分，可接入轻量 LLM 对脚本做更细致点评并输出改进建议。
-2. **SummaryNode 敏感词拦截**：规划文档的审计节点可在此处落地，必要时回退安全模板。
-3. **前端评分回写**：结合 `/api/ai/live/feedback` 接口，将 UI 打分同步进记忆向量库，提高下一轮生成精准度。
-4. **多主播并行**：LangGraph MemorySaver 现以 `thread_id=anchor_id` 区分，可进一步扩展支持多主播并行实例。
-
----
-
-如需深入调试，每个节点可通过 `logging.getLogger('server.ai.langgraph_live_workflow')` 设置为 `DEBUG` 查看状态转移细节。欢迎在后续迭代补充更多节点（如 Tools 召回、风险审查）。
+> 本次重构将原“话术生成”流转升级为“助理分析”流程，彻底移除了默认话术模板与热词依赖，更贴合运营团队对实时分析卡片的需求。

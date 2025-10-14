@@ -137,8 +137,33 @@ export const generateOneScript = async (
   return handleResponse(response);
 };
 
+export interface GenerateAnswerScriptsPayload {
+  questions: string[];
+  transcript?: string;
+  style_profile?: Record<string, unknown>;
+  vibe?: Record<string, unknown>;
+}
+
+export interface GenerateAnswerScriptsResponse {
+  success: boolean;
+  data?: {
+    scripts: Array<{ question: string; line: string; notes?: string }>;
+  };
+  message?: string;
+}
+
+export const generateAnswerScripts = async (
+  payload: GenerateAnswerScriptsPayload,
+  baseUrl: string = DEFAULT_BASE_URL
+): Promise<GenerateAnswerScriptsResponse> => {
+  const response = await authFetch(`${baseUrl}/api/ai/live/answers`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(response);
+};
+
 /**
  * 导出统一的 fetch 函数供其他模块使用
  */
 export { authFetch, buildHeaders, buildAuthUrl };
-

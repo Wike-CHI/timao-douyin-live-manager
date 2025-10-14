@@ -17,18 +17,16 @@ from typing import Any, Dict, List, Optional, Set
 
 try:
     from ...ai.qwen_openai_compatible import (  # type: ignore
-        analyze_window,
         DEFAULT_OPENAI_API_KEY,
         DEFAULT_OPENAI_BASE_URL,
         DEFAULT_OPENAI_MODEL,
     )
 except Exception:  # pragma: no cover
-    analyze_window = None  # type: ignore
     DEFAULT_OPENAI_API_KEY = ""
     DEFAULT_OPENAI_BASE_URL = ""
     DEFAULT_OPENAI_MODEL = ""
 
-from ...ai.generator import AIScriptGenerator
+from ...ai.live_analysis_generator import LiveAnalysisGenerator
 from ...ai.langgraph_live_workflow import LiveWorkflowConfig, ensure_workflow
 
 from .live_audio_stream_service import get_live_audio_service
@@ -68,7 +66,8 @@ class AILiveAnalyzer:
         self._cb_name: Optional[str] = None
         self._relay_queue: Optional[asyncio.Queue] = None
         self._anchor_id = self._resolve_anchor_id()
-        self._generator: Optional[AIScriptGenerator] = None
+        self._generator: Optional[LiveAnalysisGenerator] = None
+        self._script_responder = None
         self._workflow = None
         self._init_workflow()
 
@@ -153,34 +152,76 @@ class AILiveAnalyzer:
     def _init_workflow(self) -> None:
         try:
             cfg = self._build_generator_config(self._anchor_id)
-            self._generator = AIScriptGenerator(cfg)
+            self._generator = LiveAnalysisGenerator(cfg)
+            from ...ai.live_question_responder import LiveQuestionResponder  # local import to avoid cost when unused
+
+            self._script_responder = LiveQuestionResponder(cfg)
             wf_config = LiveWorkflowConfig(anchor_id=self._anchor_id)
-            self._workflow = ensure_workflow(self._generator, wf_config)
+            self._workflow = ensure_workflow(
+                analysis_generator=self._generator,
+                config=wf_config,
+            )
             self._state.anchor_id = self._anchor_id
         except Exception as exc:  # pragma: no cover
             logger.warning("Failed to initialize LangGraph workflow: %s", exc)
             self._generator = None
+            self._script_responder = None
             self._workflow = None
 
     def _format_workflow_payload(self, result: Dict[str, Any]) -> Dict[str, Any]:
-        planner = {
-            "route": result.get("planner_route"),
-            "notes": result.get("planner_notes") or {},
-        }
+        card = result.get("analysis_card", {}) or {}
+        persona_from_card = card.get("style_profile") if isinstance(card, dict) else None
+        vibe_from_card = card.get("vibe") if isinstance(card, dict) else None
+
         payload = {
             "summary": result.get("summary"),
             "highlight_points": result.get("highlight_points", []),
             "risks": result.get("risks", []),
             "suggestions": result.get("suggestions", []),
             "top_questions": result.get("top_questions", []),
-            "scripts": result.get("scripts", []),
-            "score_summary": result.get("score_summary", {}),
+            "analysis_card": card,
             "topic_candidates": result.get("topic_candidates", []),
-            "planner": planner,
-            "style_profile": result.get("persona", {}),
-            "vibe": result.get("vibe", {}),
+            "analysis_focus": result.get("analysis_focus"),
+            "planner_notes": result.get("planner_notes", {}),
+            "style_profile": persona_from_card if isinstance(persona_from_card, dict) else result.get("persona", {}),
+            "vibe": vibe_from_card if isinstance(vibe_from_card, dict) else result.get("vibe", {}),
+            "transcript_snippet": result.get("transcript_snippet", ""),
+            "speech_stats": result.get("speech_stats", {}),
         }
         return payload
+
+    def generate_answer_scripts(
+        self,
+        questions: List[str],
+        transcript: Optional[str] = None,
+        style_profile: Optional[Dict[str, Any]] = None,
+        vibe: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        clean_questions = [str(q).strip() for q in questions if str(q).strip()]
+        if not clean_questions:
+            raise ValueError("缺少有效的问题内容")
+        if not self._script_responder:
+            raise RuntimeError("话术生成器未初始化")
+
+        persona = style_profile or self._state.style_profile or {}
+        vibe_payload = vibe or self._state.vibe or {}
+        mood = vibe_payload.get("level") or vibe_payload.get("mood") or (self._state.last_result.get("vibe", {}).get("level") if isinstance(self._state.last_result, dict) else None)
+
+        last_transcript = None
+        if isinstance(self._state.last_result, dict):
+            last_transcript = self._state.last_result.get("transcript_snippet")
+        sentence_clip = "\n".join(self._state.sentences[-6:]) if self._state.sentences else ""
+        transcript_snippet = transcript or last_transcript or sentence_clip
+
+        context = {
+            "questions": clean_questions,
+            "persona": persona,
+            "vibe": vibe_payload,
+            "mood": mood,
+            "transcript": transcript_snippet,
+        }
+        scripts = self._script_responder.generate(context)
+        return {"scripts": scripts}
 
     def _run_workflow(
         self,
@@ -294,14 +335,14 @@ class AILiveAnalyzer:
             payload = self._run_workflow(window_sentences, comments_window, window_started_at)
         except Exception as exc:
             logger.exception("LangGraph workflow failed, fallback to legacy analyzer: %s", exc)
-            if analyze_window is None:
-                payload = {"error": str(exc)}
-            else:
-                legacy = analyze_window(transcript, comments_window, s.carry, anchor_id=self._anchor_id)  # type: ignore[arg-type]
-                if isinstance(legacy, dict):
-                    payload = legacy
-                else:
-                    payload = {"summary": str(legacy)}
+            payload = {
+                "summary": f"分析卡片生成失败：{exc}",
+                "analysis_card": {"analysis_overview": f"分析卡片生成失败：{exc}"},
+                "highlight_points": [],
+                "risks": [f"workflow_error: {exc}"],
+                "suggestions": ["请检查 Qwen3-Max 接口配置后重试。"],
+                "topic_candidates": [],
+            }
 
         # persist carry & context snapshots
         s.carry = str(payload.get("summary") or "")[:200]
@@ -320,7 +361,9 @@ class AILiveAnalyzer:
             payload.setdefault("vibe", s.vibe)
 
         payload.setdefault("carry", s.carry)
-        payload.setdefault("planner", {"route": None, "notes": {}})
+        payload.setdefault("analysis_card", payload.get("analysis_card") or {})
+        payload.setdefault("analysis_focus", payload.get("analysis_focus"))
+        payload.setdefault("planner_notes", payload.get("planner_notes", {}))
         payload.setdefault("topic_candidates", [])
 
         s.last_result = payload

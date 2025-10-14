@@ -57,6 +57,7 @@ interface OtherEventEntry {
 interface DouyinRelayPanelProps {
   baseUrl?: string;
   maxMessages?: number;
+  onSelectQuestion?: (entry: ChatEntry) => void;
 }
 
 const toneClasses: Record<StatusTone, string> = {
@@ -73,7 +74,7 @@ const chatCategoryLabel: Record<ChatCategory, string> = {
   system: '系统',
 };
 
-const DouyinRelayPanel = ({ baseUrl, maxMessages = DEFAULT_MAX_MESSAGES }: DouyinRelayPanelProps) => {
+const DouyinRelayPanel = ({ baseUrl, maxMessages = DEFAULT_MAX_MESSAGES, onSelectQuestion }: DouyinRelayPanelProps) => {
   const [status, setStatus] = useState<DouyinRelayStatus | null>(null);
   const [chatLog, setChatLog] = useState<ChatEntry[]>([]);
   const [rankList, setRankList] = useState<RankEntry[]>([]);
@@ -516,6 +517,18 @@ const DouyinRelayPanel = ({ baseUrl, maxMessages = DEFAULT_MAX_MESSAGES }: Douyi
                     <span className="font-medium text-purple-500">{item.nickname}</span>
                     <span className="ml-2 text-slate-600">{item.content}</span>
                   </div>
+                  {onSelectQuestion && item.category === 'chat' ? (
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        className="timao-outline-btn text-[11px] px-2 py-0.5"
+                        onClick={() => onSelectQuestion(item)}
+                        title="添加到智能话术建议"
+                        disabled={!isRunning}
+                      >
+                        生成答疑话术
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ))
             )}

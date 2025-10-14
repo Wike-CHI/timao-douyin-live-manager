@@ -8,7 +8,8 @@
   - 直播音频：通过 StreamCap 解析直播地址，`ffmpeg` 拉流并转为 PCM，送入 `SenseVoice + VAD` 转写管线。
   - 直播事件：通过 `DouyinLiveWebFetcher` 采集弹幕/礼物/点赞等事件。
 - 分析与生成：
-  - 实时分析：`AILiveAnalyzer` 将“最终转写句子 + 弹幕事件”按时间窗聚合，调用 Qwen（OpenAI 兼容接口）做风格/氛围分析与脚本建议，结果通过 SSE 推送。
+- 实时分析：`AILiveAnalyzer` 将“最终转写句子 + 弹幕事件”按时间窗聚合，通过 LangGraph 工作流驱动 `LiveAnalysisGenerator`（Qwen3-Max OpenAI 兼容接口）生成《直播分析卡片》，只输出状态评估与行动建议。
+- 智能话术：主播在前端手动点选弹幕，通过 `POST /api/ai/live/answers` 调用 `LiveQuestionResponder`（Qwen3-Max），实时生成主播口吻的话术。
   - 单条话术生成：`AIScriptGenerator` 在注入 style_profile/vibe 等上下文后调用 Qwen（OpenAI 兼容接口）生成话术；支持人工评分写入记忆。
 - 记忆与检索：可选的 LangChain 向量记忆用于“风格画像”和“反馈指导”的积累与检索，提升后续提示词质量。
 
@@ -32,9 +33,10 @@ flowchart LR
     subgraph Analyze[实时分析]
       F --> H[AILiveAnalyzer 窗口聚合]
       G --> H
-      H --> I[Qwen OpenAI兼容 analyze_window]
-      I --> J[SSE /api/ai/live/stream]
-      I --> K[style_profile/vibe 快照]
+      H --> I[LangGraph Workflow<br/>Memory→Signals→Mood→Planner]
+      I --> J[LiveAnalysisGenerator<br/>(Qwen3-Max)]
+      J --> K[SSE /api/ai/live/stream]
+      I --> L[style_profile/vibe 快照]
     end
 
     subgraph Generate[话术生成]
@@ -54,8 +56,8 @@ flowchart LR
   - `GET /api/ai/live/stream`（SSE 推送分析事件）
 - 实时分析服务：`server/app/services/ai_live_analyzer.py`
   - 订阅转写最终句（`live_audio_stream_service` 回调）与抖音事件（`douyin_web_relay` 客户端队列）
-  - 时间窗聚合后调用 `server/ai/qwen_openai_compatible.py: analyze_window`
-  - 维护并广播 `style_profile` 与 `vibe` 快照
+  - 时间窗聚合后调用 `server/ai/langgraph_live_workflow.py`，输出 `analysis_card`、`style_profile`、`vibe` 等信息
+  - 暴露 `generate_answer_scripts()` 方法，复用 `server/ai/live_question_responder.py` 响应手动话术请求
 - 音频转写管线：`server/app/services/live_audio_stream_service.py`
   - StreamCap 解析 → ffmpeg 拉流 → SenseVoice+VAD → Cleaner/Guard/Assembler → 最终句回调
   - 相关 API：`server/app/api/live_audio.py`
@@ -75,13 +77,16 @@ flowchart LR
   - 依赖声明：`server/requirements.txt` 中包含 `langchain` 与 `langchain-community`。
   - 说明：上述记忆模块均做了“可用性检测与降级”，在缺失依赖时回退到内置确定性嵌入，保证主流程不被阻断。
 
-- LangGraph：未发现项目代码直接使用。
-  - 仓库中有 `langchain` 源码副本（`langchain/libs/core/langchain_core/agents.py` 等）文档处提到“新代理建议使用 LangGraph”，但项目自身未导入/调用 LangGraph。
+- LangGraph：已在新版实时分析/话术工作流中使用。
+  - `server/ai/langgraph_live_workflow.py` 通过 LangGraph 编排 MemoryLoader、SignalCollector、Planner、AnalysisGenerator、QuestionResponder 等节点。
+  - 若缺少 LangGraph 依赖会退化为顺序执行，逻辑与图结构保持一致。
 
 ## 接口与交互摘要
 - `/api/live_audio/*`：启动/停止/状态/健康检查/预加载模型等（WebSocket 用于转写流与输入电平广播）。
 - `/api/ai/live/*`：启动/停止/状态/上下文/流（SSE 推送实时分析结果）。
 - `/api/ai/scripts/generate_one`：结合上下文调用 Qwen 生成单条可上嘴话术；`/feedback` 记录人工评分并同步写入风格记忆。
+- `/api/ai/live/answers`：手动传入弹幕问题，返回主播口吻的即时答疑话术。
+- `/api/ai/live/stream`：实时 SSE，推送 `analysis_card` 快照及风格/氛围信息。
 
 ## 依赖与配置
 - SenseVoice 与 VAD 本地模型位于 `models/models/iic/...`，首次运行建议执行工具脚本下载。
@@ -89,15 +94,18 @@ flowchart LR
 - LangChain 记忆为可选，安装 `langchain`、`langchain-community`、`langchain-huggingface` 可启用更优嵌入与检索；缺失时自动回退。
 
 ## 结论与建议
-- 主干 AI 工作流清晰：音频/事件采集 → 时间窗聚合 → Qwen 分析 → SSE 推送；单条生成与人工反馈形成闭环并通过 LangChain 记忆增强提示词。
+- 主干 AI 工作流清晰：音频/事件采集 → LangGraph 分析卡片 → SSE 推送，再由手动接口生成答疑话术；单条生成与人工反馈形成闭环并通过 LangChain 记忆增强提示词。
 - LangChain：已使用（向量记忆/检索），建议在生产环境安装相关依赖并启用 HuggingFace Embeddings，以提升检索质量；同时保留降级路径。
-- LangGraph：未使用；如后续需要更复杂的代理编排与人类介入工作流，可评估引入，但目前需求不迫切。
+- LangGraph：实时分析卡片已经落地，建议持续验证节点表现并在依赖缺失时保持顺序执行降级策略。
 
 ## 参考文件
 - `server/app/api/ai_live.py`
 - `server/app/services/ai_live_analyzer.py`
 - `server/app/services/live_audio_stream_service.py`
 - `server/app/services/douyin_web_relay.py`
+- `server/ai/langgraph_live_workflow.py`
+- `server/ai/live_analysis_generator.py`
+- `server/ai/live_question_responder.py`
 - `server/ai/qwen_openai_compatible.py`
 - `server/ai/generator.py`
 - `server/ai/style_memory.py`

@@ -43,10 +43,10 @@ const DashboardPage: React.FC = () => {
             <span>🤖</span>AI 助手与话术灵感
           </h2>
           <ul className="mt-3 space-y-2 text-sm timao-support-text">
-            <li>AI 实时分析直播状态，给出风格/氛围建议</li>
-            <li>遇到冷场可快速生成一句话术</li>
+            <li>AI 实时分析直播状态，实时更新风格/氛围建议</li>
+            <li>在弹幕卡片点击「生成答疑话术」，可挑选问题交给 AI 处理</li>
+            <li>系统使用 Qwen3-Max 以主播口吻生成短句，可直接复制上麦</li>
             <li>复盘报告会结合弹幕与转写自动总结亮点</li>
-            <li>未来将接入更多互动脚本模板</li>
           </ul>
           <div className="mt-4 text-xs text-purple-500">入口：「直播控制台」底部 AI 区域</div>
         </div>

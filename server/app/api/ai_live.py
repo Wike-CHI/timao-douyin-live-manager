@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -19,6 +19,13 @@ router = APIRouter(prefix="/api/ai/live", tags=["ai-live"])
 
 class StartReq(BaseModel):
     window_sec: int = Field(60, ge=30, le=600)
+
+
+class AnswerRequest(BaseModel):
+    questions: List[str] = Field(..., min_items=1, description="待回答的弹幕问题列表")
+    transcript: Optional[str] = Field(None, description="可选的口播上下文（多句换行）")
+    style_profile: Optional[Dict[str, Any]] = Field(None, description="可选的主播画像覆盖")
+    vibe: Optional[Dict[str, Any]] = Field(None, description="可选的氛围上下文")
 
 
 @router.post("/start")
@@ -74,3 +81,20 @@ async def ai_stream() -> StreamingResponse:
             await svc.unregister_client(q)
 
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@router.post("/answers")
+async def generate_live_answers(req: AnswerRequest):
+    svc = get_ai_live_analyzer()
+    try:
+        result = svc.generate_answer_scripts(
+            questions=req.questions,
+            transcript=req.transcript,
+            style_profile=req.style_profile,
+            vibe=req.vibe,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"success": True, "data": result}

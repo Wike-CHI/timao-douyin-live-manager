@@ -1,17 +1,17 @@
-"""LangGraph workflow for live AI script orchestration.
+"""LangGraph workflow for live analysis card orchestration.
 
-This module implements the workflow described in
-``docs/AI处理工作流/直播AI话术LangGraph规划.md``. The workflow stitches together
-memory loading, signal aggregation, lightweight analytics, script generation,
-scoring, and persistence in a stateful LangGraph pipeline.
+This module powers the live analysis card described in
+``docs/AI处理工作流/直播AI话术LangGraph规划.md``. It ingests rolling transcript
+snippets and chat events, performs lightweight categorisation, and invokes a
+Qwen3-Max based assistant to produce an analysis-only report (no scripts).
 """
 
 from __future__ import annotations
 
 import json
 import logging
-import random
 import re
+import time
 import uuid
 from collections import Counter
 from dataclasses import dataclass
@@ -23,13 +23,14 @@ try:  # pragma: no cover - optional dependency
     from langgraph.checkpoint.memory import MemorySaver
 
     _LANGGRAPH_AVAILABLE = True
-except Exception:  # pragma: no cover - graceful fallback
+except Exception:  # pragma: no cover
     StateGraph = None  # type: ignore[assignment]
     MemorySaver = None  # type: ignore[assignment]
     END = "__end__"  # type: ignore[misc]
     _LANGGRAPH_AVAILABLE = False
 
-from .generator import AIScriptGenerator
+from .live_analysis_generator import LiveAnalysisGenerator
+from .live_question_responder import LiveQuestionResponder
 
 try:  # pragma: no cover - optional reuse of helpers
     from .style_memory import _sanitize_anchor_id  # type: ignore
@@ -56,23 +57,6 @@ class ChatSignal(TypedDict, total=False):
     category: Literal["question", "product", "support", "emotion", "other"]
 
 
-class ScriptCandidate(TypedDict, total=False):
-    text: str
-    type: str
-    route: str
-    vibe: str
-    keywords: List[str]
-    score: float
-    rationale: str
-    script_id: str
-
-
-class ScoreSummary(TypedDict, total=False):
-    avg_score: float
-    high_quality: List[ScriptCandidate]
-    low_quality: List[ScriptCandidate]
-
-
 class GraphState(TypedDict, total=False):
     broadcaster_id: Optional[str]
     anchor_id: Optional[str]
@@ -81,15 +65,15 @@ class GraphState(TypedDict, total=False):
     comments: List[Dict[str, Any]]
     transcript_snippet: str
     chat_signals: List[ChatSignal]
+    chat_stats: Dict[str, Any]
+    speech_stats: Dict[str, Any]
     topic_candidates: List[Dict[str, Any]]
     mood: str
     vibe: Dict[str, Any]
     persona: Dict[str, Any]
-    memory_refs: Dict[str, Any]
-    planner_route: str
     planner_notes: Dict[str, Any]
-    scripts: List[ScriptCandidate]
-    score_summary: ScoreSummary
+    analysis_focus: str
+    analysis_card: Dict[str, Any]
     summary: str
     highlight_points: List[str]
     risks: List[str]
@@ -103,9 +87,6 @@ class LiveWorkflowConfig:
 
     anchor_id: Optional[str] = None
     memory_root: Path = Path("records") / "memory"
-    max_history: int = 120
-    good_threshold: float = 7.0
-    bad_threshold: float = 4.0
 
 
 def _read_json(path: Path) -> Dict[str, Any]:
@@ -117,50 +98,6 @@ def _read_json(path: Path) -> Dict[str, Any]:
     except Exception as exc:  # pragma: no cover
         logger.warning("Failed to read json %s: %s", path, exc)
         return {}
-
-
-def _read_jsonl(path: Path, limit: int = 80) -> List[Dict[str, Any]]:
-    if not path.exists():
-        return []
-    rows: List[Dict[str, Any]] = []
-    try:
-        with path.open("r", encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    rows.append(json.loads(line))
-                except Exception:
-                    continue
-    except Exception as exc:  # pragma: no cover
-        logger.warning("Failed to read jsonl %s: %s", path, exc)
-        return []
-    return rows[-limit:]
-
-
-def _trim_jsonl(path: Path, max_lines: int) -> None:
-    if max_lines <= 0 or not path.exists():
-        return
-    try:
-        with path.open("r", encoding="utf-8") as fh:
-            lines = fh.readlines()
-        if len(lines) <= max_lines:
-            return
-        with path.open("w", encoding="utf-8") as fh:
-            fh.writelines(lines[-max_lines:])
-    except Exception:  # pragma: no cover
-        pass
-
-
-def _write_jsonl(path: Path, rows: Iterable[Dict[str, Any]]) -> None:
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as fh:
-            for row in rows:
-                fh.write(json.dumps(row, ensure_ascii=False) + "\n")
-    except Exception as exc:  # pragma: no cover
-        logger.warning("Failed to append jsonl %s: %s", path, exc)
 
 
 def _tokenize(text: str) -> List[str]:
@@ -175,28 +112,17 @@ def _top_n_words(items: Iterable[str], n: int = 5) -> List[Tuple[str, int]]:
     return counter.most_common(n)
 
 
-def _derive_keywords_from_scripts(scripts: List[ScriptCandidate]) -> List[str]:
-    phrases: List[str] = []
-    for sc in scripts:
-        phrases.extend(sc.get("keywords") or [])
-        text = sc.get("text") or ""
-        phrases.extend([w for w, _ in _top_n_words([text], 3)])
-    deduped: List[str] = []
-    for phrase in phrases:
-        if phrase and phrase not in deduped:
-            deduped.append(phrase)
-    return deduped[:8]
-
-
 class LangGraphLiveWorkflow:
     """Top-level orchestrator exposing a `.invoke()` helper."""
 
     def __init__(
         self,
-        generator: AIScriptGenerator,
+        analysis_generator: LiveAnalysisGenerator,
+        question_responder: Optional[LiveQuestionResponder] = None,
         config: Optional[LiveWorkflowConfig] = None,
     ) -> None:
-        self.generator = generator
+        self.analysis_generator = analysis_generator
+        self.question_responder = question_responder
         self.config = config or LiveWorkflowConfig()
         self._graph = None
         self._workflow = None
@@ -209,11 +135,10 @@ class LangGraphLiveWorkflow:
         else:
             logger.warning("LangGraph unavailable; workflow will run in sequential fallback mode.")
 
-    # ------------------------------------------------------------------ public
     def invoke(self, state: GraphState) -> GraphState:
         anchor_input = state.get("anchor_id") or self.config.anchor_id
         anchor_key = _sanitize_anchor_id(anchor_input)
-        state["anchor_id"] = anchor_key  # may be None if unresolved
+        state["anchor_id"] = anchor_key
         state["broadcaster_id"] = anchor_key
         thread_id = anchor_key or f"session_{uuid.uuid4().hex}"
         if self._workflow is None:
@@ -224,84 +149,116 @@ class LangGraphLiveWorkflow:
 
     # ------------------------------------------------------------------ graph
     def _build_graph(self) -> Any:
-        assert StateGraph is not None  # hint for type-checkers
+        assert StateGraph is not None  # type hint
         graph = StateGraph(GraphState)
         graph.add_node("memory_loader", self._memory_loader)
         graph.add_node("signal_collector", self._signal_collector)
         graph.add_node("topic_detector", self._topic_detector)
         graph.add_node("mood_estimator", self._mood_estimator)
         graph.add_node("planner", self._planner)
-        graph.add_node(
-            "script_gen_deep",
-            lambda state: self._script_generator(state, route="deep_dive"),
-        )
-        graph.add_node(
-            "script_gen_warm",
-            lambda state: self._script_generator(state, route="warm_up"),
-        )
-        graph.add_node(
-            "script_gen_promo",
-            lambda state: self._script_generator(state, route="promo"),
-        )
-        graph.add_node("score_assessor", self._score_assessor)
+        graph.add_node("analysis_generator", self._analysis_generator)
+        if self.question_responder:
+            graph.add_node("question_responder", self._question_responder)
         graph.add_node("summary", self._summary_node)
-        graph.add_node("memory_updater", self._memory_updater)
 
         graph.set_entry_point("memory_loader")
         graph.add_edge("memory_loader", "signal_collector")
         graph.add_edge("signal_collector", "topic_detector")
         graph.add_edge("topic_detector", "mood_estimator")
         graph.add_edge("mood_estimator", "planner")
-        graph.add_conditional_edges(
-            "planner",
-            self._route_selector,
-            {
-                "deep_dive": "script_gen_deep",
-                "warm_up": "script_gen_warm",
-                "promo": "script_gen_promo",
-            },
-        )
-        graph.add_edge("script_gen_deep", "score_assessor")
-        graph.add_edge("script_gen_warm", "score_assessor")
-        graph.add_edge("script_gen_promo", "score_assessor")
-        graph.add_edge("score_assessor", "summary")
-        graph.add_edge("summary", "memory_updater")
-        graph.add_edge("memory_updater", END)
+        graph.add_edge("planner", "analysis_generator")
+        if self.question_responder:
+            graph.add_edge("analysis_generator", "question_responder")
+            graph.add_edge("question_responder", "summary")
+        else:
+            graph.add_edge("analysis_generator", "summary")
+        graph.add_edge("summary", END)
         return graph
 
     # ------------------------------------------------------------------ nodes
     def _memory_loader(self, state: GraphState) -> Dict[str, Any]:
         anchor_key = _sanitize_anchor_id(state.get("anchor_id"))
         persona: Dict[str, Any] = {}
-        history: List[Dict[str, Any]] = []
-        good_fb: List[Dict[str, Any]] = []
-        bad_fb: List[Dict[str, Any]] = []
         if anchor_key:
             base = (self.config.memory_root / anchor_key).resolve()
             persona = _read_json(base / "profile.json")
-            history = _read_jsonl(base / "history.jsonl", limit=40)
-            good_fb = _read_jsonl(base / "feedback_good.jsonl", limit=40)
-            bad_fb = _read_jsonl(base / "feedback_bad.jsonl", limit=40)
-
-        persona.setdefault("tone", persona.get("tone") or "自然口语+陪伴")
-        persona.setdefault("taboo", persona.get("taboo") or [])
-
-        return {
-            "persona": persona,
-            "memory_refs": {
-                "good_scripts": history,
-                "feedback_good": good_fb,
-                "feedback_bad": bad_fb,
-            },
-        }
+        if not persona:
+            persona = {"tone": "专业陪伴", "taboo": []}
+        return {"persona": persona}
 
     def _signal_collector(self, state: GraphState) -> Dict[str, Any]:
         sentences = state.get("sentences") or []
         comments = state.get("comments") or []
-        last_sentences = sentences[-5:]
-        transcript_snippet = "\n".join(last_sentences)
+        transcript_snippet = "\n".join(sentences[-6:])
         chat_signals: List[ChatSignal] = []
         top_questions: List[str] = []
+        category_counts: Dict[str, int] = {"question": 0, "product": 0, "support": 0, "emotion": 0, "other": 0}
+        total_chars = sum(len(s) for s in sentences)
+        window_start = float(state.get("window_start") or time.time())
+        elapsed = max(1.0, time.time() - window_start)
+        speaking_estimate = max(0.0, len(sentences) * 2.0)
+        speaking_ratio = min(1.0, speaking_estimate / elapsed)
+        last_sentence = sentences[-1] if sentences else ""
+        first_pronouns = (
+            "我", "咱", "咱们", "本主播", "主播我", "小妹", "小姐姐", "哥哥我", "姐姐我", "哥我"
+        )
+        audience_terms = (
+            "大家", "家人", "家人们", "兄弟们", "姐妹们", "宝宝", "宝宝们", "朋友们", "伙伴们"
+        )
+        other_terms = (
+            "她", "他", "她们", "他们", "对面", "对方", "对家", "对手", "敌方", "她那边", "他那边"
+        )
+        target_sentences = sentences[-10:] or []
+        other_like = 0
+        host_like = 0
+        neutral_like = 0
+        total_checked = 0
+        host_examples: List[str] = []
+        other_examples: List[str] = []
+        neutral_examples: List[str] = []
+        for raw in target_sentences:
+            text = str(raw).strip()
+            if not text:
+                continue
+            total_checked += 1
+            has_first = any(token in text for token in first_pronouns)
+            has_audience = any(token in text for token in audience_terms)
+            has_other = any(token in text for token in other_terms)
+            host_flag = has_first or has_audience
+            other_flag = has_other and not has_first
+
+            if host_flag and not other_flag:
+                host_like += 1
+                if len(host_examples) < 2:
+                    host_examples.append(text[:30])
+            elif other_flag:
+                other_like += 1
+                if len(other_examples) < 2:
+                    other_examples.append(text[:30])
+            else:
+                neutral_like += 1
+                if len(neutral_examples) < 2:
+                    neutral_examples.append(text[:30])
+
+        other_ratio = other_like / total_checked if total_checked else 0.0
+        host_ratio = host_like / total_checked if total_checked else 0.0
+
+        speech_stats = {
+            "sentence_count": len(sentences),
+            "total_chars": total_chars,
+            "last_sentence": last_sentence,
+            "window_seconds": round(elapsed, 1),
+            "speaking_ratio": round(speaking_ratio, 3),
+            "other_like_ratio": round(other_ratio, 3),
+            "host_like_ratio": round(host_ratio, 3),
+            "host_like_count": host_like,
+            "other_like_count": other_like,
+            "neutral_like_count": neutral_like,
+            "host_examples": host_examples,
+            "other_examples": other_examples,
+            "neutral_examples": neutral_examples,
+            "possible_other_speaker": other_ratio >= 0.6 and sentence_count >= 2,
+        }
 
         for comment in comments[-200:]:
             content = str(comment.get("content") or "").strip()
@@ -316,14 +273,15 @@ class LangGraphLiveWorkflow:
                 category = "question"
                 top_questions.append(content)
             elif any(p in lowered for p in ["买", "价", "券", "折扣", "产品"]):
-                weight = 0.75
+                weight = 0.7
                 category = "product"
-            elif any(s in lowered for s in ["加油", "支持", "棒", "666"]):
+            elif any(s in lowered for s in ["加油", "支持", "棒", "666", "冲"]):
                 weight = 0.6
                 category = "support"
-            elif any(e in lowered for e in ["喜欢", "好开心", "激动", "气"]):
+            elif any(e in lowered for e in ["喜欢", "开心", "激动", "气", "焦虑"]):
                 weight = 0.55
                 category = "emotion"
+            category_counts[category] = category_counts.get(category, 0) + 1
             chat_signals.append(
                 {
                     "text": content,
@@ -333,16 +291,17 @@ class LangGraphLiveWorkflow:
                 }
             )
 
-        keywords = _top_n_words([sig["text"] for sig in chat_signals], n=6)
-        signal_topics = [
-            {"topic": word, "weight": count, "confidence": min(0.95, 0.55 + 0.05 * count)}
-            for word, count in keywords
-        ]
+        chat_stats = {
+            "total_messages": len(chat_signals),
+            "category_counts": category_counts,
+            "window_seconds": round(elapsed, 1),
+        }
         return {
             "transcript_snippet": transcript_snippet,
             "chat_signals": chat_signals,
-            "topic_candidates": signal_topics,
+            "chat_stats": chat_stats,
             "top_questions": list(dict.fromkeys(top_questions))[:6],
+            "speech_stats": speech_stats,
         }
 
     def _topic_detector(self, state: GraphState) -> Dict[str, Any]:
@@ -362,8 +321,7 @@ class LangGraphLiveWorkflow:
             )
         if not topics:
             topics = [{"topic": "互动", "confidence": 0.55, "rank": 1}]
-        merged = topics
-        return {"topic_candidates": merged}
+        return {"topic_candidates": topics}
 
     def _mood_estimator(self, state: GraphState) -> Dict[str, Any]:
         chat_signals = state.get("chat_signals") or []
@@ -394,184 +352,191 @@ class LangGraphLiveWorkflow:
 
     def _planner(self, state: GraphState) -> Dict[str, Any]:
         topics = state.get("topic_candidates") or []
-        top_topic = topics[0] if topics else {"topic": "互动", "confidence": 0.6}
-        mood = state.get("mood") or "calm"
-        chat_signals = state.get("chat_signals") or []
+        top_topic = topics[0] if topics else {"topic": "互动", "confidence": 0.55}
+        vibe = state.get("vibe") or {}
+        top_questions = state.get("top_questions") or []
+        speech_stats = state.get("speech_stats") or {}
+        sentence_count = int(speech_stats.get("sentence_count") or 0)
+        speaking_ratio = float(speech_stats.get("speaking_ratio") or 0.0)
+        other_like_ratio = float(speech_stats.get("other_like_ratio") or 0.0)
+        host_like_ratio = float(speech_stats.get("host_like_ratio") or 0.0)
+        possible_other_speaker = bool(speech_stats.get("possible_other_speaker"))
 
-        has_product = any(sig.get("category") == "product" for sig in chat_signals)
-        has_questions = any(sig.get("category") == "question" for sig in chat_signals)
-
-        if has_product or (top_topic.get("topic") and re.search(r"(买|价|券|折|送)", top_topic["topic"])):
-            route = "promo"
-        elif has_questions or top_topic.get("confidence", 0) >= 0.75:
-            route = "deep_dive"
-        elif mood in {"stressed", "cold"}:
-            route = "warm_up"
+        focus: str
+        if sentence_count == 0 and (state.get("chat_stats", {}).get("total_messages") or 0) <= 2:
+            focus = "主播基本未开口，先主动打招呼或抛话题，唤醒直播间。"
+        elif possible_other_speaker or other_like_ratio >= max(0.55, host_like_ratio + 0.15):
+            focus = "对手说得更多，提醒主播抓住时机回应或反问，争取把节奏拉回来。"
+        elif speaking_ratio < 0.2 and (state.get("chat_stats", {}).get("total_messages") or 0) <= 5:
+            focus = "主播这一轮说话较少，可补充互动或分享话题，拉高存在感。"
+        elif top_questions:
+            focus = "重点观察观众提问，尽快帮助主播澄清或回应。"
+        elif vibe.get("level") == "hot":
+            focus = "当前热度较高，提醒主播稳住节奏并引导互动转化。"
+        elif vibe.get("level") == "cold":
+            focus = "互动偏冷，需要提示主播主动抛话题或互动任务。"
         else:
-            route = "deep_dive"
+            focus = "整体平稳，可结合主要讨论话题加深内容。"
 
         planner_notes = {
             "selected_topic": top_topic,
-            "mood": mood,
-            "heuristics": {
-                "has_product_signal": has_product,
-                "has_question_signal": has_questions,
-            },
+            "top_questions": top_questions,
+            "vibe": vibe,
+            "speech_stats": speech_stats,
         }
-        return {"planner_route": route, "planner_notes": planner_notes}
+        return {"analysis_focus": focus, "planner_notes": planner_notes}
 
-    def _route_selector(self, state: GraphState) -> str:
-        return state.get("planner_route") or "deep_dive"
-
-    def _script_generator(self, state: GraphState, route: str) -> Dict[str, Any]:
+    def _analysis_generator(self, state: GraphState) -> Dict[str, Any]:
+        transcript = state.get("transcript_snippet") or "\n".join(state.get("sentences") or [])
         context = {
-            "hot_words": [
-                {"word": t.get("topic"), "count": int(t.get("confidence", 0) * 100)}
-                for t in state.get("topic_candidates") or []
-            ],
-            "top_questions": state.get("top_questions", []),
+            "transcript": transcript,
+            "chat_signals": state.get("chat_signals") or [],
+            "chat_stats": state.get("chat_stats") or {},
+            "speech_stats": state.get("speech_stats") or {},
+            "topics": state.get("topic_candidates") or [],
+            "vibe": state.get("vibe") or {},
+            "mood": state.get("mood"),
+            "persona": state.get("persona") or {},
+            "planner_focus": state.get("analysis_focus"),
+        }
+        try:
+            card = self.analysis_generator.generate(context)
+        except Exception as exc:  # pragma: no cover
+            logger.exception("Analysis generation failed: %s", exc)
+            card = {"analysis_overview": f"生成失败：{exc}"}
+        return {"analysis_card": card}
+
+    def _question_responder(self, state: GraphState) -> Dict[str, Any]:
+        if not self.question_responder:
+            return {"answer_scripts": []}
+        questions = state.get("planner_notes", {}).get("top_questions") or state.get("top_questions") or []
+        if not questions:
+            return {"answer_scripts": []}
+        transcript = state.get("transcript_snippet") or "\n".join(state.get("sentences") or [])
+        context = {
+            "questions": questions,
             "persona": state.get("persona") or {},
             "vibe": state.get("vibe") or {},
             "mood": state.get("mood"),
-            "route": route,
+            "transcript": transcript,
         }
         try:
-            bundle = self.generator.generate_bundle(
-                route=route,
-                hot_words=context.get("hot_words"),
-                questions=context.get("top_questions"),
-                persona=context.get("persona"),
-                vibe=context.get("vibe"),
-            )
+            scripts = self.question_responder.generate(context)
         except Exception as exc:  # pragma: no cover
-            logger.exception("Script generation failed: %s", exc)
-            bundle = []
-
-        scripts: List[ScriptCandidate] = []
-        for item in bundle:
-            scripts.append(
-                {
-                    "text": item.get("content") or item.get("text") or "",
-                    "type": item.get("type") or "general",
-                    "route": route,
-                    "vibe": item.get("vibe") or context.get("vibe", {}).get("level") or "neutral",
-                    "keywords": item.get("keywords") or _derive_keywords_from_scripts([item]),  # type: ignore[arg-type]
-                    "score": float(item.get("score") or 0.0),
-                    "rationale": item.get("rationale") or "",
-                    "script_id": item.get("id") or "",
-                }
-            )
-        return {"scripts": scripts}
-
-    def _score_assessor(self, state: GraphState) -> Dict[str, Any]:
-        scripts = state.get("scripts") or []
-        if not scripts:
-            return {"score_summary": {"avg_score": 0.0, "high_quality": [], "low_quality": []}}
-        high: List[ScriptCandidate] = []
-        low: List[ScriptCandidate] = []
-        total = 0.0
-        for script in scripts:
-            score = float(script.get("score") or self.generator.score_text(script.get("text") or ""))
-            script["score"] = round(score, 2)
-            total += score
-            if score >= self.config.good_threshold:
-                high.append(script)
-            elif score <= self.config.bad_threshold:
-                low.append(script)
-        avg_score = round(total / len(scripts), 2)
-        return {
-            "scripts": scripts,
-            "score_summary": {
-                "avg_score": avg_score,
-                "high_quality": high,
-                "low_quality": low,
-            },
-        }
+            logger.exception("Question responder failed: %s", exc)
+            scripts = []
+        return {"answer_scripts": scripts}
 
     def _summary_node(self, state: GraphState) -> Dict[str, Any]:
-        topic = state.get("planner_notes", {}).get("selected_topic") or {}
+        card = state.get("analysis_card") or {}
+        overview = str(card.get("analysis_overview") or "").strip()
+        if not overview:
+            overview = "当前窗口缺乏足够信息，无法生成详细分析。"
+        highlights = card.get("engagement_highlights") or []
+        risks = card.get("risks") or []
+        suggestions = card.get("next_actions") or []
+        planner_notes = state.get("planner_notes") or {}
+        topic = planner_notes.get("selected_topic") or {}
         vibe = state.get("vibe") or {}
-        summary_parts = [
-            f"当前主轴：{topic.get('topic', '互动话题')} (置信 {topic.get('confidence', 0)})",
-            f"直播氛围：{vibe.get('level', 'neutral')}，热度分 {vibe.get('score', 0)}",
-        ]
-        scripts = state.get("scripts") or []
-        if scripts:
-            summary_parts.append(f"推荐话术 {len(scripts)} 条，可用于 {scripts[0].get('route', '')} 场景")
-        summary = "；".join(summary_parts)
-
-        highlight = [
-            f"高频话题：{topic.get('topic')}",
-            f"氛围评分 {vibe.get('score', 0)} ({vibe.get('level', 'neutral')})",
-        ]
-        questions = state.get("top_questions") or []
-        if questions:
-            highlight.append(f"实时问题关注：{questions[0]}")
-
-        suggestions: List[str] = []
-        if state.get("planner_route") == "promo":
-            suggestions.append("适时发出行动号召，引导观众关注、留言或参与互动任务。")
-        elif state.get("planner_route") == "warm_up":
-            suggestions.append("适当抛出互动提问，调动积极回应。")
+        speech_stats = planner_notes.get("speech_stats") or state.get("speech_stats") or {}
+        sentence_count = int(speech_stats.get("sentence_count") or 0)
+        speaking_ratio = float(speech_stats.get("speaking_ratio") or 0.0)
+        other_like_ratio = float(speech_stats.get("other_like_ratio") or 0.0)
+        possible_other_speaker = bool(speech_stats.get("possible_other_speaker"))
+        host_like_ratio = float(speech_stats.get("host_like_ratio") or 0.0)
+        host_examples = speech_stats.get("host_examples") or []
+        other_examples = speech_stats.get("other_examples") or []
+        if sentence_count == 0:
+            speech_hint = "主播本轮几乎未发言"
+        elif possible_other_speaker or other_like_ratio >= max(0.55, host_like_ratio + 0.15):
+            speech_hint = f"主播这段说了 {sentence_count} 句，对方掌握话题较多"
+        elif speaking_ratio <= 0.2:
+            speech_hint = f"主播这段说了 {sentence_count} 句，话语占比偏低"
         else:
-            suggestions.append("结合弹幕问题做更深入的场景剖析。")
+            speech_hint = f"主播这段说了 {sentence_count} 句"
 
-        risks: List[str] = []
-        if vibe.get("level") == "cold":
-            risks.append("直播间互动偏冷，可能影响留存。")
-        if state.get("score_summary", {}).get("low_quality"):
-            risks.append("存在评分偏低的话术，建议谨慎使用。")
+        topic_text = topic.get("topic") or "互动"
+        level_raw = (vibe.get("level") or "").lower()
+        level_map = {"cold": "偏冷", "neutral": "平稳", "hot": "火热"}
+        vibe_level = level_map.get(level_raw, "偏冷" if "cold" in level_raw else (level_raw or "偏冷"))
+        vibe_score = vibe.get("score")
+        if isinstance(vibe_score, (int, float)):
+            score_text = f"{int(round(vibe_score))}分"
+        else:
+            score_text = "—"
+        summary = f"{overview} 当前氛围{vibe_level}（{score_text}），话题集中在{topic_text}，{speech_hint}。"
 
-        top_questions = questions[:4]
+        def _dedupe(items: List[str], limit: int) -> List[str]:
+            seen = set()
+            ordered: List[str] = []
+            for text in items:
+                key = text.strip()
+                if not key or key in seen:
+                    continue
+                ordered.append(key)
+                seen.add(key)
+                if len(ordered) >= limit:
+                    break
+            return ordered
+
+        if host_like_ratio >= 0.7 and sentence_count >= 3:
+            highlights = list(highlights) if isinstance(highlights, list) else [highlights]
+            highlights.append("主播节奏稳定，持续带话题")
+        if possible_other_speaker or other_like_ratio >= max(0.55, host_like_ratio + 0.15):
+            risks = list(risks) if isinstance(risks, list) else [risks]
+            risks.append("对手掌握话题较多，主播需抓住空隙回应")
+            if other_examples:
+                risks.append(f"疑似对手语句：{str(other_examples[0])[:18]}")
+            suggestions = list(suggestions) if isinstance(suggestions, list) else [suggestions]
+            suggestions.append("接对方句尾补充或反问，导回自家话题")
+
+        clean_highlights = highlights if isinstance(highlights, list) else [highlights]
+        clean_highlights = [str(item).strip() for item in clean_highlights if item]
+        clean_highlights = _dedupe(clean_highlights, 2)
+
+        clean_risks = risks if isinstance(risks, list) else [risks]
+        clean_risks = [str(item).strip() for item in clean_risks if item]
+        clean_risks = _dedupe(clean_risks, 2)
+
+        clean_suggestions = suggestions if isinstance(suggestions, list) else [suggestions]
+        clean_suggestions = [str(item).strip() for item in clean_suggestions if item]
+        clean_suggestions = _dedupe(clean_suggestions, 3)
+
         return {
             "summary": summary,
-            "highlight_points": highlight,
-            "suggestions": suggestions,
-            "risks": risks,
-            "top_questions": top_questions,
+            "highlight_points": clean_highlights,
+            "risks": clean_risks,
+            "suggestions": clean_suggestions,
         }
-
-    def _memory_updater(self, state: GraphState) -> Dict[str, Any]:
-        anchor_key = _sanitize_anchor_id(state.get("anchor_id"))
-        if not anchor_key:
-            return {}
-        base = (self.config.memory_root / anchor_key).resolve()
-        scripts = state.get("score_summary", {}).get("high_quality") or []
-        bad_scripts = state.get("score_summary", {}).get("low_quality") or []
-        if scripts:
-            _write_jsonl(base / "history.jsonl", scripts)
-            _trim_jsonl(base / "history.jsonl", self.config.max_history)
-        if bad_scripts:
-            payload = [{"text": sc.get("text"), "score": sc.get("score")} for sc in bad_scripts]
-            _write_jsonl(base / "feedback_bad.jsonl", payload)
-            _trim_jsonl(base / "feedback_bad.jsonl", self.config.max_history)
-        if scripts:
-            payload = [{"text": sc.get("text"), "score": sc.get("score")} for sc in scripts]
-            _write_jsonl(base / "feedback_good.jsonl", payload)
-            _trim_jsonl(base / "feedback_good.jsonl", self.config.max_history)
-        return {}
 
     # ------------------------------------------------------------------ fallback
     def _fallback_run(self, state: GraphState) -> GraphState:
         updates: Dict[str, Any] = {}
-        for step in (
+        sequence = [
             self._memory_loader,
             self._signal_collector,
             self._topic_detector,
             self._mood_estimator,
             self._planner,
-        ):
+            self._analysis_generator,
+        ]
+        if self.question_responder:
+            sequence.append(self._question_responder)
+        sequence.append(self._summary_node)
+        for step in sequence:
             updates = step({**state, **updates})
             state.update(updates)
-
-        route = self._route_selector(state)
-        state.update(self._script_generator(state, route))
-        state.update(self._score_assessor(state))
-        state.update(self._summary_node(state))
-        state.update(self._memory_updater(state))
         return state
 
 
-def ensure_workflow(generator: AIScriptGenerator, config: Optional[LiveWorkflowConfig] = None) -> LangGraphLiveWorkflow:
+def ensure_workflow(
+    analysis_generator: LiveAnalysisGenerator,
+    question_responder: Optional[LiveQuestionResponder] = None,
+    config: Optional[LiveWorkflowConfig] = None,
+) -> LangGraphLiveWorkflow:
     """Factory helper to align with legacy imports."""
-    return LangGraphLiveWorkflow(generator=generator, config=config)
+    return LangGraphLiveWorkflow(
+        analysis_generator=analysis_generator,
+        question_responder=question_responder,
+        config=config,
+    )

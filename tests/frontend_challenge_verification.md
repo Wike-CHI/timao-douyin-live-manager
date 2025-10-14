@@ -269,37 +269,23 @@ const connectAIStream = useCallback(() => {
 // 更新启动/停止 AI 分析（第420-431行）
 useEffect(() => {
   if (isRunning) {
-    const ws = Math.max(30, Math.min(600, Number(aiWindowSec) || 60));
-    // ✅ 使用统一的鉴权接口
-    startAILiveAnalysis({ window_sec: ws }, FASTAPI_BASE_URL).catch(() => {});
+    if (!analysisBootRef.current) {
+      startAILiveAnalysis({ window_sec: 30 }, FASTAPI_BASE_URL).catch(() => {});
+      analysisBootRef.current = true;
+    }
     connectAIStream();
   } else {
+    analysisBootRef.current = false;
     try { stopAILiveAnalysis(FASTAPI_BASE_URL).catch(() => {}); } catch {}
     if (aiSourceRef.current) { aiSourceRef.current.close(); aiSourceRef.current = null; }
   }
-  return () => { if (aiSourceRef.current) { aiSourceRef.current.close(); aiSourceRef.current = null; } };
+  return () => {
+    if (!isRunning && aiSourceRef.current) {
+      aiSourceRef.current.close();
+      aiSourceRef.current = null;
+    }
+  };
 }, [isRunning, connectAIStream]);
-
-// 更新话术生成（第433-450行）
-const handleGenerateOne = useCallback(async () => {
-  try {
-    setGenBusy(true);
-    setOneScript('');
-    // ✅ 使用统一鉴权接口
-    const res = await generateOneScript(
-      { script_type: oneType, include_context: true },
-      FASTAPI_BASE_URL
-    );
-    const text = res?.data?.content || '';
-    if (text) setOneScript(String(text));
-  } catch (e) {
-    console.error(e);
-    setOneScript('生成失败，请稍后再试');
-  } finally {
-    setGenBusy(false);
-  }
-}, [oneType]);
-```
 
 ### 鉴权策略说明
 
@@ -894,4 +880,3 @@ const startPolling = (config: PollConfig = DEFAULT_POLL_CONFIG) => {
 **文档版本**: 1.0.0  
 **最后更新**: 2025-10-11  
 **作者**: 前端负责人
-

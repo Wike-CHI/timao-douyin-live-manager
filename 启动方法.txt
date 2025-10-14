@@ -1,0 +1,9 @@
+## 启动方法
+## 打开cmd
+cd d:\gsxm\timao-douyin-live-manager-main
+## 进入虚拟环境
+venv/Scripts/activate
+## 启动程序
+npm ci
+npm run dev
+
