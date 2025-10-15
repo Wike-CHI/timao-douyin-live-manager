@@ -55,11 +55,12 @@ npm run dev
 ### 2. 两种工作流
 
 - 直播直抓（推荐）：
+
   1) 在“直播音频转写”输入 Douyin 直播地址或 ID；
   2) 点击“开始转写”，同时启动弹幕抓取与音频拉流→SenseVoice 实时字幕；
   3) 通过 WS 端点 `/api/live_audio/ws` 接收增量/全文结果。
-
 - 录制复盘（离线）：
+
   1) 点击“开始录制”（/api/report/live/start）→ ffmpeg 分段录制（默认30分钟）；
   2) 点击“停止录制”（/api/report/live/stop）；
   3) 点击“生成报告”（/api/report/live/generate）→ 生成 comments.jsonl、transcript.txt、report.html。
@@ -101,5 +102,5 @@ docker-compose up -d
 ---
 
 **开发团队**: 提猫科技
-**项目版本**: MVP v1.0
-**最后更新**: 2025年9月21日
+**项目版本**: MVP v 1.1
+**最后更新**: 2025年10月15日
