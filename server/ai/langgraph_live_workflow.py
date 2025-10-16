@@ -243,8 +243,9 @@ class LangGraphLiveWorkflow:
         other_ratio = other_like / total_checked if total_checked else 0.0
         host_ratio = host_like / total_checked if total_checked else 0.0
 
+        sentence_count = len(sentences)
         speech_stats = {
-            "sentence_count": len(sentences),
+            "sentence_count": sentence_count,
             "total_chars": total_chars,
             "last_sentence": last_sentence,
             "window_seconds": round(elapsed, 1),

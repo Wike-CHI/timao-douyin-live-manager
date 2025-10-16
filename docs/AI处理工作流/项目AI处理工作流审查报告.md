@@ -8,9 +8,9 @@
   - 直播音频：通过 StreamCap 解析直播地址，`ffmpeg` 拉流并转为 PCM，送入 `SenseVoice + VAD` 转写管线。
   - 直播事件：通过 `DouyinLiveWebFetcher` 采集弹幕/礼物/点赞等事件。
 - 分析与生成：
-- 实时分析：`AILiveAnalyzer` 将“最终转写句子 + 弹幕事件”按时间窗聚合，通过 LangGraph 工作流驱动 `LiveAnalysisGenerator`（Qwen3-Max OpenAI 兼容接口）生成《直播分析卡片》，只输出状态评估与行动建议。
-- 智能话术：主播在前端手动点选弹幕，通过 `POST /api/ai/live/answers` 调用 `LiveQuestionResponder`（Qwen3-Max），实时生成主播口吻的话术。
-  - 单条话术生成：`AIScriptGenerator` 在注入 style_profile/vibe 等上下文后调用 Qwen（OpenAI 兼容接口）生成话术；支持人工评分写入记忆。
+  - **实时分析**：`AILiveAnalyzer` 将“最终转写句子 + 弹幕事件”按窗口聚合，通过 LangGraph 工作流（Memory → Signals → Mood → Planner → Analysis → 可选 QuestionResponder → Summary）驱动 `LiveAnalysisGenerator`（Qwen3-Max OpenAI 兼容接口）生成《直播分析卡片》，只输出状态评估与行动建议。
+  - **手动答疑**：主播在前端手动点选弹幕，通过 `POST /api/ai/live/answers` 调用 `LiveQuestionResponder`（Qwen3-Max）；模块会递归扫描 `docs/娱乐主播高情商话术大全/**/*.txt`，筛选 6~30 字的高情商示例并去重后注入提示词缓存，再返回主播口吻的话术。
+  - **单条话术生成**：`AIScriptGenerator` 在注入 style_profile/vibe 等上下文后调用 Qwen（OpenAI 兼容接口）生成，支持人工评分写入记忆并反哺 LangChain。
 - 记忆与检索：可选的 LangChain 向量记忆用于“风格画像”和“反馈指导”的积累与检索，提升后续提示词质量。
 
 ## 模块与数据流
@@ -33,7 +33,7 @@ flowchart LR
     subgraph Analyze[实时分析]
       F --> H[AILiveAnalyzer 窗口聚合]
       G --> H
-      H --> I[LangGraph Workflow<br/>Memory→Signals→Mood→Planner]
+      H --> I[LangGraph Workflow<br/>Memory→Signals→Mood→Planner→Analysis(→Answer)]
       I --> J[LiveAnalysisGenerator<br/>(Qwen3-Max)]
       J --> K[SSE /api/ai/live/stream]
       I --> L[style_profile/vibe 快照]
@@ -83,9 +83,9 @@ flowchart LR
 
 ## 接口与交互摘要
 - `/api/live_audio/*`：启动/停止/状态/健康检查/预加载模型等（WebSocket 用于转写流与输入电平广播）。
-- `/api/ai/live/*`：启动/停止/状态/上下文/流（SSE 推送实时分析结果）。
+- `/api/ai/live/*`：启动/停止/状态/上下文/流（SSE 推送实时分析结果，payload 包含 `summary/highlight_points/risks/suggestions/analysis_card/analysis_focus/planner_notes/style_profile/vibe/top_questions/transcript_snippet/speech_stats/carry`）。
 - `/api/ai/scripts/generate_one`：结合上下文调用 Qwen 生成单条可上嘴话术；`/feedback` 记录人工评分并同步写入风格记忆。
-- `/api/ai/live/answers`：手动传入弹幕问题，返回主播口吻的即时答疑话术。
+- `/api/ai/live/answers`：手动传入弹幕问题，返回主播口吻的即时答疑话术；若无历史高情商示例，将回退到默认示例。
 - `/api/ai/live/stream`：实时 SSE，推送 `analysis_card` 快照及风格/氛围信息。
 
 ## 依赖与配置

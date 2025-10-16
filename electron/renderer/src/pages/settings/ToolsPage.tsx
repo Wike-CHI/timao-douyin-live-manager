@@ -58,7 +58,7 @@ const ToolsPage: React.FC = () => {
       const resp = await fetch(`${FASTAPI_BASE_URL}/api/live_audio/models`);
       const data = await resp.json();
       setModelStatus(data || null);
-    } catch {}
+    } catch (_error) {}
   };
 
   const fetchRuntimeInfo = async () => {
@@ -95,20 +95,20 @@ const ToolsPage: React.FC = () => {
           const wsUrl = FASTAPI_BASE_URL.replace(/^http/i, 'ws').replace(/\/$/, '') + '/api/live_audio/ws';
           const ws = new WebSocket(wsUrl);
           const timer = setTimeout(() => {
-            if (!done) { try { ws.close(); } catch {} done = true; resolve(); }
+            if (!done) { try { ws.close(); } catch (_error) {} done = true; resolve(); }
           }, 2000);
           ws.onopen = () => {
-            try { ws.send(JSON.stringify({ type: 'ping' })); } catch {}
+            try { ws.send(JSON.stringify({ type: 'ping' })); } catch (_error) {}
           };
           ws.onmessage = (ev) => {
             try {
               const m = JSON.parse(ev.data);
               if (m?.type === 'pong') { res.wsOk = true; }
-            } catch {}
+            } catch (_error) {}
           };
           ws.onclose = () => { if (!done) { clearTimeout(timer); done = true; resolve(); } };
           ws.onerror = () => { if (!done) { clearTimeout(timer); done = true; resolve(); } };
-        } catch { resolve(); }
+        } catch (_error) { resolve(); }
       });
     } catch (e: any) {
       res.details = e?.message || String(e);
@@ -157,7 +157,7 @@ const ToolsPage: React.FC = () => {
       const data = JSON.parse(text);
       setHotwords(data);
       setMessage('已载入文件，点击“保存热词”生效');
-    } catch {
+    } catch (_error) {
       setMessage('文件解析失败');
     }
   };
@@ -171,8 +171,11 @@ const ToolsPage: React.FC = () => {
             运行环境（Torch / 设备）
           </h3>
           <div className="flex items-center gap-3 text-xs timao-support-text">
-            <span>强制设备</span>
+            <label htmlFor="forced-device-select" className="cursor-pointer">
+              强制设备
+            </label>
             <select
+              id="forced-device-select"
               className="timao-select"
               value={forcedDevice}
               onChange={async (e) => {
@@ -246,7 +249,9 @@ const ToolsPage: React.FC = () => {
                   const r = await fetch(`${FASTAPI_BASE_URL}/api/tools/clean_caches/preview`).then(r=>r.json());
                   setCleanPreview(Array.isArray(r?.removed) ? r.removed : []);
                   setMessage('已生成预览，见下方列表');
-                } catch { setMessage('预览失败'); }
+                } catch (error) {
+                  setMessage(error instanceof Error ? error.message : '预览失败');
+                }
                 finally { setBusy(false); }
               }}
             >预览</button>
@@ -260,9 +265,15 @@ const ToolsPage: React.FC = () => {
                   setCleanPreview(Array.isArray(r?.removed) ? r.removed : []);
                   setMessage('清理完成');
                   if (autoReload) {
-                    setTimeout(() => { try { window.location.reload(); } catch {} }, 600);
+                    setTimeout(() => {
+                      try {
+                        window.location.reload();
+                      } catch (_error) {}
+                    }, 600);
                   }
-                } catch { setMessage('清理失败'); }
+                } catch (error) {
+                  setMessage(error instanceof Error ? error.message : '清理失败');
+                }
                 finally { setBusy(false); }
               }}
             >一键清理</button>
@@ -353,9 +364,12 @@ const ToolsPage: React.FC = () => {
             accept="application/json"
             aria-describedby="hotwords-file-help"
             onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) importJson(f);
-          }} />
+              const file = e.target.files?.[0];
+              if (file) {
+                void importJson(file);
+              }
+            }}
+          />
           <button className="timao-primary-btn" onClick={saveHotwords} disabled={busy}>保存热词</button>
           <button className="timao-outline-btn" onClick={async () => {
             try {
@@ -383,7 +397,7 @@ const ToolsPage: React.FC = () => {
             try {
               const v = JSON.parse(e.target.value);
               setHotwords(v);
-            } catch {
+            } catch (_error) {
               // ignore until valid
             }
           }}

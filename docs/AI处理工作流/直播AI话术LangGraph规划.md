@@ -14,7 +14,7 @@
 ```
 START
  ├─ MemoryLoader → SignalCollector → TopicDetector → MoodEstimator
- └─ Planner → AnalysisGenerator → SummaryNode → END
+ └─ Planner → AnalysisGenerator → (QuestionResponder) → SummaryNode → END
 ```
 
 - **MemoryLoader**：读取 `records/memory/<anchor_id>/profile.json`，同步主播画像（tone/taboo/常用语等），用于提示模型保持贴近主播的表达视角。
@@ -34,6 +34,7 @@ START
   }
   ```
   模型仅进行分析，不输出任何口播话术模板。
+- **QuestionResponder（可选）**：当存在高优先级提问且配置了 `LiveQuestionResponder` 时，复用上一阶段的 persona / vibe / transcript 等上下文，为前端“手动答疑”接口预先生成候选脚本。
 - **SummaryNode**：将分析卡片、话题与氛围整合输出，供 SSE 及日志使用。
 
 ## 关键数据结构（GraphState 片段）
@@ -67,6 +68,8 @@ graph.add_node("topic_detector", detect_topics)
 graph.add_node("mood_estimator", estimate_mood)
 graph.add_node("planner", plan_focus)
 graph.add_node("analysis_generator", run_qwen_analysis)
+if question_responder:
+    graph.add_node("question_responder", run_qwen_answers)
 graph.add_node("summary", build_summary)
 
 graph.set_entry_point("memory_loader")
@@ -75,7 +78,11 @@ graph.add_edge("signal_collector", "topic_detector")
 graph.add_edge("topic_detector", "mood_estimator")
 graph.add_edge("mood_estimator", "planner")
 graph.add_edge("planner", "analysis_generator")
-graph.add_edge("analysis_generator", "summary")
+if question_responder:
+    graph.add_edge("analysis_generator", "question_responder")
+    graph.add_edge("question_responder", "summary")
+else:
+    graph.add_edge("analysis_generator", "summary")
 workflow = graph.compile(checkpointer=MemorySaver())
 ```
 
@@ -92,13 +99,20 @@ workflow = graph.compile(checkpointer=MemorySaver())
     "analysis_card": {...},
     "analysis_focus": "...",
     "topic_candidates": [...],
+    "planner_notes": {...},
     "style_profile": {...},
-    "vibe": {...}
+    "vibe": {...},
+    "top_questions": ["..."],
+    "transcript_snippet": "...",
+    "speech_stats": {...},
+    "carry": "...上一个窗口总结..."
   }
   ```
 
 - 手动话术生成：前端在“实时弹幕”面板点选问题后，调用 `POST /api/ai/live/answers`，由 Qwen3-Max 生成主播口吻脚本。
-  兼容旧字段 `top_questions`、`style_profile`，但不再返回 `scripts`/`score_summary`。
+  - `LiveQuestionResponder` 会递归扫描 `docs/娱乐主播高情商话术大全/**/*.txt`，筛选 6~30 字的高情商示例，去重后写入提示词缓存；
+    若资料缺失或读取失败，则保底使用默认示例。
+  - 接口兼容旧字段 `top_questions`、`style_profile`，但不再返回 `scripts`/`score_summary`。
 
 ## 后续迭代方向
 

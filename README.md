@@ -2,105 +2,178 @@
 
 > **重要声明：** 本项目仅依照仓库内的《提猫直播助手源代码许可协议（仅供学习研究）》授权，用于学习与研究目的。任何未经作者书面许可的商业化行为（含直接或间接盈利）均被严格禁止，违者作者保留追究法律责任的权利。请务必阅读根目录下的 `LICENSE` 文件。
 
-基于自研直播互动与本地语音识别能力的主播 AI 助手（隐私不出机）
+基于 Electron + FastAPI 的抖音直播主播助手，整合本地 SenseVoice/FunASR 语音识别、Douyin 弹幕抓取、LangChain/Qwen AI 话术生成与直播复盘能力，默认在本机完成处理，直播数据不会离开本地环境。
+
+## 功能亮点
+
+- 🎯 **直播互动中台**：`DouyinLiveWebFetcher` 模块拉取 WebSocket 弹幕/礼物，并通过 REST/SSE 向桌面端推送。
+- 🎤 **本地实时语音转写**：`AST_module` 使用 SenseVoice Small + VAD，实现直播音频直抓、断句校准与字幕流。
+- 🧠 **AI 实时分析**：`server/ai` 基于 LangChain + Qwen/OpenAI 兼容接口生成热词洞察、实时提示与话术。
+- 📊 **直播复盘留存**：自动生成 `comments.jsonl`、`transcript.txt`、`report.html` 等复盘素材，支撑离线分析。
+- 🔒 **隐私与容错**：本地处理、离线可用，内置模型/接口降级策略，日志与缓存全部保存在本地 `logs/`、`records/`。
 
 ## 技术栈
 
-- **前端**: HTML + CSS + Element UI 2.15
-- **后端**: FastAPI + SQLite + Redis
-- **直播互动**: 项目内置 DouyinLiveWebFetcher 模块（WebSocket → SSE 桥接）
-- **语音识别**: SenseVoice/FunASR 本地模型 (中文)
-- **AI分析**: jieba + SnowNLP (本地NLP)
-- **部署**: Docker + Nginx
+- 桌面端：Electron 38、electron-builder、concurrently、wait-on。
+- 渲染层：React 18、Vite 5、Tailwind CSS、Zustand、CloudBase SDK。
+- 后端：FastAPI + Uvicorn（主要 API）、Flask（遗留 SSE 工具）、WebSocket/SSE、SQLAlchemy + SQLite。
+- AI & NLP：LangChain、Qwen 兼容接口、jieba、SnowNLP、RNNoise、FunASR、SenseVoiceSmall。
+- 音频处理：ffmpeg、PyAudio、librosa、webrtc-audio-processing。
+- 测试与质量：Jest、Pytest、ESLint、Playwright（Electron 测试脚手架）。
 
-## 项目结构
+## 系统组件
+
+```
+electron/main.js
+├─ 启动 renderer (Vite 30013) 渲染 React/Tailwind UI
+├─ 启动 FastAPI：server/app/main.py → 127.0.0.1:8090 (REST + WebSocket)
+│   ├─ server/app/api/*           直播音频、复盘、Douyin、AI 等路由
+│   ├─ server/ingest/             抖音抓取与缓冲
+│   ├─ server/nlp/                热词/情绪分析
+│   └─ server/ai/                 LangChain/Qwen 实时策略
+├─ 调用 AST_module/*              SenseVoice 音频采集、后处理与降级
+└─ （兼容）server/app.py          Flask SSE 与工具接口
+```
+
+## 目录导览
 
 ```
 timao-douyin-live-manager/
-├── AST_module/           # 本地语音采集与转写模块
-│   ├── ast_service.py    # SenseVoice 集成入口
-│   ├── audio_capture.py  # 音频采集与缓冲
-│   └── requirements.txt  # AST 模块依赖
-├── server/                # FastAPI后端服务
-│   ├── app/
-│   │   ├── api/          # API路由
-│   │   ├── core/         # 核心配置
-│   │   ├── models/       # 数据模型
-│   │   ├── services/     # 业务服务
-│   │   └── main.py       # 应用入口
-│   ├── requirements.txt  # Python依赖
-│   └── Dockerfile        # Docker配置
-├── frontend/             # 前端界面
-│   ├── index.html        # 主页面
-│   ├── css/              # 样式文件
-│   ├── js/               # JavaScript文件
-│   └── assets/           # 静态资源
-├── docs/                 # 项目文档
-└── docker-compose.yml    # 部署配置
+├── electron/                 # 桌面壳（main.js、preload.js、renderer/）
+│   └── renderer/             # React + Vite 前端，端口 30013（dev）
+├── server/                   # 后端服务
+│   ├── app/main.py           # FastAPI 入口
+│   ├── app/api/              # REST/WebSocket 路由
+│   ├── utils/                # 配置、日志、启动助手
+│   ├── ingest/               # Douyin 弹幕抓取
+│   ├── nlp/                  # 热词/情感分析
+│   └── ai/                   # LangChain/Qwen 工作流
+├── AST_module/               # SenseVoice/FunASR 音频管线
+│   ├── ast_service.py        # 语音转写服务入口
+│   └── sensevoice_service.py # 模型集成与降级策略
+├── DouyinLiveWebFetcher/     # 抖音 WebSocket → SSE 桥接
+├── frontend/                 # 独立静态网页与测试面板
+├── docs/                     # 设计文档、流程、部署指南
+├── tests/                    # Python 集成与单元测试
+├── electron/__tests__/       # Electron 桌面端测试
+├── requirements.all.txt      # Python 全量依赖
+└── tools/                    # 模型下载、缓存清理、打包脚本
 ```
 
-## 快速开始（Electron + FastAPI）
+## 环境准备
 
-### 1. 环境准备
+### 系统要求
+
+- Windows 10+/macOS 13+/Ubuntu 20.04+（64 位）
+- Node.js ≥ 16、npm ≥ 8、Python ≥ 3.9
+- 建议安装 ffmpeg 并加入 PATH
+- 至少 4 GB 内存，SenseVoiceSmall 建议 8 GB 以上
+
+### 安装依赖
 
 ```bash
-# 安装依赖（一次性安装全栈）
+# Python（FastAPI + AST + 工具）
 pip install -r requirements.all.txt
-npm ci
 
-# 启动（Electron 会自启 FastAPI: 127.0.0.1:8090）
+# Node（Electron 主进程 + Renderer）
+npm ci
+```
+
+`npm ci` 会触发 `postinstall`，自动为 `electron/renderer` 安装前端依赖。
+
+### 准备本地语音模型（首次部署）
+
+```bash
+python tools/download_sensevoice.py      # 下载 SenseVoiceSmall
+python tools/download_vad_model.py       # 下载 VAD 模型
+```
+
+模型默认保存在 `models/models/iic/`，`/api/live_audio/health` 可检查准备情况。若需要 GPU/CUDA，请先运行 `python tools/prepare_torch.py`。
+
+## 启动流程
+
+### Electron 一体化开发（推荐）
+
+```bash
 npm run dev
 ```
 
-### 2. 两种工作流
+- `renderer` 以 Vite 模式运行在 http://127.0.0.1:30013
+- Electron 主进程自动等待端口并拉起桌面窗口
+- `uvicorn` 在后台启动 FastAPI（127.0.0.1:8090），提供 REST `/api/*`、WebSocket `/api/live_audio/ws`、文档 `/docs`
 
-- 直播直抓（推荐）：
+如需关闭，只需退出 Electron 窗口或在终端中 `Ctrl+C`。
 
-  1) 在“直播音频转写”输入 Douyin 直播地址或 ID；
-  2) 点击“开始转写”，同时启动弹幕抓取与音频拉流→SenseVoice 实时字幕；
-  3) 通过 WS 端点 `/api/live_audio/ws` 接收增量/全文结果。
-- 录制复盘（离线）：
-
-  1) 点击“开始录制”（/api/report/live/start）→ ffmpeg 分段录制（默认30分钟）；
-  2) 点击“停止录制”（/api/report/live/stop）；
-  3) 点击“生成报告”（/api/report/live/generate）→ 生成 comments.jsonl、transcript.txt、report.html。
-
-### 3. Docker部署
+### 仅启动 FastAPI 后端
 
 ```bash
-docker-compose up -d
+uvicorn server.app.main:app --reload --host 127.0.0.1 --port 8090
 ```
 
-### 4. 打包发布（内置 AI 配置）
+手动启动时，请在 `electron/renderer/.env` 设置 `VITE_FASTAPI_URL=http://127.0.0.1:8090` 以便前端指向正确 API。
 
-- 执行 `npm run release` 完成 Electron 打包并生成 `release/` 目录
-- `release/.env` 会自动写入默认的 Qwen DashScope 配置，终端用户无需再手动配置 AI 服务
-- 若需自定义云端模型，可在运行前手动覆盖 `release/.env`
+### 仅启动遗留 Flask SSE 服务
 
-### 5. Git 使用
+```bash
+python server/app.py
+```
 
-有关 Git 使用的详细说明，请参阅以下文档：
+Flask 服务用于旧版字幕面板与 SSE 工具，Electron 正式流程无需手动启动。
 
-- [Git 使用指南](docs/Git使用指南.md) - 完整的 Git 使用说明
-- [Git 操作速查表](docs/Git操作速查表.md) - 常用 Git 命令快速参考
-- [gitignore 配置说明](docs/gitignore配置说明.md) - 项目 .gitignore 配置说明
+### AST 模块本地调试
 
-## 核心功能
+参阅 `AST_README.md` 或执行：
 
-- 🎯 **直播互动**: 实时同步抖音直播间弹幕、礼物、点赞
-- 🎤 **本地语音转录**: SenseVoice 小型模型实时识别（默认“fast”档，支持 `LIVE_AUDIO_PROFILE=stable` 切换）
-- 🧠 **AI智能分析**: 情感分析 + 热词提取
-- 🎨 **可爱界面**: 猫咪主题Element UI界面
+```bash
+python start_ast_test.py      # 启动 AST FastAPI
+python start_web_server.py    # 启动测试页面（8080）
+```
 
-## MVP验证目标
+浏览器访问 http://127.0.0.1:8080/AST_test_page.html 进行语音链路验证。
 
-- 弹幕抓取成功率 > 95%
-- 语音识别准确率 > 80%
-- 系统响应延迟 < 2秒
-- 3天开发完成基础功能
+## 测试与质量保障
+
+- `npm test`：运行 Electron/renderer Jest 用例。
+- `npm run lint`：对 `electron/` 目录执行 ESLint。
+- `pytest`：运行 Python 测试（`tests/` 与 `server/tests/`）。
+- `pytest server/tests/test_live_audio.py::TestLiveAudioAPI`：聚焦关键接口。
+- `npm run build` 前建议先通过上述测试与 `npm run lint`。
+
+## 打包与发布
+
+- `npm run build`：使用 electron-builder 构建当前平台安装包，输出 `dist/`。
+- `npm run build:win[32|64]`：生成指定架构的 Windows 便携包。
+- `npm run release`：构建 + 生成 `release/` 目录（自动写入默认 AI `.env`）。
+- 推荐在打包前执行 `pip install -r requirements.all.txt --upgrade` 与 `npm ci`，保持依赖一致。
+
+## 配置与数据目录
+
+- `.env`（根目录）：覆盖 `AI_SERVICE`、`AI_API_KEY`、`OPENAI_API_KEY` 等，默认回退至 `server/utils/ai_defaults.py` 中的 DashScope 兼容配置。
+- `electron/renderer/.env`：前端 API 地址、调试开关（默认继承 Electron 主进程环境）。
+- `config.json`：Douyin 房间号、Cookie、缓存等业务参数，可在设置页写入。
+- 持久化：
+  - `records/`：直播复盘生成的中间文件
+  - `logs/` 与 `logs/uvicorn.log`：FastAPI/Electron 日志
+  - `audio_logs/`：语音转写音频片段（开启持久化时）
+
+## 文档与资源
+
+- `docs/启动说明.md`：桌面端启动流程与故障排查。
+- `AST_README.md` / `AST_module/docs/`：语音模块架构、测试方法。
+- `docs/MODELS.md`：模型下载、目录规划与容量建议。
+- `docs/Windows打包部署指南.md`：Windows 构建/签名注意事项。
+- `docs/提猫直播助手_API_数据模型与接口规范.md`：REST API 字段约定。
+- `docs/安全加固实施指南.md`：生产环境安全配置 Checklist。
+
+## 注意事项
+
+- `npm run dev` 会尝试占用 30013（Vite）与 8090（FastAPI）；若端口被占用，会跳过后端启动，请手动校验。
+- SenseVoice/VAD 缺失时，`/api/live_audio/health` 会给出自动修复脚本提示。
+- 若需代理出站流量，请为 `AI_BASE_URL`、`AI_API_KEY` 设置合规值，避免默认密钥泄露到公网环境。
+- 对于离线部署，可通过 `tools/create_release.py` 打出便携包并在 `.env` 中关闭云端 AI（例如设置 `AI_SERVICE=offline`）。
 
 ---
 
-**开发团队**: 提猫科技
-**项目版本**: MVP v 1.1
-**最后更新**: 2025年10月15日
+**开发团队**：提猫科技
+**应用版本**：v1.0.0
+**最后更新**：2025年10月16日

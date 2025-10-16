@@ -8,7 +8,7 @@
 ## 1. 改动概览
 
 - **LangGraph 工作流改造**
-  - 保持 MemoryLoader → SignalCollector → TopicDetector → MoodEstimator → Planner → AnalysisGenerator → SummaryNode 结构，聚焦实时分析。
+  - 保持 MemoryLoader → SignalCollector → TopicDetector → MoodEstimator → Planner → AnalysisGenerator → (QuestionResponder) → SummaryNode 结构，聚焦实时分析并兼顾手动答疑。
 - **Qwen3-Max 分析卡片生成**
   - 新增 `server/ai/live_analysis_generator.py`。模型提示要求产出 `analysis_overview`、`audience_sentiment`、`engagement_highlights`、`risks`、`next_actions`、`confidence` 等字段，不允许返回口播话术。
   - 输入包含口播节选、弹幕样本、互动分类统计、话题候选、氛围评估及系统给出的 `analysis_focus`。
@@ -31,7 +31,8 @@
 | MoodEstimator | `chat_signals` → `mood` + `vibe` | 规则评估直播氛围等级与得分。 |
 | Planner | 汇总上下文 → `analysis_focus` + `planner_notes` | 根据提问数量、氛围、话题推导助理关注点。 |
 | AnalysisGenerator | 上述上下文 → `analysis_card` | 调用 Qwen3-Max 输出 JSON 分析卡片，不含话术。 |
-| SummaryNode | `analysis_card` + 话题/氛围 | 生成 SSE 展示用简要文本。 |
+| QuestionResponder (可选) | `top_questions` + persona/vibe | 启用 `LiveQuestionResponder` 时，为 `/answers` 接口预先生成高情商口吻脚本；若无高优先级问题则返回空列表。 |
+| SummaryNode | `analysis_card` + planner_notes | 汇总分析结果、话题/氛围与口播统计，生成 SSE 展示用摘要，并携带 `speech_stats`/`transcript_snippet` 等上下文。 |
 
 ## 3. SSE 输出示例
 
@@ -59,9 +60,19 @@
   },
   "analysis_focus": "重点观察观众提问，尽快帮助主播澄清或回应。",
   "topic_candidates": [{"topic": "色号", "confidence": 0.78}],
+  "planner_notes": {
+    "selected_topic": {"topic": "色号", "confidence": 0.78},
+    "speech_stats": {...}
+  },
   "style_profile": {"tone": "自然陪伴", "taboo": []},
   "vibe": {"level": "neutral", "score": 63.5, "trends": ["supporting", "interaction_light"]},
   "top_questions": ["这个色号偏黄还是偏粉？"],
+  "transcript_snippet": "......",
+  "speech_stats": {
+    "sentence_count": 5,
+    "speaking_ratio": 0.34,
+    "possible_other_speaker": false
+  },
   "carry": "当前状态：问题集中在色号咨询；氛围 neutral 分 63.5。"
 }
 ```
@@ -77,6 +88,7 @@
 2. **窗口测试**：模拟弹幕分类（问题/支持/情绪）与不同口播节奏，观察 `analysis_focus` 与 `audience_sentiment.label` 是否符合预期。
 3. **错误处理**：拔除 Qwen API Key，确认 SSE 返回失败结构，前端可容错展示。
 4. **前端适配**：更新“智能话术建议”卡片，支持从弹幕中点选问题并调用 `POST /api/ai/live/answers` 获取 Qwen3-Max 生成的主播口吻话术。
+   - `LiveQuestionResponder` 会递归加载 `docs/娱乐主播高情商话术大全/**/*.txt`，筛选 6~30 字的示例句并去重，作为高情商样本注入提示词。
 
 ## 6. 后续优化
 

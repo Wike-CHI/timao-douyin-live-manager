@@ -136,25 +136,37 @@ class LiveQuestionResponder:
         if self._examples_cache is not None:
             return self._examples_cache
         base_dir = Path(__file__).resolve().parents[2]
-        candidates = [
-            base_dir / "docs" / "娱乐主播高情商话术大全" / "娱乐主播直播话术.txt",
-            base_dir / "docs" / "娱乐主播高情商话术大全" / "娱乐直播话术.txt",
-            base_dir / "docs" / "娱乐主播高情商话术大全" / "新娱乐主播直播技巧、怼黑.txt",
-            base_dir / "docs" / "娱乐主播高情商话术大全" / "娱乐主播开场、互动提问、创意预报.txt",
-            base_dir / "docs" / "娱乐主播高情商话术大全" / "直播间搞笑话术.txt",
-            base_dir / "docs" / "娱乐主播高情商话术大全" / "主播嘴甜话术.txt",
-        ]
-        for path in candidates:
-            try:
-                if path.is_file():
+        dataset_dir = base_dir / "docs" / "娱乐主播高情商话术大全"
+        snippets: List[str] = []
+        if dataset_dir.is_dir():
+            text_files = sorted(dataset_dir.rglob("*.txt"))
+            for path in text_files:
+                try:
+                    if not path.is_file():
+                        continue
                     content = path.read_text("utf-8", errors="ignore")
-                    snippets = [line.strip() for line in content.splitlines() if line.strip()]
-                    top_snippets = [s for s in snippets if len(s) <= 30][:10]
-                    if top_snippets:
-                        block = "【高情商话术示例】\n" + "\n".join(top_snippets)
-                        self._examples_cache = block
-                        return block
-            except Exception:
-                continue
+                except Exception:
+                    continue
+                file_snippets = [
+                    line.strip()
+                    for line in content.splitlines()
+                    if 6 <= len(line.strip()) <= 30
+                ][:3]
+                if file_snippets:
+                    snippets.extend(file_snippets)
+                if len(snippets) >= 18:
+                    break
+        if snippets:
+            unique_snippets: List[str] = []
+            seen = set()
+            for snippet in snippets:
+                if snippet and snippet not in seen:
+                    unique_snippets.append(snippet)
+                    seen.add(snippet)
+                    if len(unique_snippets) >= 18:
+                        break
+            block = "【高情商话术示例】\n" + "\n".join(unique_snippets)
+            self._examples_cache = block
+            return block
         self._examples_cache = "【高情商话术示例】\n结婚？别闹，我才18 岁还在念书呢~"
         return self._examples_cache
