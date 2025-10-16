@@ -129,6 +129,21 @@ class LiveAnalysisGenerator:
         if planner_focus:
             focus_notes = f"【系统聚焦建议】{planner_focus}\n\n"
 
+        knowledge_snippets = context.get("knowledge_snippets") or []
+        knowledge_blocks: List[str] = []
+        for snippet in knowledge_snippets:
+            block = snippet.get("prompt_block") if isinstance(snippet, dict) else None
+            if not block:
+                title = snippet.get("title") if isinstance(snippet, dict) else None
+                summary = snippet.get("summary") if isinstance(snippet, dict) else None
+                highlights = snippet.get("highlights") if isinstance(snippet, dict) else []
+                highlight_text = " | ".join(str(h) for h in highlights[:3]) if highlights else ""
+                block = f"《{title or '知识片段'}》 {summary or highlight_text}"
+            knowledge_blocks.append(block)
+        knowledge_note = ""
+        if knowledge_blocks:
+            knowledge_note = "【知识库参考】\n" + "\n\n".join(knowledge_blocks[:3]) + "\n\n"
+
         vibe_line = (
             f"level={vibe.get('level', 'unknown')}, "
             f"score={vibe.get('score', 'N/A')}, "
@@ -168,6 +183,7 @@ class LiveAnalysisGenerator:
         user_prompt = (
             f"{focus_notes}"
             f"{persona_notes}"
+            f"{knowledge_note}"
             f"【时间窗口】{window_label}\n"
             "【口播节选】\n"
             f"{transcript or '（暂无口播文本）'}\n\n"

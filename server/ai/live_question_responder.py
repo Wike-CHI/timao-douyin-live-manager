@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from openai import OpenAI
+
+from .knowledge_service import get_knowledge_base, preview_snippets
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +63,7 @@ class LiveQuestionResponder:
             f"score={vibe.get('score', 'N/A')}, "
             f"mood={context.get('mood', 'unknown')}"
         )
+        knowledge_block = self._prepare_knowledge_block(context)
         samples_block = self._load_examples()
         system_prompt = (
             "你是主播的实时语音助理，需要用主播自己的口吻回答观众的难题或疑问。"
@@ -77,6 +81,7 @@ class LiveQuestionResponder:
             + "\n\n"
             "【当前氛围与节奏】\n"
             f"{vibe_line}\n\n"
+            f"{knowledge_block}"
             "【近期口播节选】\n"
             f"{transcript or '（暂无口播文本，仅参考历史画像）'}\n\n"
             f"{samples_block}\n\n"
@@ -170,3 +175,53 @@ class LiveQuestionResponder:
             return block
         self._examples_cache = "【高情商话术示例】\n结婚？别闹，我才18 岁还在念书呢~"
         return self._examples_cache
+
+    def _prepare_knowledge_block(self, context: Dict[str, Any]) -> str:
+        try:
+            kb = get_knowledge_base()
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("知识库初始化失败，继续使用默认示例：%s", exc)
+            return ""
+
+        def _extract_terms(text: Optional[str]) -> List[str]:
+            if not text:
+                return []
+            return [term for term in re.findall(r"[\u4e00-\u9fa5]{2,}", str(text)) if term]
+
+        questions = context.get("questions") or []
+        persona = context.get("persona") or {}
+        vibe = context.get("vibe") or {}
+        queries: List[str] = []
+        for q in questions:
+            queries.extend(_extract_terms(q))
+        transcript_terms = _extract_terms(context.get("transcript") if context.get("transcript") else "")
+        if transcript_terms:
+            queries.extend(transcript_terms[:5])
+        if persona_name := persona.get("name"):
+            queries.extend(_extract_terms(persona_name))
+        if vibe_level := vibe.get("level"):
+            queries.append(str(vibe_level))
+
+        if vibe.get("level") == "cold":
+            queries.extend(["冷场", "打招呼", "破冰", "互动"])
+        elif vibe.get("level") == "hot":
+            queries.extend(["控场", "节奏", "转化"])
+
+        seen_terms = set()
+        dedup_queries: List[str] = []
+        for term in queries:
+            if term and term not in seen_terms:
+                dedup_queries.append(term)
+                seen_terms.add(term)
+        queries = dedup_queries or ["直播话术", "互动"]
+
+        snippets = kb.query(
+            queries,
+            themes=[persona.get("style")] if persona.get("style") else None,
+            tags=[vibe.get("level")] if vibe.get("level") else None,
+            limit=2,
+        )
+        if not snippets:
+            return ""
+        preview = preview_snippets(snippets)
+        return f"【知识库补充】\n{preview}\n\n"

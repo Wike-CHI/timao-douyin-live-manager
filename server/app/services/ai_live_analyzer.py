@@ -187,6 +187,8 @@ class AILiveAnalyzer:
             "vibe": vibe_from_card if isinstance(vibe_from_card, dict) else result.get("vibe", {}),
             "transcript_snippet": result.get("transcript_snippet", ""),
             "speech_stats": result.get("speech_stats", {}),
+            "knowledge_snippets": result.get("knowledge_snippets", []),
+            "knowledge_refs": result.get("knowledge_refs", []),
         }
         return payload
 

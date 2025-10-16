@@ -31,6 +31,7 @@ except Exception:  # pragma: no cover
 
 from .live_analysis_generator import LiveAnalysisGenerator
 from .live_question_responder import LiveQuestionResponder
+from .knowledge_service import get_knowledge_base
 
 try:  # pragma: no cover - optional reuse of helpers
     from .style_memory import _sanitize_anchor_id  # type: ignore
@@ -79,6 +80,7 @@ class GraphState(TypedDict, total=False):
     risks: List[str]
     suggestions: List[str]
     top_questions: List[str]
+    knowledge_snippets: List[Dict[str, Any]]
 
 
 @dataclass
@@ -156,6 +158,7 @@ class LangGraphLiveWorkflow:
         graph.add_node("topic_detector", self._topic_detector)
         graph.add_node("mood_estimator", self._mood_estimator)
         graph.add_node("planner", self._planner)
+        graph.add_node("knowledge_loader", self._knowledge_loader)
         graph.add_node("analysis_generator", self._analysis_generator)
         if self.question_responder:
             graph.add_node("question_responder", self._question_responder)
@@ -166,7 +169,8 @@ class LangGraphLiveWorkflow:
         graph.add_edge("signal_collector", "topic_detector")
         graph.add_edge("topic_detector", "mood_estimator")
         graph.add_edge("mood_estimator", "planner")
-        graph.add_edge("planner", "analysis_generator")
+        graph.add_edge("planner", "knowledge_loader")
+        graph.add_edge("knowledge_loader", "analysis_generator")
         if self.question_responder:
             graph.add_edge("analysis_generator", "question_responder")
             graph.add_edge("question_responder", "summary")
@@ -387,6 +391,78 @@ class LangGraphLiveWorkflow:
         }
         return {"analysis_focus": focus, "planner_notes": planner_notes}
 
+    def _knowledge_loader(self, state: GraphState) -> Dict[str, Any]:
+        snippets_payload: List[Dict[str, Any]] = []
+        try:
+            kb = get_knowledge_base()
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("知识库初始化失败：%s", exc)
+            return {"knowledge_snippets": snippets_payload}
+
+        def _extract_terms(text: Optional[str]) -> List[str]:
+            if not text:
+                return []
+            return [term for term in re.findall(r"[\u4e00-\u9fa5]{2,}", str(text)) if term]
+
+        queries: List[str] = []
+        planner_focus = state.get("analysis_focus")
+        queries.extend(_extract_terms(planner_focus))
+        for topic in state.get("topic_candidates") or []:
+            topic_name = topic.get("topic")
+            queries.extend(_extract_terms(topic_name))
+        for question in state.get("top_questions") or []:
+            queries.extend(_extract_terms(question))
+        vibe = state.get("vibe") or {}
+        vibe_level = vibe.get("level")
+        tags: List[str] = []
+        if vibe_level:
+            tags.append(str(vibe_level))
+        selected_theme = None
+        top_topic = (state.get("planner_notes") or {}).get("selected_topic") or {}
+        if isinstance(top_topic, dict):
+            selected_theme = top_topic.get("topic")
+
+        queries = [q for q in queries if q]
+        if vibe_level == "cold":
+            queries.extend(["冷场", "冷启动", "打招呼", "破冰", "互动", "开场"])
+        elif vibe_level == "hot":
+            queries.extend(["节奏", "控场", "转化", "热度", "节奏稳住"])
+        else:
+            queries.extend(["互动", "节奏", "话题"])
+
+        # deduplicate while preserving order
+        seen_terms = set()
+        dedup_queries: List[str] = []
+        for term in queries:
+            if term and term not in seen_terms:
+                dedup_queries.append(term)
+                seen_terms.add(term)
+        queries = dedup_queries
+
+        if not queries:
+            queries = ["直播互动", "开场"]
+
+        snippets = kb.query(
+            queries or [planner_focus or "直播分析"],
+            themes=[selected_theme] if selected_theme else None,
+            tags=tags,
+            limit=3,
+        )
+        for snippet in snippets:
+            snippets_payload.append(
+                {
+                    "title": snippet.title,
+                    "date": snippet.date,
+                    "theme": snippet.theme,
+                    "tags": snippet.tags,
+                    "summary": snippet.summary,
+                    "highlights": snippet.highlights,
+                    "prompt_block": snippet.to_prompt_block(),
+                    "source": str(snippet.source_path),
+                }
+            )
+        return {"knowledge_snippets": snippets_payload}
+
     def _analysis_generator(self, state: GraphState) -> Dict[str, Any]:
         transcript = state.get("transcript_snippet") or "\n".join(state.get("sentences") or [])
         context = {
@@ -400,6 +476,7 @@ class LangGraphLiveWorkflow:
             "persona": state.get("persona") or {},
             "planner_focus": state.get("analysis_focus"),
         }
+        context["knowledge_snippets"] = state.get("knowledge_snippets") or []
         try:
             card = self.analysis_generator.generate(context)
         except Exception as exc:  # pragma: no cover
@@ -503,11 +580,24 @@ class LangGraphLiveWorkflow:
         clean_suggestions = [str(item).strip() for item in clean_suggestions if item]
         clean_suggestions = _dedupe(clean_suggestions, 3)
 
+        knowledge_snippets = state.get("knowledge_snippets") or []
+        knowledge_refs = [
+            {
+                "title": snippet.get("title"),
+                "date": snippet.get("date"),
+                "theme": snippet.get("theme"),
+                "source": snippet.get("source"),
+            }
+            for snippet in knowledge_snippets
+        ]
+
         return {
             "summary": summary,
             "highlight_points": clean_highlights,
             "risks": clean_risks,
             "suggestions": clean_suggestions,
+            "knowledge_snippets": knowledge_snippets,
+            "knowledge_refs": knowledge_refs,
         }
 
     # ------------------------------------------------------------------ fallback
@@ -519,6 +609,7 @@ class LangGraphLiveWorkflow:
             self._topic_detector,
             self._mood_estimator,
             self._planner,
+            self._knowledge_loader,
             self._analysis_generator,
         ]
         if self.question_responder:
