@@ -525,9 +525,9 @@ const LiveConsolePage = () => {
               </div>
             </div>
           ) : (
-            <>
-            {/* 固定高度+滚动条，避免内容撑高页面；数据不做上限裁剪 */}
-            <div className="space-y-3 overflow-y-auto pr-1 max-h-[360px]">
+            <div className="flex-1 flex flex-col">
+            {/* 固定高度，列表支持滚动；与右侧卡片齐平 */}
+            <div className="space-y-3 overflow-y-auto pr-1 flex-1 min-h-[360px] max-h-[360px]">
               {log.length === 0 ? (
                 <div className="timao-outline-card text-sm timao-support-text text-center">
                   暂无转写结果。{isRunning ? '等待识别...' : '点击开始转写以开启实时字幕。'}
@@ -538,12 +538,12 @@ const LiveConsolePage = () => {
                       <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
                         <span>{new Date(item.timestamp * 1000).toLocaleTimeString()}</span>
                       </div>
-                    <div className="text-slate-600 text-sm leading-relaxed">{item.text}</div>
-                  </div>
+                      <div className="text-slate-600 text-sm leading-relaxed">{item.text}</div>
+                    </div>
                 ))
               )}
             </div>
-            </>
+            </div>
           )}
         </section>
 
