@@ -1,13 +1,14 @@
 {
-  "envId": "{{env.ENV_ID}}",
-  "functionRoot": "./functions",
-  "functions": [],
+  "envId": "cloud-2gw460e590303de0",
+  "functionRoot": "./cloudfunctions",
+  "functions": [
+    { "name": "auth", "handler": "index.main", "runtime": "Nodejs18.15", "timeout": 30 },
+    { "name": "paymentService", "handler": "index.main", "runtime": "Nodejs18.15", "timeout": 30 }
+  ],
   "ai": {
-    "defaultAgent": "{{env.AI_DEFAULT_AGENT}}",
+    "defaultAgent": "none",
     "agents": {
-      "codex": {
-        "type": "none"
-      }
+      "codex": { "type": "none" }
     }
   }
 }
