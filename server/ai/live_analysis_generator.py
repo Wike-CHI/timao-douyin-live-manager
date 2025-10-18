@@ -65,16 +65,45 @@ class LiveAnalysisGenerator:
                 parts.append(f"{rank}. {name}")
         return "\n".join(parts)
 
+    def _format_lead_candidates(self, leads: List[Dict[str, Any]]) -> str:
+        if not leads:
+            return "（尚未捕捉到优质弹幕或高价值信号）"
+        lines: List[str] = []
+        for idx, lead in enumerate(leads[:4], start=1):
+            user = lead.get("user") or "观众"
+            text = lead.get("text") or ""
+            reason = lead.get("reason") or ""
+            score = lead.get("score")
+            label = f"{idx}. {user}：{text}"
+            if reason:
+                label += f" —— {reason}"
+            if score is not None:
+                label += f"（参考分 {score}）"
+            lines.append(label)
+        return "\n".join(lines)
+
     def _format_category_stats(self, stats: Dict[str, Any]) -> str:
         total = stats.get("total_messages", 0)
         window_seconds = stats.get("window_seconds")
         by_cat = stats.get("category_counts") or {}
+        readable_names = {
+            "question": "提问类",
+            "product": "产品/成交类",
+            "support": "打气支持类",
+            "emotion": "情绪反馈类",
+            "other": "其他闲聊",
+        }
         lines = [f"总量: {total}"]
         if window_seconds is not None:
             lines.append(f"窗口时长: {window_seconds}s")
+        subtotal = sum(by_cat.values()) or 1
         for key in ("question", "product", "support", "emotion", "other"):
-            if key in by_cat:
-                lines.append(f"{key}: {by_cat[key]}")
+            if key not in by_cat:
+                continue
+            label = readable_names.get(key, key)
+            count = by_cat[key]
+            ratio = (count / subtotal) * 100
+            lines.append(f"{label}: {count} 条（约 {ratio:.1f}%）")
         return "\n".join(lines)
 
     def _format_speech_stats(self, stats: Dict[str, Any]) -> str:
@@ -129,6 +158,8 @@ class LiveAnalysisGenerator:
         if planner_focus:
             focus_notes = f"【系统聚焦建议】{planner_focus}\n\n"
 
+        lead_candidates_fmt = self._format_lead_candidates(context.get("lead_candidates") or [])
+
         knowledge_snippets = context.get("knowledge_snippets") or []
         knowledge_blocks: List[str] = []
         for snippet in knowledge_snippets:
@@ -159,17 +190,21 @@ class LiveAnalysisGenerator:
             '"engagement_highlights":["两条以内的真实观察"],'
             '"risks":["两条以内的潜在问题与原因"],'
             '"next_actions":["三条以内的行动指引"],'
+            '"next_topic_direction":"一句话点出接下来要围绕的聊天方向",'
             '"confidence":0.0~1.0,'
             '"style_profile":{"persona":"","tone":"","tempo":"","register":"","catchphrases":[],"slang":[]},'
             '"vibe":{"level":"cold|neutral|hot","score":0,"trends":["两条趋势"]}}'
             "。若信息不足，也要保留字段并说明“暂无数据”。"
             "写作要求："
-            "1) 用主播能听懂的口语表达，避免重复句式和僵硬用词；"
+            "1) 用主播能听懂的口语表达，语气自然、有温度，避免“当前”“本轮”“请注意”等官腔；"
             "2) 每条 highlights/risks/next_actions 最多 16 个字，聚焦现象或原因；"
             "3) next_actions 写可执行方向（如“围绕宿舍话题提问”“点名欢迎新观众”），不要给出口播样板；"
-            "4) 引用提供的弹幕、口播、统计线索，必要时说明数量或关键词；"
-            "5) style_profile 结合近期语气和历史画像总结语气、节奏、常用表达；"
-            "6) 提醒互动时可参考关键词，但不要让主播照念任何模板。"
+            "4) next_topic_direction 结合当前弹幕与口播，用 12 字以内的口语句式描述“接下来聊点什么”，不要写“围绕/建议”等字眼；"
+            "5) 引用提供的弹幕、口播、统计线索，必要时说明数量或关键词；"
+            "6) style_profile 结合近期语气和历史画像总结语气、节奏、常用表达；"
+            "7) 提醒互动时可参考关键词，但不要让主播照念任何模板；"
+            "8) 全文保持像熟悉运营同事的口吻，避免过度书面或命令式表达；"
+            "9) 优先点名“优质弹幕/高价值信号”中的观众，并结合其关键词顺势延展话题。"
         )
 
         persona_notes = ""
@@ -189,6 +224,8 @@ class LiveAnalysisGenerator:
             f"{transcript or '（暂无口播文本）'}\n\n"
             "【观众互动摘录】\n"
             f"{chat_summary}\n\n"
+            "【优质弹幕/高价值信号】\n"
+            f"{lead_candidates_fmt}\n\n"
             "【互动分类统计】\n"
             f"{stats}\n\n"
             "【主播口播情况】\n"

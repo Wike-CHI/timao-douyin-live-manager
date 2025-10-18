@@ -88,6 +88,10 @@ class _WebRelayFetcher(DouyinLiveWebFetcher):
 
     def _parseGiftMsg(self, payload):  # noqa: N802
         message = GiftMessage().parse(payload)
+        count = message.combo_count or message.total_count or message.repeat_count or 1
+        diamond_count = getattr(message.gift, "diamond_count", 0)
+        fan_ticket = getattr(message, "fan_ticket_count", 0)
+        gift_value = diamond_count * max(count, 1)
         self._emit_event(
             "gift",
             {
@@ -95,7 +99,10 @@ class _WebRelayFetcher(DouyinLiveWebFetcher):
                 "user_id_str": message.user.id_str,
                 "nickname": message.user.nick_name,
                 "gift_name": message.gift.name,
-                "count": message.combo_count,
+                "count": count,
+                "diamond_count": diamond_count,
+                "fan_ticket_count": fan_ticket,
+                "gift_value": gift_value,
             },
         )
 

@@ -534,7 +534,7 @@ const LiveConsolePage = () => {
                 </div>
               ) : (
                 log.map((item) => (
-                  <div key={item.id} className="rounded-2xl border border-white/60 shadow-md p-4 bg-white/95">
+                  <div key={item.id} className="flex-shrink -0 h-fit rounded-2xl border border-white/60 shadow-md p-4 bg-white/95">
                       <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
                         <span>{new Date(item.timestamp * 1000).toLocaleTimeString()}</span>
                       </div>

@@ -53,6 +53,7 @@ class AIState:
     style_profile: Dict[str, Any] = field(default_factory=dict)
     vibe: Dict[str, Any] = field(default_factory=dict)
     anchor_id: Optional[str] = None
+    user_scores: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
 
 class AILiveAnalyzer:
@@ -189,6 +190,7 @@ class AILiveAnalyzer:
             "speech_stats": result.get("speech_stats", {}),
             "knowledge_snippets": result.get("knowledge_snippets", []),
             "knowledge_refs": result.get("knowledge_refs", []),
+            "lead_candidates": result.get("lead_candidates", []),
         }
         return payload
 
@@ -230,6 +232,7 @@ class AILiveAnalyzer:
         sentences: List[str],
         comments: List[Dict[str, Any]],
         window_start: float,
+        user_scores: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         if self._workflow is None:
             raise RuntimeError("LangGraph workflow not available")
@@ -239,6 +242,7 @@ class AILiveAnalyzer:
             "window_start": window_start,
             "sentences": sentences,
             "comments": comments,
+            "user_scores": user_scores or {},
         }
         result = self._workflow.invoke(state)  # type: ignore[arg-type]
         return self._format_workflow_payload(result)
@@ -306,14 +310,74 @@ class AILiveAnalyzer:
             except asyncio.QueueEmpty:
                 break
             if isinstance(ev, dict) and ev.get("type") in {"chat", "gift", "like", "member", "emoji_chat"}:
-                # normalize minimal fields
+                event_type = str(ev.get("type"))
                 payload = ev.get("payload") or {}
-                msg = {
-                    "type": ev.get("type"),
-                    "user": payload.get("nickname") or payload.get("user_id") or "",
-                    "content": payload.get("content") or payload.get("gift_name") or "",
-                    "ts": int(time.time() * 1000),
+                ts = int(time.time() * 1000)
+                raw_user_id = payload.get("user_id_str") or payload.get("user_id")
+                if isinstance(raw_user_id, bytes):
+                    raw_user_id = raw_user_id.decode("utf-8", "ignore")
+                user_id = str(raw_user_id) if raw_user_id not in (None, "", 0) else ""
+                nickname = payload.get("nickname") or payload.get("user_name") or ""
+                user_label = nickname or (user_id if user_id else "")
+                user_key = user_id or user_label or "anonymous"
+                msg: Dict[str, Any] = {
+                    "type": event_type,
+                    "user": user_label or "观众",
+                    "user_id": user_id,
+                    "user_key": user_key,
+                    "content": str(payload.get("content") or ""),
+                    "ts": ts,
                 }
+
+                if event_type == "gift":
+                    gift_name = str(payload.get("gift_name") or "")
+                    gift_count = int(payload.get("count") or 1)
+                    diamond_count = int(payload.get("diamond_count") or 0)
+                    if not diamond_count and payload.get("gift_value"):
+                        try:
+                            diamond_count = int(payload.get("gift_value"))
+                        except Exception:
+                            diamond_count = 0
+                    fan_ticket = int(payload.get("fan_ticket_count") or 0)
+                    gift_value = diamond_count * max(gift_count, 1)
+                    msg.update(
+                        {
+                            "gift_name": gift_name,
+                            "gift_count": gift_count,
+                            "gift_value": gift_value,
+                            "fan_ticket_count": fan_ticket,
+                        }
+                    )
+                    msg["content"] = f"{msg['user']}送出{gift_name}x{gift_count}"
+                elif event_type == "like":
+                    like_count = int(payload.get("count") or 0)
+                    msg.update({"like_count": like_count})
+                    msg["content"] = f"{msg['user']}点赞+{like_count}" if like_count else f"{msg['user']}点了个赞"
+                elif event_type == "member":
+                    msg["content"] = f"{msg['user']}进入直播间"
+                elif event_type == "emoji_chat":
+                    emoji_text = payload.get("default_content") or payload.get("emoji_id") or ""
+                    msg["content"] = f"{msg['user']}发送表情 {emoji_text}"
+
+                metrics = self._state.user_scores.setdefault(
+                    user_key,
+                    {
+                        "nickname": msg["user"],
+                        "total_value": 0.0,
+                        "gift_events": 0,
+                        "chat_count": 0,
+                        "last_ts": ts,
+                    },
+                )
+                metrics["nickname"] = msg["user"] or metrics.get("nickname") or "观众"
+                metrics["last_ts"] = ts
+                if event_type == "gift":
+                    gift_value = msg.get("gift_value") or 0
+                    metrics["total_value"] = float(metrics.get("total_value", 0.0)) + float(gift_value or 0)
+                    metrics["gift_events"] = metrics.get("gift_events", 0) + msg.get("gift_count", 1)
+                elif event_type == "chat":
+                    metrics["chat_count"] = metrics.get("chat_count", 0) + 1
+                msg["user_total_value"] = metrics.get("total_value", 0.0)
                 self._state.comments.append(msg)
 
     async def _maybe_analyze(self) -> None:
@@ -325,6 +389,12 @@ class AILiveAnalyzer:
         comments_window = list(s.comments[-200:])
         transcript = "\n".join(window_sentences)
         window_started_at = time.time()
+        user_keys = {msg.get("user_key") for msg in comments_window if msg.get("user_key")}
+        user_snapshot: Dict[str, Dict[str, Any]] = {}
+        for key in user_keys:
+            metrics = s.user_scores.get(key)
+            if metrics:
+                user_snapshot[key] = dict(metrics)
         s.last_window_ts = _now_ms()
         s.sentences.clear()
         s.comments.clear()
@@ -332,9 +402,18 @@ class AILiveAnalyzer:
         if not transcript and not comments_window:
             return
 
+        # prune stale user scores (older than 10 minutes)
+        cutoff_ms = _now_ms() - 600_000
+        stale_keys = [
+            key for key, metrics in list(s.user_scores.items())
+            if int(metrics.get("last_ts") or 0) < cutoff_ms
+        ]
+        for key in stale_keys:
+            s.user_scores.pop(key, None)
+
         # call AI
         try:
-            payload = self._run_workflow(window_sentences, comments_window, window_started_at)
+            payload = self._run_workflow(window_sentences, comments_window, window_started_at, user_snapshot)
         except Exception as exc:
             logger.exception("LangGraph workflow failed, fallback to legacy analyzer: %s", exc)
             payload = {

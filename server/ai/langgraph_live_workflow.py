@@ -16,7 +16,7 @@ import uuid
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple, TypedDict
+from typing import Any, Dict, Iterable, List, Literal, Optional, Set, Tuple, TypedDict
 
 try:  # pragma: no cover - optional dependency
     from langgraph.graph import END, StateGraph
@@ -110,6 +110,13 @@ def _top_n_words(items: Iterable[str], n: int = 5) -> List[Tuple[str, int]]:
     counter: Counter[str] = Counter()
     for item in items:
         for token in _tokenize(item):
+            if not token:
+                continue
+            if token.isdigit():
+                continue
+            digit_count = sum(1 for ch in token if ch.isdigit())
+            if digit_count >= len(token) * 0.6:
+                continue
             counter[token] += 1
     return counter.most_common(n)
 
@@ -265,41 +272,152 @@ class LangGraphLiveWorkflow:
             "possible_other_speaker": other_ratio >= 0.6 and sentence_count >= 2,
         }
 
+        user_scores = state.get("user_scores") or {}
+        priority_candidates: List[Dict[str, Any]] = []
+        seen_priority_keys: Set[str] = set()
+
         for comment in comments[-200:]:
+            event_type = str(comment.get("type") or "chat")
             content = str(comment.get("content") or "").strip()
-            if not content:
+            if not content and event_type not in {"gift", "like", "member"}:
                 continue
+
+            user_name = str(comment.get("user") or "观众")
+            user_key = str(comment.get("user_key") or comment.get("user_id") or user_name)
+            user_metrics = user_scores.get(user_key) or {}
+            user_value = float(user_metrics.get("total_value") or 0.0)
+            reasons: List[str] = []
+
+            if event_type == "gift":
+                gift_name = str(comment.get("gift_name") or content or "礼物")
+                gift_count = int(comment.get("gift_count") or 1)
+                gift_value = float(comment.get("gift_value") or 0.0)
+                weight = 0.9 + min(0.6, gift_value / 500.0 if gift_value else gift_count * 0.05)
+                if gift_value >= 500:
+                    reasons.append("大额礼物")
+                elif gift_value >= 100:
+                    reasons.append("中额礼物")
+                else:
+                    reasons.append("送礼")
+                if user_value > gift_value >= 0:
+                    reasons.append("老粉丝")
+                highlight_text = comment.get("content") or f"{user_name}送出{gift_name}x{gift_count}"
+                category_counts["support"] = category_counts.get("support", 0) + 1
+                chat_signals.append(
+                    {
+                        "text": highlight_text,
+                        "weight": round(min(weight, 1.6), 2),
+                        "source": event_type,
+                        "category": "support",
+                    }
+                )
+                candidate_key = f"gift:{user_key}:{highlight_text}"
+                if candidate_key not in seen_priority_keys:
+                    seen_priority_keys.add(candidate_key)
+                    priority_candidates.append(
+                        {
+                            "text": highlight_text,
+                            "user": user_name,
+                            "score": round(min(1.6, weight + user_value / 800.0), 2),
+                            "reason": "、".join(sorted(set(reasons))) or "送礼",
+                            "category": "gift",
+                            "user_value": round(user_value, 2),
+                        }
+                    )
+                continue
+
             lowered = content.lower()
             weight = 0.4
-            source = comment.get("type") or "chat"
             category: Literal["question", "product", "support", "emotion", "other"] = "other"
-            if any(q in lowered for q in ["?", "？", "什么", "怎么", "why", "how", "price"]):
-                weight = 0.85
-                category = "question"
-                top_questions.append(content)
-            elif any(p in lowered for p in ["买", "价", "券", "折扣", "产品"]):
-                weight = 0.7
-                category = "product"
-            elif any(s in lowered for s in ["加油", "支持", "棒", "666", "冲"]):
-                weight = 0.6
+
+            if event_type == "like":
+                like_count = int(comment.get("like_count") or 0)
+                weight = 0.45 + min(0.1, like_count * 0.01)
                 category = "support"
-            elif any(e in lowered for e in ["喜欢", "开心", "激动", "气", "焦虑"]):
-                weight = 0.55
+                content = content or f"{user_name}点赞+{like_count}" if like_count else f"{user_name}点了赞"
+            elif event_type == "member":
+                category = "support"
+                weight = 0.5
+            elif event_type == "emoji_chat":
                 category = "emotion"
+                weight = 0.5
+
+            if event_type == "chat":
+                if any(q in lowered for q in ["?", "？", "什么", "怎么", "why", "how", "price", "多少", "几号"]):
+                    weight = max(weight, 0.85)
+                    category = "question"
+                    reasons.append("高权重提问")
+                    top_questions.append(content)
+                elif any(p in lowered for p in ["买", "价", "券", "折扣", "产品", "链接", "怎么买"]):
+                    weight = max(weight, 0.7)
+                    category = "product"
+                    reasons.append("关注购买")
+                elif any(s in lowered for s in ["加油", "支持", "棒", "666", "冲", "喜欢你"]):
+                    weight = max(weight, 0.6)
+                    category = "support"
+                    reasons.append("打气")
+                elif any(e in lowered for e in ["喜欢", "开心", "激动", "气", "焦虑", "难过", "累"]):
+                    weight = max(weight, 0.55)
+                    category = "emotion"
+                    reasons.append("情绪反馈")
+
+            text_len = len(content)
+            if text_len >= 16:
+                weight += 0.12
+                reasons.append("描述详细")
+            elif text_len >= 8:
+                weight += 0.05
+
+            if user_value >= 500:
+                weight += 0.2
+                reasons.append("高价值粉丝")
+            elif user_value >= 150:
+                weight += 0.12
+                reasons.append("老粉丝")
+
             category_counts[category] = category_counts.get(category, 0) + 1
             chat_signals.append(
                 {
                     "text": content,
-                    "weight": round(weight, 2),
-                    "source": source,
+                    "weight": round(min(weight, 1.5), 2),
+                    "source": event_type,
                     "category": category,
                 }
             )
+
+            candidate_score = weight
+            if category in {"question", "product"}:
+                candidate_score += 0.1
+            if candidate_score >= 0.9 or user_value >= 150:
+                candidate_key = f"chat:{user_key}:{content}"
+                if candidate_key not in seen_priority_keys:
+                    seen_priority_keys.add(candidate_key)
+                    priority_candidates.append(
+                        {
+                            "text": content,
+                            "user": user_name,
+                            "score": round(min(1.5, candidate_score), 2),
+                            "reason": "、".join(sorted(set(reasons))) or "优质弹幕",
+                            "category": category,
+                            "user_value": round(user_value, 2),
+                        }
+                    )
+
+        priority_candidates.sort(key=lambda item: item.get("score", 0), reverse=True)
+        lead_candidates = priority_candidates[:3]
 
         chat_stats = {
             "total_messages": len(chat_signals),
             "category_counts": category_counts,
             "window_seconds": round(elapsed, 1),
+            "priority_candidates": len(lead_candidates),
+            "category_counts_human": {
+                "提问类": category_counts.get("question", 0),
+                "产品/成交类": category_counts.get("product", 0),
+                "打气支持类": category_counts.get("support", 0),
+                "情绪反馈类": category_counts.get("emotion", 0),
+                "其他闲聊": category_counts.get("other", 0),
+            },
         }
         return {
             "transcript_snippet": transcript_snippet,
@@ -307,6 +425,7 @@ class LangGraphLiveWorkflow:
             "chat_stats": chat_stats,
             "top_questions": list(dict.fromkeys(top_questions))[:6],
             "speech_stats": speech_stats,
+            "lead_candidates": lead_candidates,
         }
 
     def _topic_detector(self, state: GraphState) -> Dict[str, Any]:
@@ -368,6 +487,8 @@ class LangGraphLiveWorkflow:
         possible_other_speaker = bool(speech_stats.get("possible_other_speaker"))
 
         focus: str
+        lead_candidates = state.get("lead_candidates") or []
+
         if sentence_count == 0 and (state.get("chat_stats", {}).get("total_messages") or 0) <= 2:
             focus = "主播基本未开口，先主动打招呼或抛话题，唤醒直播间。"
         elif possible_other_speaker or other_like_ratio >= max(0.55, host_like_ratio + 0.15):
@@ -383,11 +504,19 @@ class LangGraphLiveWorkflow:
         else:
             focus = "整体平稳，可结合主要讨论话题加深内容。"
 
+        if lead_candidates:
+            lead = lead_candidates[0]
+            lead_text = str(lead.get("text") or "").strip()
+            lead_user = str(lead.get("user") or "观众")
+            lead_reason = str(lead.get("reason") or "这条弹幕")
+            focus = focus.rstrip("。") + "。" + f"优先回应 {lead_user} 的“{lead_text}”，顺着{lead_reason}继续聊。"
+
         planner_notes = {
             "selected_topic": top_topic,
             "top_questions": top_questions,
             "vibe": vibe,
             "speech_stats": speech_stats,
+            "lead_candidates": lead_candidates,
         }
         return {"analysis_focus": focus, "planner_notes": planner_notes}
 
@@ -475,6 +604,7 @@ class LangGraphLiveWorkflow:
             "mood": state.get("mood"),
             "persona": state.get("persona") or {},
             "planner_focus": state.get("analysis_focus"),
+            "lead_candidates": state.get("lead_candidates") or [],
         }
         context["knowledge_snippets"] = state.get("knowledge_snippets") or []
         try:
@@ -510,10 +640,19 @@ class LangGraphLiveWorkflow:
         overview = str(card.get("analysis_overview") or "").strip()
         if not overview:
             overview = "当前窗口缺乏足够信息，无法生成详细分析。"
-        highlights = card.get("engagement_highlights") or []
+        planner_notes = state.get("planner_notes") or {}
+        lead_candidates = planner_notes.get("lead_candidates") or state.get("lead_candidates") or []
+
+        highlights_raw = card.get("engagement_highlights") or []
+        if not isinstance(highlights_raw, list):
+            highlights_raw = [highlights_raw] if highlights_raw else []
+        if lead_candidates:
+            lead_highlight = f"{lead_candidates[0].get('user') or '观众'}：{lead_candidates[0].get('text') or ''}"
+            if lead_highlight.strip():
+                highlights_raw.insert(0, lead_highlight.strip())
+        highlights = highlights_raw
         risks = card.get("risks") or []
         suggestions = card.get("next_actions") or []
-        planner_notes = state.get("planner_notes") or {}
         topic = planner_notes.get("selected_topic") or {}
         vibe = state.get("vibe") or {}
         speech_stats = planner_notes.get("speech_stats") or state.get("speech_stats") or {}
@@ -525,15 +664,16 @@ class LangGraphLiveWorkflow:
         host_examples = speech_stats.get("host_examples") or []
         other_examples = speech_stats.get("other_examples") or []
         if sentence_count == 0:
-            speech_hint = "主播本轮几乎未发言"
+            speech_hint = "这段你还没开口"
         elif possible_other_speaker or other_like_ratio >= max(0.55, host_like_ratio + 0.15):
-            speech_hint = f"主播这段说了 {sentence_count} 句，对方掌握话题较多"
+            speech_hint = f"这段你只说了 {sentence_count} 句，对面声音更大"
         elif speaking_ratio <= 0.2:
-            speech_hint = f"主播这段说了 {sentence_count} 句，话语占比偏低"
+            speech_hint = f"这段你说了 {sentence_count} 句，存在感偏低"
         else:
-            speech_hint = f"主播这段说了 {sentence_count} 句"
+            speech_hint = f"这段你说了 {sentence_count} 句"
 
         topic_text = topic.get("topic") or "互动"
+        topic_direction = str(card.get("next_topic_direction") or "").strip()
         level_raw = (vibe.get("level") or "").lower()
         level_map = {"cold": "偏冷", "neutral": "平稳", "hot": "火热"}
         vibe_level = level_map.get(level_raw, "偏冷" if "cold" in level_raw else (level_raw or "偏冷"))
@@ -542,7 +682,33 @@ class LangGraphLiveWorkflow:
             score_text = f"{int(round(vibe_score))}分"
         else:
             score_text = "—"
-        summary = f"{overview} 当前氛围{vibe_level}（{score_text}），话题集中在{topic_text}，{speech_hint}。"
+        summary_chunks: List[str] = []
+
+        def _append_sentence(text: str) -> None:
+            t = text.strip()
+            if not t:
+                return
+            if t[-1] not in "。！？":
+                t = t + "。"
+            summary_chunks.append(t)
+
+        _append_sentence(overview)
+        if vibe_level:
+            vibe_sentence = f"整体氛围有点{vibe_level}"
+            if score_text != "—":
+                vibe_sentence += f"（{score_text}）"
+            _append_sentence(vibe_sentence)
+        if topic_text:
+            _append_sentence(f"大家此刻主要在聊{topic_text}")
+        _append_sentence(speech_hint)
+        if lead_candidates:
+            lead = lead_candidates[0]
+            lead_user = str(lead.get("user") or "观众")
+            lead_text = str(lead.get("text") or "").strip()
+            _append_sentence(f"{lead_user} 刚说“{lead_text}”，可以顺嘴点名回应")
+        if topic_direction:
+            _append_sentence(f"不妨顺着聊聊{topic_direction}")
+        summary = "".join(summary_chunks)
 
         def _dedupe(items: List[str], limit: int) -> List[str]:
             seen = set()
@@ -598,6 +764,7 @@ class LangGraphLiveWorkflow:
             "suggestions": clean_suggestions,
             "knowledge_snippets": knowledge_snippets,
             "knowledge_refs": knowledge_refs,
+            "lead_candidates": lead_candidates,
         }
 
     # ------------------------------------------------------------------ fallback

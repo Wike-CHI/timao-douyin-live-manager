@@ -124,6 +124,10 @@
       flex-direction: column;
     }
 
+    .panel.panel--transcription {
+      height: 100%;
+    }
+
     .panel h2 {
       margin: 0 0 16px;
       font-size: 20px;
@@ -246,7 +250,7 @@
     </div>
     <div id="status" class="status">等待启动…</div>
     <div class="layout">
-      <section class="panel">
+      <section class="panel panel--transcription">
         <h2>📝 实时转录</h2>
         <ul id="transcriptionList"></ul>
       </section>
@@ -380,6 +384,7 @@
         confidence: payload.confidence ?? 0,
         isFinal: Boolean(payload.is_final),
         timestamp: payload.timestamp ? new Date(payload.timestamp * 1000) : new Date(),
+        reason: payload.reason || '',
       };
       transcriptionBuffer.push(record);
       if (transcriptionBuffer.length > MAX_TRANS) {
@@ -396,7 +401,8 @@
         const metaEl = document.createElement('div');
         metaEl.className = 'transcription-meta';
         const timeStr = item.timestamp.toLocaleTimeString();
-        metaEl.textContent = `${timeStr} · 置信度 ${(item.confidence * 100).toFixed(1)}% ${item.isFinal ? '(最终)' : '(临时)'}`;
+        const reasonTag = item.reason ? ` · ${item.reason}` : '';
+        metaEl.textContent = `${timeStr} · 置信度 ${(item.confidence * 100).toFixed(1)}% ${item.isFinal ? '(最终)' : '(临时)'}${reasonTag}`;
 
         li.appendChild(textEl);
         li.appendChild(metaEl);

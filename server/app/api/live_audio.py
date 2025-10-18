@@ -34,6 +34,18 @@ class StartReq(BaseModel):
     vad_min_speech_sec: Optional[float] = Field(None, ge=0.2, le=2.5)
     vad_hangover_sec: Optional[float] = Field(None, ge=0.1, le=1.5)
     vad_rms: Optional[float] = Field(None, ge=0.001, le=0.2)
+    vad_force_flush_sec: Optional[float] = Field(
+        None,
+        ge=2.0,
+        le=12.0,
+        description="Force emit a partial transcription if continuous speech exceeds this duration",
+    )
+    vad_force_flush_overlap_sec: Optional[float] = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Seconds of audio to retain as overlap when force-flushing long speech",
+    )
     # Assembler params (sentence tuning)
     max_wait: Optional[float] = Field(None, ge=0.5, le=10.0)
     max_chars: Optional[int] = Field(None, ge=16, le=240)
@@ -67,6 +79,10 @@ async def start_live_audio(req: StartReq) -> BaseResp:
             svc.vad_hangover_sec = float(req.vad_hangover_sec)
         if req.vad_rms is not None:
             svc.vad_min_rms = float(req.vad_rms)
+        if req.vad_force_flush_sec is not None:
+            svc.vad_force_flush_sec = float(req.vad_force_flush_sec)
+        if req.vad_force_flush_overlap_sec is not None:
+            svc.vad_force_flush_overlap_sec = float(req.vad_force_flush_overlap_sec)
         # sentence assembler params
         if req.max_wait is not None:
             svc._assembler.max_wait = float(req.max_wait)

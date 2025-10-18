@@ -125,6 +125,8 @@ class LiveAudioStreamService:
         self.vad_min_speech_sec: float = 0.50
         self.vad_hangover_sec: float = 0.30
         self.vad_min_rms: float = 0.018
+        self.vad_force_flush_sec: float = 6.0
+        self.vad_force_flush_overlap_sec: float = 0.25
         # Track partial text already emitted via delta
         self._partial_text: str = ""
         # VAD runtime state
@@ -327,6 +329,8 @@ class LiveAudioStreamService:
             self.vad_min_speech_sec = 0.30
             self.vad_min_silence_sec = 0.45
             self.vad_hangover_sec = 0.18
+            self.vad_force_flush_sec = 4.5
+            self.vad_force_flush_overlap_sec = 0.25
             # Guard
             self._guard = HallucinationGuard(min_rms=0.014, min_len=2, low_conf=0.55)
             # Assembler
@@ -338,6 +342,8 @@ class LiveAudioStreamService:
             self.vad_min_speech_sec = 0.50
             self.vad_min_silence_sec = 0.80
             self.vad_hangover_sec = 0.30
+            self.vad_force_flush_sec = 6.0
+            self.vad_force_flush_overlap_sec = 0.30
             self._guard = HallucinationGuard(min_rms=0.018, min_len=2, low_conf=0.50)
             self._assembler = SentenceAssembler(max_wait=3.5, max_chars=60, silence_flush=2)
             self.min_sentence_chars = 8
@@ -651,18 +657,37 @@ class LiveAudioStreamService:
                 self._vad_buf.extend(pcm16)
 
         # finalize when in_speech and silence >= min_silence
-        if self._vad_in_speech and self._vad_silence_acc >= self.vad_min_silence_sec:
-            print(f"[延迟监控] VAD检测到语音结束，静音时长: {self._vad_silence_acc:.3f}s，缓冲区大小: {len(self._vad_buf)}字节")
-            await self._finalize_vad_segment()
+        if self._vad_in_speech:
+            if self._vad_silence_acc >= self.vad_min_silence_sec:
+                print(f"[延迟监控] VAD检测到语音结束，静音时长: {self._vad_silence_acc:.3f}s，缓冲区大小: {len(self._vad_buf)}字节")
+                await self._finalize_vad_segment(force=False)
+            elif (
+                self.vad_force_flush_sec > 0.0
+                and self._vad_speech_acc >= self.vad_force_flush_sec
+            ):
+                print(f"[延迟监控] VAD长语音超时强制输出，累计语音时长: {self._vad_speech_acc:.3f}s，缓冲区大小: {len(self._vad_buf)}字节")
+                await self._finalize_vad_segment(force=True)
 
-    async def _finalize_vad_segment(self) -> None:
+    async def _finalize_vad_segment(self, *, force: bool = False) -> None:
         # 延迟监控：记录VAD段处理开始时间
         vad_start_time = _now()
         seg = bytes(self._vad_buf)
-        self._vad_buf.clear()
-        self._vad_in_speech = False
-        self._vad_silence_acc = 0.0
-        self._vad_speech_acc = 0.0
+        if force:
+            overlap_bytes = int(self.vad_force_flush_overlap_sec * 16000 * 2)
+            if overlap_bytes > 0 and overlap_bytes < len(seg):
+                keep_tail = seg[-overlap_bytes:]
+                seg = seg[:-overlap_bytes]
+                self._vad_buf = bytearray(keep_tail)
+            else:
+                self._vad_buf = bytearray()
+            self._vad_in_speech = True
+            self._vad_silence_acc = 0.0
+            self._vad_speech_acc = len(self._vad_buf) / 32000.0
+        else:
+            self._vad_buf.clear()
+            self._vad_in_speech = False
+            self._vad_silence_acc = 0.0
+            self._vad_speech_acc = 0.0
         if not seg:
             return
         # 不进行人声检测/音乐过滤与音量归一化（按你的要求精简为 Small+VAD 统一模式）
@@ -673,7 +698,8 @@ class LiveAudioStreamService:
             res = await self._sv.transcribe_audio(seg) if self._sv else None
             # 延迟监控：计算转录耗时
             transcribe_duration = _now() - transcribe_start
-            print(f"[延迟监控] VAD段转录耗时: {transcribe_duration:.3f}s, 音频长度: {len(seg)/32000:.3f}s")
+            suffix = "（强制分段）" if force else ""
+            print(f"[延迟监控] VAD段转录耗时: {transcribe_duration:.3f}s, 音频长度: {len(seg)/32000:.3f}s{suffix}")
         except Exception as e:
             self._status.failed_transcriptions += 1
             await self._emit({
@@ -690,21 +716,23 @@ class LiveAudioStreamService:
                 segs = res.get("segments")
                 if isinstance(segs, list):
                     parts: List[str] = []
-                    for seg in segs:
-                        if isinstance(seg, dict):
-                            t = str(seg.get("text") or "").strip()
+                    for seg_dict in segs:
+                        if isinstance(seg_dict, dict):
+                            t = str(seg_dict.get("text") or "").strip()
                             if t:
                                 parts.append(t)
                     raw_text = " ".join(parts).strip()
         conf = float((res or {}).get("confidence") or 0.0)
-        # 不进行说话人分离
-        speaker = None
         clean = self._cleaner.clean(raw_text) if raw_text else ""
         if not clean:
             clean = raw_text
         clean = (clean or "").strip()
         if not clean:
             return
+
+        reason = "force_flush" if force else "vad_silence"
+        effective_min_chars = 0 if force else self.min_sentence_chars
+
         # Secondary segmentation inside VAD segment: split by punctuation and length
         pending_short: str = ""
         for sent in self._split_sentences(clean):
@@ -712,7 +740,7 @@ class LiveAudioStreamService:
                 continue
             candidate = f"{pending_short}{sent}" if pending_short else sent
             candidate = candidate.strip()
-            if self.min_sentence_chars and len(candidate) < self.min_sentence_chars:
+            if effective_min_chars and len(candidate) < effective_min_chars:
                 pending_short = candidate
                 continue
             pending_short = ""
@@ -720,9 +748,8 @@ class LiveAudioStreamService:
                 await self._emit_delta("final", candidate, conf)
         if pending_short:
             candidate = pending_short.strip()
-            if candidate:
-                if not self._is_duplicate_sentence(candidate):
-                    await self._emit_delta("final", candidate, conf)
+            if candidate and not self._is_duplicate_sentence(candidate):
+                await self._emit_delta("final", candidate, conf)
         self._status.successful_transcriptions += 1
         s = self._status
         s.average_confidence = (
@@ -740,6 +767,7 @@ class LiveAudioStreamService:
                 "room_id": self._status.live_id,
                 "session_id": self._status.session_id,
                 "words": res.get("words", []),
+                "reason": reason,
             },
         })
         # Persist final transcription (VAD)
@@ -754,6 +782,7 @@ class LiveAudioStreamService:
                     "room_id": self._status.live_id,
                     "session_id": self._status.session_id,
                     "words": res.get("words", []),
+                    "reason": reason,
                 })
         except Exception:
             pass

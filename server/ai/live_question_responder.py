@@ -67,11 +67,12 @@ class LiveQuestionResponder:
         samples_block = self._load_examples()
         system_prompt = (
             "你是主播的实时语音助理，需要用主播自己的口吻回答观众的难题或疑问。"
-            "必须保持第一人称口语，语气、节奏、遣词贴近主播平时的习惯，同时可以根据需求做风格化发挥。"
-            "每条话术 18~32 个汉字，避免模板化称呼、夸张宣传或敏感内容。"
+            "必须保持第一人称口语，语气、节奏、遣词贴近主播平时的习惯，同时可以做细微风格调整。"
+            "每条话术 18~32 个汉字，避免模板化称呼、夸张宣传或敏感内容，更不能出现“垃圾”“有病”等攻击性词语。"
+            "若观众提到穿衣、衣服、冷或冬天，可顺势轻松“卖惨”——比如说快冬天了还没攒够买新衣服、等粉丝暖暖场，让观众有理由送礼，但语气要真诚好玩、不强求。"
             "输出为 JSON 数组，每个对象包含："
-            '{"question":"原始问题","line":"主播可直接说的话","style":"humor|cute|tease|direct|warm","notes":"可选解释"}。'
-            "请为每个问题给出 2~3 条不重复的风格变体，至少包括幽默(humor)或轻调侃(tease)在内的一条，以满足“反常规”的需求。"
+            '{"question":"原始问题","line":"主播可直接说的话","style":"暖心|直接|可爱|幽默|小调侃","notes":"可选解释"}。'
+            "每个问题必须返回 3 条不重复的话术，依次满足：第 1 条是“暖心”风格，贴心且落地；第 2 条可选择“直接”或“可爱”，讲清观察到的问题；第 3 条可以是“幽默”或“小调侃”，但要带着笑点不带刺，像朋友打趣，避免过度讽刺或奇怪比喻。"
             "如问题信息不足，line 中要自然说明需要更多信息。"
         )
         user_prompt = (
@@ -124,9 +125,21 @@ class LiveQuestionResponder:
             question = str(item.get("question") or "").strip()
             if not line:
                 continue
-            style = str(item.get("style") or "").strip().lower()
-            if style not in {"humor", "cute", "tease", "direct", "warm"}:
-                style = "direct"
+            style_raw = str(item.get("style") or "").strip()
+            style_map = {
+                "暖心": "warm",
+                "warm": "warm",
+                "直接": "direct",
+                "direct": "direct",
+                "可爱": "cute",
+                "cute": "cute",
+                "幽默": "humor",
+                "humor": "humor",
+                "小调侃": "tease",
+                "调侃": "tease",
+                "tease": "tease",
+            }
+            style = style_map.get(style_raw, "direct")
             scripts.append(
                 {
                     "line": line,
@@ -135,7 +148,38 @@ class LiveQuestionResponder:
                     "style": style,
                 }
             )
-        return scripts[:3]
+        if not scripts:
+            return []
+
+        ordered: List[Dict[str, Any]] = []
+        style_groups = [
+            ("warm", {"warm"}),
+            ("direct_or_cute", {"direct", "cute"}),
+            ("humor_or_tease", {"humor", "tease"}),
+        ]
+        used_idx: set[int] = set()
+        for _, targets in style_groups:
+            chosen_idx = None
+            for idx, item in enumerate(scripts):
+                if idx in used_idx:
+                    continue
+                if item["style"] in targets:
+                    chosen_idx = idx
+                    break
+            if chosen_idx is not None:
+                ordered.append(scripts[chosen_idx])
+                used_idx.add(chosen_idx)
+
+        # 如果缺项，用剩余话术补齐
+        if len(ordered) < 3:
+            for idx, item in enumerate(scripts):
+                if idx in used_idx:
+                    continue
+                ordered.append(item)
+                if len(ordered) >= 3:
+                    break
+
+        return ordered[:3]
 
     def _load_examples(self) -> str:
         if self._examples_cache is not None:
