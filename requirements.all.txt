@@ -1,313 +1,118 @@
-# 提猫直播助手 - 完整项目依赖包
-# Timao Douyin Live Manager - Complete Project Dependencies
-# 
-# 此文件包含整个项目的所有Python依赖，用于打包和部署
-# This file contains all Python dependencies for the entire project for packaging and deployment
+# 提猫直播助手 - 全项目必要依赖清单（统一/去重）
+# 使用方式：在激活的虚拟环境中执行
+#   pip install -r requirements.all.txt
 
-# ===== 核心框架依赖 =====
-# Core Framework Dependencies
-
-# Web框架 - Web Frameworks
+# ===== Web框架与服务 =====
 Flask==2.3.3
 Flask-CORS==4.0.0
 Flask-SocketIO==5.3.6
 fastapi>=0.100.0
 uvicorn[standard]>=0.23.0
+python-multipart>=0.0.6
 
-# WebSocket支持 - WebSocket Support
-python-socketio==5.9.0
+# ===== WebSocket =====
+python-socketio==5.9.1
 python-engineio==4.7.1
 websockets>=11.0.2
-websocket-client>=1.6.1
+websocket-client==1.7.0
 
-# HTTP客户端 - HTTP Clients
-requests>=2.31.0
-urllib3>=2.0.7
-httpx[http2]>=0.28.1
-aiohttp>=3.9.1
-httpcore
+# ===== HTTP 客户端 =====
+requests==2.31.1
+urllib3==2.0.7
+httpx>=0.28.1
+aiohttp==3.9.1
 
-# ===== 数据处理与科学计算 =====
-# Data Processing & Scientific Computing
-
-# 数据处理 - Data Processing
-pandas>=2.1.4
-numpy>=1.24.0,<2.0.0
+# ===== 数据与科学计算 =====
+pandas==2.1.4
+numpy==1.24.4
 scipy>=1.10.0
 
-# 数据库 - Databases
-SQLAlchemy>=2.0.23
+# ===== 数据库 =====
+SQLAlchemy==2.0.23
 aiosqlite>=0.19.0
 
-# ===== AI与机器学习 =====
-# AI & Machine Learning
-
-# AI服务客户端 - AI Service Clients
+# ===== AI 服务客户端 =====
 openai>=1.43.0
-dashscope>=1.14.1
-baidu-aip>=4.16.13
-anthropic
+dashscope==1.14.1
+baidu-aip==4.16.13
 
-# 自然语言处理 - Natural Language Processing
+# ===== NLP =====
 jieba>=0.42.1
 snownlp>=0.12.3
-nltk
-sentence_transformers
-transformers
-tokenizers
-tiktoken
+sentence-transformers>=3.3.0
+sentencepiece>=0.1.99
 
-# 机器学习框架 - ML Frameworks
-torch>=2.0.0
-torchaudio>=2.0.0
-
-# ===== 语音识别与音频处理 =====
-# Speech Recognition & Audio Processing
-
-# 音频处理 - Audio Processing
+# ===== 音频与语音处理 =====
 pyaudio>=0.2.11
 soundfile>=0.12.0
 librosa>=0.10.0
-webrtc_audio_processing
-rnnoise
-
-# 语音识别 - Speech Recognition
-funasr>=1.2.0
 srt>=3.5.0
 
-# ===== LangChain生态系统 =====
-# LangChain Ecosystem
-
-# LangChain核心 - LangChain Core
+# ===== LangChain 生态（服务端用） =====
 langchain>=0.1.16
-langchain-core
 langchain-community>=0.0.38
-
-# LangChain集成 - LangChain Integrations
-langchain-openai
-langchain-anthropic
-langchain-chroma
-langchain-cohere
-langchain-elasticsearch
-langchain-google-genai
-langchain-google-vertexai
-langchain-groq
-langchain-huggingface
-langchain-milvus
-langchain-mistralai
-langchain-mongodb
-langchain-neo4j
-langchain-nvidia-ai-endpoints
-langchain-ollama
-langchain-pinecone
-langchain-postgres
-langchain-qdrant
-langchain-text-splitters
-langchain-together
-langchain-weaviate
-
-# LangChain工具 - LangChain Tools
-langgraph
-langserve
-langsmith
-
-# ===== 向量数据库与搜索 =====
-# Vector Databases & Search
-
-# 向量存储 - Vector Stores
-chromadb
-qdrant-client
+langchain-huggingface>=0.1.1
 docarray>=0.32.2
 
-# 搜索引擎 - Search Engines
-elasticsearch
-
-# ===== 桌面应用开发 =====
-# Desktop Application Development
-
-# Flet框架 (StreamCap) - Flet Framework
-flet[desktop,cli]==0.27.6
-flet-video==0.1.1
-
-# 系统集成 - System Integration
-screeninfo>=0.8.1
-pystray>=0.19.5
-plyer>=2.1.0
-
-# ===== 工具库 =====
-# Utility Libraries
-
-# 异步支持 - Async Support
-aiofiles>=23.2.1
-anyio
-
-# 配置管理 - Configuration Management
-python-dotenv>=1.0.0
-PyYAML>=6.0.1
+# ===== 异步与通用工具 =====
+aiofiles>=24.1.0
+python-dotenv>=1.0.1
+pydantic==2.5.2
+pydantic-settings>=2.0.0
+marshmallow==3.20.1
+python-dateutil==2.8.2
+loguru>=0.7.3
+PyYAML==6.0.1
+cryptography==41.0.7
+tqdm>=4.65.0
+psutil==5.9.6
 hydra-core>=1.3.0
 omegaconf>=2.3.0
-toml
-tomlkit
 
-# 数据验证 - Data Validation
-pydantic>=2.5.2
-pydantic-settings>=2.0.0
-pydantic-core
-marshmallow>=3.20.1
-
-# 日期时间 - Date & Time
-python-dateutil>=2.8.2
-
-# 日志 - Logging
-loguru>=0.7.3
-
-# 缓存 - Caching
-cachetools>=5.5.2
-redis
-
-# 进度条 - Progress Bars
-tqdm>=4.65.0
-
-# 文本处理 - Text Processing
-regex
-rapidfuzz
-editdistance-s>=1.0.0
-
-# ===== 多媒体处理 =====
-# Multimedia Processing
-
-# 图像处理 - Image Processing
-PIL
-Pillow
-
-# 流媒体 - Streaming
+# ===== 流媒体/JS引擎/协议 =====
 streamget>=4.0.8
-
-# ===== JavaScript执行 =====
-# JavaScript Execution
-
-# JS引擎 - JS Engines
 PyExecJS>=1.5.1
 py-mini-racer>=0.6.0
+betterproto==2.0.0b6
 
-# ===== 网络爬虫与自动化 =====
-# Web Scraping & Automation
-
-# 网页解析 - Web Parsing
-bs4
-lxml
-
-# 浏览器自动化 - Browser Automation
-playwright
-pyppeteer
-
-# ===== 云服务与存储 =====
-# Cloud Services & Storage
-
-# 云存储 - Cloud Storage
-oss2>=2.18.0
-
-# 云服务 - Cloud Services
-google-cloud-storage
-azure-storage-blob
+# ===== 机器学习 =====
+torch>=2.0.0
+torchaudio>=2.0.0
+umap-learn>=0.5.0
+editdistance-s>=1.0.0
+pytorch-wpe>=0.0.1
 
 # ===== 多语言支持 =====
-# Multi-language Support
-
-# 日语处理 - Japanese Processing
 jaconv>=0.3.0
 jamo>=0.4.1
 
-# ===== 开发与测试工具 =====
-# Development & Testing Tools
-
-# 测试框架 - Testing Frameworks
-pytest>=7.4.0
-pytest-asyncio>=0.21.0
-pytest-benchmark
-pytest-mock
-pytest-socket
-
-# 代码质量 - Code Quality
-syrupy
-
-# 性能分析 - Performance Analysis
-psutil
-
-# ===== 协议与序列化 =====
-# Protocols & Serialization
-
-# 协议缓冲区 - Protocol Buffers
-protobuf
-betterproto>=2.0.0b6
-
-# ===== 特殊用途库 =====
-# Special Purpose Libraries
-
-# 机器学习工具 - ML Tools
-umap-learn>=0.5.0
-optimum
-huggingface_hub
-modelscope
-datasets
-
-# 可视化 - Visualization
+# ===== 云存储与可视化 =====
+oss2>=2.18.0
 tensorboardX>=2.6.0
-rich
-streamlit
 
-# 类型检查 - Type Checking
-typing-extensions
+# ===== 桌面/Web 采集（StreamCap） =====
+flet[desktop,cli]==0.27.6
+flet[web,cli]==0.27.6
+flet-video==0.1.1
+screeninfo>=0.8.1
+pystray>=0.19.5
+plyer>=2.1.0
+cachetools>=5.5.2
 
-# 包管理 - Package Management
-packaging
+# ===== 测试与开发工具 =====
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+black==23.11.0
+flake8==6.1.0
+mypy==1.7.1
+prometheus-client>=0.17.0
 
-# 网络工具 - Network Tools
-certifi
-charset-normalizer
-
-# 命令行工具 - CLI Tools
-click
-typer
-
-# 邮件处理 - Email Processing
-email-validator
-
-# 文件上传 - File Upload
-python-multipart>=0.0.6
-
-# 测试工具 - Testing Tools
-vcr
-
-# 数据库连接 - Database Connections
-upstash-redis
-
-# 图形处理 - Graph Processing
-pygraphviz
-
-# 数值计算 - Numerical Computing
-numexpr
-simsimd
-
-# 异步限制 - Async Limiting
-tenacity
-
-# 搜索与检索 - Search & Retrieval
-nomic
-cohere
-groq
-ollama
-
-# IBM Watson - IBM Watson
-ibm-watsonx-ai
-
-# 解析器 - Parsers
-lark
-
-# ===== 注释说明 =====
-# Notes:
-# 1. 版本号使用 >= 表示最低版本要求，使用 == 表示固定版本
-# 2. 某些包可能在特定环境下不可用，安装时请根据实际情况调整
-# 3. 大型ML模型相关的包（如torch）可能需要根据硬件配置选择合适版本
-# 4. 部分包为可选依赖，可根据实际使用功能进行裁剪
+# ===== 说明 =====
+# - Windows 上安装 pyaudio 可能需要预编译轮子；如失败可使用：
+#   pip install pipwin && pipwin install pyaudio
+# - torch/torchaudio 建议按本机 CPU/GPU/CUDA 版本选择官方轮子；
+#   如需国内镜像，可使用清华镜像：
+#   pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.all.txt
+# - DouyinLiveWebFetcher 中使用的 JS 引擎建议标准化为 py-mini-racer（已包含）。
 
