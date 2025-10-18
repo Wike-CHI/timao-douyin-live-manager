@@ -72,6 +72,7 @@ const LiveConsolePage = () => {
   const { balance, firstFreeUsed, setFirstFreeUsed } = useAuthStore();
 
   const isRunning = status?.is_running ?? false;
+  const generatingRef = useRef(false);
 
   useEffect(() => {
     if (collapsed) {
@@ -119,13 +120,14 @@ const LiveConsolePage = () => {
     refreshStatus();
   }, [refreshStatus]);
 
-  useEffect(() => {
-    if (!isRunning) {
-      setSelectedQuestions([]);
-      setAnswerError(null);
-      setAnswerScripts([]);
-    }
-  }, [isRunning, setAnswerScripts, setAnswerError]);
+  // 移除基于 isRunning 的自动清空，避免瞬时抖动导致首次点击被清空
+  // useEffect(() => {
+  //   if (!isRunning) {
+  //     setSelectedQuestions([]);
+  //     setAnswerError(null);
+  //     setAnswerScripts([]);
+  //   }
+  // }, [isRunning, setAnswerScripts, setAnswerError]);
 
   // Poll backend live status while running to update累计片段/平均置信度
   useEffect(() => {
@@ -237,6 +239,10 @@ const LiveConsolePage = () => {
       resetSessionState();
       disconnectWebSocket();
       analysisBootRef.current = false;
+      // 主动清空本地选择与结果，避免残留
+      setSelectedQuestions([]);
+      setAnswerError(null);
+      setAnswerScripts([]);
     } catch (err) {
       console.error(err);
       setError((err as Error).message ?? '停止直播音频失败');
@@ -416,11 +422,13 @@ const LiveConsolePage = () => {
   }, [setSelectedQuestions, setAnswerError]);
 
   const handleGenerateAnswers = useCallback(async () => {
+    if (generatingRef.current) return;
     if (!selectedQuestions.length) {
       setAnswerError('请先选择至少一个弹幕问题');
       return;
     }
     try {
+      generatingRef.current = true;
       setAnswerLoading(true);
       setAnswerError(null);
       const transcriptSnippet = log
@@ -442,6 +450,7 @@ const LiveConsolePage = () => {
       setAnswerError((err as Error)?.message || '生成失败，请稍后再试');
     } finally {
       setAnswerLoading(false);
+      generatingRef.current = false;
     }
   }, [selectedQuestions, log, styleProfile, vibe, setAnswerScripts, FASTAPI_BASE_URL]);
 
@@ -715,7 +724,7 @@ const LiveConsolePage = () => {
                   <button
                     className="timao-primary-btn text-xs"
                     onClick={handleGenerateAnswers}
-                    disabled={!selectedQuestions.length || answerLoading || !isRunning}
+                    disabled={!selectedQuestions.length || answerLoading}
                   >
                     {answerLoading ? '生成中…' : '生成话术'}
                   </button>

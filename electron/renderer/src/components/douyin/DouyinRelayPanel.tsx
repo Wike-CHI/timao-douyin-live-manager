@@ -522,8 +522,8 @@ const DouyinRelayPanel = ({ baseUrl, maxMessages = DEFAULT_MAX_MESSAGES, onSelec
                       <button
                         className="timao-outline-btn text-[11px] px-2 py-0.5"
                         onClick={() => onSelectQuestion(item)}
-                        title="添加到智能话术建议"
-                        disabled={!isRunning}
+                        disabled={false}
+                        title="生成答疑话术"
                       >
                         生成答疑话术
                       </button>
