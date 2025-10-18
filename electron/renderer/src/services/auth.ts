@@ -1,8 +1,17 @@
 import { mockLogin, mockPaymentPoll, mockPaymentUpload, mockRegister, mockGetWallet, mockRecharge, mockConsume, mockUseFirstFree } from './mockAuth';
 import useAuthStore from '../store/useAuthStore';
+import { getCloudBaseAuth } from './cloudbase';
 
 const AUTH_BASE_URL = (import.meta.env?.VITE_AUTH_BASE_URL as string | undefined)?.trim();
-const isMock = !AUTH_BASE_URL; // 未配置云端地址时使用本地模拟
+const rawEnvId = (import.meta.env?.VITE_CLOUDBASE_ENV_ID as string | undefined)?.trim();
+const DEFAULT_ENV_ID = 'cloud-2gw460e590303de0';
+const CLOUDBASE_ENV_ID = rawEnvId || DEFAULT_ENV_ID;
+const enableCloudBaseFlag = ((import.meta.env?.VITE_ENABLE_CLOUDBASE as string | undefined) || 'true')
+  .toLowerCase()
+  .trim() !== 'false';
+const enableCloudBase = !AUTH_BASE_URL && enableCloudBaseFlag;
+const cloudbaseAuth = enableCloudBase ? (getCloudBaseAuth(CLOUDBASE_ENV_ID) as any) : null;
+const isMock = !AUTH_BASE_URL && !enableCloudBase;
 
 const joinUrl = (path: string) => {
   if (!AUTH_BASE_URL) return path; // mock 模式下不使用
@@ -23,6 +32,29 @@ export interface RegisterPayload {
 }
 
 export const login = async (payload: LoginPayload) => {
+  if (cloudbaseAuth) {
+    try {
+      const credential = await cloudbaseAuth.signInWithEmailAndPassword(payload.email, payload.password);
+      const tokenInfo = await cloudbaseAuth.getAccessToken();
+      const token = typeof tokenInfo === 'string' ? tokenInfo : tokenInfo?.accessToken;
+      const user = cloudbaseAuth.currentUser;
+      return {
+        success: true,
+        token: token || '',
+        user: {
+          id: user?.uid || credential?.user?.uid || 'cloud-user',
+          email: user?.email || credential?.user?.email || payload.email,
+          nickname: user?.nickName || credential?.user?.nickName || payload.email.split('@')[0],
+        },
+        isPaid: false,
+        balance: 0,
+        firstFreeUsed: false,
+      };
+    } catch (error) {
+      const message = (error as Error)?.message || '云开发登录失败';
+      throw new Error(message.includes('INVALID_EMAIL') ? '邮箱格式不正确' : message);
+    }
+  }
   if (isMock) return mockLogin(payload);
   const resp = await fetch(joinUrl('/api/auth/login'), {
     method: 'POST',
@@ -37,6 +69,28 @@ export const login = async (payload: LoginPayload) => {
 };
 
 export const register = async (payload: RegisterPayload) => {
+  if (cloudbaseAuth) {
+    try {
+      await cloudbaseAuth.signUpWithEmailAndPassword(payload.email, payload.password);
+      const credential = await cloudbaseAuth.signInWithEmailAndPassword(payload.email, payload.password);
+      if (payload.nickname) {
+        try {
+          await cloudbaseAuth.currentUser?.update({ nickName: payload.nickname });
+        } catch {}
+      }
+      return {
+        success: true,
+        user: {
+          id: credential?.user?.uid || cloudbaseAuth.currentUser?.uid || 'cloud-user',
+          email: payload.email,
+          nickname: payload.nickname,
+        },
+      };
+    } catch (error) {
+      const message = (error as Error)?.message || '云开发注册失败';
+      throw new Error(message.includes('EMAIL_EXISTS') ? '该邮箱已注册' : message);
+    }
+  }
   if (isMock) return mockRegister(payload);
   const resp = await fetch(joinUrl('/api/auth/register'), {
     method: 'POST',
@@ -51,6 +105,7 @@ export const register = async (payload: RegisterPayload) => {
 };
 
 export const uploadPayment = async (file: File) => {
+  if (cloudbaseAuth) throw new Error('当前模式暂未开通支付能力');
   if (isMock) return mockPaymentUpload(file);
   const form = new FormData();
   form.append('file', file);
@@ -70,6 +125,7 @@ export const uploadPayment = async (file: File) => {
 };
 
 export const pollPayment = async () => {
+  if (cloudbaseAuth) throw new Error('当前模式暂未开通支付能力');
   if (isMock) return mockPaymentPoll();
   const { token } = useAuthStore.getState();
   const headers: Record<string, string> = {};
@@ -84,6 +140,9 @@ export const pollPayment = async () => {
 
 // 钱包相关 API
 export const getWallet = async () => {
+  if (cloudbaseAuth) {
+    return { success: true, balance: 0, firstFreeUsed: false };
+  }
   if (isMock) return mockGetWallet();
   const { token } = useAuthStore.getState();
   const headers: Record<string, string> = {};
@@ -97,6 +156,7 @@ export const getWallet = async () => {
 };
 
 export const recharge = async (amount: number) => {
+  if (cloudbaseAuth) throw new Error('云开发模式下暂未开放充值');
   if (isMock) return mockRecharge(amount);
   const { token } = useAuthStore.getState();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -114,6 +174,7 @@ export const recharge = async (amount: number) => {
 };
 
 export const consume = async (amount: number, reason?: string) => {
+  if (cloudbaseAuth) throw new Error('云开发模式下暂未开放扣费');
   if (isMock) return mockConsume(amount);
   const { token } = useAuthStore.getState();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -131,6 +192,7 @@ export const consume = async (amount: number, reason?: string) => {
 };
 
 export const useFirstFree = async () => {
+  if (cloudbaseAuth) return { success: false, message: '云开发模式下请直接使用体验功能' };
   if (isMock) return mockUseFirstFree();
   const { token } = useAuthStore.getState();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -147,3 +209,10 @@ export const useFirstFree = async () => {
   return resp.json();
 };
 
+export const cloudbaseSignOut = async () => {
+  if (cloudbaseAuth) {
+    try {
+      await cloudbaseAuth.signOut();
+    } catch {}
+  }
+};

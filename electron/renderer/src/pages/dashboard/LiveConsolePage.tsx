@@ -73,6 +73,20 @@ const LiveConsolePage = () => {
 
   const isRunning = status?.is_running ?? false;
 
+  const latestLeadCandidates = useMemo(() => {
+    if (!aiEvents.length) return [] as any[];
+    const lastEvent = aiEvents[aiEvents.length - 1] as any;
+    const direct = Array.isArray(lastEvent?.lead_candidates) ? lastEvent.lead_candidates : [];
+    const fromCard = Array.isArray(lastEvent?.analysis_card?.lead_candidates)
+      ? lastEvent.analysis_card.lead_candidates
+      : [];
+    const fromPlanner = Array.isArray(lastEvent?.planner_notes?.lead_candidates)
+      ? lastEvent.planner_notes.lead_candidates
+      : [];
+    const combined = (direct.length ? direct : fromCard.length ? fromCard : fromPlanner) as any[];
+    return Array.isArray(combined) ? combined.slice(0, 3) : [];
+  }, [aiEvents]);
+
   useEffect(() => {
     if (collapsed) {
       const first = log[0];
@@ -679,6 +693,39 @@ const LiveConsolePage = () => {
               </div>
             )}
           </div>
+
+          {latestLeadCandidates.length ? (
+            <div className="timao-card">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
+                  <span>💎</span>
+                  高价值互动
+                </h3>
+                <span className="text-xs timao-support-text">优先点名感谢</span>
+              </div>
+              <div className="space-y-3">
+                {latestLeadCandidates.map((lead: any, idx: number) => (
+                  <div key={idx} className="rounded-2xl bg-white/90 border border-white/60 shadow-sm p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-semibold text-slate-700">{lead?.user || '观众'}</div>
+                      {lead?.user_value ? (
+                        <span className="text-[11px] text-purple-500">≈ {Math.round(Number(lead.user_value))}</span>
+                      ) : null}
+                    </div>
+                    {lead?.reason ? (
+                      <div className="text-xs text-slate-500 mt-1">{String(lead.reason)}</div>
+                    ) : null}
+                    {lead?.gift_value ? (
+                      <div className="text-[11px] text-slate-400 mt-1">单次礼物约 {Math.round(Number(lead.gift_value))}</div>
+                    ) : null}
+                    {lead?.score ? (
+                      <div className="text-[10px] text-slate-400 mt-1">综合优先级 {Number(lead.score).toFixed(2)}</div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <div className="timao-card">
             <div className="flex items-center justify-between mb-3">

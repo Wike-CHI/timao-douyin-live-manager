@@ -223,6 +223,11 @@ class AILiveAnalyzer:
             "vibe": vibe_payload,
             "mood": mood,
             "transcript": transcript_snippet,
+            "lead_candidates": (
+                self._state.last_result.get("lead_candidates")
+                if isinstance(self._state.last_result, dict)
+                else []
+            ),
         }
         scripts = self._script_responder.generate(context)
         return {"scripts": scripts}

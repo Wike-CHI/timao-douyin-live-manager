@@ -292,21 +292,23 @@ class LangGraphLiveWorkflow:
                 gift_name = str(comment.get("gift_name") or content or "礼物")
                 gift_count = int(comment.get("gift_count") or 1)
                 gift_value = float(comment.get("gift_value") or 0.0)
-                weight = 0.9 + min(0.6, gift_value / 500.0 if gift_value else gift_count * 0.05)
+                # 以礼物价值作为主要权重，放大高价值粉丝的影响力
+                value_boost = gift_value if gift_value else user_value
+                weight = 1.1 + min(1.2, value_boost / 250.0 if value_boost else gift_count * 0.08)
                 if gift_value >= 500:
-                    reasons.append("大额礼物")
-                elif gift_value >= 100:
-                    reasons.append("中额礼物")
+                    reasons.append("豪礼支持")
+                elif gift_value >= 200:
+                    reasons.append("高价值礼物")
                 else:
                     reasons.append("送礼")
-                if user_value > gift_value >= 0:
+                if user_value > max(gift_value, 0):
                     reasons.append("老粉丝")
                 highlight_text = comment.get("content") or f"{user_name}送出{gift_name}x{gift_count}"
                 category_counts["support"] = category_counts.get("support", 0) + 1
                 chat_signals.append(
                     {
                         "text": highlight_text,
-                        "weight": round(min(weight, 1.6), 2),
+                        "weight": round(min(weight, 2.2), 2),
                         "source": event_type,
                         "category": "support",
                     }
@@ -318,10 +320,11 @@ class LangGraphLiveWorkflow:
                         {
                             "text": highlight_text,
                             "user": user_name,
-                            "score": round(min(1.6, weight + user_value / 800.0), 2),
+                            "score": round(min(2.5, weight + user_value / 400.0), 2),
                             "reason": "、".join(sorted(set(reasons))) or "送礼",
                             "category": "gift",
                             "user_value": round(user_value, 2),
+                            "gift_value": round(gift_value, 2),
                         }
                     )
                 continue
@@ -368,10 +371,13 @@ class LangGraphLiveWorkflow:
             elif text_len >= 8:
                 weight += 0.05
 
-            if user_value >= 500:
+            if user_value >= 800:
+                weight += 0.35
+                reasons.append("核心粉丝")
+            elif user_value >= 300:
                 weight += 0.2
                 reasons.append("高价值粉丝")
-            elif user_value >= 150:
+            elif user_value >= 120:
                 weight += 0.12
                 reasons.append("老粉丝")
 
@@ -385,7 +391,7 @@ class LangGraphLiveWorkflow:
                 }
             )
 
-            candidate_score = weight
+            candidate_score = weight + min(0.5, user_value / 600.0)
             if category in {"question", "product"}:
                 candidate_score += 0.1
             if candidate_score >= 0.9 or user_value >= 150:

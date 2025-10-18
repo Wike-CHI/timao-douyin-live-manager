@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import ThemeToggle from '../components/ThemeToggle';
 import useAuthStore from '../store/useAuthStore';
+import { cloudbaseSignOut } from '../services/auth';
 import logoUrl from '../assets/logo.jpg';
 
 const navItems = [
@@ -23,6 +24,7 @@ const MainLayout = () => {
   const [apiBase, setApiBase] = useState<string>(injectedApiBase);
 
   const handleLogout = () => {
+    cloudbaseSignOut().catch(() => {});
     logout();
     navigate('/auth/login');
   };

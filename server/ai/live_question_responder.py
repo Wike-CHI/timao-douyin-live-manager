@@ -65,6 +65,21 @@ class LiveQuestionResponder:
         )
         knowledge_block = self._prepare_knowledge_block(context)
         samples_block = self._load_examples()
+        lead_candidates = context.get("lead_candidates") or []
+        lead_block = ""
+        top_lead = None
+        if isinstance(lead_candidates, list) and lead_candidates:
+            top_lead = lead_candidates[0]
+            lead_name = str(top_lead.get("user") or "高价值观众")
+            lead_value = top_lead.get("user_value")
+            lead_reason = str(top_lead.get("reason") or "热情互动")
+            if lead_value:
+                lead_block = (
+                    f"【高价值观众】\n{lead_name} · 累计贡献约 {lead_value:.0f} · {lead_reason}\n"
+                )
+            else:
+                lead_block = f"【高价值观众】\n{lead_name} · {lead_reason}\n"
+            lead_block += "请务必在最后一条话术中点名感谢 / 追问这位观众，可自然提及礼物或支持，并将 notes 字段标记为“高价值观众”。\n\n"
         system_prompt = (
             "你是主播的实时语音助理，需要用主播自己的口吻回答观众的难题或疑问。"
             "必须保持第一人称口语，语气、节奏、遣词贴近主播平时的习惯，同时可以做细微风格调整。"
@@ -73,6 +88,7 @@ class LiveQuestionResponder:
             "输出为 JSON 数组，每个对象包含："
             '{"question":"原始问题","line":"主播可直接说的话","style":"暖心|直接|可爱|幽默|小调侃","notes":"可选解释"}。'
             "每个问题必须返回 3 条不重复的话术，依次满足：第 1 条是“暖心”风格，贴心且落地；第 2 条可选择“直接”或“可爱”，讲清观察到的问题；第 3 条可以是“幽默”或“小调侃”，但要带着笑点不带刺，像朋友打趣，避免过度讽刺或奇怪比喻。"
+            "如提供了高价值观众信息，第三条话术必须点名这位观众并致谢/追问，衔接刚刚的礼物或支持，并将 notes 字段填为“高价值观众”。"
             "如问题信息不足，line 中要自然说明需要更多信息。"
         )
         user_prompt = (
@@ -83,6 +99,7 @@ class LiveQuestionResponder:
             "【当前氛围与节奏】\n"
             f"{vibe_line}\n\n"
             f"{knowledge_block}"
+            f"{lead_block}"
             "【近期口播节选】\n"
             f"{transcript or '（暂无口播文本，仅参考历史画像）'}\n\n"
             f"{samples_block}\n\n"

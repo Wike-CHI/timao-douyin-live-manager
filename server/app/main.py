@@ -13,6 +13,8 @@ from fastapi.staticfiles import StaticFiles
 import asyncio
 from dotenv import load_dotenv
 from ..utils.ai_defaults import ensure_default_ai_env
+from .core.database import init_db
+from .models.user import UserDocument, UserSessionDocument
 
 def _load_env_once() -> None:
     """Load .env from project root regardless of working directory."""
@@ -70,6 +72,7 @@ _include_router_safe("AI 测试", "server.app.api.ai_test")
 _include_router_safe("抖音 API", "server.app.api.douyin")
 _include_router_safe("抖音 Web 测试", "server.app.api.douyin_web")
 _include_router_safe("联合测试", "server.app.api.live_test")
+_include_router_safe("用户认证", "server.app.api.auth")
 _include_router_safe("NLP 管理", "server.app.api.nlp_hotwords")
 _include_router_safe("AI 实时分析", "server.app.api.ai_live")
 _include_router_safe("AI 话术生成", "server.app.api.ai_scripts")
@@ -96,6 +99,11 @@ frontend_path = Path(__file__).parent.parent.parent / "frontend"
 if frontend_path.exists():
     app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
     logging.info(f"✅ 静态文件服务已启用: {frontend_path}")
+
+
+@app.on_event("startup")
+async def on_startup():
+    await init_db([UserDocument, UserSessionDocument])
 
 
 @app.get("/", response_class=HTMLResponse)
