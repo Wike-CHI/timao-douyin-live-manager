@@ -575,6 +575,20 @@ class LangGraphLiveWorkflow:
         if "高情商话术" not in queries:
             queries.append("高情商话术")
 
+        keyword_sources: List[str] = []
+        transcript_snippet = state.get("transcript_snippet")
+        if transcript_snippet:
+            keyword_sources.append(transcript_snippet)
+        for sig in state.get("chat_signals") or []:
+            if isinstance(sig, dict):
+                text = sig.get("text")
+                if text:
+                    keyword_sources.append(str(text))
+        keyword_terms = [word for word, _ in _top_n_words(keyword_sources, n=8)]
+        for term in keyword_terms:
+            if term and term not in queries:
+                queries.append(term)
+
         snippets = kb.query(
             queries or [planner_focus or "直播分析"],
             themes=[selected_theme] if selected_theme else None,
@@ -601,6 +615,8 @@ class LangGraphLiveWorkflow:
                     continue
                 if len(topic_text) < 4 or len(topic_text) > 24:
                     continue
+                if keyword_terms and not any(term in topic_text for term in keyword_terms):
+                    continue
                 if topic_text in seen_topics:
                     continue
                 topic_playlist.append(
@@ -617,7 +633,7 @@ class LangGraphLiveWorkflow:
         if len(topic_playlist) < 6:
             fallback_topics = kb.topic_suggestions(
                 limit=6 - len(topic_playlist),
-                keywords=queries + ([selected_theme] if selected_theme else []),
+                keywords=queries + keyword_terms + ([selected_theme] if selected_theme else []),
             )
             for item in fallback_topics:
                 candidate = str(item.get("topic") or "")
@@ -625,6 +641,16 @@ class LangGraphLiveWorkflow:
                     continue
                 topic_playlist.append(item)
                 seen_topics.add(candidate)
+                if len(topic_playlist) >= 6:
+                    break
+        if len(topic_playlist) < 6 and keyword_terms:
+            for term in keyword_terms:
+                if term in seen_topics:
+                    continue
+                topic_playlist.append(
+                    {"topic": term, "category": "主播关键词"}
+                )
+                seen_topics.add(term)
                 if len(topic_playlist) >= 6:
                     break
         return {"knowledge_snippets": snippets_payload, "topic_playlist": topic_playlist}
