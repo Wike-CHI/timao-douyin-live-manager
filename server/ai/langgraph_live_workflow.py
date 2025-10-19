@@ -81,6 +81,7 @@ class GraphState(TypedDict, total=False):
     suggestions: List[str]
     top_questions: List[str]
     knowledge_snippets: List[Dict[str, Any]]
+    topic_playlist: List[Dict[str, Any]]
 
 
 @dataclass
@@ -522,11 +523,12 @@ class LangGraphLiveWorkflow:
 
     def _knowledge_loader(self, state: GraphState) -> Dict[str, Any]:
         snippets_payload: List[Dict[str, Any]] = []
+        topic_playlist: List[Dict[str, Any]] = []
         try:
             kb = get_knowledge_base()
         except Exception as exc:  # pragma: no cover - defensive
             logger.warning("知识库初始化失败：%s", exc)
-            return {"knowledge_snippets": snippets_payload}
+            return {"knowledge_snippets": snippets_payload, "topic_playlist": topic_playlist}
 
         def _extract_terms(text: Optional[str]) -> List[str]:
             if not text:
@@ -570,6 +572,8 @@ class LangGraphLiveWorkflow:
 
         if not queries:
             queries = ["直播互动", "开场"]
+        if "高情商话术" not in queries:
+            queries.append("高情商话术")
 
         snippets = kb.query(
             queries or [planner_focus or "直播分析"],
@@ -577,6 +581,7 @@ class LangGraphLiveWorkflow:
             tags=tags,
             limit=3,
         )
+        seen_topics: set[str] = set()
         for snippet in snippets:
             snippets_payload.append(
                 {
@@ -590,7 +595,39 @@ class LangGraphLiveWorkflow:
                     "source": str(snippet.source_path),
                 }
             )
-        return {"knowledge_snippets": snippets_payload}
+            for highlight in snippet.highlights:
+                topic_text = re.sub(r"^[0-9.、\-)\s]+", "", str(highlight).strip())
+                if not topic_text:
+                    continue
+                if len(topic_text) < 4 or len(topic_text) > 24:
+                    continue
+                if topic_text in seen_topics:
+                    continue
+                topic_playlist.append(
+                    {
+                        "topic": topic_text,
+                        "category": snippet.theme or "高情商话术",
+                    }
+                )
+                seen_topics.add(topic_text)
+                if len(topic_playlist) >= 6:
+                    break
+            if len(topic_playlist) >= 6:
+                break
+        if len(topic_playlist) < 6:
+            fallback_topics = kb.topic_suggestions(
+                limit=6 - len(topic_playlist),
+                keywords=queries + ([selected_theme] if selected_theme else []),
+            )
+            for item in fallback_topics:
+                candidate = str(item.get("topic") or "")
+                if not candidate or candidate in seen_topics:
+                    continue
+                topic_playlist.append(item)
+                seen_topics.add(candidate)
+                if len(topic_playlist) >= 6:
+                    break
+        return {"knowledge_snippets": snippets_payload, "topic_playlist": topic_playlist}
 
     def _analysis_generator(self, state: GraphState) -> Dict[str, Any]:
         transcript = state.get("transcript_snippet") or "\n".join(state.get("sentences") or [])
@@ -605,14 +642,17 @@ class LangGraphLiveWorkflow:
             "persona": state.get("persona") or {},
             "planner_focus": state.get("analysis_focus"),
             "lead_candidates": state.get("lead_candidates") or [],
+            "topic_playlist": state.get("topic_playlist") or [],
         }
         context["knowledge_snippets"] = state.get("knowledge_snippets") or []
+        error_msg = None
         try:
             card = self.analysis_generator.generate(context)
         except Exception as exc:  # pragma: no cover
             logger.exception("Analysis generation failed: %s", exc)
             card = {"analysis_overview": f"生成失败：{exc}"}
-        return {"analysis_card": card}
+            error_msg = str(exc)
+        return {"analysis_card": card, "analysis_error": error_msg}
 
     def _question_responder(self, state: GraphState) -> Dict[str, Any]:
         if not self.question_responder:

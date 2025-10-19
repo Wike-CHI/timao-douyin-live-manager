@@ -129,8 +129,10 @@ async def live_audio_status() -> dict:
         "profile": getattr(svc, "profile", "fast"),
         "model": svc.get_model_size(),
         "advanced": {
-            "music_filter": getattr(svc, "enable_music_filter", False),
-            "diarization": getattr(svc, "enable_diarization", False),
+            "music_filter": getattr(svc, "music_detection_enabled", False),
+            "music_detection_enabled": getattr(svc, "music_detection_enabled", False),
+            "music_guard_active": st.music_guard_active,
+            "music_guard_score": st.music_guard_score,
             "persist_enabled": getattr(svc, "persist_enabled", False),
             "persist_root": getattr(svc, "persist_root", None),
         },

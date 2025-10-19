@@ -28,6 +28,7 @@ except Exception:  # pragma: no cover
 
 from ...ai.live_analysis_generator import LiveAnalysisGenerator
 from ...ai.langgraph_live_workflow import LiveWorkflowConfig, ensure_workflow
+from ...ai.knowledge_service import get_knowledge_base
 
 from .live_audio_stream_service import get_live_audio_service
 from .douyin_web_relay import get_douyin_web_relay
@@ -191,7 +192,27 @@ class AILiveAnalyzer:
             "knowledge_snippets": result.get("knowledge_snippets", []),
             "knowledge_refs": result.get("knowledge_refs", []),
             "lead_candidates": result.get("lead_candidates", []),
+            "error": result.get("analysis_error"),
         }
+        playlist = result.get("topic_playlist") or []
+        if not payload["error"]:
+            if not playlist:
+                try:
+                    kb = get_knowledge_base()
+                    queries: List[str] = []
+                    planner = result.get("analysis_focus")
+                    if isinstance(planner, str) and planner:
+                        queries.append(planner)
+                    for topic in result.get("topic_candidates") or []:
+                        name = topic.get("topic") if isinstance(topic, dict) else None
+                        if name:
+                            queries.append(str(name))
+                    playlist = kb.topic_suggestions(limit=6, keywords=queries)
+                except Exception:  # pragma: no cover - defensive
+                    playlist = []
+        else:
+            playlist = []
+        payload["topic_playlist"] = playlist
         return payload
 
     def generate_answer_scripts(

@@ -404,11 +404,7 @@ const LiveConsolePage = () => {
   const handleSelectQuestion = useCallback((entry: { content: string }) => {
     const text = String(entry?.content || '').trim();
     if (!text) return;
-    setSelectedQuestions((prev) => {
-      if (prev.includes(text)) return prev;
-      const next = [text, ...prev];
-      return next.slice(0, 5);
-    });
+    setSelectedQuestions([text]);
     setAnswerError(null);
   }, [setSelectedQuestions, setAnswerError]);
 
@@ -437,8 +433,9 @@ const LiveConsolePage = () => {
         .map((item) => item.text)
         .filter(Boolean)
         .join('\n');
+      const latestQuestion = selectedQuestions[0];
       const payload: any = {
-        questions: selectedQuestions,
+        questions: latestQuestion ? [latestQuestion] : [],
       };
       if (transcriptSnippet) payload.transcript = transcriptSnippet;
       if (styleProfile) payload.style_profile = styleProfile;
@@ -575,6 +572,7 @@ const LiveConsolePage = () => {
                   const sentiment = ev?.audience_sentiment
                     || (ev?.analysis_card && typeof ev.analysis_card === 'object' ? ev.analysis_card.audience_sentiment : null);
                   const sentimentSignals = Array.isArray(sentiment?.signals) ? sentiment.signals : [];
+                  const fallbackTopics = Array.isArray(ev?.topic_playlist) ? ev.topic_playlist : [];
                   const hasAny = ev?.summary
                     || (Array.isArray(ev?.highlight_points) && ev.highlight_points.length)
                     || (Array.isArray(ev?.risks) && ev.risks.length)
@@ -582,6 +580,7 @@ const LiveConsolePage = () => {
                     || (Array.isArray(ev?.top_questions) && ev.top_questions.length)
                     || (sentiment && (sentiment.label || sentimentSignals.length))
                     || ev?.analysis_focus
+                    || fallbackTopics.length
                     || ev?.error || ev?.raw;
                   return (
                     <div key={idx} className="rounded-2xl border border-white/60 shadow-md p-3 bg-white/95">
@@ -605,11 +604,26 @@ const LiveConsolePage = () => {
                           </ul>
                         </>
                       ) : null}
-                      {Array.isArray(ev?.risks) && ev.risks.length ? (
+                      {Array.isArray(ev?.suggestions) && ev.suggestions.length ? (
                         <>
-                          <div className="text-xs text-slate-500 mt-2 mb-1">风险</div>
+                          <div className="text-xs text-slate-500 mt-2 mb-1">建议</div>
                           <ul className="list-disc pl-5 text-xs text-slate-600">
-                            {ev.risks.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
+                            {ev.suggestions.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
+                          </ul>
+                        </>
+                      ) : null}
+                      {fallbackTopics.length ? (
+                        <>
+                          <div className="text-xs text-slate-500 mt-2 mb-1">话题灵感</div>
+                          <ul className="list-disc pl-5 text-xs text-slate-600">
+                            {fallbackTopics.slice(0, 4).map((item: any, i: number) => (
+                              <li key={`${item?.category || 'topic'}-${i}`}>
+                                {String(item?.topic || '')}
+                                {item?.category ? (
+                                  <span className="ml-2 text-[10px] text-slate-400">#{String(item.category)}</span>
+                                ) : null}
+                              </li>
+                            ))}
                           </ul>
                         </>
                       ) : null}
@@ -626,11 +640,11 @@ const LiveConsolePage = () => {
                           ) : null}
                         </>
                       ) : null}
-                      {Array.isArray(ev?.suggestions) && ev.suggestions.length ? (
+                      {Array.isArray(ev?.risks) && ev.risks.length ? (
                         <>
-                          <div className="text-xs text-slate-500 mt-2 mb-1">建议</div>
+                          <div className="text-xs text-slate-500 mt-2 mb-1">风险</div>
                           <ul className="list-disc pl-5 text-xs text-slate-600">
-                            {ev.suggestions.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
+                            {ev.risks.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
                           </ul>
                         </>
                       ) : null}

@@ -93,6 +93,57 @@ class LiveQuestionResponder:
             {"role": "user", "content": user_prompt},
         ]
 
+    def _parse_response_payload(self, raw: str) -> List[Dict[str, Any]]:
+        """Best-effort parsing of the model JSON output."""
+        raw = (raw or "").strip()
+        if not raw:
+            return []
+        parsed = self._load_json_safely(raw)
+        if parsed is None:
+            parsed = self._recover_partial_array(raw)
+        if isinstance(parsed, list):
+            return [item for item in parsed if isinstance(item, dict)]
+        if isinstance(parsed, dict):
+            for key in ("items", "scripts", "data"):
+                value = parsed.get(key)
+                if isinstance(value, list):
+                    return [item for item in value if isinstance(item, dict)]
+        return []
+
+    def _load_json_safely(self, raw: str) -> Optional[Any]:
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            logger.warning("无法解析 Qwen 返回的 JSON，执行容错解析：%s", raw[:200])
+            return None
+
+    def _recover_partial_array(self, raw: str) -> List[Dict[str, Any]]:
+        text = raw.lstrip()
+        if not text.startswith("["):
+            return []
+        decoder = json.JSONDecoder()
+        idx = 1
+        length = len(text)
+        items: List[Dict[str, Any]] = []
+        while idx < length:
+            # Skip whitespace or commas between objects
+            while idx < length and text[idx] in " \t\r\n,":
+                idx += 1
+            if idx >= length or text[idx] == "]":
+                break
+            try:
+                obj, next_idx = decoder.raw_decode(text, idx)
+            except json.JSONDecodeError:
+                break
+            if isinstance(obj, dict):
+                items.append(obj)
+            idx = next_idx
+        if items:
+            logger.warning(
+                "Qwen 返回的 JSON 可能被截断，仅恢复 %d 条话术。", len(items)
+            )
+        return items
+
     def generate(self, context: Dict[str, Any]) -> List[Dict[str, Any]]:
         if not self.client:
             raise RuntimeError("LiveQuestionResponder 未初始化成功")
@@ -105,17 +156,15 @@ class LiveQuestionResponder:
             messages=messages,
             temperature=0.4,
             response_format={"type": "json_object"},
-            max_tokens=600,
+            max_tokens=900,
         )
         raw = response.choices[0].message.content or "[]"
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            logger.warning("无法解析 Qwen 返回的 JSON：%s", raw)
-            return []
-        if isinstance(data, dict) and "items" in data and isinstance(data["items"], list):
-            data = data["items"]
-        if not isinstance(data, list):
+        data = self._parse_response_payload(raw)
+        if not data:
+            logger.warning(
+                "智能话术生成返回为空，已尝试容错处理但未能恢复有效话术。原始片段：%s",
+                raw[:200],
+            )
             return []
         scripts: List[Dict[str, Any]] = []
         for item in data:

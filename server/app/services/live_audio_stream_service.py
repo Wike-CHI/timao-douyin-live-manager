@@ -55,6 +55,11 @@ except Exception:
     JSONLWriter = None  # type: ignore
 # Removed optional audio gate / diarizer dependencies to simplify pipeline
 
+try:  # Optional dependency: 本地环境已包含 numpy
+    import numpy as np  # type: ignore
+except Exception:  # pragma: no cover - numpy 非必需
+    np = None  # type: ignore
+
 
 def _now() -> float:
     return time.time()
@@ -83,6 +88,8 @@ class LiveAudioStatus:
     successful_transcriptions: int = 0
     failed_transcriptions: int = 0
     average_confidence: float = 0.0
+    music_guard_active: bool = False
+    music_guard_score: float = 0.0
 
 
 class LiveAudioStreamService:
@@ -160,6 +167,22 @@ class LiveAudioStreamService:
         self.persist_root: Optional[str] = None
         self._persist_tr: Optional[Any] = None
 
+        # 背景音乐检测与自适应阈值
+        self.music_detection_enabled: bool = bool(int(os.getenv("LIVE_VAD_MUSIC_DETECT", "1")))
+        if np is None:
+            self.music_detection_enabled = False
+        self.music_detect_alpha: float = 0.25
+        self.music_detect_threshold: float = 0.58
+        self.music_release_threshold: float = 0.45
+        self.music_release_frames: int = 4
+        self.music_rms_boost: float = 1.6
+        self.music_min_speech_boost: float = 1.3
+        self.music_min_silence_scale: float = 1.1
+        self._music_ema: float = 0.0
+        self._music_flag: bool = False
+        self._music_release_counter: int = 0
+        self._music_last_notice: float = 0.0
+
     # ---------- Public API ----------
     async def start(self, live_url_or_id: str, session_id: Optional[str] = None) -> LiveAudioStatus:
         if self._status.is_running:
@@ -210,6 +233,11 @@ class LiveAudioStreamService:
             session_id=session_id or f"live_{int(time.time())}",
             started_at=_now(),
         )
+        self._music_ema = 0.0
+        self._music_flag = False
+        self._music_release_counter = 0
+        self._status.music_guard_active = False
+        self._status.music_guard_score = 0.0
         # reset streaming state
         self._partial_text = ""
         self._vad_in_speech = False
@@ -298,6 +326,8 @@ class LiveAudioStreamService:
             self._ffmpeg = None
 
         self._status.is_running = False
+        self._status.music_guard_active = False
+        self._status.music_guard_score = 0.0
         # Close persistence writer
         try:
             if self._persist_tr is not None:
@@ -633,19 +663,104 @@ class LiveAudioStreamService:
                 return curr[k:]
         return curr
 
+    def _estimate_music_score(self, pcm16: bytes) -> float:
+        if not self.music_detection_enabled or np is None or not pcm16:
+            return 0.0
+        try:
+            arr = np.frombuffer(pcm16, dtype=np.int16)
+        except ValueError:  # pragma: no cover - defensive
+            return 0.0
+        if arr.size == 0:
+            return 0.0
+        arr = arr.astype(np.float32)
+        arr /= 32768.0
+        if not np.any(arr):
+            return 0.0
+        spec = np.abs(np.fft.rfft(arr))
+        spec_sum = float(spec.sum()) + 1e-6
+        low_idx = max(1, int(spec.size * 0.08))
+        mid_idx = max(low_idx + 1, int(spec.size * 0.45))
+        low = float(spec[:low_idx].sum())
+        mid = float(spec[low_idx:mid_idx].sum())
+        high = float(spec[mid_idx:].sum())
+        band_energy_ratio = (low + high) / (mid + 1e-6)
+        sign = np.sign(arr)
+        zcr = float(np.mean((sign[:-1] * sign[1:]) < 0.0))
+        spectral_flatness = float(
+            np.exp(np.mean(np.log(spec + 1e-6))) / (np.mean(spec) + 1e-6)
+        )
+        band_component = min(1.5, band_energy_ratio * 0.6)
+        zcr_component = min(1.0, zcr * 1.2)
+        tonal_component = 1.0 - max(0.0, min(1.0, spectral_flatness))
+        score = 0.5 * band_component + 0.3 * zcr_component + 0.2 * tonal_component
+        if score < 0.0:
+            score = 0.0
+        if score > 1.0:
+            score = 1.0
+        return float(score)
+
+    def _update_music_flag(self) -> None:
+        if not self.music_detection_enabled:
+            if self._music_flag:
+                self._music_flag = False
+                self._music_release_counter = 0
+            return
+        if self._music_flag:
+            if self._music_ema < self.music_release_threshold:
+                self._music_release_counter += 1
+            else:
+                self._music_release_counter = 0
+            if self._music_release_counter >= self.music_release_frames:
+                self._music_flag = False
+                self._music_release_counter = 0
+                if _now() - self._music_last_notice >= 5.0:
+                    print(f"[背景音乐监测] 背景音乐降至安全阈值，恢复默认 VAD。score={self._music_ema:.2f}")
+                    self._music_last_notice = _now()
+        else:
+            if self._music_ema >= self.music_detect_threshold:
+                self._music_flag = True
+                self._music_release_counter = 0
+                if _now() - self._music_last_notice >= 1.5:
+                    print(f"[背景音乐监测] 检测到持续背景音乐，自动提高 VAD 门限。score={self._music_ema:.2f}")
+                    self._music_last_notice = _now()
+
     # ------------- VAD mode -------------
     async def _handle_audio_chunk_vad(self, pcm16: bytes) -> None:
         # Simple energy-based VAD with hangover using RMS
         lvl = pcm16_rms(pcm16)
         await self._emit_level(lvl, _now())
         frame_sec = self.chunk_seconds
+        if self.music_detection_enabled:
+            music_score = self._estimate_music_score(pcm16)
+            alpha = self.music_detect_alpha
+            self._music_ema = (1 - alpha) * self._music_ema + alpha * music_score
+            self._update_music_flag()
+            self._status.music_guard_score = float(round(self._music_ema, 4))
+            self._status.music_guard_active = self._music_flag
+        else:
+            # 缓慢衰减，避免长时间保持高值
+            self._music_ema *= 0.9
+            if self._music_ema < 0.01:
+                self._music_ema = 0.0
+            if self._status.music_guard_active or self._status.music_guard_score:
+                self._status.music_guard_active = False
+                self._status.music_guard_score = 0.0
+
+        effective_rms = self.vad_min_rms
+        effective_min_speech_sec = self.vad_min_speech_sec
+        effective_min_silence_sec = self.vad_min_silence_sec
+        if self.music_detection_enabled and self._music_flag:
+            effective_rms *= self.music_rms_boost
+            effective_min_speech_sec *= self.music_min_speech_boost
+            effective_min_silence_sec *= self.music_min_silence_scale
+
         # 固定门限：仅使用简洁的 RMS+挂起逻辑（回退到 Small+VAD 统一策略）
-        speaking = lvl >= self.vad_min_rms
+        speaking = lvl >= effective_rms
         if speaking:
             self._vad_speech_acc += frame_sec
             self._vad_silence_acc = 0.0
             # enter speech once min_speech satisfied
-            if not self._vad_in_speech and self._vad_speech_acc >= self.vad_min_speech_sec:
+            if not self._vad_in_speech and self._vad_speech_acc >= effective_min_speech_sec:
                 self._vad_in_speech = True
                 print(f"[延迟监控] VAD检测到语音开始，累计语音时长: {self._vad_speech_acc:.3f}s")
             # accumulate audio if speaking or already in speech
@@ -658,7 +773,7 @@ class LiveAudioStreamService:
 
         # finalize when in_speech and silence >= min_silence
         if self._vad_in_speech:
-            if self._vad_silence_acc >= self.vad_min_silence_sec:
+            if self._vad_silence_acc >= effective_min_silence_sec:
                 print(f"[延迟监控] VAD检测到语音结束，静音时长: {self._vad_silence_acc:.3f}s，缓冲区大小: {len(self._vad_buf)}字节")
                 await self._finalize_vad_segment(force=False)
             elif (
