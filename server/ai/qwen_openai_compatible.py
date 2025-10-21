@@ -63,6 +63,11 @@ def _get_client():
     )
 
 
+def get_qwen_client():
+    """获取Qwen客户端实例，用于话题生成等功能"""
+    return _get_client()
+
+
 def _digest(transcript: str, comments: List[Dict[str, Any]]):
     # Prepare a compact comments digest (avoid oversize payload)
     top = []

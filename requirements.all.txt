@@ -27,6 +27,9 @@ httpx[http2]>=0.28.1
 aiohttp>=3.9.1
 httpcore
 
+# 音频识别 - Audio Recognition（使用仓库内的 SDK 子模块）
+./acrcloud_sdk_python
+
 # ===== 数据处理与科学计算 =====
 # Data Processing & Scientific Computing
 
@@ -310,4 +313,3 @@ lark
 # 2. 某些包可能在特定环境下不可用，安装时请根据实际情况调整
 # 3. 大型ML模型相关的包（如torch）可能需要根据硬件配置选择合适版本
 # 4. 部分包为可选依赖，可根据实际使用功能进行裁剪
-

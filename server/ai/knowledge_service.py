@@ -317,9 +317,67 @@ class KnowledgeBase:
         *,
         limit: int = 6,
         keywords: Optional[Sequence[str]] = None,
+        context: Optional[Dict[str, Any]] = None,
+        use_ai: bool = True,
     ) -> List[Dict[str, str]]:
+        """
+        生成话题建议，优先使用AI智能生成，备用固定话题库
+        
+        Args:
+            limit: 话题数量限制
+            keywords: 关键词列表
+            context: 直播上下文信息（转录、弹幕、人设等）
+            use_ai: 是否使用AI生成（默认True）
+        """
+        # 优先尝试AI智能生成
+        if use_ai and context:
+            try:
+                from .smart_topic_generator import create_smart_topic_generator
+                
+                # 尝试获取AI客户端
+                ai_client = None
+                try:
+                    from .qwen_openai_compatible import get_qwen_client
+                    ai_client = get_qwen_client()
+                    logger.info("成功获取AI客户端，准备生成智能话题")
+                except Exception as e:
+                    logger.warning("无法获取AI客户端: %s，使用备用话题", e)
+                
+                if ai_client:
+                    generator = create_smart_topic_generator(ai_client)
+                    ai_topics = generator.generate_contextual_topics(
+                        transcript=context.get('transcript', ''),
+                        chat_messages=context.get('chat_messages', []),
+                        persona=context.get('persona', {}),
+                        vibe=context.get('vibe', {}),
+                        current_topics=keywords,
+                        limit=limit
+                    )
+                    
+                    logger.info("AI生成话题结果: %s", ai_topics)
+                    
+                    if ai_topics and len(ai_topics) > 0:  # 只要有生成就使用
+                        logger.info("使用AI生成话题，共 %d 条", len(ai_topics))
+                        return ai_topics[:limit]
+                    else:
+                        logger.warning("AI生成话题为空，回退到固定话题库")
+                        
+            except Exception as exc:
+                logger.warning("AI话题生成失败，回退到固定话题库: %s", exc)
+        
+        # 回退到原有的固定话题库逻辑
+        return self._get_fallback_topic_suggestions(limit=limit, keywords=keywords)
+    
+    def _get_fallback_topic_suggestions(
+        self,
+        *,
+        limit: int = 6,
+        keywords: Optional[Sequence[str]] = None,
+    ) -> List[Dict[str, str]]:
+        """从固定话题库获取话题建议（备用方法）"""
         if not self._topic_entries:
-            return []
+            return self._get_default_topics(limit)
+            
         keywords_norm: List[str] = []
         if keywords:
             for kw in keywords:
@@ -344,11 +402,31 @@ class KnowledgeBase:
         scored.sort(key=lambda item: item[0], reverse=True)
         suggestions: List[Dict[str, str]] = []
         seen: set[str] = set()
+        
+        # 扩展敏感话题过滤
+        sensitive_keywords = {
+            "彩礼", "结婚", "离婚", "收入", "工资", "房价", "城市地域", 
+            "地域", "差异", "多少钱", "价格", "费用", "成本", "多少岁", 
+            "年龄", "教育重视", "重视", "看重", "在意"
+        }
+        
         for score, category, topic in scored:
             if keywords_norm and score <= 0:
                 continue
             if topic in seen:
                 continue
+                
+            # 检查是否为敏感话题或固定模板
+            topic_lower = topic.lower()
+            is_sensitive = any(sensitive in topic_lower for sensitive in sensitive_keywords)
+            
+            # 检查是否包含固定模板格式
+            if '#' in topic or '地域' in topic or ('差异' in topic and '城市' in topic):
+                is_sensitive = True
+                
+            if is_sensitive:
+                continue
+                
             suggestions.append({"category": category, "topic": topic})
             seen.add(topic)
             if len(suggestions) >= limit:
@@ -359,11 +437,45 @@ class KnowledgeBase:
                 for topic in topics:
                     if topic in seen:
                         continue
+                    
+                    # 再次检查敏感话题和固定模板
+                    topic_lower = topic.lower()
+                    is_sensitive = any(sensitive in topic_lower for sensitive in sensitive_keywords)
+                    
+                    # 检查固定模板格式
+                    if '#' in topic or '地域' in topic or ('差异' in topic and '城市' in topic):
+                        is_sensitive = True
+                        
+                    if is_sensitive:
+                        continue
+                        
                     suggestions.append({"category": category, "topic": topic})
                     seen.add(topic)
                     if len(suggestions) >= limit:
                         return suggestions
-        return suggestions
+        
+        # 如果还是不够，使用默认话题
+        if len(suggestions) < limit:
+            default_topics = self._get_default_topics(limit - len(suggestions))
+            suggestions.extend(default_topics)
+            
+        return suggestions[:limit]
+    
+    def _get_default_topics(self, limit: int) -> List[Dict[str, str]]:
+        """获取默认安全话题"""
+        default_topics = [
+            {"topic": "今天心情怎么样", "category": "日常互动"},
+            {"topic": "最近在看什么剧", "category": "娱乐分享"},
+            {"topic": "喜欢什么类型的音乐", "category": "兴趣爱好"},
+            {"topic": "有什么推荐的美食", "category": "美食分享"},
+            {"topic": "周末一般做什么", "category": "生活方式"},
+            {"topic": "最想去的旅行地点", "category": "旅行话题"},
+            {"topic": "有什么有趣的爱好", "category": "兴趣交流"},
+            {"topic": "最近学了什么新技能", "category": "学习成长"},
+            {"topic": "喜欢什么运动", "category": "运动健康"},
+            {"topic": "推荐一本好书", "category": "阅读分享"}
+        ]
+        return default_topics[:limit]
 
     def candidate_terms(self, *, min_len: int = 2, max_len: int = 6) -> List[str]:
         """Return Chinese terms for downstream phonetic correction."""

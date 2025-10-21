@@ -210,7 +210,30 @@ class AILiveAnalyzer:
                         name = topic.get("topic") if isinstance(topic, dict) else None
                         if name:
                             queries.append(str(name))
-                    playlist = kb.topic_suggestions(limit=6, keywords=queries)
+                    
+                    # 构建AI话题生成的上下文
+                    context = {
+                        'transcript': transcript or "",
+                        'chat_messages': [],
+                        'persona': result.get("persona", {}),
+                        'vibe': result.get("vibe", {}),
+                    }
+                    
+                    # 提取弹幕信息
+                    chat_signals = result.get("chat_signals") or []
+                    for signal in chat_signals[-10:]:  # 最近10条弹幕
+                        if isinstance(signal, dict) and signal.get("text"):
+                            context['chat_messages'].append({
+                                'content': signal.get("text"),
+                                'user': signal.get("user", "观众")
+                            })
+                    
+                    playlist = kb.topic_suggestions(
+                        limit=6, 
+                        keywords=queries,
+                        context=context,
+                        use_ai=True
+                    )
                 except Exception:  # pragma: no cover - defensive
                     playlist = []
         else:

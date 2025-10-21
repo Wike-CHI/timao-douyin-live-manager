@@ -11,6 +11,7 @@ Replaces microphone capture with network capture:
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import re
 import signal
@@ -38,6 +39,16 @@ from AST_module.sensevoice_service import (  # type: ignore
     SenseVoiceConfig,
     SenseVoiceService,
 )
+
+# ACRCloud (optional music recognition)
+try:
+    from AST_module.acrcloud_client import (  # type: ignore
+        ACRMusicMatch,
+        load_acr_client_from_env,
+    )
+except Exception:  # pragma: no cover - optional依赖
+    ACRMusicMatch = None  # type: ignore
+    load_acr_client_from_env = None  # type: ignore
 
 # Postprocessing & light DSP helpers
 from AST_module.postprocess import (  # type: ignore
@@ -83,6 +94,13 @@ def _parse_live_id(live_url_or_id: str) -> Optional[str]:
     if re.fullmatch(r"[A-Za-z0-9_\-]+", s):
         return s
     return None
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _env_float(
@@ -141,12 +159,16 @@ class LiveAudioStatus:
     average_confidence: float = 0.0
     music_guard_active: bool = False
     music_guard_score: float = 0.0
+    music_last_title: Optional[str] = None
+    music_last_score: float = 0.0
+    music_last_detected_at: float = 0.0
 
 
 class LiveAudioStreamService:
     """Single-session live audio stream transcriber."""
 
     def __init__(self) -> None:
+        self.logger = logging.getLogger(__name__)
         self._status = LiveAudioStatus()
         self._ffmpeg: Optional[asyncio.subprocess.Process] = None
         self._reader_task: Optional[asyncio.Task] = None
@@ -259,6 +281,35 @@ class LiveAudioStreamService:
         self._music_flag: bool = False
         self._music_release_counter: int = 0
         self._music_last_notice: float = 0.0
+        # ACRCloud 背景音乐识别（可选）
+        self._acr_client: Optional[Any] = None
+        self._acr_enabled: bool = False
+        self._acr_buffer: bytearray = bytearray()
+        self._acr_bytes_per_sec: int = 16000 * 2  # PCM16 mono
+        self._acr_segment_sec: float = _env_float("LIVE_ACR_SEGMENT_SEC", 10.0, min_value=4.0, max_value=15.0)
+        self._acr_target_bytes: int = int(self._acr_bytes_per_sec * self._acr_segment_sec)
+        self._acr_cooldown_sec: float = _env_float("LIVE_ACR_COOLDOWN_SEC", 25.0, min_value=5.0, max_value=120.0)
+        self._acr_match_hold_sec: float = _env_float("LIVE_ACR_MATCH_HOLD_SEC", 6.0, min_value=1.0, max_value=60.0)
+        self._acr_last_attempt: float = 0.0
+        self._acr_active_until: float = 0.0
+        self._acr_pending_task: Optional[asyncio.Task] = None
+        self._acr_last_match: Optional[Any] = None
+        self._acr_last_title: Optional[str] = None
+        self._acr_last_score: float = 0.0
+        if load_acr_client_from_env is not None:
+            client, reason = load_acr_client_from_env(logger=self.logger)
+            if client is not None:
+                self._acr_client = client
+                self._acr_enabled = True
+                self.logger.info(
+                    "ACRCloud 背景音乐识别启用，片段 %.1fs，冷却 %.1fs",
+                    self._acr_segment_sec,
+                    self._acr_cooldown_sec,
+                )
+            elif reason:
+                self.logger.info("ACRCloud 背景音乐识别未启用：%s", reason)
+        else:
+            self.logger.debug("ACRCloud 模块不可用，跳过背景音乐识别。")
         # Text noise filter to suppress fillers such as “嗯嗯” or long laughter
         self.noise_filter_enabled: bool = bool(int(os.getenv("LIVE_TEXT_NOISE_FILTER", "1")))
         self.noise_filter_min_chars: int = _env_int("LIVE_TEXT_NOISE_MIN_CHARS", 3, min_value=1, max_value=12)
@@ -330,6 +381,19 @@ class LiveAudioStreamService:
         self._music_release_counter = 0
         self._status.music_guard_active = False
         self._status.music_guard_score = 0.0
+        self._status.music_last_title = None
+        self._status.music_last_score = 0.0
+        self._status.music_last_detected_at = 0.0
+        if self._acr_enabled:
+            self._acr_buffer.clear()
+            self._acr_last_attempt = 0.0
+            self._acr_active_until = 0.0
+            self._acr_last_match = None
+            self._acr_last_title = None
+            self._acr_last_score = 0.0
+            if self._acr_pending_task and not self._acr_pending_task.done():
+                self._acr_pending_task.cancel()
+            self._acr_pending_task = None
         # reset streaming state
         self._partial_text = ""
         self._vad_in_speech = False
@@ -420,6 +484,17 @@ class LiveAudioStreamService:
         self._status.is_running = False
         self._status.music_guard_active = False
         self._status.music_guard_score = 0.0
+        self._status.music_last_title = None
+        self._status.music_last_score = 0.0
+        self._status.music_last_detected_at = 0.0
+        if self._acr_pending_task and not (self._acr_pending_task.done()):
+            self._acr_pending_task.cancel()
+        self._acr_pending_task = None
+        self._acr_buffer.clear()
+        self._acr_active_until = 0.0
+        self._acr_last_match = None
+        self._acr_last_title = None
+        self._acr_last_score = 0.0
         # Close persistence writer
         try:
             if self._persist_tr is not None:
@@ -789,15 +864,74 @@ class LiveAudioStreamService:
             },
         })
 
+    def _acr_ingest_chunk(self, pcm16: bytes) -> None:
+        if not self._acr_enabled or self._acr_client is None or not pcm16:
+            return
+        # 仅在背景音乐检测触发时累积，避免频繁打 API
+        if self._music_flag:
+            self._acr_buffer.extend(pcm16)
+            max_bytes = self._acr_target_bytes * 2
+            if len(self._acr_buffer) > max_bytes:
+                # 保留最新窗口数据，丢掉旧的
+                del self._acr_buffer[:-self._acr_target_bytes]
+            ready = len(self._acr_buffer) >= self._acr_target_bytes
+            cooldown_ready = (_now() - self._acr_last_attempt) >= self._acr_cooldown_sec
+            pending = self._acr_pending_task and not self._acr_pending_task.done()
+            if ready and cooldown_ready and not pending:
+                payload = bytes(self._acr_buffer)
+                self._acr_buffer.clear()
+                self._acr_pending_task = asyncio.create_task(self._acr_identify(payload))
+        else:
+            if self._acr_buffer:
+                self._acr_buffer.clear()
+
+    async def _acr_identify(self, pcm_payload: bytes) -> None:
+        self._acr_last_attempt = _now()
+        try:
+            client = self._acr_client
+            if client is None or not pcm_payload:
+                return
+            loop = asyncio.get_running_loop()
+            match = await loop.run_in_executor(None, client.identify, pcm_payload)
+            if not match:
+                return
+            now = _now()
+            # 持续认为背景音乐有效一段时间，配合 VAD 调整阈值
+            self._acr_active_until = max(self._acr_active_until, now + self._acr_match_hold_sec)
+            self._acr_last_match = match
+            self._acr_last_title = match.title or match.artist or "unknown"
+            self._acr_last_score = match.score
+            self._status.music_last_title = self._acr_last_title
+            self._status.music_last_score = match.score
+            self._status.music_last_detected_at = now
+            self._status.music_guard_active = True
+            self._status.music_guard_score = max(self._status.music_guard_score, match.score)
+            self._music_flag = True
+            self.logger.info(
+                "ACRCloud 检测到背景音乐: %s | %s (score=%.2f)",
+                match.title or "未知曲目",
+                match.artist or "",
+                match.score,
+            )
+        except Exception as exc:  # pragma: no cover - 防御性
+            self.logger.warning("ACRCloud 识别任务异常: %s", exc)
+        finally:
+            self._acr_pending_task = None
+
     def _init_diarizer(self) -> None:
         if OnlineDiarizer is None:
+            print("[说话人分离] OnlineDiarizer 类未导入，说话人分离功能不可用")
             self._diarizer = None
             self._last_speaker_label = "unknown"
             self._last_speaker_debug = {}
             return
+        
         enroll_sec = _env_float("LIVE_DIARIZER_ENROLL_SEC", 4.0, min_value=1.0, max_value=20.0)
         max_speakers = _env_int("LIVE_DIARIZER_MAX_SPEAKERS", 2, min_value=1, max_value=4)
         smooth = _env_float("LIVE_DIARIZER_SMOOTH", 0.2, min_value=0.05, max_value=0.6)
+        
+        print(f"[说话人分离] 初始化参数: 注册时长={enroll_sec}s, 最大说话人数={max_speakers}, 平滑系数={smooth}")
+        
         try:
             self._diarizer = OnlineDiarizer(
                 sr=16000,
@@ -805,8 +939,13 @@ class LiveAudioStreamService:
                 enroll_sec=enroll_sec,
                 smooth=smooth,
             )
-        except Exception:
+            print(f"[说话人分离] OnlineDiarizer 初始化成功: {type(self._diarizer)}")
+        except Exception as e:
+            print(f"[说话人分离] OnlineDiarizer 初始化失败: {e}")
+            import traceback
+            traceback.print_exc()
             self._diarizer = None
+            
         warmup_default = max(0.0, enroll_sec * 0.75)
         warmup_env = os.getenv("LIVE_DIARIZER_WARMUP_SEC")
         if warmup_env is not None:
@@ -818,8 +957,16 @@ class LiveAudioStreamService:
             )
         else:
             self._diarizer_warmup_sec = warmup_default
+            
+        print(f"[说话人分离] 预热时间设置为: {self._diarizer_warmup_sec}s")
+        
         self._last_speaker_label = "unknown"
         self._last_speaker_debug = {}
+        
+        if self._diarizer is not None:
+            print("[说话人分离] 说话人分离器已成功启用")
+        else:
+            print("[说话人分离] 说话人分离器启用失败，将使用默认标签")
 
     def _apply_gain_control(self, pcm16: bytes, rms: float) -> bytes:
         if not self.agc_enabled or np is None or not pcm16:
@@ -847,18 +994,31 @@ class LiveAudioStreamService:
             if state is not None:
                 observed_sec = float(getattr(state, "enrolled_sec", 0.0))
             ready = observed_sec >= max(0.0, self._diarizer_warmup_sec or 0.0)
+            
+            # 详细日志记录
+            print(f"[说话人分离] 音频长度: {len(pcm16)}字节, 时长: {frame_sec:.3f}s")
+            print(f"[说话人分离] 观察时长: {observed_sec:.3f}s, 预热阈值: {self._diarizer_warmup_sec:.3f}s, 就绪: {ready}")
+            print(f"[说话人分离] 原始标签: {label}, 调试信息: {dbg}")
+            
             if not ready:
                 self._last_speaker_label = "unknown"
+                print(f"[说话人分离] 预热中，设置标签为: unknown")
             else:
                 self._last_speaker_label = label or "unknown"
+                print(f"[说话人分离] 已就绪，设置标签为: {self._last_speaker_label}")
+            
             dbg_payload: Dict[str, float] = {}
             if isinstance(dbg, dict):
                 dbg_payload.update({k: float(v) for k, v in dbg.items()})
             dbg_payload["observed_sec"] = float(observed_sec)
             dbg_payload["warmup_remaining"] = float(max(0.0, (self._diarizer_warmup_sec or 0.0) - observed_sec))
             self._last_speaker_debug = dbg_payload
-        except Exception:
-            pass
+            
+            print(f"[说话人分离] 最终调试信息: {self._last_speaker_debug}")
+        except Exception as e:
+            print(f"[说话人分离] 处理音频时发生错误: {e}")
+            import traceback
+            traceback.print_exc()
 
     def _should_skip_text(self, text: str, confidence: float) -> bool:
         """Heuristic noise filter to drop filler-only or heavily repeated subtitles."""
@@ -867,6 +1027,9 @@ class LiveAudioStreamService:
         normalized = re.sub(r"\s+", "", text)
         if not normalized:
             return True
+        if self._acr_enabled and self._acr_active_until > _now():
+            if confidence < 0.6 or not re.search(r"[\u4e00-\u9fff]", normalized):
+                return True
         # Strip punctuation so we can evaluate repeated characters
         simple = re.sub(r"[，。,、！？!?~～…\-]", "", normalized)
         if not simple:
@@ -1037,6 +1200,7 @@ class LiveAudioStreamService:
             if self._status.music_guard_active or self._status.music_guard_score:
                 self._status.music_guard_active = False
                 self._status.music_guard_score = 0.0
+        self._acr_ingest_chunk(pcm16)
 
         effective_rms = self.vad_min_rms
         effective_min_speech_sec = self.vad_min_speech_sec

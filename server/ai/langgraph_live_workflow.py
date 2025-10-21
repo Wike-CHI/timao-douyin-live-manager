@@ -702,9 +702,28 @@ class LangGraphLiveWorkflow:
             if len(topic_playlist) >= 6:
                 break
         if len(topic_playlist) < 6:
+            # 构建AI话题生成的上下文
+            context = {
+                'transcript': transcript_snippet or "",
+                'chat_messages': [],
+                'persona': state.get("persona", {}),
+                'vibe': state.get("vibe", {}),
+            }
+            
+            # 提取弹幕消息作为上下文
+            chat_signals = state.get("chat_signals") or []
+            for signal in chat_signals[-10:]:  # 最近10条弹幕
+                if isinstance(signal, dict) and signal.get("text"):
+                    context['chat_messages'].append({
+                        'content': signal.get("text"),
+                        'user': signal.get("user", "观众")
+                    })
+            
             fallback_topics = kb.topic_suggestions(
                 limit=6 - len(topic_playlist),
                 keywords=queries + keyword_terms + ([selected_theme] if selected_theme else []),
+                context=context,  # 传入上下文信息
+                use_ai=True,  # 启用AI生成
             )
             for item in fallback_topics:
                 candidate = str(item.get("topic") or "")

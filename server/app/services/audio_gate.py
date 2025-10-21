@@ -35,7 +35,7 @@ def _stft_mag(y: np.ndarray, n_fft: int = 512, hop: int = 160, win: int = 400) -
         if frame.shape[0] < win:
             frame = np.pad(frame, (0, win - frame.shape[0]))
         spec = np.fft.rfft(frame * w, n=n_fft)
-        out[i] = np.abs(spec, dtype=np.float32)
+        out[i] = np.abs(spec).astype(np.float32)
     return out
 
 

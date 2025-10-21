@@ -41,3 +41,19 @@ Remember to restart the FastAPI process after tweaking these env variables so th
   If all characters repeat beyond this limit (e.g. "行行行行行"), the segment is discarded.
 
 Filtered segments are not persisted and never reach the Electron UI, reducing clutter such as "嗯嗯嗯" or pure laughter.
+
+## Background Music Recognition (ACRCloud)
+
+- Install `acrcloud_sdk_python` (already listed in requirements).  
+  Without it, the service silently falls back to heuristic spectrum rules.
+- `.env` variables:
+  - `ACR_ENABLE=1` toggles the integration (default off).
+  - `ACR_HOST`, `ACR_ACCESS_KEY`, `ACR_SECRET_KEY` are required credentials.
+  - `ACR_MIN_SCORE` (default 0.65) controls how confident a match must be.
+  - `ACR_TIMEOUT` (default 10) sets SDK timeout in seconds.
+- Live tuning knobs:
+  - `LIVE_ACR_SEGMENT_SEC` (4-15, default 10) – audio length per recognition request.
+  - `LIVE_ACR_COOLDOWN_SEC` (5-120, default 25) – minimum interval between API calls.
+  - `LIVE_ACR_MATCH_HOLD_SEC` (1-60, default 6) – duration to treat a detected song as active for filtering.
+
+When ACRCloud confirms background music, the service boosts the music guard, suppresses filler transcripts during the hold window, and reports the last detected track via `/api/live_audio/status -> advanced.music_last_*`.    **Remember to restart FastAPI after updating any ACR settings.**
