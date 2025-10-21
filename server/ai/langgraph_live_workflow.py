@@ -68,6 +68,7 @@ class GraphState(TypedDict, total=False):
     chat_signals: List[ChatSignal]
     chat_stats: Dict[str, Any]
     speech_stats: Dict[str, Any]
+    speaker_timeline: List[Dict[str, Any]]
     topic_candidates: List[Dict[str, Any]]
     mood: str
     vibe: Dict[str, Any]
@@ -202,6 +203,33 @@ class LangGraphLiveWorkflow:
         sentences = state.get("sentences") or []
         comments = state.get("comments") or []
         transcript_snippet = "\n".join(sentences[-6:])
+        raw_timeline = state.get("speaker_timeline") or []
+        speaker_timeline: List[Dict[str, Any]] = []
+        for item in raw_timeline:
+            if not isinstance(item, dict):
+                continue
+            text = str(item.get("text") or "").strip()
+            if not text:
+                continue
+            speaker = str(item.get("speaker") or "unknown")
+            entry: Dict[str, Any] = {"text": text, "speaker": speaker}
+            ts = item.get("timestamp")
+            if ts is not None:
+                try:
+                    entry["timestamp"] = float(ts)
+                except Exception:
+                    pass
+            conf = item.get("confidence")
+            if conf is not None:
+                try:
+                    entry["confidence"] = float(conf)
+                except Exception:
+                    pass
+            debug = item.get("debug")
+            if isinstance(debug, dict):
+                entry["debug"] = debug
+            speaker_timeline.append(entry)
+        speaker_timeline = speaker_timeline[-120:]
         chat_signals: List[ChatSignal] = []
         top_questions: List[str] = []
         category_counts: Dict[str, int] = {"question": 0, "product": 0, "support": 0, "emotion": 0, "other": 0}
@@ -228,29 +256,56 @@ class LangGraphLiveWorkflow:
         host_examples: List[str] = []
         other_examples: List[str] = []
         neutral_examples: List[str] = []
-        for raw in target_sentences:
-            text = str(raw).strip()
-            if not text:
-                continue
-            total_checked += 1
-            has_first = any(token in text for token in first_pronouns)
-            has_audience = any(token in text for token in audience_terms)
-            has_other = any(token in text for token in other_terms)
-            host_flag = has_first or has_audience
-            other_flag = has_other and not has_first
+        speaker_counts: Counter[str] = Counter()
+        last_speaker = None
+        speaker_debug_snapshot: Dict[str, Any] = {}
 
-            if host_flag and not other_flag:
-                host_like += 1
-                if len(host_examples) < 2:
-                    host_examples.append(text[:30])
-            elif other_flag:
-                other_like += 1
-                if len(other_examples) < 2:
-                    other_examples.append(text[:30])
-            else:
-                neutral_like += 1
-                if len(neutral_examples) < 2:
-                    neutral_examples.append(text[:30])
+        if speaker_timeline:
+            for entry in speaker_timeline:
+                speaker = entry.get("speaker") or "unknown"
+                text = entry.get("text") or ""
+                speaker_counts[speaker] += 1
+                last_speaker = speaker
+                if entry.get("debug"):
+                    speaker_debug_snapshot = entry.get("debug")  # last non-empty debug
+                preview = str(text)[:30]
+                if speaker == "host":
+                    host_like += 1
+                    if len(host_examples) < 3:
+                        host_examples.append(preview)
+                elif speaker in {"unknown", "", "neutral"}:
+                    neutral_like += 1
+                    if len(neutral_examples) < 3:
+                        neutral_examples.append(preview)
+                else:
+                    other_like += 1
+                    if len(other_examples) < 3:
+                        other_examples.append(preview)
+            total_checked = host_like + other_like + neutral_like
+        else:
+            for raw in target_sentences:
+                text = str(raw).strip()
+                if not text:
+                    continue
+                total_checked += 1
+                has_first = any(token in text for token in first_pronouns)
+                has_audience = any(token in text for token in audience_terms)
+                has_other = any(token in text for token in other_terms)
+                host_flag = has_first or has_audience
+                other_flag = has_other and not has_first
+
+                if host_flag and not other_flag:
+                    host_like += 1
+                    if len(host_examples) < 2:
+                        host_examples.append(text[:30])
+                elif other_flag:
+                    other_like += 1
+                    if len(other_examples) < 2:
+                        other_examples.append(text[:30])
+                else:
+                    neutral_like += 1
+                    if len(neutral_examples) < 2:
+                        neutral_examples.append(text[:30])
 
         other_ratio = other_like / total_checked if total_checked else 0.0
         host_ratio = host_like / total_checked if total_checked else 0.0
@@ -272,6 +327,21 @@ class LangGraphLiveWorkflow:
             "neutral_examples": neutral_examples,
             "possible_other_speaker": other_ratio >= 0.6 and sentence_count >= 2,
         }
+        if speaker_timeline:
+            speech_stats.update(
+                {
+                    "speaker_counts": dict(speaker_counts),
+                    "last_speaker": last_speaker,
+                    "speaker_examples": {
+                        "host": host_examples,
+                        "guest": other_examples,
+                        "unknown": neutral_examples,
+                    },
+                    "speaker_debug_snapshot": speaker_debug_snapshot,
+                    "speaker_timeline_preview": speaker_timeline[-20:],
+                }
+            )
+            speech_stats["possible_other_speaker"] = other_ratio >= 0.3 and total_checked >= 2
 
         user_scores = state.get("user_scores") or {}
         priority_candidates: List[Dict[str, Any]] = []
@@ -427,6 +497,7 @@ class LangGraphLiveWorkflow:
             "top_questions": list(dict.fromkeys(top_questions))[:6],
             "speech_stats": speech_stats,
             "lead_candidates": lead_candidates,
+            "speaker_timeline": speaker_timeline,
         }
 
     def _topic_detector(self, state: GraphState) -> Dict[str, Any]:
@@ -671,6 +742,7 @@ class LangGraphLiveWorkflow:
             "topic_playlist": state.get("topic_playlist") or [],
         }
         context["knowledge_snippets"] = state.get("knowledge_snippets") or []
+        context["speaker_timeline"] = state.get("speaker_timeline") or []
         error_msg = None
         try:
             card = self.analysis_generator.generate(context)

@@ -14,6 +14,7 @@ export interface TranscriptEntry {
   isFinal: boolean;
   words?: { word: string; start: number; end: number }[];
   speaker?: string;
+  speakerDebug?: Record<string, number>;
 }
 
 interface SaveInfo {
@@ -234,11 +235,15 @@ export const useLiveConsoleStore = create<LiveConsoleState>()(
           const ts = Number(m?.data?.timestamp) || Date.now() / 1000;
           const conf = Number(m?.data?.confidence) || 0;
           const deltaText = String(m?.data?.text || '');
+          const incomingSpeaker = typeof m?.data?.speaker === 'string' ? (m.data.speaker as string) : undefined;
+          const incomingSpeakerDebug = typeof m?.data?.speaker_debug === 'object' && m?.data?.speaker_debug !== null
+            ? (m.data.speaker_debug as Record<string, number>)
+            : undefined;
           let nextText = '';
-          let speaker: string | undefined;
           set((state) => {
             const base = state.latest?.text ?? '';
-            speaker = state.latest?.speaker;
+            const speaker = incomingSpeaker ?? state.latest?.speaker;
+            const speakerDebug = incomingSpeakerDebug ?? state.latest?.speakerDebug;
             if (op === 'append') nextText = base + deltaText;
             else if (op === 'replace') nextText = deltaText;
             else if (op === 'final') nextText = deltaText;
@@ -250,6 +255,7 @@ export const useLiveConsoleStore = create<LiveConsoleState>()(
               isFinal: op === 'final',
               words: [],
               speaker,
+              speakerDebug,
             };
             if (entry.isFinal && entry.text.trim()) {
               const last = state.log[0];
@@ -277,6 +283,7 @@ export const useLiveConsoleStore = create<LiveConsoleState>()(
             isFinal: !!d.is_final,
             words: d.words,
             speaker: d.speaker,
+            speakerDebug: d.speaker_debug,
           };
           if (entry.isFinal && entry.text?.trim()) {
             get().appendLog(entry);

@@ -129,6 +129,11 @@ async def live_audio_status() -> dict:
         "profile": getattr(svc, "profile", "fast"),
         "model": svc.get_model_size(),
         "advanced": {
+            "agc_enabled": getattr(svc, "agc_enabled", False),
+            "agc_gain": round(getattr(svc, "_agc_gain", 1.0), 3),
+            "diarizer_active": getattr(svc, "_diarizer", None) is not None,
+            "max_speakers": getattr(getattr(svc, "_diarizer", None), "max_speakers", 0) if getattr(svc, "_diarizer", None) is not None else 0,
+            "last_speaker": getattr(svc, "_last_speaker_label", None),
             "music_filter": getattr(svc, "music_detection_enabled", False),
             "music_detection_enabled": getattr(svc, "music_detection_enabled", False),
             "music_guard_active": st.music_guard_active,
@@ -188,6 +193,14 @@ class AdvancedReq(BaseModel):
     # Simplified: only persistence is configurable
     persist_enabled: bool | None = Field(None, description="Persist transcriptions to JSONL")
     persist_root: str | None = Field(None, description="Root directory for persistence (default records/live_logs)")
+    agc: bool | None = Field(None, description="Enable automatic gain control (AGC)")
+    diarization: bool | None = Field(None, description="Enable speaker diarization")
+    max_speakers: int | None = Field(
+        None,
+        ge=1,
+        le=4,
+        description="Maximum number of speakers to differentiate (1-4)",
+    )
 
 
 @router.post("/advanced")
@@ -198,9 +211,17 @@ async def update_advanced(req: AdvancedReq) -> BaseResp:
     try:
         if (req.persist_enabled is not None) or (req.persist_root is not None):
             conf = svc.update_persist(enable=req.persist_enabled, root=req.persist_root)
-    except Exception:
-        pass
-    return BaseResp(data=conf)
+        if (req.agc is not None) or (req.diarization is not None) or (req.max_speakers is not None):
+            adv = svc.update_advanced(
+                agc=req.agc,
+                diarization=req.diarization,
+                max_speakers=req.max_speakers,
+            )
+            if adv:
+                conf = {**conf, **adv}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return BaseResp(data=conf or {"message": "updated"})
 
 
 class PreloadReq(BaseModel):

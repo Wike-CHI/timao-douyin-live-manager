@@ -55,6 +55,10 @@ try:
 except Exception:
     PhoneticCorrector = None  # type: ignore
 try:
+    from .online_diarizer import OnlineDiarizer  # type: ignore
+except Exception:
+    OnlineDiarizer = None  # type: ignore
+try:
     from server.utils.jsonl_writer import JSONLWriter  # type: ignore
 except Exception:
     JSONLWriter = None  # type: ignore
@@ -130,6 +134,20 @@ class LiveAudioStreamService:
                 self._corrector = PhoneticCorrector()
         except Exception:
             self._corrector = None
+
+        # Automatic gain control (SenseVoice gain assistant)
+        self.agc_enabled = bool(int(os.getenv("LIVE_AUDIO_AGC", "1")))
+        self.agc_target_rms = float(os.getenv("LIVE_AUDIO_AGC_TARGET", "0.06"))
+        self.agc_max_gain = float(os.getenv("LIVE_AUDIO_AGC_MAX_GAIN", "5.0"))
+        self.agc_min_gain = float(os.getenv("LIVE_AUDIO_AGC_MIN_GAIN", "0.4"))
+        self.agc_smooth = float(os.getenv("LIVE_AUDIO_AGC_SMOOTH", "0.2"))
+        self._agc_gain = 1.0
+
+        # Speaker diarization (host vs guest)
+        self._diarizer = None
+        self._last_speaker_label: str = "unknown"
+        self._last_speaker_debug: Dict[str, float] = {}
+        self._init_diarizer()
 
         # Callbacks
         self._tr_callbacks: Dict[str, Callable[[Dict[str, Any]], Awaitable[None] | None]] = {}
@@ -247,6 +265,8 @@ class LiveAudioStreamService:
             session_id=session_id or f"live_{int(time.time())}",
             started_at=_now(),
         )
+        self._agc_gain = 1.0
+        self._init_diarizer()
         if self._sv is not None:
             seed_terms: List[str] = []
             if anchor_name:
@@ -497,9 +517,12 @@ class LiveAudioStreamService:
             })
 
     async def _handle_audio_chunk(self, pcm16: bytes) -> None:
-        # Level feedback
+        # Level feedback with automatic gain control
+        raw_rms = pcm16_rms(pcm16)
+        pcm16 = self._apply_gain_control(pcm16, raw_rms)
         lvl = pcm16_rms(pcm16)
         await self._emit_level(lvl, _now())
+        self._update_speaker_state(pcm16, self.chunk_seconds)
 
         # Blank/silent chunks are frequent; still pass through guard/assembler
         if not self._sv:
@@ -629,6 +652,8 @@ class LiveAudioStreamService:
                 "room_id": self._status.live_id,
                 "session_id": self._status.session_id,
                 "words": res.get("words", []),
+                "speaker": self._last_speaker_label,
+                "speaker_debug": self._last_speaker_debug,
             },
         })
         # Persist also in non-VAD path when a final is emitted
@@ -644,6 +669,8 @@ class LiveAudioStreamService:
                         "room_id": self._status.live_id,
                         "session_id": self._status.session_id,
                         "words": res.get("words", []),
+                        "speaker": self._last_speaker_label,
+                        "speaker_debug": self._last_speaker_debug,
                     })
             except Exception:
                 pass
@@ -675,8 +702,50 @@ class LiveAudioStreamService:
                 "text": text,
                 "timestamp": _now(),
                 "confidence": confidence,
+                "speaker": self._last_speaker_label,
+                "speaker_debug": self._last_speaker_debug,
             },
         })
+
+    def _init_diarizer(self) -> None:
+        if OnlineDiarizer is None:
+            self._diarizer = None
+            self._last_speaker_label = "unknown"
+            self._last_speaker_debug = {}
+            return
+        try:
+            self._diarizer = OnlineDiarizer()
+        except Exception:
+            self._diarizer = None
+        self._last_speaker_label = "unknown"
+        self._last_speaker_debug = {}
+
+    def _apply_gain_control(self, pcm16: bytes, rms: float) -> bytes:
+        if not self.agc_enabled or np is None or not pcm16:
+            return pcm16
+        if rms <= 1e-5:
+            return pcm16
+        desired_gain = self.agc_target_rms / max(rms, 1e-5)
+        desired_gain = min(self.agc_max_gain, max(self.agc_min_gain, desired_gain))
+        self._agc_gain = (1.0 - self.agc_smooth) * self._agc_gain + self.agc_smooth * desired_gain
+        try:
+            arr = np.frombuffer(pcm16, dtype=np.int16).astype(np.float32)
+            arr *= self._agc_gain
+            np.clip(arr, -32768, 32767, out=arr)
+            return arr.astype(np.int16).tobytes()
+        except Exception:
+            return pcm16
+
+    def _update_speaker_state(self, pcm16: bytes, frame_sec: float) -> None:
+        if self._diarizer is None or not pcm16:
+            return
+        try:
+            label, dbg = self._diarizer.feed(pcm16, frame_sec or self.chunk_seconds or 0.8)
+            self._last_speaker_label = label or "unknown"
+            if isinstance(dbg, dict):
+                self._last_speaker_debug = {k: float(v) for k, v in dbg.items()}
+        except Exception:
+            pass
 
     def _apply_corrections(self, text: str) -> str:
         if not text or self._corrector is None:
@@ -809,8 +878,11 @@ class LiveAudioStreamService:
     # ------------- VAD mode -------------
     async def _handle_audio_chunk_vad(self, pcm16: bytes) -> None:
         # Simple energy-based VAD with hangover using RMS
+        raw_rms = pcm16_rms(pcm16)
+        pcm16 = self._apply_gain_control(pcm16, raw_rms)
         lvl = pcm16_rms(pcm16)
         await self._emit_level(lvl, _now())
+        self._update_speaker_state(pcm16, self.chunk_seconds)
         frame_sec = self.chunk_seconds
         if self.music_detection_enabled:
             music_score = self._estimate_music_score(pcm16)
@@ -889,10 +961,18 @@ class LiveAudioStreamService:
             return
         # 不进行人声检测/音乐过滤与音量归一化（按你的要求精简为 Small+VAD 统一模式）
         self._status.total_audio_chunks += 1
+        seg_duration = len(seg) / 32000.0
+        self._update_speaker_state(seg, seg_duration)
+        session_key = self._status.session_id or self._status.live_id or "live_default"
+        bias_terms = self._collect_bias_terms()
         try:
             # 延迟监控：记录转录开始时间
             transcribe_start = _now()
-            res = await self._sv.transcribe_audio(seg) if self._sv else None
+            res = await self._sv.transcribe_audio(
+                seg,
+                session_id=session_key,
+                bias_phrases=bias_terms,
+            ) if self._sv else None
             # 延迟监控：计算转录耗时
             transcribe_duration = _now() - transcribe_start
             suffix = "（强制分段）" if force else ""
@@ -965,6 +1045,8 @@ class LiveAudioStreamService:
                 "session_id": self._status.session_id,
                 "words": res.get("words", []),
                 "reason": reason,
+                "speaker": self._last_speaker_label,
+                "speaker_debug": self._last_speaker_debug,
             },
         })
         # Persist final transcription (VAD)
@@ -980,6 +1062,8 @@ class LiveAudioStreamService:
                     "session_id": self._status.session_id,
                     "words": res.get("words", []),
                     "reason": reason,
+                    "speaker": self._last_speaker_label,
+                    "speaker_debug": self._last_speaker_debug,
                 })
         except Exception:
             pass
@@ -1076,8 +1160,35 @@ class LiveAudioStreamService:
 
     # Advanced config
     # Advanced filters removed; keep no-op for backward compatibility
-    def update_advanced(self, *, music_filter: Optional[bool] = None, diarization: Optional[bool] = None, max_speakers: Optional[int] = None) -> Dict[str, Any]:
-        return {}
+    def update_advanced(
+        self,
+        *,
+        music_filter: Optional[bool] = None,
+        diarization: Optional[bool] = None,
+        max_speakers: Optional[int] = None,
+        agc: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        if agc is not None:
+            self.agc_enabled = bool(agc)
+        if diarization is not None:
+            if diarization:
+                self._init_diarizer()
+            else:
+                self._diarizer = None
+                self._last_speaker_label = "unknown"
+                self._last_speaker_debug = {}
+        if max_speakers is not None and self._diarizer is not None:
+            try:
+                self._diarizer.max_speakers = max(1, int(max_speakers))
+            except Exception:
+                pass
+        return {
+            "agc_enabled": self.agc_enabled,
+            "agc_gain": round(self._agc_gain, 3),
+            "diarizer_active": self._diarizer is not None,
+            "max_speakers": getattr(self._diarizer, "max_speakers", 0) if self._diarizer else 0,
+            "last_speaker": self._last_speaker_label,
+        }
 
     # Persistence toggle (API-compatible with live_audio /advanced handler)
     def update_persist(self, *, enable: Optional[bool] = None, root: Optional[str] = None) -> Dict[str, Any]:

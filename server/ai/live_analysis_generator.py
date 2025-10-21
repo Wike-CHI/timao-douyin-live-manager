@@ -117,6 +117,12 @@ class LiveAnalysisGenerator:
         possible_other = stats.get("possible_other_speaker")
         host_examples = stats.get("host_examples") or []
         other_examples = stats.get("other_examples") or []
+        speaker_counts = stats.get("speaker_counts") or {}
+        speaker_examples = stats.get("speaker_examples") or {}
+        if speaker_examples and not host_examples:
+            host_examples = speaker_examples.get("host") or host_examples
+        if speaker_examples and not other_examples:
+            other_examples = speaker_examples.get("guest") or speaker_examples.get("other") or other_examples
         rows = [
             f"最终句数: {sentences}",
             f"总字数: {total_chars}",
@@ -125,21 +131,37 @@ class LiveAnalysisGenerator:
             rows.append(f"窗口时长: {window_seconds}s")
         if speaking_ratio is not None:
             rows.append(f"说话占比: {round(float(speaking_ratio)*100, 1)}%")
-        if host_ratio is not None:
-            rows.append(f"判定为主播的句占比: {round(float(host_ratio)*100, 1)}%")
-        if other_ratio is not None:
-            rows.append(f"疑似对手发言占比: {round(float(other_ratio)*100, 1)}%")
+        if speaker_counts:
+            host_count = int(speaker_counts.get("host", 0))
+            guest_count = int(sum(count for spk, count in speaker_counts.items() if spk not in {"host", "unknown", "", "neutral"}))
+            unknown_count = int(
+                speaker_counts.get("unknown", 0)
+                + speaker_counts.get("", 0)
+                + speaker_counts.get("neutral", 0)
+            )
+            rows.append(
+                f"话者分布: 主播{host_count}句 / 嘉宾{guest_count}句 / 未识别{unknown_count}句"
+            )
+        else:
+            if host_ratio is not None:
+                rows.append(f"判定为主播的句占比: {round(float(host_ratio)*100, 1)}%")
+            if other_ratio is not None:
+                rows.append(f"疑似对手发言占比: {round(float(other_ratio)*100, 1)}%")
         if last_sentence:
             preview = last_sentence if len(last_sentence) <= 30 else last_sentence[:30] + "…"
             rows.append(f"最近一句: {preview}")
         else:
             rows.append("最近一句: （暂无）")
+        last_speaker = stats.get("last_speaker")
+        if last_speaker:
+            label = "主播" if last_speaker == "host" else ("嘉宾" if last_speaker not in {None, "", "unknown", "neutral"} else "未识别")
+            rows.append(f"最近发言者: {label}")
         if possible_other:
             rows.append("提示：对方主播发言较多")
         if host_examples:
             rows.append("主播示例：" + " | ".join(str(x)[:20] for x in host_examples))
         if other_examples:
-            rows.append("可能来自对手：" + " | ".join(str(x)[:20] for x in other_examples))
+            rows.append("嘉宾/其他示例：" + " | ".join(str(x)[:20] for x in other_examples))
         return "\n".join(rows)
 
     def _build_prompt(self, context: Dict[str, Any]) -> List[Dict[str, Any]]:

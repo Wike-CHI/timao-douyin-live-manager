@@ -14,13 +14,13 @@ const DashboardPage: React.FC = () => {
       <div className="mt-6 grid gap-4 xl:grid-cols-3 md:grid-cols-2">
         <div className="timao-soft-card">
           <h2 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-            <span>🎤</span>实时字幕与音量监控
+            <span>🎤</span>实时字幕与音频增强
           </h2>
           <ul className="mt-3 space-y-2 text-sm timao-support-text">
-            <li>输入抖音直播间链接，一键拉起语音转写</li>
-            <li>字幕内容本地保存，可随时回看或复制</li>
-            <li>音量指示条提醒你是否声音过小</li>
-            <li>支持暂停/继续，换场不丢历史记录</li>
+            <li>输入抖音直播间链接，即刻拉起 SenseVoice 实时转写</li>
+            <li>自动增益（AGC）+ VAD 保持声音稳定，字幕可本地落盘</li>
+            <li>内置说话人分离，字幕自动标注【主播 / 嘉宾】身份</li>
+            <li>音量指示条与最近发言者提示，及时把握麦克风状态</li>
           </ul>
           <div className="mt-4 text-xs text-purple-500">入口：侧边栏「直播控制台」</div>
         </div>
@@ -43,10 +43,10 @@ const DashboardPage: React.FC = () => {
             <span>🤖</span>AI 助手与话术灵感
           </h2>
           <ul className="mt-3 space-y-2 text-sm timao-support-text">
-            <li>AI 实时分析直播状态，实时更新风格/氛围建议</li>
-            <li>在弹幕卡片点击「生成答疑话术」，可挑选问题交给 AI 处理</li>
-            <li>系统使用 Qwen3-Max 以主播口吻生成短句，可直接复制上麦</li>
-            <li>复盘报告会结合弹幕与转写自动总结亮点</li>
+            <li>LangGraph Workflow 滚动分析亮点、风险、节奏，结合话者统计提示“对手抢话”风险</li>
+            <li>知识库检索直播运营话术与高情商素材，融合到分析卡片与答疑口播</li>
+            <li>弹幕卡片一键生成主播口吻话术，支持暖心 / 直接 / 调侃多种风格</li>
+            <li>复盘报告自动汇总弹幕、转写与 AI 观察，沉淀可复用笔记</li>
           </ul>
           <div className="mt-4 text-xs text-purple-500">入口：「直播控制台」底部 AI 区域</div>
         </div>

@@ -49,6 +49,7 @@ class AIState:
     carry: str = ""
     last_result: Dict[str, Any] = field(default_factory=dict)
     sentences: List[str] = field(default_factory=list)
+    speaker_sentences: List[Dict[str, Any]] = field(default_factory=list)
     comments: List[Dict[str, Any]] = field(default_factory=list)
     # Persisted context for other modules to reuse/style-mimic
     style_profile: Dict[str, Any] = field(default_factory=dict)
@@ -194,6 +195,8 @@ class AILiveAnalyzer:
             "lead_candidates": result.get("lead_candidates", []),
             "error": result.get("analysis_error"),
         }
+        if "speaker_timeline" in result:
+            payload["speaker_timeline"] = result.get("speaker_timeline")
         playlist = result.get("topic_playlist") or []
         if not payload["error"]:
             if not playlist:
@@ -254,6 +257,7 @@ class AILiveAnalyzer:
         comments: List[Dict[str, Any]],
         window_start: float,
         user_scores: Optional[Dict[str, Dict[str, Any]]] = None,
+        speaker_sentences: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         if self._workflow is None:
             raise RuntimeError("LangGraph workflow not available")
@@ -265,6 +269,8 @@ class AILiveAnalyzer:
             "comments": comments,
             "user_scores": user_scores or {},
         }
+        if speaker_sentences:
+            state["speaker_timeline"] = speaker_sentences
         result = self._workflow.invoke(state)  # type: ignore[arg-type]
         return self._format_workflow_payload(result)
 
@@ -286,6 +292,23 @@ class AILiveAnalyzer:
                 text = (data.get("text") or "").strip()
                 if text:
                     self._state.sentences.append(text)
+                    entry: Dict[str, Any] = {
+                        "text": text,
+                        "speaker": str(data.get("speaker") or "unknown"),
+                        "timestamp": float(data.get("timestamp") or time.time()),
+                        "confidence": float(data.get("confidence") or 0.0),
+                    }
+                    debug = data.get("speaker_debug")
+                    if isinstance(debug, dict):
+                        try:
+                            entry["debug"] = {k: float(v) for k, v in debug.items() if isinstance(v, (int, float))}
+                        except Exception:
+                            entry["debug"] = debug
+                    self._state.speaker_sentences.append(entry)
+                    if len(self._state.speaker_sentences) > 200:
+                        del self._state.speaker_sentences[:-200]
+                    if len(self._state.sentences) > 200:
+                        del self._state.sentences[:-200]
             except Exception:
                 pass
 
@@ -407,6 +430,7 @@ class AILiveAnalyzer:
             return
         # prepare window
         window_sentences = list(s.sentences[-100:])
+        window_speaker_sentences = list(s.speaker_sentences[-100:])
         comments_window = list(s.comments[-200:])
         transcript = "\n".join(window_sentences)
         window_started_at = time.time()
@@ -419,6 +443,7 @@ class AILiveAnalyzer:
         s.last_window_ts = _now_ms()
         s.sentences.clear()
         s.comments.clear()
+        s.speaker_sentences.clear()
 
         if not transcript and not comments_window:
             return
@@ -434,7 +459,13 @@ class AILiveAnalyzer:
 
         # call AI
         try:
-            payload = self._run_workflow(window_sentences, comments_window, window_started_at, user_snapshot)
+            payload = self._run_workflow(
+                window_sentences,
+                comments_window,
+                window_started_at,
+                user_snapshot,
+                window_speaker_sentences,
+            )
         except Exception as exc:
             logger.exception("LangGraph workflow failed, fallback to legacy analyzer: %s", exc)
             payload = {

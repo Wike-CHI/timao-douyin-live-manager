@@ -68,11 +68,55 @@ const LiveConsolePage = () => {
   const [selectedQuestions, setSelectedQuestions] = useState<string[]>([]);
   const [answerLoading, setAnswerLoading] = useState(false);
   const [answerError, setAnswerError] = useState<string | null>(null);
+  const [agcEnabled, setAgcEnabled] = useState<boolean>(true);
+  const [agcGain, setAgcGain] = useState<number>(1);
+  const [diarizationEnabled, setDiarizationEnabled] = useState<boolean>(true);
+  const [maxSpeakers, setMaxSpeakers] = useState<number>(2);
+  const [lastSpeaker, setLastSpeaker] = useState<string>('unknown');
   const navigate = useNavigate();
   const { balance, firstFreeUsed, setFirstFreeUsed } = useAuthStore();
 
   const isRunning = status?.is_running ?? false;
   const generatingRef = useRef(false);
+
+  const speakerLabelShort = useCallback((value?: string | null) => {
+    if (!value) return '未识别';
+    const norm = String(value).toLowerCase();
+    if (norm === 'host') return '主播';
+    if (norm === 'guest') return '嘉宾';
+    if (norm === 'unknown' || norm === 'neutral' || norm === 'undefined' || norm === 'null') return '未识别';
+    return `嘉宾(${value})`;
+  }, []);
+
+  const renderSpeakerBadge = useCallback(
+    (value?: string | null) => {
+      const label = speakerLabelShort(value);
+      if (!label) return null;
+      const norm = String(value || '').toLowerCase();
+      const isHost = norm === 'host';
+      const isUnknown = !norm || norm === 'unknown' || norm === 'neutral' || norm === 'undefined' || norm === 'null';
+      const tone = isUnknown
+        ? 'bg-slate-100 text-slate-500'
+        : isHost
+          ? 'bg-purple-100 text-purple-600'
+          : 'bg-amber-100 text-amber-600';
+      return (
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${tone}`}>
+          {label}
+        </span>
+      );
+    },
+    [speakerLabelShort]
+  );
+
+  const formatSpeakerDebug = useCallback((dbg?: Record<string, number>) => {
+    if (!dbg) return '';
+    return Object.entries(dbg)
+      .filter(([, value]) => typeof value === 'number' && Number.isFinite(value))
+      .slice(0, 4)
+      .map(([key, value]) => `${key}:${Number(value).toFixed(2)}`)
+      .join(' · ');
+  }, []);
 
   useEffect(() => {
     if (collapsed) {
@@ -94,6 +138,11 @@ const LiveConsolePage = () => {
           const a = (result as any).advanced || {};
           if (typeof a.persist_enabled === 'boolean') setPersistTr(a.persist_enabled);
           if (typeof a.persist_root === 'string') setPersistTrRoot(a.persist_root || '');
+          if (typeof a.agc_enabled === 'boolean') setAgcEnabled(a.agc_enabled);
+          if (typeof a.agc_gain === 'number') setAgcGain(Number(a.agc_gain));
+          if (typeof a.diarizer_active === 'boolean') setDiarizationEnabled(a.diarizer_active);
+          if (typeof a.max_speakers === 'number' && a.max_speakers >= 1) setMaxSpeakers(a.max_speakers);
+          if (typeof a.last_speaker === 'string') setLastSpeaker(a.last_speaker);
         }
       } catch {}
       // sync douyin persist
@@ -192,7 +241,17 @@ const LiveConsolePage = () => {
       await startLiveAudio({ liveUrl }, FASTAPI_BASE_URL);
       connectWebSocket(FASTAPI_BASE_URL);
       // 默认开启字幕持久化
-      try { await updateLiveAudioAdvanced({ persist_enabled: true }, FASTAPI_BASE_URL); } catch {}
+      try {
+        await updateLiveAudioAdvanced(
+          {
+            persist_enabled: true,
+            agc: agcEnabled,
+            diarization: diarizationEnabled,
+            max_speakers: diarizationEnabled ? maxSpeakers : 1,
+          },
+          FASTAPI_BASE_URL
+        );
+      } catch {}
 
       // 3) 录制整场（30 分钟分段）
       try { await startLiveReport(liveUrl, 30, FASTAPI_BASE_URL); } catch {}
@@ -518,7 +577,7 @@ const LiveConsolePage = () => {
                 ) : (
                   log.map((item) => (
                     <option key={item.id} value={item.id}>
-                      {new Date(item.timestamp * 1000).toLocaleTimeString()} · {(item.text || '').slice(0, 24)}
+                      {new Date(item.timestamp * 1000).toLocaleTimeString()} · {speakerLabelShort(item.speaker)} · {(item.text || '').slice(0, 24)}
                     </option>
                   ))
                 )}
@@ -543,7 +602,18 @@ const LiveConsolePage = () => {
                   <div key={item.id} className="flex-shrink -0 h-fit rounded-2xl border border-white/60 shadow-md p-4 bg-white/95">
                       <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
                         <span>{new Date(item.timestamp * 1000).toLocaleTimeString()}</span>
+                        {renderSpeakerBadge(item.speaker)}
                       </div>
+                      {(() => {
+                        const debugText = formatSpeakerDebug(item.speakerDebug);
+                        return debugText
+                          ? (
+                            <div className="text-[10px] text-slate-400 mb-1">
+                              {debugText}
+                            </div>
+                          )
+                          : null;
+                      })()}
                       <div className="text-slate-600 text-sm leading-relaxed">{item.text}</div>
                     </div>
                 ))
@@ -828,7 +898,10 @@ const LiveConsolePage = () => {
             </div>
             {latest ? (
               <div className="flex items-center justify-between text-xs text-slate-400 mt-3">
-              <span>时间 {new Date(latest.timestamp * 1000).toLocaleTimeString()}</span>
+                <div className="flex items-center gap-2">
+                  <span>时间 {new Date(latest.timestamp * 1000).toLocaleTimeString()}</span>
+                  {renderSpeakerBadge(latest.speaker)}
+                </div>
                 <button
                   className="timao-outline-btn text-[10px] px-2 py-0.5"
                   title="复制JSON"
@@ -842,6 +915,7 @@ const LiveConsolePage = () => {
                         is_final: latest.isFinal,
                         words: latest.words || [],
                         speaker: latest.speaker || '?',
+                        speaker_debug: latest.speakerDebug || {},
                         room_id: (status as any)?.live_id || null,
                         session_id: (status as any)?.session_id || null,
                       };
@@ -851,6 +925,16 @@ const LiveConsolePage = () => {
                 >复制JSON</button>
               </div>
             ) : null}
+            {(() => {
+              const debugText = formatSpeakerDebug(latest?.speakerDebug || undefined);
+              return debugText
+                ? (
+                  <div className="text-[10px] text-slate-400 mt-1">
+                    {debugText}
+                  </div>
+                )
+                : null;
+            })()}
             {latest?.words?.length ? (
               <div className="mt-2 flex flex-wrap gap-1">
                 {latest.words.map((w, i) => (
@@ -904,6 +988,32 @@ const LiveConsolePage = () => {
         </section>
 
         <section className="flex flex-col gap-4">
+          <div className="timao-card">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
+                <span>🎛️</span>
+                音频增强
+              </h3>
+              <span className="text-xs text-slate-400">增益 {agcGain.toFixed(2)}</span>
+            </div>
+            <div className="space-y-3 text-sm text-slate-600">
+              <div className="flex items-center justify-between">
+                <span>自动增益（AGC）</span>
+                <span className="text-purple-600">{agcEnabled ? '已开启（默认）' : '已关闭'}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>说话人分离</span>
+                <span className="text-purple-600">
+                  {diarizationEnabled ? `已开启（≤${maxSpeakers} 人）` : '已关闭'}
+                </span>
+              </div>
+              <div className="text-xs text-slate-400">
+                <span className="mr-1">最近发言者：</span>
+                {renderSpeakerBadge(lastSpeaker)}
+              </div>
+            </div>
+          </div>
+
           <div className="timao-card">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">

@@ -44,7 +44,19 @@ export interface LiveAudioStatus {
   session_id: string | null;
   mode?: 'delta' | 'sentence' | 'vad' | string;
   profile?: 'fast' | 'stable' | string;
-  advanced?: { music_filter?: boolean; diarization?: boolean };
+  advanced?: {
+    music_filter?: boolean;
+    music_detection_enabled?: boolean;
+    music_guard_active?: boolean;
+    music_guard_score?: number;
+    persist_enabled?: boolean;
+    persist_root?: string;
+    agc_enabled?: boolean;
+    agc_gain?: number;
+    diarizer_active?: boolean;
+    max_speakers?: number;
+    last_speaker?: string;
+  };
   stats: {
     total_audio_chunks?: number;
     successful_transcriptions?: number;
@@ -121,7 +133,13 @@ export const openLiveAudioWebSocket = (
 };
 
 export const updateLiveAudioAdvanced = async (
-  payload: { music_filter?: boolean; diarization?: boolean; max_speakers?: number; persist_enabled?: boolean; persist_root?: string },
+  payload: {
+    agc?: boolean;
+    diarization?: boolean;
+    max_speakers?: number;
+    persist_enabled?: boolean;
+    persist_root?: string;
+  },
   baseUrl: string = DEFAULT_BASE_URL
 ) => {
   const response = await fetch(`${baseUrl}/api/live_audio/advanced`, {
