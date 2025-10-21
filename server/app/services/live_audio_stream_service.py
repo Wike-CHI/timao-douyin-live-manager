@@ -17,9 +17,10 @@ import signal
 import sys
 import time
 import shutil
+from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Deque, Dict, List, Optional
 
 
 # Workspace root on sys.path so we can import StreamCap and AST_module
@@ -49,6 +50,10 @@ try:
     from server.nlp.hotwords import HotwordReplacer  # type: ignore
 except Exception:
     HotwordReplacer = None  # type: ignore
+try:
+    from server.nlp.phonetic_corrector import PhoneticCorrector  # type: ignore
+except Exception:
+    PhoneticCorrector = None  # type: ignore
 try:
     from server.utils.jsonl_writer import JSONLWriter  # type: ignore
 except Exception:
@@ -116,6 +121,15 @@ class LiveAudioStreamService:
                 self._hotword = HotwordReplacer()
         except Exception:
             self._hotword = None
+
+        # Phonetic correction (optional, depends on pypinyin & knowledge base)
+        self._corrector: Optional[Any] = None
+        self._context_terms: Deque[str] = deque(maxlen=96)
+        try:
+            if PhoneticCorrector is not None:
+                self._corrector = PhoneticCorrector()
+        except Exception:
+            self._corrector = None
 
         # Callbacks
         self._tr_callbacks: Dict[str, Callable[[Dict[str, Any]], Awaitable[None] | None]] = {}
@@ -502,10 +516,12 @@ class LiveAudioStreamService:
             if maybe:
                 # finalize current buffered sentence
                 self._partial_text = ""
+                self._update_context_terms(maybe)
                 await self._emit_delta("final", maybe, conf)
             return
 
         clean = self._cleaner.clean(text_raw)
+        clean = self._apply_corrections(clean)
         # Hotword replace
         if self._hotword is not None and clean:
             try:
@@ -554,6 +570,7 @@ class LiveAudioStreamService:
                     self._stable_hits = 0
                     self._partial_text = ""
                     if not self._is_duplicate_sentence(buf_or_sent):
+                        self._update_context_terms(buf_or_sent)
                         await self._emit_delta("final", buf_or_sent, conf)
         else:
             # delta mode (default)
@@ -570,6 +587,7 @@ class LiveAudioStreamService:
                     self._partial_text = ""
                     # duplicate suppression at sentence level
                     if not self._is_duplicate_sentence(buf_or_sent):
+                        self._update_context_terms(buf_or_sent)
                         await self._emit_delta("final", buf_or_sent, conf)
             else:
                 new_buf = buf_or_sent
@@ -644,6 +662,34 @@ class LiveAudioStreamService:
                 "confidence": confidence,
             },
         })
+
+    def _apply_corrections(self, text: str) -> str:
+        if not text or self._corrector is None:
+            return text
+        try:
+            return self._corrector.correct(text, context_terms=list(self._context_terms))
+        except Exception:
+            return text
+
+    def _update_context_terms(self, sentence: str) -> None:
+        if not sentence:
+            return
+        terms = self._extract_candidate_terms(sentence)
+        if not terms:
+            return
+        for term in terms:
+            self._context_terms.append(term)
+        if self._corrector is not None:
+            try:
+                self._corrector.extend_context(terms)
+            except Exception:
+                pass
+
+    @staticmethod
+    def _extract_candidate_terms(text: str) -> List[str]:
+        if not text:
+            return []
+        return re.findall(r"[\u4e00-\u9fa5]{2,4}", text)
 
     def _compute_delta(self, prev: str, curr: str) -> str:
         """Compute incremental delta between previous and current partial text.

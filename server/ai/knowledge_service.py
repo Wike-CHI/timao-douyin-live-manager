@@ -365,6 +365,41 @@ class KnowledgeBase:
                         return suggestions
         return suggestions
 
+    def candidate_terms(self, *, min_len: int = 2, max_len: int = 6) -> List[str]:
+        """Return Chinese terms for downstream phonetic correction."""
+        if not self._index:
+            return []
+        chinese = re.compile(r"[\u4e00-\u9fa5]")
+        terms: set[str] = set()
+        for entry in self._index:
+            tokens = entry.get("tokens", set())
+            for token in tokens:
+                if not isinstance(token, str):
+                    continue
+                if len(token) < min_len or len(token) > max_len:
+                    continue
+                if not chinese.search(token):
+                    continue
+                terms.add(token)
+            tags = entry.get("tags", set())
+            for tag in tags:
+                if not isinstance(tag, str):
+                    continue
+                if len(tag) < min_len or len(tag) > max_len:
+                    continue
+                if not chinese.search(tag):
+                    continue
+                terms.add(tag)
+        for _, topic in self._topic_entries:
+            if not topic:
+                continue
+            if len(topic) < min_len or len(topic) > max_len:
+                continue
+            if not chinese.search(topic):
+                continue
+            terms.add(topic)
+        return sorted(terms)
+
 
 @functools.lru_cache(maxsize=1)
 def get_knowledge_base() -> KnowledgeBase:
