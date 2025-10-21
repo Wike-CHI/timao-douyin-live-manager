@@ -85,6 +85,48 @@ def _parse_live_id(live_url_or_id: str) -> Optional[str]:
     return None
 
 
+def _env_float(
+    name: str,
+    default: float,
+    *,
+    min_value: Optional[float] = None,
+    max_value: Optional[float] = None,
+) -> float:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        return default
+    if (min_value is not None) and (value < min_value):
+        value = min_value
+    if (max_value is not None) and (value > max_value):
+        value = max_value
+    return value
+
+
+def _env_int(
+    name: str,
+    default: int,
+    *,
+    min_value: Optional[int] = None,
+    max_value: Optional[int] = None,
+) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    if (min_value is not None) and (value < min_value):
+        value = min_value
+    if (max_value is not None) and (value > max_value):
+        value = max_value
+    return value
+
+
 @dataclass
 class LiveAudioStatus:
     is_running: bool = False
@@ -147,6 +189,7 @@ class LiveAudioStreamService:
         self._diarizer = None
         self._last_speaker_label: str = "unknown"
         self._last_speaker_debug: Dict[str, float] = {}
+        self._diarizer_warmup_sec: Optional[float] = None
         self._init_diarizer()
 
         # Callbacks
@@ -191,6 +234,8 @@ class LiveAudioStreamService:
         except Exception:
             # 确保至少回退到快速档，保障低延迟体验
             self.apply_profile("fast")
+        # Allow environment overrides so ops can tune latency vs stability quickly
+        self._apply_env_overrides()
 
         # Advanced filters removed (simplified pipeline)
         # Persistence (transcriptions)
@@ -214,6 +259,10 @@ class LiveAudioStreamService:
         self._music_flag: bool = False
         self._music_release_counter: int = 0
         self._music_last_notice: float = 0.0
+        # Text noise filter to suppress fillers such as “嗯嗯” or long laughter
+        self.noise_filter_enabled: bool = bool(int(os.getenv("LIVE_TEXT_NOISE_FILTER", "1")))
+        self.noise_filter_min_chars: int = _env_int("LIVE_TEXT_NOISE_MIN_CHARS", 3, min_value=1, max_value=12)
+        self.noise_filter_repeat_chars: int = _env_int("LIVE_TEXT_NOISE_REPEAT", 3, min_value=2, max_value=10)
 
     # ---------- Public API ----------
     async def start(self, live_url_or_id: str, session_id: Optional[str] = None) -> LiveAudioStatus:
@@ -425,6 +474,32 @@ class LiveAudioStreamService:
         self._stable_prev_norm = ""
         self._stable_hits = 0
         self._last_sent_norms.clear()
+        self._apply_env_overrides()
+
+    def _apply_env_overrides(self) -> None:
+        """Override key VAD knobs via environment variables for fast tuning."""
+        self.chunk_seconds = _env_float("LIVE_VAD_CHUNK_SEC", self.chunk_seconds, min_value=0.2, max_value=2.0)
+        self.vad_min_rms = _env_float("LIVE_VAD_MIN_RMS", self.vad_min_rms, min_value=0.001, max_value=0.2)
+        self.vad_min_speech_sec = _env_float(
+            "LIVE_VAD_MIN_SPEECH_SEC", self.vad_min_speech_sec, min_value=0.2, max_value=2.5
+        )
+        self.vad_min_silence_sec = _env_float(
+            "LIVE_VAD_MIN_SILENCE_SEC", self.vad_min_silence_sec, min_value=0.2, max_value=2.5
+        )
+        self.vad_hangover_sec = _env_float("LIVE_VAD_HANGOVER_SEC", self.vad_hangover_sec, min_value=0.1, max_value=1.5)
+        self.vad_force_flush_sec = _env_float(
+            "LIVE_VAD_FORCE_FLUSH_SEC", self.vad_force_flush_sec, min_value=2.0, max_value=15.0
+        )
+        self.vad_force_flush_overlap_sec = _env_float(
+            "LIVE_VAD_FORCE_FLUSH_OVERLAP",
+            self.vad_force_flush_overlap_sec,
+            min_value=0.0,
+            max_value=1.5,
+        )
+        # min sentence chars is quite sensitive; keep parity with assembler defaults
+        self.min_sentence_chars = _env_int(
+            "LIVE_VAD_MIN_SENTENCE_CHARS", self.min_sentence_chars, min_value=0, max_value=128
+        )
 
     # WebSocket/consumer hooks
     def add_transcription_callback(self, name: str, cb: Callable[[Dict[str, Any]], Awaitable[None] | None]) -> None:
@@ -553,6 +628,9 @@ class LiveAudioStreamService:
             maybe = self._assembler.mark_silence()
             if maybe:
                 # finalize current buffered sentence
+                if self.noise_filter_enabled and self._should_skip_text(maybe, conf):
+                    self._partial_text = ""
+                    return
                 self._partial_text = ""
                 self._update_context_terms(maybe)
                 await self._emit_delta("final", maybe, conf)
@@ -607,6 +685,8 @@ class LiveAudioStreamService:
                     self._stable_prev_norm = ""
                     self._stable_hits = 0
                     self._partial_text = ""
+                    if self.noise_filter_enabled and self._should_skip_text(buf_or_sent, conf):
+                        return
                     if not self._is_duplicate_sentence(buf_or_sent):
                         self._update_context_terms(buf_or_sent)
                         await self._emit_delta("final", buf_or_sent, conf)
@@ -623,6 +703,8 @@ class LiveAudioStreamService:
                         await self._emit_delta("append", delta, conf)
                 else:
                     self._partial_text = ""
+                    if self.noise_filter_enabled and self._should_skip_text(buf_or_sent, conf):
+                        return
                     # duplicate suppression at sentence level
                     if not self._is_duplicate_sentence(buf_or_sent):
                         self._update_context_terms(buf_or_sent)
@@ -713,10 +795,29 @@ class LiveAudioStreamService:
             self._last_speaker_label = "unknown"
             self._last_speaker_debug = {}
             return
+        enroll_sec = _env_float("LIVE_DIARIZER_ENROLL_SEC", 4.0, min_value=1.0, max_value=20.0)
+        max_speakers = _env_int("LIVE_DIARIZER_MAX_SPEAKERS", 2, min_value=1, max_value=4)
+        smooth = _env_float("LIVE_DIARIZER_SMOOTH", 0.2, min_value=0.05, max_value=0.6)
         try:
-            self._diarizer = OnlineDiarizer()
+            self._diarizer = OnlineDiarizer(
+                sr=16000,
+                max_speakers=max_speakers,
+                enroll_sec=enroll_sec,
+                smooth=smooth,
+            )
         except Exception:
             self._diarizer = None
+        warmup_default = max(0.0, enroll_sec * 0.75)
+        warmup_env = os.getenv("LIVE_DIARIZER_WARMUP_SEC")
+        if warmup_env is not None:
+            self._diarizer_warmup_sec = _env_float(
+                "LIVE_DIARIZER_WARMUP_SEC",
+                warmup_default,
+                min_value=0.0,
+                max_value=20.0,
+            )
+        else:
+            self._diarizer_warmup_sec = warmup_default
         self._last_speaker_label = "unknown"
         self._last_speaker_debug = {}
 
@@ -741,11 +842,48 @@ class LiveAudioStreamService:
             return
         try:
             label, dbg = self._diarizer.feed(pcm16, frame_sec or self.chunk_seconds or 0.8)
-            self._last_speaker_label = label or "unknown"
+            observed_sec = 0.0
+            state = getattr(self._diarizer, "state", None)
+            if state is not None:
+                observed_sec = float(getattr(state, "enrolled_sec", 0.0))
+            ready = observed_sec >= max(0.0, self._diarizer_warmup_sec or 0.0)
+            if not ready:
+                self._last_speaker_label = "unknown"
+            else:
+                self._last_speaker_label = label or "unknown"
+            dbg_payload: Dict[str, float] = {}
             if isinstance(dbg, dict):
-                self._last_speaker_debug = {k: float(v) for k, v in dbg.items()}
+                dbg_payload.update({k: float(v) for k, v in dbg.items()})
+            dbg_payload["observed_sec"] = float(observed_sec)
+            dbg_payload["warmup_remaining"] = float(max(0.0, (self._diarizer_warmup_sec or 0.0) - observed_sec))
+            self._last_speaker_debug = dbg_payload
         except Exception:
             pass
+
+    def _should_skip_text(self, text: str, confidence: float) -> bool:
+        """Heuristic noise filter to drop filler-only or heavily repeated subtitles."""
+        if not text:
+            return True
+        normalized = re.sub(r"\s+", "", text)
+        if not normalized:
+            return True
+        # Strip punctuation so we can evaluate repeated characters
+        simple = re.sub(r"[，。,、！？!?~～…\-]", "", normalized)
+        if not simple:
+            return True
+        filler_chars = set("嗯啊哦呀呃欸嘿呵哈哼唔额呢嘛哎噢唉哇咦呜")
+        if len(simple) <= self.noise_filter_min_chars and all(ch in filler_chars for ch in simple):
+            return True
+        if self.noise_filter_repeat_chars and len(simple) >= self.noise_filter_repeat_chars:
+            unique_chars = {ch for ch in simple if ch.strip()}
+            if len(unique_chars) == 1:
+                return True
+        if re.fullmatch(r"(.)\1{2,}", simple):
+            return True
+        if re.fullmatch(r"[hH啊Aa哦Oo嗯Mm呀Yy呃Ee噢Oo欸Ee嘿Hh呵Hh哈Ha哼Hh唔Ww～~！!？?,.，。、…]*", normalized):
+            return True
+        # Keep low-confidence results; they may still deserve manual review downstream.
+        return False
 
     def _apply_corrections(self, text: str) -> str:
         if not text or self._corrector is None:

@@ -34,7 +34,7 @@ class DiarizerState:
 
 
 class OnlineDiarizer:
-    def __init__(self, sr: int = 16000, max_speakers: int = 2, enroll_sec: float = 8.0, smooth: float = 0.2) -> None:
+    def __init__(self, sr: int = 16000, max_speakers: int = 2, enroll_sec: float = 4.0, smooth: float = 0.2) -> None:
         self.sr = sr
         self.max_speakers = max(1, int(max_speakers))
         self.enroll_sec = max(0.0, float(enroll_sec))
@@ -119,3 +119,11 @@ class OnlineDiarizer:
         }
         return label, dbg
 
+    def total_observed_sec(self) -> float:
+        """Return cumulative observed audio duration (seconds)."""
+        return float(self.state.enrolled_sec)
+
+    def is_ready(self, warmup_sec: Optional[float] = None) -> bool:
+        """Return True once the diarizer has seen enough speech to separate speakers."""
+        threshold = self.enroll_sec if warmup_sec is None else float(warmup_sec)
+        return self.state.enrolled_sec >= max(0.0, threshold)
