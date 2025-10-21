@@ -247,6 +247,15 @@ class LiveAudioStreamService:
             session_id=session_id or f"live_{int(time.time())}",
             started_at=_now(),
         )
+        if self._sv is not None:
+            seed_terms: List[str] = []
+            if anchor_name:
+                seed_terms.append(str(anchor_name))
+            seed_terms.append(live_id)
+            try:
+                self._sv.update_hotwords(self._status.session_id, seed_terms)  # type: ignore[attr-defined]
+            except Exception:
+                pass
         self._music_ema = 0.0
         self._music_flag = False
         self._music_release_counter = 0
@@ -497,8 +506,14 @@ class LiveAudioStreamService:
             return
 
         self._status.total_audio_chunks += 1
+        session_key = self._status.session_id or self._status.live_id or "live_default"
+        bias_terms = self._collect_bias_terms()
         try:
-            res = await self._sv.transcribe_audio(pcm16)
+            res = await self._sv.transcribe_audio(
+                pcm16,
+                session_id=session_key,
+                bias_phrases=bias_terms,
+            )
         except Exception as e:
             self._status.failed_transcriptions += 1
             await self._emit({
@@ -679,11 +694,32 @@ class LiveAudioStreamService:
             return
         for term in terms:
             self._context_terms.append(term)
+        if self._sv is not None:
+            try:
+                session_key = self._status.session_id or self._status.live_id
+                self._sv.update_hotwords(session_key, terms)  # type: ignore[attr-defined]
+            except Exception:
+                pass
         if self._corrector is not None:
             try:
                 self._corrector.extend_context(terms)
             except Exception:
                 pass
+
+    def _collect_bias_terms(self) -> List[str]:
+        if not self._context_terms:
+            return []
+        seen: set[str] = set()
+        result: List[str] = []
+        for term in reversed(self._context_terms):
+            if term in seen:
+                continue
+            seen.add(term)
+            result.append(term)
+            if len(result) >= 24:
+                break
+        result.reverse()
+        return result
 
     @staticmethod
     def _extract_candidate_terms(text: str) -> List[str]:

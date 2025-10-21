@@ -8,7 +8,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import Any, Dict, Iterable, Optional, TYPE_CHECKING
 import os
 from pathlib import Path
 
@@ -31,6 +31,8 @@ class SenseVoiceConfig:
     """Configuration for SenseVoice ASR service.
 
     We hard-lock the backend to SenseVoiceSmall and enable VAD by default.
+    Streaming knobs are enabled so we can reuse SenseVoice incremental decoding,
+    hotword biasing, and punctuation without hand-written heuristics.
     """
 
     # Prefer local checkout if present; otherwise fall back to ModelScope id.
@@ -45,6 +47,12 @@ class SenseVoiceConfig:
     use_itn: bool = True
     batch_size: int = 1
     disable_update: bool = True
+    enable_streaming: bool = True
+    chunk_size: int = 3200
+    chunk_shift: int = 800
+    encoder_chunk_look_back: int = 4
+    decoder_chunk_look_back: int = 1
+    hotword_weight: float = 3.0
 
 
 class SenseVoiceService:
@@ -57,6 +65,8 @@ class SenseVoiceService:
         self.is_initialized = False
         # Remember which device we loaded the model on (for logging/debug)
         self._device: str = "cpu"
+        self._global_hotwords: set[str] = set()
+        self._session_hotwords: Dict[str, set[str]] = {}
 
         # Enforce Small model only. If an external caller passed Medium/Large,
         # normalize it back to Small. Local paths that already point to
@@ -238,7 +248,35 @@ class SenseVoiceService:
             self.is_initialized = False
             return False
 
-    async def transcribe_audio(self, audio_data: bytes) -> Dict[str, Any]:
+    def update_hotwords(self, session_id: Optional[str], terms: Iterable[str]) -> None:
+        """Update hotword bias for the decoder."""
+        words: set[str] = set()
+        for term in terms:
+            if not term:
+                continue
+            try:
+                text = str(term).strip()
+            except Exception:
+                continue
+            if not text:
+                continue
+            if re.search(r"[\u4e00-\u9fa5]", text):
+                words.add(text)
+        if not words:
+            return
+        if session_id:
+            bucket = self._session_hotwords.setdefault(session_id, set())
+            bucket.update(words)
+        else:
+            self._global_hotwords.update(words)
+
+    async def transcribe_audio(
+        self,
+        audio_data: bytes,
+        *,
+        session_id: Optional[str] = None,
+        bias_phrases: Optional[Iterable[str]] = None,
+    ) -> Dict[str, Any]:
         """Transcribe a raw PCM chunk (16-bit mono, 16 kHz)."""
 
         # 如果模型未初始化或缺少依赖包，使用模拟转录
@@ -274,15 +312,48 @@ class SenseVoiceService:
                 audio_sec = float(len(speech)) / 16000.0
                 # Check if model is not None before calling generate
                 if self._model is not None:
-                    raw_results = self._model.generate(
-                        input=speech,
-                        language=self.config.language,
-                        use_itn=self.config.use_itn,
-                        batch_size=self.config.batch_size,
-                    )
+                    gen_kwargs: Dict[str, Any] = {
+                        "input": speech,
+                        "language": self.config.language,
+                        "use_itn": self.config.use_itn,
+                        "batch_size": self.config.batch_size,
+                    }
+                    hotword_payload = self._compose_hotword_payload(session_id, bias_phrases)
+                    if hotword_payload:
+                        gen_kwargs["hotword"] = hotword_payload
+                        gen_kwargs["hotword_weight"] = self.config.hotword_weight
+                    if self.config.enable_streaming and session_id:
+                        gen_kwargs.update(
+                            {
+                                "streaming": True,
+                                "cache_key": session_id,
+                                "chunk_size": self.config.chunk_size,
+                                "chunk_shift": self.config.chunk_shift,
+                                "decoder_chunk_look_back": self.config.decoder_chunk_look_back,
+                                "encoder_chunk_look_back": self.config.encoder_chunk_look_back,
+                            }
+                        )
+                    try:
+                        raw_results = self._model.generate(**gen_kwargs)
+                    except TypeError as exc:
+                        self.logger.debug("SenseVoice generate fallback: %s", exc)
+                        fallback_kwargs = dict(gen_kwargs)
+                        fallback_kwargs.pop("hotword_weight", None)
+                        if fallback_kwargs.get("streaming"):
+                            fallback_kwargs.pop("streaming", None)
+                            fallback_kwargs.pop("cache_key", None)
+                            fallback_kwargs.pop("chunk_size", None)
+                            fallback_kwargs.pop("chunk_shift", None)
+                            fallback_kwargs.pop("decoder_chunk_look_back", None)
+                            fallback_kwargs.pop("encoder_chunk_look_back", None)
+                        try:
+                            raw_results = self._model.generate(**fallback_kwargs)
+                        except Exception as inner_exc:
+                            self.logger.debug("SenseVoice bare fallback used: %s", inner_exc)
+                            raw_results = self._model.generate(input=speech)
                     text = self._extract_text(raw_results)
                     words = self._extract_words(raw_results, text, audio_sec)
-                    confidence = 0.9 if text else 0.0
+                    confidence = self._extract_confidence(raw_results, default=0.9 if text else 0.0)
                     return {
                         "success": True,
                         "type": "final",
@@ -332,6 +403,27 @@ class SenseVoiceService:
             "initialized": self.is_initialized,
         }
 
+    def _compose_hotword_payload(
+        self,
+        session_id: Optional[str],
+        bias_phrases: Optional[Iterable[str]],
+    ) -> Optional[str]:
+        phrases: set[str] = set()
+        phrases.update(self._global_hotwords)
+        if session_id:
+            phrases.update(self._session_hotwords.get(session_id, set()))
+        if bias_phrases:
+            for term in bias_phrases:
+                if not term:
+                    continue
+                text = str(term).strip()
+                if text and re.search(r"[\u4e00-\u9fa5]", text):
+                    phrases.add(text)
+        if not phrases:
+            return None
+        ordered = sorted(phrases)
+        return " ".join(ordered)
+
     @staticmethod
     def _extract_text(raw_results: Any) -> str:
         if not raw_results:
@@ -378,3 +470,24 @@ class SenseVoiceService:
             words.append({"word": ch, "start": t0, "end": t0 + step})
             t0 += step
         return words
+
+    @staticmethod
+    def _extract_confidence(raw_results: Any, default: float = 0.0) -> float:
+        try:
+            first = raw_results[0] if raw_results else None
+            if isinstance(first, dict):
+                if "confidence" in first and isinstance(first["confidence"], (float, int)):
+                    return float(first["confidence"])
+                if "score" in first and isinstance(first["score"], (float, int)):
+                    return float(first["score"])
+                nbest = first.get("nbest")
+                if isinstance(nbest, list) and nbest:
+                    head = nbest[0]
+                    if isinstance(head, dict):
+                        if "confidence" in head and isinstance(head["confidence"], (float, int)):
+                            return float(head["confidence"])
+                        if "score" in head and isinstance(head["score"], (float, int)):
+                            return float(head["score"])
+        except Exception:
+            pass
+        return float(default)
