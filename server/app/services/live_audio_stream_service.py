@@ -933,13 +933,18 @@ class LiveAudioStreamService:
         print(f"[说话人分离] 初始化参数: 注册时长={enroll_sec}s, 最大说话人数={max_speakers}, 平滑系数={smooth}")
         
         try:
+            # 检测是否为单人模式：如果最大说话人数为1，启用单人模式
+            single_speaker_mode = (max_speakers == 1)
+            
             self._diarizer = OnlineDiarizer(
                 sr=16000,
                 max_speakers=max_speakers,
                 enroll_sec=enroll_sec,
                 smooth=smooth,
+                single_speaker_mode=single_speaker_mode,
             )
             print(f"[说话人分离] OnlineDiarizer 初始化成功: {type(self._diarizer)}")
+            print(f"[说话人分离] 单人模式: {single_speaker_mode}, 聚类阈值: {self._diarizer.cluster_threshold}")
         except Exception as e:
             print(f"[说话人分离] OnlineDiarizer 初始化失败: {e}")
             import traceback

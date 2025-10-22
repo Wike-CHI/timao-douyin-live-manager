@@ -34,12 +34,16 @@ class DiarizerState:
 
 
 class OnlineDiarizer:
-    def __init__(self, sr: int = 16000, max_speakers: int = 2, enroll_sec: float = 4.0, smooth: float = 0.2) -> None:
+    def __init__(self, sr: int = 16000, max_speakers: int = 2, enroll_sec: float = 4.0, smooth: float = 0.2, single_speaker_mode: bool = False) -> None:
         self.sr = sr
         self.max_speakers = max(1, int(max_speakers))
         self.enroll_sec = max(0.0, float(enroll_sec))
         self.smooth = float(smooth)
+        self.single_speaker_mode = single_speaker_mode
         self.state = DiarizerState()
+        
+        # 调整聚类阈值：单人模式使用更高的阈值，减少过度分割
+        self.cluster_threshold = 1.2 if single_speaker_mode else 0.8
 
     def _feat(self, pcm16: bytes) -> np.ndarray:
         y = np.frombuffer(pcm16, dtype=np.int16).astype(np.float32) / 32768.0
@@ -68,6 +72,16 @@ class OnlineDiarizer:
             self.state.next_id += 1
             self.state.clusters[cid] = Cluster(cid, x.copy())
             return cid
+        
+        # 单人模式：强制使用第一个聚类，不创建新聚类
+        if self.single_speaker_mode and len(self.state.clusters) >= 1:
+            # 总是返回第一个聚类ID
+            first_cid = min(self.state.clusters.keys())
+            c = self.state.clusters[first_cid]
+            c.center = (1.0 - self.smooth) * c.center + self.smooth * x
+            c.count += 1
+            return first_cid
+        
         # find nearest cluster
         best_cid = None
         best_d = 1e9
@@ -76,8 +90,10 @@ class OnlineDiarizer:
             if d < best_d:
                 best_d = d
                 best_cid = cid
+        
         # threshold: if too far and we can add a new cluster
-        if (best_d > 0.6) and (len(self.state.clusters) < self.max_speakers):
+        # 使用动态阈值，单人模式使用更高的阈值
+        if (best_d > self.cluster_threshold) and (len(self.state.clusters) < self.max_speakers):
             cid = self.state.next_id
             self.state.next_id += 1
             self.state.clusters[cid] = Cluster(cid, x.copy())
@@ -98,24 +114,36 @@ class OnlineDiarizer:
         # accounting
         self.state.clusters[cid].total_dur += float(seg_sec)
         self.state.enrolled_sec += float(seg_sec)
-        # host selection during enrollment window: the first stable cluster
-        if self.state.host_cluster is None and self.state.enrolled_sec <= self.enroll_sec:
-            # pick cluster with largest total_dur so far
-            if self.state.clusters[cid].total_dur >= 1.0:  # at least 1 sec observed
+        
+        # 单人模式：直接设置第一个聚类为主播
+        if self.single_speaker_mode:
+            if self.state.host_cluster is None:
                 self.state.host_cluster = cid
-        # label mapping
-        if self.state.host_cluster is None:
-            label = f"spk{cid}"
+            # 单人模式下始终返回主播标签
+            label = "host"
         else:
-            if cid == self.state.host_cluster:
-                label = "host"
+            # 多人模式：原有逻辑
+            # host selection during enrollment window: the first stable cluster
+            if self.state.host_cluster is None and self.state.enrolled_sec <= self.enroll_sec:
+                # pick cluster with largest total_dur so far
+                if self.state.clusters[cid].total_dur >= 1.0:  # at least 1 sec observed
+                    self.state.host_cluster = cid
+            # label mapping
+            if self.state.host_cluster is None:
+                label = f"spk{cid}"
             else:
-                # assign guest if second most dominant
-                label = "guest"
+                if cid == self.state.host_cluster:
+                    label = "host"
+                else:
+                    # assign guest if second most dominant
+                    label = "guest"
+        
         dbg = {
             "cluster": float(cid),
             "host_cluster": float(self.state.host_cluster) if self.state.host_cluster is not None else -1.0,
             "clusters": float(len(self.state.clusters)),
+            "single_speaker_mode": self.single_speaker_mode,
+            "cluster_threshold": self.cluster_threshold,
         }
         return label, dbg
 
