@@ -31,19 +31,31 @@ class DiarizerState:
     next_id: int = 0
     host_cluster: Optional[int] = None
     enrolled_sec: float = 0.0
+    # 智能切换相关状态
+    multi_speaker_detected: bool = False
+    multi_speaker_confidence: float = 0.0
+    last_switch_time: float = 0.0
+    stable_single_duration: float = 0.0
 
 
 class OnlineDiarizer:
-    def __init__(self, sr: int = 16000, max_speakers: int = 2, enroll_sec: float = 4.0, smooth: float = 0.2, single_speaker_mode: bool = False) -> None:
+    def __init__(self, sr: int = 16000, max_speakers: int = 2, enroll_sec: float = 4.0, smooth: float = 0.2, single_speaker_mode: bool = True, auto_switch: bool = True) -> None:
         self.sr = sr
         self.max_speakers = max(1, int(max_speakers))
         self.enroll_sec = max(0.0, float(enroll_sec))
         self.smooth = float(smooth)
         self.single_speaker_mode = single_speaker_mode
+        self.auto_switch = auto_switch  # 是否启用自动切换
         self.state = DiarizerState()
         
         # 调整聚类阈值：单人模式使用更高的阈值，减少过度分割
         self.cluster_threshold = 1.2 if single_speaker_mode else 0.8
+        
+        # 智能切换参数
+        self.multi_speaker_threshold = 0.3  # 检测多说话者的距离阈值（降低以提高敏感度）
+        self.confidence_threshold = 0.5     # 切换置信度阈值（降低以更容易切换）
+        self.switch_cooldown = 3.0          # 切换冷却时间（秒）（减少冷却时间）
+        self.stable_duration_required = 2.0 # 稳定持续时间要求（秒）（减少稳定时间）
 
     def _feat(self, pcm16: bytes) -> np.ndarray:
         y = np.frombuffer(pcm16, dtype=np.int16).astype(np.float32) / 32768.0
@@ -66,6 +78,55 @@ class OnlineDiarizer:
     def _dist(self, a: np.ndarray, b: np.ndarray) -> float:
         return float(np.linalg.norm(a - b))
 
+    def _detect_multi_speaker(self, x: np.ndarray, current_time: float) -> bool:
+        """检测是否存在多个说话者"""
+        if not self.auto_switch or not self.state.clusters:
+            return False
+        
+        # 计算与现有聚类的最小距离
+        min_distance = float('inf')
+        for cid, cluster in self.state.clusters.items():
+            distance = self._dist(x, cluster.center)
+            min_distance = min(min_distance, distance)
+        
+        # 如果距离超过阈值，可能是新说话者
+        is_potential_new_speaker = min_distance > self.multi_speaker_threshold
+        
+        # 更新置信度（增加更新幅度以提高响应速度）
+        if is_potential_new_speaker:
+            self.state.multi_speaker_confidence = min(1.0, self.state.multi_speaker_confidence + 0.2)
+            self.state.stable_single_duration = 0.0
+        else:
+            self.state.multi_speaker_confidence = max(0.0, self.state.multi_speaker_confidence - 0.1)
+            self.state.stable_single_duration += 0.8  # 假设每次调用间隔约0.8秒
+        
+        # 检查是否应该切换到多人模式
+        should_switch_to_multi = (
+            not self.state.multi_speaker_detected and
+            self.state.multi_speaker_confidence > self.confidence_threshold and
+            current_time - self.state.last_switch_time > self.switch_cooldown
+        )
+        
+        # 检查是否应该切换回单人模式
+        should_switch_to_single = (
+            self.state.multi_speaker_detected and
+            self.state.stable_single_duration > self.stable_duration_required and
+            self.state.multi_speaker_confidence < 0.3 and
+            current_time - self.state.last_switch_time > self.switch_cooldown
+        )
+        
+        # 执行切换
+        if should_switch_to_multi:
+            self.state.multi_speaker_detected = True
+            self.state.last_switch_time = current_time
+            return True
+        elif should_switch_to_single:
+            self.state.multi_speaker_detected = False
+            self.state.last_switch_time = current_time
+            return True
+        
+        return False
+
     def _assign(self, x: np.ndarray) -> int:
         if not self.state.clusters:
             cid = self.state.next_id
@@ -74,7 +135,7 @@ class OnlineDiarizer:
             return cid
         
         # 单人模式：强制使用第一个聚类，不创建新聚类
-        if self.single_speaker_mode and len(self.state.clusters) >= 1:
+        if self.single_speaker_mode and not self.state.multi_speaker_detected and len(self.state.clusters) >= 1:
             # 总是返回第一个聚类ID
             first_cid = min(self.state.clusters.keys())
             c = self.state.clusters[first_cid]
@@ -92,8 +153,12 @@ class OnlineDiarizer:
                 best_cid = cid
         
         # threshold: if too far and we can add a new cluster
-        # 使用动态阈值，单人模式使用更高的阈值
-        if (best_d > self.cluster_threshold) and (len(self.state.clusters) < self.max_speakers):
+        # 使用动态阈值，根据当前模式调整
+        current_threshold = self.cluster_threshold
+        if self.single_speaker_mode and not self.state.multi_speaker_detected:
+            current_threshold = 1.2  # 单人模式使用更高阈值
+        
+        if (best_d > current_threshold) and (len(self.state.clusters) < self.max_speakers):
             cid = self.state.next_id
             self.state.next_id += 1
             self.state.clusters[cid] = Cluster(cid, x.copy())
@@ -109,14 +174,35 @@ class OnlineDiarizer:
         """Feed a segment; return (label, debug) where label in {host, guest, spk<N>}.
         seg_sec: duration seconds (for accounting)
         """
+        import time
+        current_time = time.time()
+        
         x = self._feat(pcm16)
+        
+        # 智能切换检测
+        if self.auto_switch:
+            should_switch = self._detect_multi_speaker(x, current_time)
+            if should_switch:
+                # 执行切换
+                if not self.state.multi_speaker_detected and self.state.multi_speaker_confidence > self.confidence_threshold:
+                    # 切换到多人模式
+                    self.state.multi_speaker_detected = True
+                    self.state.last_switch_time = current_time
+                    print(f"[智能切换] 检测到多个说话者，切换到多人分离模式 (置信度: {self.state.multi_speaker_confidence:.2f})")
+                elif self.state.multi_speaker_detected and self.state.multi_speaker_confidence < 0.3:
+                    # 切换回单人模式
+                    self.state.multi_speaker_detected = False
+                    self.state.last_switch_time = current_time
+                    print(f"[智能切换] 恢复单人模式 (稳定时长: {self.state.stable_single_duration:.1f}s)")
+        
         cid = self._assign(x)
         # accounting
         self.state.clusters[cid].total_dur += float(seg_sec)
         self.state.enrolled_sec += float(seg_sec)
         
-        # 单人模式：直接设置第一个聚类为主播
-        if self.single_speaker_mode:
+        # 根据当前模式决定标签分配策略
+        if self.single_speaker_mode and not self.state.multi_speaker_detected:
+            # 单人模式：直接设置第一个聚类为主播
             if self.state.host_cluster is None:
                 self.state.host_cluster = cid
             # 单人模式下始终返回主播标签
@@ -144,6 +230,9 @@ class OnlineDiarizer:
             "clusters": float(len(self.state.clusters)),
             "single_speaker_mode": self.single_speaker_mode,
             "cluster_threshold": self.cluster_threshold,
+            "multi_speaker_detected": self.state.multi_speaker_detected,
+            "multi_speaker_confidence": self.state.multi_speaker_confidence,
+            "auto_switch_enabled": self.auto_switch,
         }
         return label, dbg
 

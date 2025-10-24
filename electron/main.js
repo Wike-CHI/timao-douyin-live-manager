@@ -101,19 +101,19 @@ function startFastAPI() {
                 return resolve({ success: true, message: 'FastAPI already running' });
             }
 
-            // If port 8090 is already in use (e.g., user started uvicorn manually),
+            // If port 10090 is already in use (e.g., user started uvicorn manually),
             // do not spawn another process to avoid EADDRINUSE and noisy logs.
-            const available = await isPortAvailable(8090);
+            const available = await isPortAvailable(10090);
             if (!available) {
-                console.log('[electron] Port 8090 is already in use; assuming FastAPI is running.');
+                console.log('[electron] Port 10090 is already in use; assuming FastAPI is running.');
                 return resolve({ success: true, message: 'FastAPI already running (external)' });
             }
 
-            // Use uvicorn to run server.app.main:app on 127.0.0.1:8090 (default FastAPI port for Electron)
+            // Use uvicorn to run server.app.main:app on 127.0.0.1:10090 (default FastAPI port for Electron)
             // Spawn with project root as cwd so Python can import local packages
             apiProcess = spawn(
                 process.platform === 'win32' ? 'python' : 'python3',
-                ['-m', 'uvicorn', 'server.app.main:app', '--host', '127.0.0.1', '--port', '8090'],
+                ['-m', 'uvicorn', 'server.app.main:app', '--host', '127.0.0.1', '--port', '10090'],
                 {
                     cwd: path.join(__dirname, '..'),
                     env: {
