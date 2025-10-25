@@ -5,6 +5,8 @@
 
 import logging
 from pathlib import Path
+import os
+import ssl
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +15,19 @@ from fastapi.staticfiles import StaticFiles
 import asyncio
 from dotenv import load_dotenv
 from ..utils.ai_defaults import ensure_default_ai_env
+
+
+def _disable_ssl_verify_if_requested() -> None:
+    """Opt-in dev helper to skip SSL certificate verification."""
+    if os.getenv("DISABLE_SSL_VERIFY", "1") != "1":
+        return
+    ssl._create_default_https_context = ssl._create_unverified_context  # type: ignore[attr-defined]
+    try:
+        import urllib3
+
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    except Exception:
+        pass
 
 def _load_env_once() -> None:
     """Load .env from project root regardless of working directory."""
@@ -28,6 +43,7 @@ def _load_env_once() -> None:
 # 预先加载环境变量，确保下游模块（Qwen 等）能读取 .env
 _load_env_once()
 ensure_default_ai_env()
+_disable_ssl_verify_if_requested()
 
 # 配置日志
 logging.basicConfig(

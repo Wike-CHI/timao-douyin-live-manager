@@ -564,10 +564,10 @@ COPY server/ .
 COPY --from=frontend /app/frontend/dist ./static/
 
 # 暴露端口
-EXPOSE 8000
+EXPOSE 10090
 
 # 启动命令
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "10090"]
 ```
 
 ```yaml
@@ -578,7 +578,7 @@ services:
   app:
     build: .
     ports:
-      - "8000:8000"
+      - "10090:10090"
     environment:
       - DATABASE_URL=sqlite:///./timao_mvp.db
       - REDIS_URL=redis://redis:6379

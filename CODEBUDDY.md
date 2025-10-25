@@ -14,7 +14,7 @@
 - Python 环境依赖（统一）：pip install -r requirements.all.txt
 - 启动后端 A（Flask）：python server/app.py
   （包含 FastAPI + AST + 工具依赖，无需分模块安装）
-- 启动后端 B（FastAPI）：uvicorn server.app.main:app --reload --host 0.0.0.0 --port 8000
+- 启动后端 B（FastAPI）：uvicorn server.app.main:app --reload --host 0.0.0.0 --port 10090
 - Python 代码格式/检查（server/）：black . && flake8
 - Python 测试（server/ 或根目录 pytest.ini 所在处）：pytest
 - 运行单个 pytest 用例：pytest 路径/到/test_file.py -k 用例名片段

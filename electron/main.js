@@ -3,6 +3,11 @@ const { spawn, spawnSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
+// 开发环境下跳过SSL证书验证，解决X509_V_FLAG_NOTIFY_POLICY错误
+if (process.env.NODE_ENV !== 'production') {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
+
 // Ensure packaged app ships with a working AI backend without manual env setup.
 const defaultAiEnv = {
     AI_SERVICE: 'qwen',

@@ -52,8 +52,8 @@ RUN pip3 install --no-cache-dir fastapi uvicorn[standard] websockets soundfile n
 WORKDIR /app
 COPY server /app/server
 
-EXPOSE 8000
-CMD ["uvicorn", "server.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 10090
+CMD ["uvicorn", "server.app.main:app", "--host", "0.0.0.0", "--port", "10090"]
 FastAPI 端点（server/app/main.py）：
 
 python
@@ -223,7 +223,7 @@ CLS：收集 FastAPI/模型日志与调用链；关键指标（RTF、延迟、�
 在仓库新增：
 server/app/main.py：HTTP 与 WS 端点
 server/ai/sensevoice_service.py：模型封装（流式接口可先留空）
-本地用 uvicorn server.app.main:app --reload --port 8000 自测 /api/health。
+本地用 uvicorn server.app.main:app --reload --port 10090 自测 /api/health。
 构建推理镜像→推送 TCR→云托管部署并打通公网或内网访问。
 Electron 侧用回环录音采集 16k PCM，通过 WS 推流，页面显示增量转写（LiveConsolePage.tsx）。
 将音频与转写落 COS；定时任务汇总高置信度数据，手动触发一次 TKE Job 微调并灰度回滚验证。

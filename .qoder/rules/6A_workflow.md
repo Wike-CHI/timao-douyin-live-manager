@@ -1,6 +1,6 @@
 ---
-trigger: always_on
-alwaysApply: true
+trigger: manual
+alwaysApply: false
 ---
 # 6A 项目规则
 
