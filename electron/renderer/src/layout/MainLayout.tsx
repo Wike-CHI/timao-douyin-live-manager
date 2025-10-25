@@ -18,7 +18,7 @@ const MainLayout = () => {
   const [bootstrap, setBootstrap] = useState<any>(null);
   const [showBoot, setShowBoot] = useState<boolean>(true);
   const [wsOk, setWsOk] = useState<boolean | null>(null);
-  const defaultApiBase = 'http://127.0.0.1:8090';
+  const defaultApiBase = 'http://127.0.0.1:10090';
   const injectedApiBase = ((import.meta.env?.VITE_FASTAPI_URL as string | undefined) || '').trim() || defaultApiBase;
   const [apiBase, setApiBase] = useState<string>(injectedApiBase);
 

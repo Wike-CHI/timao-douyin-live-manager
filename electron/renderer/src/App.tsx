@@ -17,7 +17,12 @@ const App = () => {
   const { requireAuth, requirePayment, isAuthenticated } = useAuthGuard();
 
   return (
-    <HashRouter>
+    <HashRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <Routes>
         <Route path="/auth" element={<AuthLayout />}> 
           <Route index element={<Navigate to="login" replace />} />

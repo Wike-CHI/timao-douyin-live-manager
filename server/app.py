@@ -47,7 +47,8 @@ logger = setup_logger(__name__)
 
 # 创建Flask应用
 app = Flask(__name__)
-CORS(app)  # 启用跨域支持
+# 配置CORS - 限制为本地开发环境
+CORS(app, origins=["http://127.0.0.1:30013", "http://localhost:30013"])
 
 # 全局变量
 config = Config()

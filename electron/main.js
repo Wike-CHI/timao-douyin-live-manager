@@ -73,6 +73,7 @@ function createWindow() {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
+            webSecurity: true,
             preload: path.join(__dirname, 'preload.js')
         }
     });
@@ -311,6 +312,26 @@ ipcMain.handle('open-logs', async () => {
 // -------------------------------
 // Helpers
 // -------------------------------
+// IPC handler for app info
+ipcMain.handle('get-app-info', async () => {
+    const packagePath = path.join(__dirname, 'package.json');
+    try {
+        const packageData = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+        return {
+            name: packageData.name,
+            version: packageData.version,
+            description: packageData.description
+        };
+    } catch (error) {
+        console.error('Failed to read package.json:', error);
+        return {
+            name: 'ast-voice-transcription-app',
+            version: '1.0.0',
+            description: '语音转录服务桌面应用'
+        };
+    }
+});
+
 function isPortAvailable(port) {
     return new Promise((resolve) => {
         const net = require('net');

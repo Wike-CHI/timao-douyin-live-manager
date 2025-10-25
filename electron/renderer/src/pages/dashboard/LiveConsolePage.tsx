@@ -16,7 +16,7 @@ import { useLiveConsoleStore, getLiveConsoleSocket } from '../../store/useLiveCo
 
 // Note: Do not cap transcript items; persist to disk is handled by backend.
 // We keep full in-memory log for current session (may grow large for long sessions).
-const FASTAPI_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:8090';
+const FASTAPI_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:10090';
 
 const LiveConsolePage = () => {
   const {

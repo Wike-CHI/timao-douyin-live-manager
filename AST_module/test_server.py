@@ -72,7 +72,8 @@ from flask_cors import CORS
 app = Flask(__name__, 
             template_folder='templates',
             static_folder='static')
-CORS(app)  # 启用CORS
+# 配置CORS - 限制为本地开发环境
+CORS(app, origins=["http://127.0.0.1:30013", "http://localhost:30013"])
 
 @app.route('/')
 def index():

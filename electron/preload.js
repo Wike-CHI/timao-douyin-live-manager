@@ -19,8 +19,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   version: process.versions,
   
   // 应用信息
-  appVersion: require('../package.json').version,
-  appName: require('../package.json').name
+  getAppInfo: () => ipcRenderer.invoke('get-app-info')
 });
 
 /**

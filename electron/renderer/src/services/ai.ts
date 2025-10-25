@@ -1,6 +1,6 @@
 import useAuthStore from '../store/useAuthStore';
 
-const DEFAULT_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:8090';
+const DEFAULT_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:10090';
 
 /**
  * 构建包含鉴权信息的请求头
