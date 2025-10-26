@@ -60,27 +60,6 @@ print(f"费用: ¥{response.cost:.4f}")
 print(f"耗时: {response.duration_ms:.0f}ms")
 ```
 
-### 方法 2：临时指定服务商
-
-```python
-# 临时使用 DeepSeek
-response = gateway.chat_completion(
-    messages=[{"role": "user", "content": "写一段代码"}],
-    provider="deepseek",
-    model="deepseek-coder"
-)
-```
-
-### 方法 3：切换全局默认
-
-```python
-# 切换到 OpenAI GPT-4
-gateway.switch_provider("openai", model="gpt-4")
-
-# 之后的所有调用都使用 GPT-4
-response = gateway.chat_completion(...)
-```
-
 ---
 
 ## 🔧 注册服务商

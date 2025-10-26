@@ -29,11 +29,6 @@ class SwitchProviderRequest(BaseModel):
     model: Optional[str] = Field(None, description="模型名称")
 
 
-class SetFallbackRequest(BaseModel):
-    """设置降级链请求"""
-    providers: List[str] = Field(..., description="服务商列表（按优先级排序）")
-
-
 class ChatCompletionRequest(BaseModel):
     """对话补全请求"""
     messages: List[Dict[str, str]] = Field(..., description="消息列表")
@@ -87,21 +82,6 @@ async def switch_provider(req: SwitchProviderRequest):
             "success": True,
             "message": f"已切换至 {req.provider}/{req.model or '默认模型'}",
             "current": gateway.get_current_config(),
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.post("/fallback")
-async def set_fallback_chain(req: SetFallbackRequest):
-    """设置服务商降级链"""
-    try:
-        gateway = get_gateway()
-        gateway.set_fallback_chain(req.providers)
-        return {
-            "success": True,
-            "message": "降级链已设置",
-            "fallback_chain": gateway.fallback_chain,
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

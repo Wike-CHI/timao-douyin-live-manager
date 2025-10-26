@@ -120,7 +120,6 @@ class AIGateway:
         self.clients: Dict[str, OpenAI] = {}
         self.current_provider: Optional[str] = None
         self.current_model: Optional[str] = None
-        self.fallback_chain: List[str] = []
         
         # 从环境变量加载配置
         self._load_from_env()
@@ -256,17 +255,6 @@ class AIGateway:
         
         logger.info(f"已切换至: {provider} / {self.current_model}")
     
-    def set_fallback_chain(self, providers: List[str]) -> None:
-        """设置服务商降级链
-        
-        当主服务失败时，按顺序尝试备用服务商
-        
-        Args:
-            providers: 服务商列表，按优先级排序
-        """
-        self.fallback_chain = [p.lower() for p in providers if p.lower() in self.providers]
-        logger.info(f"降级链已设置: {' -> '.join(self.fallback_chain)}")
-    
     def chat_completion(
         self,
         messages: List[Dict[str, str]],
@@ -296,44 +284,6 @@ class AIGateway:
         target_model = model or self.current_model
         
         if not target_provider or target_provider not in self.providers:
-            raise ValueError(f"无效的服务商: {target_provider}")
-        
-        # 尝试主服务商
-        try:
-            return self._call_provider(
-                provider=target_provider,
-                model=target_model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                response_format=response_format,
-                **kwargs,
-            )
-        except Exception as e:
-            logger.warning(f"{target_provider} 调用失败: {e}")
-            
-            # 尝试降级链
-            if self.fallback_chain:
-                for fallback_provider in self.fallback_chain:
-                    if fallback_provider == target_provider:
-                        continue
-                    try:
-                        logger.info(f"尝试降级到: {fallback_provider}")
-                        fallback_config = self.providers[fallback_provider]
-                        return self._call_provider(
-                            provider=fallback_provider,
-                            model=fallback_config.default_model,
-                            messages=messages,
-                            temperature=temperature,
-                            max_tokens=max_tokens,
-                            response_format=response_format,
-                            **kwargs,
-                        )
-                    except Exception as fallback_error:
-                        logger.warning(f"{fallback_provider} 降级失败: {fallback_error}")
-                        continue
-            
-            # 所有服务都失败
             return AIResponse(
                 content="",
                 model=target_model or "",
@@ -342,8 +292,19 @@ class AIGateway:
                 cost=0.0,
                 duration_ms=0.0,
                 success=False,
-                error=str(e),
+                error=f"无效的服务商: {target_provider}",
             )
+        
+        # 直接调用，不做降级
+        return self._call_provider(
+            provider=target_provider,
+            model=target_model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
+            **kwargs,
+        )
     
     def _call_provider(
         self,
@@ -457,7 +418,6 @@ class AIGateway:
             "base_url": config.base_url,
             "available_models": config.models,
             "enabled": config.enabled,
-            "fallback_chain": self.fallback_chain,
         }
     
     def list_providers(self) -> Dict[str, Dict[str, Any]]:
