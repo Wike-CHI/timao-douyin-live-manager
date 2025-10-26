@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 import os
 import ssl
+import sys
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +15,12 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 import asyncio
 from dotenv import load_dotenv
+
+# 确保项目根目录在 Python 路径中，以便正确导入 DouyinLiveWebFetcher 等模块
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from ..utils.ai_defaults import ensure_default_ai_env
 
 
