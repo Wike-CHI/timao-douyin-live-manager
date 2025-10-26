@@ -512,7 +512,7 @@ const LiveConsolePage = () => {
 
   // --------------- State persistence ---------------
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="timao-soft-card flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-4">
           <div className="text-4xl">📡</div>
@@ -592,7 +592,7 @@ const LiveConsolePage = () => {
           ) : (
             <div className="flex-1 flex flex-col">
             {/* 固定高度，列表支持滚动；与右侧卡片齐平 */}
-            <div className="space-y-3 overflow-y-auto pr-1 flex-1 min-h-[1350px] max-h-[1350px]">
+            <div className="space-y-3 overflow-y-auto pr-1 flex-1 min-h-[1500px] max-h-[1500px]">
               {log.length === 0 ? (
                 <div className="timao-outline-card text-sm timao-support-text text-center">
                   暂无转写结果。{isRunning ? '等待识别...' : '点击开始转写以开启实时字幕。'}
@@ -736,43 +736,141 @@ const LiveConsolePage = () => {
             )}
           </div>
 
-          {/* 风格画像与氛围 */}
-          <div className="timao-card">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-                <span>🎛️</span>
-                风格画像与氛围
-              </h3>
-            </div>
-            {(!styleProfile && !vibe) ? (
-              <div className="timao-outline-card text-xs timao-support-text">{isRunning ? '正在学习主播风格与氛围…' : '开始实时字幕后自动学习'}</div>
-            ) : (
-              <div className="grid grid-cols-1 gap-3">
-                {styleProfile ? (
-                  <div className="rounded-xl bg-white/90 border p-3">
-                    <div className="text-xs text-slate-500 mb-1">风格画像</div>
-                    <div className="text-xs text-slate-600">
-                      <div>人物：{String(styleProfile.persona ?? '—')}</div>
-                      <div>语气：{String(styleProfile.tone ?? '—')} · 节奏：{String(styleProfile.tempo ?? '—')} · 用词：{String(styleProfile.register ?? '—')}</div>
-                      {Array.isArray(styleProfile.catchphrases) && styleProfile.catchphrases.length ? (
-                        <div>口头禅：{styleProfile.catchphrases.slice(0, 4).join('、')}</div>
-                      ) : null}
-                      {Array.isArray(styleProfile.slang) && styleProfile.slang.length ? (
-                        <div>俚语：{styleProfile.slang.slice(0, 4).join('、')}</div>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
-                {vibe ? (
-                  <div className="rounded-xl bg-white/90 border p-3">
-                    <div className="text-xs text-slate-500 mb-1">直播间氛围</div>
-                    <div className="text-xs text-slate-600">热度：{String(vibe.level ?? '—')} · 分数：{String(vibe.score ?? '—')}</div>
-                  </div>
-                ) : null}
-              </div>
-            )}
+        {/* 风格画像与氛围 */}
+        <div className="timao-card h-[320px] flex flex-col">
+          <div className="flex items-center justify-between mb-3 flex-shrink-0">
+            <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
+              <span>🎛️</span>
+              风格画像与氛围
+            </h3>
           </div>
+          {(!styleProfile && !vibe) ? (
+            <div className="timao-outline-card text-xs timao-support-text flex-1 flex items-center justify-center">{isRunning ? '正在学习主播风格与氛围…' : '开始实时字幕后自动学习'}</div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 flex-1 overflow-y-auto">
+              {styleProfile ? (
+                <div className="rounded-xl bg-white/90 border p-3">
+                  <div className="text-xs text-slate-500 mb-1">风格画像</div>
+                  <div className="text-xs text-slate-600">
+                    <div>人物：{String(styleProfile.persona ?? '—')}</div>
+                    <div>语气：{String(styleProfile.tone ?? '—')} · 节奏：{String(styleProfile.tempo ?? '—')} · 用词：{String(styleProfile.register ?? '—')}</div>
+                    {Array.isArray(styleProfile.catchphrases) && styleProfile.catchphrases.length ? (
+                      <div>口头禅：{styleProfile.catchphrases.slice(0, 4).join('、')}</div>
+                    ) : null}
+                    {Array.isArray(styleProfile.slang) && styleProfile.slang.length ? (
+                      <div>俚语：{styleProfile.slang.slice(0, 4).join('、')}</div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+              {vibe ? (
+                <div className="rounded-xl bg-white/90 border p-3">
+                  <div className="text-xs text-slate-500 mb-1">直播间氛围</div>
+                  <div className="text-xs text-slate-600">热度：{String(vibe.level ?? '—')} · 分数：{String(vibe.score ?? '—')}</div>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+      </div>
 
+      {/* 第二行：主播实时语音转写 和 弹幕评论 */}
+      <div className="grid gap-6 xl:grid-cols-2 lg:grid-cols-2 md:grid-cols-1">
+        <section className="timao-card flex flex-col h-[600px]">
+          <div className="flex items-center justify-between mb-4 flex-shrink-0">
+            <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
+              <span>📝</span>
+              主播实时语音转写
+            </h3>
+            <div className="flex items-center gap-3">
+              <span className="timao-status-pill text-xs">{isRunning ? '实时更新中' : '已暂停'}</span>
+              <button
+                className="text-xs timao-support-text hover:text-purple-600"
+                onClick={() => setCollapsed((v) => !v)}
+                title={collapsed ? '展开' : '折叠'}
+              >
+                {collapsed ? '展开 ▾' : '折叠 ▸'}
+              </button>
+            </div>
+          </div>
+          {collapsed ? (
+            <div className="space-y-2">
+              <select
+                id="transcript-select"
+                className="timao-input w-full"
+                value={selectedId ?? (log[0]?.id || '')}
+                onChange={(e) => setSelectedId(e.target.value || null)}
+                aria-label="选择转写记录"
+                title="选择转写记录"
+              >
+                {log.length === 0 ? (
+                  <option value="">暂无转写</option>
+                ) : (
+                  log.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {new Date(item.timestamp * 1000).toLocaleTimeString()} · {speakerLabelShort(item.speaker)} · {(item.text || '').slice(0, 24)}
+                    </option>
+                  ))
+                )}
+              </select>
+              <div className="rounded-xl bg-white/90 border p-3 text-sm text-slate-700 min-h-[48px]">
+                {(() => {
+                  const found = log.find((x) => x.id === (selectedId ?? log[0]?.id));
+                  return found ? found.text : '暂无转写结果';
+                })()}
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col overflow-hidden">
+            {/* 内容区域，支持滚动 */}
+            <div className="space-y-3 overflow-y-auto pr-2 flex-1">
+              {log.length === 0 ? (
+                <div className="timao-outline-card text-sm timao-support-text text-center">
+                  暂无转写结果。{isRunning ? '等待识别...' : '点击开始转写以开启实时字幕。'}
+                </div>
+              ) : (
+                log.map((item) => (
+                  <div key={item.id} className="flex-shrink-0 rounded-xl border border-white/60 shadow-sm p-3 bg-white/95 hover:shadow-md transition-shadow">
+                      <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+                        <span>{new Date(item.timestamp * 1000).toLocaleTimeString()}</span>
+                        {renderSpeakerBadge(item.speaker)}
+                      </div>
+                      {(() => {
+                        const debugText = formatSpeakerDebug(item.speakerDebug);
+                        return debugText
+                          ? (
+                            <div className="text-[10px] text-slate-400 mb-1">
+                              {debugText}
+                            </div>
+                          )
+                          : null;
+                      })()}
+                      <div className="text-slate-600 text-sm leading-relaxed">{item.text}</div>
+                    </div>
+                ))
+              )}
+            </div>
+            </div>
+          )}
+        </section>
+
+        <section className="timao-card flex flex-col h-[600px]">
+          <div className="flex items-center justify-between mb-4 flex-shrink-0">
+            <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
+              <span>💬</span>
+              弹幕评论
+            </h3>
+            <span className="timao-status-pill text-xs">{isRunning ? '实时更新中' : '已暂停'}</span>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <DouyinRelayPanel baseUrl={FASTAPI_BASE_URL} onSelectQuestion={handleSelectQuestion} />
+          </div>
+        </section>
+      </div>
+
+      {/* 第三行：其他功能区域 */}
+      <div className="grid gap-6 xl:grid-cols-3 lg:grid-cols-2 md:grid-cols-1">
+        <section className="flex flex-col gap-4">
           <div className="timao-card">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
@@ -1057,8 +1155,6 @@ const LiveConsolePage = () => {
           </div>
         </section>
       </div>
-
-      <DouyinRelayPanel baseUrl={FASTAPI_BASE_URL} onSelectQuestion={handleSelectQuestion} />
     </div>
   );
 };
