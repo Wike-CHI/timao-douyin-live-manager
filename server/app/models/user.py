@@ -48,6 +48,36 @@ class User(BaseModel, UUIDMixin, SoftDeleteMixin):
     avatar_url = Column(String(500), nullable=True, comment="头像URL")
     bio = Column(Text, nullable=True, comment="个人简介")
     
+    # 直播账号绑定
+    douyin_user_id = Column(String(100), unique=True, nullable=True, comment="抖音用户ID")
+    douyin_nickname = Column(String(100), nullable=True, comment="抖音昵称")
+    douyin_avatar = Column(String(500), nullable=True, comment="抖音头像URL")
+    douyin_room_id = Column(String(100), nullable=True, comment="抖音直播间ID")
+    douyin_cookies = Column(Text, nullable=True, comment="抖音Cookies（加密存储）")
+    
+    # 主播认证与等级
+    streamer_verified = Column(Boolean, default=False, nullable=False, comment="主播认证")
+    streamer_level = Column(Integer, default=0, nullable=False, comment="主播等级")
+    streamer_followers = Column(Integer, default=0, nullable=False, comment="粉丝数")
+    streamer_description = Column(Text, nullable=True, comment="主播简介")
+    
+    # 直播偏好设置（JSON格式）
+    live_settings = Column(Text, nullable=True, comment="直播设置JSON")
+    # 示例: {
+    #   "auto_transcribe": true,
+    #   "ai_assistant_enabled": true,
+    #   "ai_model": "qwen-plus",
+    #   "hotword_track": true,
+    #   "gift_alerts": true,
+    #   "comment_filter": ["spam", "ads"]
+    # }
+    
+    # AI 配额管理
+    ai_quota_monthly = Column(Integer, default=1000, nullable=False, comment="每月AI配额")
+    ai_quota_used = Column(Integer, default=0, nullable=False, comment="已使用配额")
+    ai_quota_reset_at = Column(DateTime, nullable=True, comment="配额重置时间")
+    ai_unlimited = Column(Boolean, default=False, nullable=False, comment="无限AI配额")
+    
     # 状态信息
     role = Column(Enum(UserRoleEnum), default=UserRoleEnum.USER, nullable=False, comment="用户角色")
     status = Column(Enum(UserStatusEnum), default=UserStatusEnum.INACTIVE, nullable=False, comment="用户状态")
@@ -77,6 +107,8 @@ class User(BaseModel, UUIDMixin, SoftDeleteMixin):
     payments = relationship("Payment", back_populates="user", cascade="all, delete-orphan")
     invoices = relationship("Invoice", back_populates="user", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="user", cascade="all, delete-orphan")
+    live_sessions = relationship("LiveSession", back_populates="user", cascade="all, delete-orphan")
+    team_memberships = relationship("TeamMember", back_populates="user", cascade="all, delete-orphan")
     
     # 索引
     __table_args__ = (
@@ -158,6 +190,49 @@ class User(BaseModel, UUIDMixin, SoftDeleteMixin):
             return True
         # 这里应该查询用户角色的权限
         return False
+    
+    def check_ai_quota(self, required: int = 1) -> bool:
+        """检查 AI 配额是否充足"""
+        if self.ai_unlimited:
+            return True
+        return self.ai_quota_used + required <= self.ai_quota_monthly
+    
+    def consume_ai_quota(self, amount: int = 1) -> bool:
+        """消耗 AI 配额"""
+        if self.ai_unlimited:
+            return True
+        if not self.check_ai_quota(amount):
+            return False
+        self.ai_quota_used += amount
+        return True
+    
+    def reset_ai_quota(self) -> None:
+        """重置 AI 配额"""
+        from datetime import datetime, timedelta
+        self.ai_quota_used = 0
+        self.ai_quota_reset_at = datetime.utcnow() + timedelta(days=30)
+    
+    def get_live_settings(self) -> dict:
+        """获取直播设置"""
+        import json
+        if not self.live_settings:
+            return {
+                "auto_transcribe": True,
+                "ai_assistant_enabled": True,
+                "ai_model": "qwen-plus",
+                "hotword_track": True,
+                "gift_alerts": True,
+                "comment_filter": []
+            }
+        try:
+            return json.loads(self.live_settings)
+        except:
+            return {}
+    
+    def set_live_settings(self, settings: dict) -> None:
+        """设置直播配置"""
+        import json
+        self.live_settings = json.dumps(settings, ensure_ascii=False)
     
     @property
     def is_active(self) -> bool:

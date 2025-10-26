@@ -11,6 +11,8 @@ from .subscription import (
     PaymentStatusEnum, PaymentMethodEnum
 )
 from .permission import Permission, RolePermission, AuditLog
+from .live import LiveSession
+from .team import Team, TeamMember, TeamRoleEnum
 
 __all__ = [
     # Base classes
@@ -27,4 +29,10 @@ __all__ = [
     
     # Permission models
     'Permission', 'RolePermission', 'AuditLog',
+    
+    # Live models
+    'LiveSession',
+    
+    # Team models
+    'Team', 'TeamMember', 'TeamRoleEnum',
 ]
