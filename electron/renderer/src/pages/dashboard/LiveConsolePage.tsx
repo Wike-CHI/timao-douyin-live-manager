@@ -512,7 +512,7 @@ const LiveConsolePage = () => {
 
   // --------------- State persistence ---------------
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="timao-soft-card flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-4">
           <div className="text-4xl">📡</div>
@@ -547,8 +547,8 @@ const LiveConsolePage = () => {
       {/* 顶部横向排列：直播分析卡片 和 风格画像与氛围 */}
       <div className="grid gap-6 xl:grid-cols-2 lg:grid-cols-2 md:grid-cols-1">
         {/* 直播分析卡片 */}
-        <div className="timao-card">
-          <div className="flex items-center gap-2 mb-3">
+        <div className="timao-card h-[320px] flex flex-col">
+          <div className="flex items-center gap-2 mb-3 flex-shrink-0">
             <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
               <span>🧠</span>
               直播分析卡片
@@ -556,10 +556,10 @@ const LiveConsolePage = () => {
             <span className="text-xs timao-support-text">系统默认每 60 秒更新一次</span>
           </div>
           {aiEvents.length === 0 ? (
-            <div className="timao-outline-card text-sm timao-support-text">{isRunning ? '正在生成直播分析卡片…（开始字幕后约 1 分钟内出现结果）' : '请先在上方开始实时字幕'}
+            <div className="timao-outline-card text-sm timao-support-text flex-1 flex items-center justify-center">{isRunning ? '正在生成直播分析卡片…（开始字幕后约 1 分钟内出现结果）' : '请先在上方开始实时字幕'}
             </div>
           ) : (
-            <div className="space-y-3 max-h-[260px] overflow-y-auto pr-1">
+            <div className="space-y-3 flex-1 overflow-y-auto pr-2">
               {aiEvents.map((ev, idx) => {
                 const sentiment = ev?.audience_sentiment
                   || (ev?.analysis_card && typeof ev.analysis_card === 'object' ? ev.analysis_card.audience_sentiment : null);
@@ -575,7 +575,7 @@ const LiveConsolePage = () => {
                   || fallbackTopics.length
                   || ev?.error || ev?.raw;
                 return (
-                  <div key={idx} className="rounded-2xl border border-white/60 shadow-md p-3 bg-white/95">
+                  <div key={idx} className="rounded-xl border border-white/60 shadow-sm p-3 bg-white/95 hover:shadow-md transition-shadow">
                     {ev?.error ? (
                       <div className="text-xs text-red-600">AI 分析错误：{String(ev.error)}</div>
                     ) : null}
@@ -659,17 +659,17 @@ const LiveConsolePage = () => {
         </div>
 
         {/* 风格画像与氛围 */}
-        <div className="timao-card">
-          <div className="flex items-center justify-between mb-3">
+        <div className="timao-card h-[320px] flex flex-col">
+          <div className="flex items-center justify-between mb-3 flex-shrink-0">
             <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
               <span>🎛️</span>
               风格画像与氛围
             </h3>
           </div>
           {(!styleProfile && !vibe) ? (
-            <div className="timao-outline-card text-xs timao-support-text">{isRunning ? '正在学习主播风格与氛围…' : '开始实时字幕后自动学习'}</div>
+            <div className="timao-outline-card text-xs timao-support-text flex-1 flex items-center justify-center">{isRunning ? '正在学习主播风格与氛围…' : '开始实时字幕后自动学习'}</div>
           ) : (
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 gap-3 flex-1 overflow-y-auto">
               {styleProfile ? (
                 <div className="rounded-xl bg-white/90 border p-3">
                   <div className="text-xs text-slate-500 mb-1">风格画像</div>
@@ -696,12 +696,13 @@ const LiveConsolePage = () => {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_1.2fr_0.8fr] lg:grid-cols-[1fr_1fr]">
-        <section className="timao-card h-full flex flex-col">
-          <div className="flex items-center justify-between mb-4">
+      {/* 第二行：主播实时语音转写 和 弹幕评论 */}
+      <div className="grid gap-6 xl:grid-cols-2 lg:grid-cols-2 md:grid-cols-1">
+        <section className="timao-card flex flex-col h-[600px]">
+          <div className="flex items-center justify-between mb-4 flex-shrink-0">
             <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
               <span>📝</span>
-              语音转写流
+              主播实时语音转写
             </h3>
             <div className="flex items-center gap-3">
               <span className="timao-status-pill text-xs">{isRunning ? '实时更新中' : '已暂停'}</span>
@@ -742,16 +743,16 @@ const LiveConsolePage = () => {
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col">
-            {/* 固定高度，列表支持滚动；与右侧卡片齐平 */}
-            <div className="space-y-3 overflow-y-auto pr-1 flex-1 min-h-[1500px] max-h-[1500px]">
+            <div className="flex-1 flex flex-col overflow-hidden">
+            {/* 内容区域，支持滚动 */}
+            <div className="space-y-3 overflow-y-auto pr-2 flex-1">
               {log.length === 0 ? (
                 <div className="timao-outline-card text-sm timao-support-text text-center">
                   暂无转写结果。{isRunning ? '等待识别...' : '点击开始转写以开启实时字幕。'}
                 </div>
               ) : (
                 log.map((item) => (
-                  <div key={item.id} className="flex-shrink -0 h-fit rounded-2xl border border-white/60 shadow-md p-4 bg-white/95">
+                  <div key={item.id} className="flex-shrink-0 rounded-xl border border-white/60 shadow-sm p-3 bg-white/95 hover:shadow-md transition-shadow">
                       <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
                         <span>{new Date(item.timestamp * 1000).toLocaleTimeString()}</span>
                         {renderSpeakerBadge(item.speaker)}
@@ -775,8 +776,23 @@ const LiveConsolePage = () => {
           )}
         </section>
 
-        <section className="flex flex-col gap-4">
+        <section className="timao-card flex flex-col h-[600px]">
+          <div className="flex items-center justify-between mb-4 flex-shrink-0">
+            <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
+              <span>💬</span>
+              弹幕评论
+            </h3>
+            <span className="timao-status-pill text-xs">{isRunning ? '实时更新中' : '已暂停'}</span>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <DouyinRelayPanel baseUrl={FASTAPI_BASE_URL} onSelectQuestion={handleSelectQuestion} />
+          </div>
+        </section>
+      </div>
 
+      {/* 第三行：其他功能区域 */}
+      <div className="grid gap-6 xl:grid-cols-3 lg:grid-cols-2 md:grid-cols-1">
+        <section className="flex flex-col gap-4">
           <div className="timao-card">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
@@ -1061,8 +1077,6 @@ const LiveConsolePage = () => {
           </div>
         </section>
       </div>
-
-      <DouyinRelayPanel baseUrl={FASTAPI_BASE_URL} onSelectQuestion={handleSelectQuestion} />
     </div>
   );
 };
