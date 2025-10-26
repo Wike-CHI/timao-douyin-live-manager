@@ -59,10 +59,15 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS配置 - 限制为本地开发环境
+# CORS配置 - 允许本地开发环境访问
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:30013", "http://localhost:30013"],  # 只允许前端开发服务器
+    allow_origins=[
+        "http://127.0.0.1:30013",
+        "http://localhost:30013",
+        "http://127.0.0.1:10090",  # 允许后端静态文件访问 API
+        "http://localhost:10090",   # 允许后端静态文件访问 API
+    ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],

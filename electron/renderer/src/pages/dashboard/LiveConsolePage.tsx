@@ -592,7 +592,7 @@ const LiveConsolePage = () => {
           ) : (
             <div className="flex-1 flex flex-col">
             {/* 固定高度，列表支持滚动；与右侧卡片齐平 */}
-            <div className="space-y-3 overflow-y-auto pr-1 flex-1 min-h-[1500px] max-h-[1500px]">
+            <div className="space-y-3 overflow-y-auto pr-1 flex-1 min-h-[1350px] max-h-[1350px]">
               {log.length === 0 ? (
                 <div className="timao-outline-card text-sm timao-support-text text-center">
                   暂无转写结果。{isRunning ? '等待识别...' : '点击开始转写以开启实时字幕。'}
