@@ -8,6 +8,8 @@ Flask-SocketIO==5.3.6
 # WebSocket支持
 python-socketio==5.9.0
 python-engineio==4.7.1
+websockets>=11.0.0
+websocket-client>=1.6.0
 
 # HTTP客户端
 requests==2.31.0
@@ -64,6 +66,16 @@ mypy==1.7.1
 # 系统监控
 psutil==5.9.6
 
-# langchain
+# UI框架
+flet>=0.24.0
+
+# JavaScript执行
+PyExecJS>=1.5.1
+
+# langchain生态
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-text-splitters>=0.3.0
+langchain-openai>=0.2.0
 langchain-huggingface>=0.1.1
 sentence-transformers>=3.3.0
