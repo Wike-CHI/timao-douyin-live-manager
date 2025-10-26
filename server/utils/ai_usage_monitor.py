@@ -92,6 +92,16 @@ class ModelPricing:
             "output": 0.21,
             "display_name": "GPT-4 Turbo"
         },
+        "gpt-4o": {
+            "input": 0.035,
+            "output": 0.105,
+            "display_name": "GPT-4o"
+        },
+        "gpt-4o-mini": {
+            "input": 0.001,
+            "output": 0.004,
+            "display_name": "GPT-4o Mini"
+        },
         "gpt-3.5-turbo": {
             "input": 0.0035,
             "output": 0.007,
@@ -99,8 +109,61 @@ class ModelPricing:
         },
     }
     
+    # DeepSeek 系列定价（元/1K tokens）
+    DEEPSEEK_PRICING = {
+        "deepseek-chat": {
+            "input": 0.001,
+            "output": 0.002,
+            "display_name": "DeepSeek-Chat"
+        },
+        "deepseek-coder": {
+            "input": 0.001,
+            "output": 0.002,
+            "display_name": "DeepSeek-Coder"
+        },
+    }
+    
+    # 字节豆包系列定价（元/1K tokens）
+    DOUBAO_PRICING = {
+        "doubao-pro-32k": {
+            "input": 0.008,
+            "output": 0.008,
+            "display_name": "豆包-Pro-32K"
+        },
+        "doubao-lite-32k": {
+            "input": 0.003,
+            "output": 0.003,
+            "display_name": "豆包-Lite-32K"
+        },
+    }
+    
+    # ChatGLM 系列定价（元/1K tokens）
+    GLM_PRICING = {
+        "glm-4": {
+            "input": 0.10,
+            "output": 0.10,
+            "display_name": "ChatGLM-4"
+        },
+        "glm-4-flash": {
+            "input": 0.0,
+            "output": 0.0,
+            "display_name": "ChatGLM-4-Flash (免费)"
+        },
+        "glm-3-turbo": {
+            "input": 0.005,
+            "output": 0.005,
+            "display_name": "ChatGLM-3-Turbo"
+        },
+    }
+    
     # 合并所有定价
-    ALL_PRICING = {**QWEN_PRICING, **OPENAI_PRICING}
+    ALL_PRICING = {
+        **QWEN_PRICING,
+        **OPENAI_PRICING,
+        **DEEPSEEK_PRICING,
+        **DOUBAO_PRICING,
+        **GLM_PRICING,
+    }
     
     @classmethod
     def calculate_cost(cls, model: str, input_tokens: int, output_tokens: int) -> float:
@@ -120,6 +183,11 @@ class ModelPricing:
         """获取模型显示名称"""
         pricing = cls.ALL_PRICING.get(model)
         return pricing["display_name"] if pricing else model
+    
+    @classmethod
+    def get_pricing(cls, model: str) -> Optional[Dict[str, Any]]:
+        """获取模型定价信息"""
+        return cls.ALL_PRICING.get(model)
 
 
 class AIUsageMonitor:

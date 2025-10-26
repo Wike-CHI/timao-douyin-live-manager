@@ -168,7 +168,17 @@ async def get_model_pricing():
     return {
         "qwen_series": ModelPricing.QWEN_PRICING,
         "openai_series": ModelPricing.OPENAI_PRICING,
-        "note": "价格单位：元/1K tokens"
+        "deepseek_series": ModelPricing.DEEPSEEK_PRICING,
+        "doubao_series": ModelPricing.DOUBAO_PRICING,
+        "glm_series": ModelPricing.GLM_PRICING,
+        "all_models": ModelPricing.ALL_PRICING,
+        "note": "价格单位：元/1K tokens",
+        "calculation_example": {
+            "model": "qwen-plus",
+            "input_tokens": 1000,
+            "output_tokens": 500,
+            "cost": ModelPricing.calculate_cost("qwen-plus", 1000, 500)
+        }
     }
 
 
