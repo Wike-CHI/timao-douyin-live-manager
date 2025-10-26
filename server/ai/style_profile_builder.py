@@ -21,7 +21,7 @@ try:
 except Exception:  # pragma: no cover - fallback defaults
     DEFAULT_OPENAI_API_KEY = os.getenv("AI_API_KEY", "")
     DEFAULT_OPENAI_BASE_URL = os.getenv("AI_BASE_URL", "")
-    DEFAULT_OPENAI_MODEL = os.getenv("AI_MODEL", "qwen-max")
+    DEFAULT_OPENAI_MODEL = os.getenv("AI_MODEL", "qwen-plus")
 
 logger = logging.getLogger(__name__)
 

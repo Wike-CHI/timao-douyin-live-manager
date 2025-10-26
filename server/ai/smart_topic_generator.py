@@ -57,7 +57,7 @@ class SmartTopicGenerator:
             prompt = self._build_topic_generation_prompt(context)
             
             response = self.ai_client.chat.completions.create(
-                model="qwen-max",
+                model="qwen-plus",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
                 max_tokens=800

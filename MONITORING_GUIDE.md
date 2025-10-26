@@ -329,7 +329,7 @@ def generate_analysis(...):
     pass
 
 # 话术生成用最好的
-@track_ai_usage("话术生成", "qwen-max")
+@track_ai_usage("话术生成", "qwen-plus")
 def generate_scripts(...):
     pass
 ```
@@ -509,18 +509,18 @@ for model, stats in daily.by_model.items():
 
 **输出示例**：
 ```
-qwen-max:
+qwen-plus:
   总调用: 360
   总费用: ¥29.52
   平均每次: ¥0.0820
 
-qwen-plus:
+qwen-turbo:
   总调用: 180
   总费用: ¥1.46
   平均每次: ¥0.0081
 ```
 
-**结论**：Qwen-Plus 便宜 10 倍！
+**结论**：Qwen-Turbo 便宜 10 倍！
 
 ---
 

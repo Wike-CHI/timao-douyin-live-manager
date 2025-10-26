@@ -27,12 +27,12 @@ logger = logging.getLogger(__name__)
 
 
 class LiveAnalysisGenerator:
-    """Generate live analysis cards via Qwen3-Max."""
+    """Generate live analysis cards via Qwen-Plus."""
 
     def __init__(self, config: Dict[str, Any]) -> None:
         self.config = config
         self.client: Optional[OpenAI] = None
-        self.model: str = config.get("ai_model", "qwen3-max")
+        self.model: str = config.get("ai_model", "qwen-plus")
         self._init_client()
 
     def _init_client(self) -> None:

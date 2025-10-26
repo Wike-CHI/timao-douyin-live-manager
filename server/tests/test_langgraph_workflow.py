@@ -12,7 +12,7 @@ def test_workflow_generates_scripts_with_qwen(tmp_path: Path) -> None:
         "ai_service": "qwen",
         "ai_api_key": "",
         "ai_base_url": "",
-        "ai_model": "qwen-max",
+        "ai_model": "qwen-plus",
     }
     generator = AIScriptGenerator(cfg)
     if generator.client is None:
