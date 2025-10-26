@@ -22,6 +22,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Deque, Dict, List, Optional
+from contextlib import suppress
 
 
 # Workspace root on sys.path so we can import StreamCap and AST_module
@@ -173,6 +174,9 @@ class LiveAudioStreamService:
         self._ffmpeg: Optional[asyncio.subprocess.Process] = None
         self._reader_task: Optional[asyncio.Task] = None
         self._stop_evt = asyncio.Event()
+        self._ffmpeg_stderr_task: Optional[asyncio.Task] = None
+        self._ffmpeg_exit_reported: bool = False
+        self._log_throttle: Dict[str, float] = {}
 
         # ASR & postprocess
         self._sv: Optional[SenseVoiceService] = None
@@ -427,6 +431,8 @@ class LiveAudioStreamService:
         ffmpeg_bin = os.environ.get("FFMPEG_BIN") or shutil.which("ffmpeg") or str(
             (PROJECT_ROOT / "tools" / "ffmpeg" / ("win64" if os.name == "nt" else ("mac" if sys.platform == "darwin" else "linux")) / "bin" / ("ffmpeg.exe" if os.name == "nt" else "ffmpeg")).resolve()
         )
+        self._ffmpeg_exit_reported = False
+        self._log_throttle.clear()
         cmd = [
             ffmpeg_bin,
             "-loglevel",
@@ -449,60 +455,134 @@ class LiveAudioStreamService:
             stderr=asyncio.subprocess.PIPE,
         )
         self._status.ffmpeg_pid = self._ffmpeg.pid
+        if self._ffmpeg.stderr:
+            self._ffmpeg_stderr_task = asyncio.create_task(self._drain_ffmpeg_stderr(self._ffmpeg.stderr))
         self._stop_evt.clear()
         self._reader_task = asyncio.create_task(self._read_loop())
         return self._status
 
     async def stop(self) -> LiveAudioStatus:
-        # Stop loops
         self._stop_evt.set()
         if self._reader_task:
             self._reader_task.cancel()
-            try:
+            with suppress(asyncio.CancelledError):
                 await self._reader_task
-            except asyncio.CancelledError:
-                pass
             self._reader_task = None
 
-        # Stop ffmpeg gracefully
-        if self._ffmpeg:
-            try:
-                if os.name != "nt":
-                    self._ffmpeg.send_signal(signal.SIGINT)
-                else:
-                    if self._ffmpeg.stdin:
-                        self._ffmpeg.stdin.write(b"q")
-                        await self._ffmpeg.stdin.drain()
-                try:
-                    await asyncio.wait_for(self._ffmpeg.wait(), timeout=8)
-                except asyncio.TimeoutError:
-                    self._ffmpeg.kill()
-            except ProcessLookupError:
-                pass
-            self._ffmpeg = None
+        await self._stop_stream(graceful=True)
+        return self._status
 
+    async def _stop_stream(self, *, graceful: bool) -> None:
+        await self._shutdown_ffmpeg(graceful=graceful)
+        await self._stop_ffmpeg_monitor()
+        await self._finalize_stop_state()
+
+    async def _handle_stream_end(self, reason: str) -> None:
+        if self._ffmpeg_exit_reported:
+            return
+        self._ffmpeg_exit_reported = True
+        self._stop_evt.set()
+        returncode: Optional[int] = None
+        proc = self._ffmpeg
+        if proc is not None:
+            returncode = proc.returncode
+            if returncode is None:
+                try:
+                    await asyncio.wait_for(proc.wait(), timeout=0.5)
+                except asyncio.TimeoutError:
+                    pass
+                returncode = proc.returncode
+        message = "直播拉流结束，已断开连接。"
+        if returncode not in (0, None):
+            message = f"直播拉流进程异常退出 (code={returncode})."
+        self.logger.warning("ffmpeg stream ended: %s (returncode=%s)", reason, returncode)
+        await self._emit({
+            "type": "error",
+            "data": {
+                "message": message,
+                "code": "FFMPEG_EXIT",
+                "returncode": returncode,
+                "details": reason,
+            },
+        })
+        await self._stop_stream(graceful=False)
+
+    async def _shutdown_ffmpeg(self, *, graceful: bool) -> None:
+        proc = self._ffmpeg
+        if proc is None:
+            return
+        self._ffmpeg = None
+        try:
+            if proc.returncode is None:
+                if graceful:
+                    if os.name != "nt":
+                        proc.send_signal(signal.SIGINT)
+                    else:
+                        if proc.stdin:
+                            proc.stdin.write(b"q")
+                            await proc.stdin.drain()
+                    try:
+                        await asyncio.wait_for(proc.wait(), timeout=8)
+                    except asyncio.TimeoutError:
+                        proc.kill()
+                else:
+                    try:
+                        await asyncio.wait_for(proc.wait(), timeout=4)
+                    except asyncio.TimeoutError:
+                        proc.kill()
+            else:
+                await proc.wait()
+        except ProcessLookupError:
+            pass
+        except Exception as exc:
+            self.logger.debug("ffmpeg shutdown warning: %s", exc)
+
+    async def _stop_ffmpeg_monitor(self) -> None:
+        if self._ffmpeg_stderr_task:
+            self._ffmpeg_stderr_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._ffmpeg_stderr_task
+            self._ffmpeg_stderr_task = None
+
+    async def _finalize_stop_state(self) -> None:
         self._status.is_running = False
+        self._status.ffmpeg_pid = None
         self._status.music_guard_active = False
         self._status.music_guard_score = 0.0
         self._status.music_last_title = None
         self._status.music_last_score = 0.0
         self._status.music_last_detected_at = 0.0
-        if self._acr_pending_task and not (self._acr_pending_task.done()):
+        if self._acr_pending_task and not self._acr_pending_task.done():
             self._acr_pending_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._acr_pending_task
         self._acr_pending_task = None
         self._acr_buffer.clear()
         self._acr_active_until = 0.0
         self._acr_last_match = None
         self._acr_last_title = None
         self._acr_last_score = 0.0
-        # Close persistence writer
+        self._music_flag = False
+        self._music_ema = 0.0
+        self._music_release_counter = 0
         try:
             if self._persist_tr is not None:
                 self._persist_tr.close()
         except Exception:
             pass
         self._persist_tr = None
-        return self._status
+        self._ffmpeg_exit_reported = False
+
+    def _log_event(self, key: str, level: int, msg: str, *args, min_interval: float = 0.0) -> None:
+        if not self.logger.isEnabledFor(level):
+            return
+        if min_interval > 0:
+            now = _now()
+            last = self._log_throttle.get(key)
+            if last is not None and now - last < min_interval:
+                return
+            self._log_throttle[key] = now
+        self.logger.log(level, msg, *args)
 
     def status(self) -> LiveAudioStatus:
         return self._status
@@ -644,11 +724,22 @@ class LiveAudioStreamService:
         # chunk bytes for s16le @ 16k mono
         chunk_bytes = int(self.chunk_seconds * 16000 * 2)
         buf = bytearray()
+        failure_reason: Optional[str] = None
         try:
             while not self._stop_evt.is_set():
-                data = await self._ffmpeg.stdout.read(chunk_bytes)
+                proc = self._ffmpeg
+                if proc is None:
+                    failure_reason = "音频拉流进程未初始化。"
+                    break
+                if proc.returncode is not None:
+                    failure_reason = f"音频拉流进程已退出 (code={proc.returncode})."
+                    break
+                data = await proc.stdout.read(chunk_bytes)
                 if not data:
-                    await asyncio.sleep(0.01)
+                    if proc.stdout.at_eof():
+                        failure_reason = "音频流已结束或被远端关闭。"
+                        break
+                    await asyncio.sleep(0.05)
                     continue
                 buf.extend(data)
                 while len(buf) >= chunk_bytes:
@@ -659,12 +750,13 @@ class LiveAudioStreamService:
                     else:
                         await self._handle_audio_chunk(frame)
         except asyncio.CancelledError:
-            pass
+            raise
         except Exception as e:
-            await self._emit({
-                "type": "error",
-                "data": {"message": f"audio read error: {e}"},
-            })
+            failure_reason = f"音频读取异常: {e}"
+            self.logger.warning("audio read loop error: %s", e)
+        finally:
+            if failure_reason and not self._stop_evt.is_set():
+                await self._handle_stream_end(failure_reason)
 
     async def _handle_audio_chunk(self, pcm16: bytes) -> None:
         # Level feedback with automatic gain control
@@ -864,6 +956,20 @@ class LiveAudioStreamService:
             },
         })
 
+    async def _drain_ffmpeg_stderr(self, stream: asyncio.StreamReader) -> None:
+        try:
+            while True:
+                line = await stream.readline()
+                if not line:
+                    break
+                text = line.decode("utf-8", errors="ignore").strip()
+                if text:
+                    self.logger.debug("[ffmpeg] %s", text)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            self.logger.debug("ffmpeg stderr drain error: %s", exc)
+
     def _acr_ingest_chunk(self, pcm16: bytes) -> None:
         if not self._acr_enabled or self._acr_client is None or not pcm16:
             return
@@ -920,7 +1026,7 @@ class LiveAudioStreamService:
 
     def _init_diarizer(self) -> None:
         if OnlineDiarizer is None:
-            print("[说话人分离] OnlineDiarizer 类未导入，说话人分离功能不可用")
+            self.logger.warning("[说话人分离] OnlineDiarizer 类未导入，说话人分离功能不可用")
             self._diarizer = None
             self._last_speaker_label = "unknown"
             self._last_speaker_debug = {}
@@ -930,7 +1036,12 @@ class LiveAudioStreamService:
         max_speakers = _env_int("LIVE_DIARIZER_MAX_SPEAKERS", 2, min_value=1, max_value=4)
         smooth = _env_float("LIVE_DIARIZER_SMOOTH", 0.2, min_value=0.05, max_value=0.6)
         
-        print(f"[说话人分离] 初始化参数: 注册时长={enroll_sec}s, 最大说话人数={max_speakers}, 平滑系数={smooth}")
+        self.logger.debug(
+            "[说话人分离] 初始化参数: 注册时长=%ss, 最大说话人数=%s, 平滑系数=%s",
+            enroll_sec,
+            max_speakers,
+            smooth,
+        )
         
         try:
             # 智能切换模式：默认启用单人模式，但支持自动检测多人并切换
@@ -946,14 +1057,22 @@ class LiveAudioStreamService:
                 single_speaker_mode=single_speaker_mode,
                 auto_switch=auto_switch,
             )
-            print(f"[说话人分离] OnlineDiarizer 初始化成功: {type(self._diarizer)}")
-            print(f"[说话人分离] 智能切换模式: auto_switch={auto_switch}, 单人模式={single_speaker_mode}")
-            print(f"[说话人分离] 聚类阈值: {self._diarizer.cluster_threshold}, 最大说话人数: {max_speakers}")
+            self.logger.debug(
+                "[说话人分离] OnlineDiarizer 初始化成功: %s", type(self._diarizer)
+            )
+            self.logger.debug(
+                "[说话人分离] 智能切换模式: auto_switch=%s, 单人模式=%s",
+                auto_switch,
+                single_speaker_mode,
+            )
+            self.logger.debug(
+                "[说话人分离] 聚类阈值: %s, 最大说话人数: %s",
+                getattr(self._diarizer, "cluster_threshold", None),
+                max_speakers,
+            )
         except Exception as e:
-            print(f"[说话人分离] OnlineDiarizer 初始化失败: {e}")
-            import traceback
-            traceback.print_exc()
             self._diarizer = None
+            self.logger.exception("[说话人分离] OnlineDiarizer 初始化失败: %s", e)
             
         warmup_default = max(0.0, enroll_sec * 0.75)
         warmup_env = os.getenv("LIVE_DIARIZER_WARMUP_SEC")
@@ -967,15 +1086,15 @@ class LiveAudioStreamService:
         else:
             self._diarizer_warmup_sec = warmup_default
             
-        print(f"[说话人分离] 预热时间设置为: {self._diarizer_warmup_sec}s")
+        self.logger.debug("[说话人分离] 预热时间设置为: %ss", self._diarizer_warmup_sec)
         
         self._last_speaker_label = "unknown"
         self._last_speaker_debug = {}
         
         if self._diarizer is not None:
-            print("[说话人分离] 说话人分离器已成功启用")
+            self.logger.debug("[说话人分离] 说话人分离器已成功启用")
         else:
-            print("[说话人分离] 说话人分离器启用失败，将使用默认标签")
+            self.logger.warning("[说话人分离] 说话人分离器启用失败，将使用默认标签")
 
     def _apply_gain_control(self, pcm16: bytes, rms: float) -> bytes:
         if not self.agc_enabled or np is None or not pcm16:
@@ -1005,16 +1124,35 @@ class LiveAudioStreamService:
             ready = observed_sec >= max(0.0, self._diarizer_warmup_sec or 0.0)
             
             # 详细日志记录
-            print(f"[说话人分离] 音频长度: {len(pcm16)}字节, 时长: {frame_sec:.3f}s")
-            print(f"[说话人分离] 观察时长: {observed_sec:.3f}s, 预热阈值: {self._diarizer_warmup_sec:.3f}s, 就绪: {ready}")
-            print(f"[说话人分离] 原始标签: {label}, 调试信息: {dbg}")
+            self._log_event(
+                "diarizer_feed",
+                logging.DEBUG,
+                "[说话人分离] 音频长度=%d 字节, 时长=%.3fs, 预热阈值=%.3fs, 就绪=%s，标签=%s",
+                len(pcm16),
+                frame_sec,
+                self._diarizer_warmup_sec or 0.0,
+                ready,
+                label,
+                min_interval=2.0,
+            )
             
             if not ready:
                 self._last_speaker_label = "unknown"
-                print(f"[说话人分离] 预热中，设置标签为: unknown")
+                self._log_event(
+                    "diarizer_not_ready",
+                    logging.DEBUG,
+                    "[说话人分离] 预热中，设置标签为: unknown",
+                    min_interval=2.0,
+                )
             else:
                 self._last_speaker_label = label or "unknown"
-                print(f"[说话人分离] 已就绪，设置标签为: {self._last_speaker_label}")
+                self._log_event(
+                    "diarizer_ready",
+                    logging.DEBUG,
+                    "[说话人分离] 已就绪，设置标签为: %s",
+                    self._last_speaker_label,
+                    min_interval=2.0,
+                )
             
             dbg_payload: Dict[str, float] = {}
             if isinstance(dbg, dict):
@@ -1023,11 +1161,15 @@ class LiveAudioStreamService:
             dbg_payload["warmup_remaining"] = float(max(0.0, (self._diarizer_warmup_sec or 0.0) - observed_sec))
             self._last_speaker_debug = dbg_payload
             
-            print(f"[说话人分离] 最终调试信息: {self._last_speaker_debug}")
+            self._log_event(
+                "diarizer_debug",
+                logging.DEBUG,
+                "[说话人分离] 最终调试信息: %s",
+                self._last_speaker_debug,
+                min_interval=2.0,
+            )
         except Exception as e:
-            print(f"[说话人分离] 处理音频时发生错误: {e}")
-            import traceback
-            traceback.print_exc()
+            self.logger.exception("[说话人分离] 处理音频时发生错误: %s", e)
 
     def _should_skip_text(self, text: str, confidence: float) -> bool:
         """Heuristic noise filter to drop filler-only or heavily repeated subtitles."""
@@ -1175,14 +1317,24 @@ class LiveAudioStreamService:
                 self._music_flag = False
                 self._music_release_counter = 0
                 if _now() - self._music_last_notice >= 5.0:
-                    print(f"[背景音乐监测] 背景音乐降至安全阈值，恢复默认 VAD。score={self._music_ema:.2f}")
+                    self._log_event(
+                        "music_guard_release",
+                        logging.DEBUG,
+                        "[背景音乐监测] 背景音乐降至安全阈值，恢复默认 VAD。score=%.2f",
+                        self._music_ema,
+                    )
                     self._music_last_notice = _now()
         else:
             if self._music_ema >= self.music_detect_threshold:
                 self._music_flag = True
                 self._music_release_counter = 0
                 if _now() - self._music_last_notice >= 1.5:
-                    print(f"[背景音乐监测] 检测到持续背景音乐，自动提高 VAD 门限。score={self._music_ema:.2f}")
+                    self._log_event(
+                        "music_guard_trigger",
+                        logging.DEBUG,
+                        "[背景音乐监测] 检测到持续背景音乐，自动提高 VAD 门限。score=%.2f",
+                        self._music_ema,
+                    )
                     self._music_last_notice = _now()
 
     # ------------- VAD mode -------------
@@ -1227,7 +1379,13 @@ class LiveAudioStreamService:
             # enter speech once min_speech satisfied
             if not self._vad_in_speech and self._vad_speech_acc >= effective_min_speech_sec:
                 self._vad_in_speech = True
-                print(f"[延迟监控] VAD检测到语音开始，累计语音时长: {self._vad_speech_acc:.3f}s")
+                self._log_event(
+                    "vad_start",
+                    logging.DEBUG,
+                    "[延迟监控] VAD检测到语音开始，累计语音时长: %.3fs",
+                    self._vad_speech_acc,
+                    min_interval=1.5,
+                )
             # accumulate audio if speaking or already in speech
             self._vad_buf.extend(pcm16)
         else:
@@ -1239,13 +1397,27 @@ class LiveAudioStreamService:
         # finalize when in_speech and silence >= min_silence
         if self._vad_in_speech:
             if self._vad_silence_acc >= effective_min_silence_sec:
-                print(f"[延迟监控] VAD检测到语音结束，静音时长: {self._vad_silence_acc:.3f}s，缓冲区大小: {len(self._vad_buf)}字节")
+                self._log_event(
+                    "vad_end",
+                    logging.DEBUG,
+                    "[延迟监控] VAD检测到语音结束，静音时长: %.3fs，缓冲区大小: %d 字节",
+                    self._vad_silence_acc,
+                    len(self._vad_buf),
+                    min_interval=1.5,
+                )
                 await self._finalize_vad_segment(force=False)
             elif (
                 self.vad_force_flush_sec > 0.0
                 and self._vad_speech_acc >= self.vad_force_flush_sec
             ):
-                print(f"[延迟监控] VAD长语音超时强制输出，累计语音时长: {self._vad_speech_acc:.3f}s，缓冲区大小: {len(self._vad_buf)}字节")
+                self._log_event(
+                    "vad_force_flush",
+                    logging.DEBUG,
+                    "[延迟监控] VAD长语音超时强制输出，累计语音时长: %.3fs，缓冲区大小: %d 字节",
+                    self._vad_speech_acc,
+                    len(self._vad_buf),
+                    min_interval=1.5,
+                )
                 await self._finalize_vad_segment(force=True)
 
     async def _finalize_vad_segment(self, *, force: bool = False) -> None:
@@ -1287,7 +1459,15 @@ class LiveAudioStreamService:
             # 延迟监控：计算转录耗时
             transcribe_duration = _now() - transcribe_start
             suffix = "（强制分段）" if force else ""
-            print(f"[延迟监控] VAD段转录耗时: {transcribe_duration:.3f}s, 音频长度: {len(seg)/32000:.3f}s{suffix}")
+            self._log_event(
+                "vad_transcribe_latency",
+                logging.DEBUG,
+                "[延迟监控] VAD段转录耗时: %.3fs, 音频长度: %.3fs%s",
+                transcribe_duration,
+                len(seg) / 32000.0,
+                suffix,
+                min_interval=1.5,
+            )
         except Exception as e:
             self._status.failed_transcriptions += 1
             await self._emit({
