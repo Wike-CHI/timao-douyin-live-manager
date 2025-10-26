@@ -13,6 +13,16 @@ from typing import Any, Dict, List, Optional
 
 from openai import OpenAI
 
+try:
+    from ..utils.ai_tracking_decorator import track_ai_usage
+    _TRACKING_AVAILABLE = True
+except Exception:
+    _TRACKING_AVAILABLE = False
+    def track_ai_usage(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
+
 logger = logging.getLogger(__name__)
 
 
@@ -266,6 +276,13 @@ class LiveAnalysisGenerator:
     def generate(self, context: Dict[str, Any]) -> Dict[str, Any]:
         if not self.client:
             raise RuntimeError("LiveAnalysisGenerator 未初始化成功")
+        
+        # 调用带追踪的内部方法
+        return self._generate_with_tracking(context)
+    
+    @track_ai_usage("实时分析")
+    def _generate_with_tracking(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """带使用追踪的生成方法"""
         messages = self._build_prompt(context)
         response = self.client.chat.completions.create(
             model=self.model,
@@ -274,6 +291,9 @@ class LiveAnalysisGenerator:
             response_format={"type": "json_object"},
             max_tokens=800,
         )
+        
+        # 记录 Token 使用（装饰器会自动从 response.usage 提取）
+        
         raw = response.choices[0].message.content or "{}"
         try:
             return json.loads(raw)

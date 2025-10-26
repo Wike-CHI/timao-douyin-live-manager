@@ -91,6 +91,7 @@ _include_router_safe("AI 实时分析", "server.app.api.ai_live")
 _include_router_safe("AI 话术生成", "server.app.api.ai_scripts")
 _include_router_safe("资源自检", "server.app.api.bootstrap")
 _include_router_safe("工具", "server.app.api.tools")
+_include_router_safe("AI 使用监控", "server.app.api.ai_usage")
 
 # WebSocket 广播与管理服务（容错）
 try:
