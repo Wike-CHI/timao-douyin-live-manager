@@ -544,87 +544,13 @@ const LiveConsolePage = () => {
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_1.2fr_0.8fr] lg:grid-cols-[1fr_1fr]">
-        <section className="timao-card h-full flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-              <span>📝</span>
-              语音转写流
-            </h3>
-            <div className="flex items-center gap-3">
-              <span className="timao-status-pill text-xs">{isRunning ? '实时更新中' : '已暂停'}</span>
-              <button
-                className="text-xs timao-support-text hover:text-purple-600"
-                onClick={() => setCollapsed((v) => !v)}
-                title={collapsed ? '展开' : '折叠'}
-              >
-                {collapsed ? '展开 ▾' : '折叠 ▸'}
-              </button>
-            </div>
-          </div>
-          {collapsed ? (
-            <div className="space-y-2">
-              <select
-                id="transcript-select"
-                className="timao-input w-full"
-                value={selectedId ?? (log[0]?.id || '')}
-                onChange={(e) => setSelectedId(e.target.value || null)}
-                aria-label="选择转写记录"
-                title="选择转写记录"
-              >
-                {log.length === 0 ? (
-                  <option value="">暂无转写</option>
-                ) : (
-                  log.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {new Date(item.timestamp * 1000).toLocaleTimeString()} · {speakerLabelShort(item.speaker)} · {(item.text || '').slice(0, 24)}
-                    </option>
-                  ))
-                )}
-              </select>
-              <div className="rounded-xl bg-white/90 border p-3 text-sm text-slate-700 min-h-[48px]">
-                {(() => {
-                  const found = log.find((x) => x.id === (selectedId ?? log[0]?.id));
-                  return found ? found.text : '暂无转写结果';
-                })()}
-              </div>
-            </div>
-          ) : (
-            <div className="flex-1 flex flex-col">
-            {/* 固定高度，列表支持滚动；与右侧卡片齐平 */}
-            <div className="space-y-3 overflow-y-auto pr-1 flex-1 min-h-[1500px] max-h-[1500px]">
-              {log.length === 0 ? (
-                <div className="timao-outline-card text-sm timao-support-text text-center">
-                  暂无转写结果。{isRunning ? '等待识别...' : '点击开始转写以开启实时字幕。'}
-                </div>
-              ) : (
-                log.map((item) => (
-                  <div key={item.id} className="flex-shrink -0 h-fit rounded-2xl border border-white/60 shadow-md p-4 bg-white/95">
-                      <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                        <span>{new Date(item.timestamp * 1000).toLocaleTimeString()}</span>
-                        {renderSpeakerBadge(item.speaker)}
-                      </div>
-                      {(() => {
-                        const debugText = formatSpeakerDebug(item.speakerDebug);
-                        return debugText
-                          ? (
-                            <div className="text-[10px] text-slate-400 mb-1">
-                              {debugText}
-                            </div>
-                          )
-                          : null;
-                      })()}
-                      <div className="text-slate-600 text-sm leading-relaxed">{item.text}</div>
-                    </div>
-                ))
-              )}
-            </div>
-            </div>
-          )}
-        </section>
+      <div className="grid gap-6">
+        {/* 语音转写流卡片 - 已隐藏，使用下方的“主播实时语音转写” */}
+        {/* <section className="timao-card h-full flex flex-col">...</section> */}
 
-        <section className="flex flex-col gap-4">
-          {/* AI 分析卡片：固定 60 秒窗口自动刷新 */}
+        {/* 直播分析卡片和风格画像平铺 */}
+        <div className="grid gap-6 xl:grid-cols-2 lg:grid-cols-2 md:grid-cols-1">
+          {/* AI 分析卡片 */}
           <div className="timao-card">
             <div className="flex items-center gap-2 mb-3">
               <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
@@ -637,7 +563,7 @@ const LiveConsolePage = () => {
               <div className="timao-outline-card text-sm timao-support-text">{isRunning ? '正在生成直播分析卡片…（开始字幕后约 1 分钟内出现结果）' : '请先在上方开始实时字幕'}
               </div>
             ) : (
-              <div className="space-y-3 max-h-[260px] overflow-y-auto pr-1">
+              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
                 {aiEvents.map((ev, idx) => {
                   const sentiment = ev?.audience_sentiment
                     || (ev?.analysis_card && typeof ev.analysis_card === 'object' ? ev.analysis_card.audience_sentiment : null);
@@ -736,8 +662,8 @@ const LiveConsolePage = () => {
             )}
           </div>
 
-        {/* 风格画像与氛围 */}
-        <div className="timao-card h-[320px] flex flex-col">
+          {/* 风格画像与氛围 */}
+          <div className="timao-card h-[500px] flex flex-col">
           <div className="flex items-center justify-between mb-3 flex-shrink-0">
             <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
               <span>🎛️</span>
@@ -772,7 +698,7 @@ const LiveConsolePage = () => {
             </div>
           )}
         </div>
-        </section>
+        </div>
       </div>
 
       {/* 第二行：主播实时语音转写 和 弹幕评论 */}
@@ -871,6 +797,178 @@ const LiveConsolePage = () => {
 
       {/* 第三行：其他功能区域 */}
       <div className="grid gap-6 xl:grid-cols-3 lg:grid-cols-2 md:grid-cols-1">
+        {/* 左侧：音频增强等卡片 */}
+        <section className="flex flex-col gap-4">
+          <div className="timao-card">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
+                <span>🎛️</span>
+                音频增强
+              </h3>
+              <span className="text-xs text-slate-400">增益 {agcGain.toFixed(2)}</span>
+            </div>
+            <div className="space-y-3 text-sm text-slate-600">
+              <div className="flex items-center justify-between">
+                <span>自动增益（AGC）</span>
+                <span className="text-purple-600">{agcEnabled ? '已开启（默认）' : '已关闭'}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>说话人分离</span>
+                <span className="text-purple-600">
+                  {diarizationEnabled ? `已开启（≤${maxSpeakers} 人）` : '已关闭'}
+                </span>
+              </div>
+              <div className="text-xs text-slate-400">
+                <span className="mr-1">最近发言者：</span>
+                {renderSpeakerBadge(lastSpeaker)}
+              </div>
+            </div>
+          </div>
+
+          <div className="timao-card">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
+                <span>🧾</span>
+                整场回顾
+              </h3>
+              <button className="timao-primary-btn" onClick={handleReportGenerate} disabled={reportBusy}>生成回顾</button>
+            </div>
+            <div className="text-xs timao-support-text mt-1">已自动录制 · 每段约 30 分钟</div>
+            <div className="text-xs timao-support-text mt-1">
+              状态：{reportStatus?.active ? '录制中' : '未开始'}
+              {reportStatus?.status?.segments?.length ? ` · 片段 ${reportStatus.status.segments.length}` : ''}
+            </div>
+            {reportPaths ? (
+              <div className="mt-3 text-xs timao-support-text">
+                <div>· 弹幕：{reportPaths.comments || '—'}</div>
+                <div>· 转写：{reportPaths.transcript || '—'}</div>
+                <div className="flex items-center gap-2">· 报告：{reportPaths.report || '—'}
+                  {reportPaths.report ? (
+                    <button className="timao-outline-btn text-[10px] px-2 py-0.5" onClick={() => {
+                      try { (window as any).electronAPI?.openPath(reportPaths.report as string); } catch {}
+                    }}>打开</button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="timao-card">
+            <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2 mb-3">
+              <span>📎</span>
+              使用提示
+            </h3>
+            <ul className="space-y-2 text-sm timao-support-text">
+              <li>· 无需麦克风权限，直接从直播流抓取音频。</li>
+              <li>· 需安装 ffmpeg 并确保可执行路径可用。</li>
+              <li>· 若启动失败，请查看日志或终端输出。</li>
+            </ul>
+          </div>
+        </section>
+
+        {/* 中间：实时字幕和当前会话 */}
+        <section className="flex flex-col gap-4">
+          <div className="timao-card">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
+                <span>💡</span>
+                实时字幕
+              </h3>
+            </div>
+            <div className="rounded-2xl bg-purple-50/80 border border-purple-100 px-4 py-3 text-slate-700 min-h-[72px] flex items-center">
+              {latest?.text ? latest.text : '等待识别结果...'}
+            </div>
+            {latest ? (
+              <div className="flex items-center justify-between text-xs text-slate-400 mt-3">
+                <div className="flex items-center gap-2">
+                  <span>时间 {new Date(latest.timestamp * 1000).toLocaleTimeString()}</span>
+                  {renderSpeakerBadge(latest.speaker)}
+                </div>
+                <button
+                  className="timao-outline-btn text-[10px] px-2 py-0.5"
+                  title="复制JSON"
+                  onClick={() => {
+                    try {
+                      const payload = {
+                        type: 'transcription',
+                        text: latest.text,
+                        confidence: latest.confidence,
+                        timestamp: latest.timestamp,
+                        is_final: latest.isFinal,
+                        words: latest.words || [],
+                        speaker: latest.speaker || '?',
+                        speaker_debug: latest.speakerDebug || {},
+                        room_id: (status as any)?.live_id || null,
+                        session_id: (status as any)?.session_id || null,
+                      };
+                      (window as any).utils?.copyToClipboard(JSON.stringify(payload, null, 2));
+                    } catch {}
+                  }}
+                >复制JSON</button>
+              </div>
+            ) : null}
+            {(() => {
+              const debugText = formatSpeakerDebug(latest?.speakerDebug || undefined);
+              return debugText
+                ? (
+                  <div className="text-[10px] text-slate-400 mt-1">
+                    {debugText}
+                  </div>
+                )
+                : null;
+            })()}
+            {latest?.words?.length ? (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {latest.words.map((w, i) => (
+                  <span key={i} className="px-1.5 py-0.5 rounded bg-white/90 border text-xs text-slate-600">
+                    {w.word}
+                    <span className="ml-1 text-[10px] text-slate-400">{w.start.toFixed(2)}–{w.end.toFixed(2)}s</span>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="timao-soft-card">
+            <div className="text-sm text-slate-500 mb-1">当前会话</div>
+            <div className="text-lg font-semibold text-purple-600">{status?.session_id ?? '—'}</div>
+            <div className="text-xs timao-support-text mt-2">
+              已累计片段 {status?.stats?.total_audio_chunks ?? 0} · 成功转写 {status?.stats?.successful_transcriptions ?? 0}
+            </div>
+          </div>
+
+          {saveInfo ? (
+            <div className="timao-soft-card">
+              <div className="text-sm text-slate-500 mb-1">保存位置</div>
+              <div className="flex items-center gap-2 text-xs timao-support-text break-all">
+                <span>字幕：{saveInfo.trDir || '—'}</span>
+                {saveInfo.trDir ? (
+                  <button className="timao-outline-btn text-[10px] px-2 py-0.5" onClick={() => {
+                    try { (window as any).electronAPI?.openPath(saveInfo.trDir); } catch {}
+                  }}>打开</button>
+                ) : null}
+              </div>
+              <div className="flex items-center gap-2 text-xs timao-support-text break-all mt-1">
+                <span>弹幕：{saveInfo.dmDir || '—'}</span>
+                {saveInfo.dmDir ? (
+                  <button className="timao-outline-btn text-[10px] px-2 py-0.5" onClick={() => {
+                    try { (window as any).electronAPI?.openPath(saveInfo.dmDir); } catch {}
+                  }}>打开</button>
+                ) : null}
+              </div>
+              <div className="flex items-center gap-2 text-xs timao-support-text break-all mt-1">
+                <span>视频：{saveInfo.videoDir || '—'}</span>
+                {saveInfo.videoDir ? (
+                  <button className="timao-outline-btn text-[10px] px-2 py-0.5" onClick={() => {
+                    try { (window as any).electronAPI?.openPath(saveInfo.videoDir); } catch {}
+                  }}>打开</button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+        </section>
+
+        {/* 右侧：智能话术建议 */}
         <section className="flex flex-col gap-4">
           <div className="timao-card">
             <div className="flex items-center justify-between mb-3">
@@ -967,192 +1065,6 @@ const LiveConsolePage = () => {
                 )}
               </div>
             </div>
-          </div>
-
-          <div className="timao-card">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-                <span>📶</span>
-                声音输入
-              </h3>
-              <span className="text-xs timao-support-text">{Math.round(backendLevel * 100)}%</span>
-            </div>
-            <progress
-              className="w-full h-2"
-              value={Math.round(backendLevel * 100)}
-              max={100}
-              aria-label="声音输入电平"
-            />
-          </div>
-
-          <div className="timao-card">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-                <span>💡</span>
-                实时字幕
-              </h3>
-            </div>
-            <div className="rounded-2xl bg-purple-50/80 border border-purple-100 px-4 py-3 text-slate-700 min-h-[72px] flex items-center">
-              {latest?.text ? latest.text : '等待识别结果...'}
-            </div>
-            {latest ? (
-              <div className="flex items-center justify-between text-xs text-slate-400 mt-3">
-                <div className="flex items-center gap-2">
-                  <span>时间 {new Date(latest.timestamp * 1000).toLocaleTimeString()}</span>
-                  {renderSpeakerBadge(latest.speaker)}
-                </div>
-                <button
-                  className="timao-outline-btn text-[10px] px-2 py-0.5"
-                  title="复制JSON"
-                  onClick={() => {
-                    try {
-                      const payload = {
-                        type: 'transcription',
-                        text: latest.text,
-                        confidence: latest.confidence,
-                        timestamp: latest.timestamp,
-                        is_final: latest.isFinal,
-                        words: latest.words || [],
-                        speaker: latest.speaker || '?',
-                        speaker_debug: latest.speakerDebug || {},
-                        room_id: (status as any)?.live_id || null,
-                        session_id: (status as any)?.session_id || null,
-                      };
-                      (window as any).utils?.copyToClipboard(JSON.stringify(payload, null, 2));
-                    } catch {}
-                  }}
-                >复制JSON</button>
-              </div>
-            ) : null}
-            {(() => {
-              const debugText = formatSpeakerDebug(latest?.speakerDebug || undefined);
-              return debugText
-                ? (
-                  <div className="text-[10px] text-slate-400 mt-1">
-                    {debugText}
-                  </div>
-                )
-                : null;
-            })()}
-            {latest?.words?.length ? (
-              <div className="mt-2 flex flex-wrap gap-1">
-                {latest.words.map((w, i) => (
-                  <span key={i} className="px-1.5 py-0.5 rounded bg-white/90 border text-xs text-slate-600">
-                    {w.word}
-                    <span className="ml-1 text-[10px] text-slate-400">{w.start.toFixed(2)}–{w.end.toFixed(2)}s</span>
-                  </span>
-                ))}
-              </div>
-            ) : null}
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="timao-soft-card">
-              <div className="text-sm text-slate-500 mb-1">当前会话</div>
-              <div className="text-lg font-semibold text-purple-600">{status?.session_id ?? '—'}</div>
-              <div className="text-xs timao-support-text mt-2">
-                已累计片段 {status?.stats?.total_audio_chunks ?? 0} · 成功转写 {status?.stats?.successful_transcriptions ?? 0}
-              </div>
-            </div>
-            {saveInfo ? (
-              <div className="timao-soft-card">
-                <div className="text-sm text-slate-500 mb-1">保存位置</div>
-                <div className="flex items-center gap-2 text-xs timao-support-text break-all">
-                  <span>字幕：{saveInfo.trDir || '—'}</span>
-                  {saveInfo.trDir ? (
-                    <button className="timao-outline-btn text-[10px] px-2 py-0.5" onClick={() => {
-                      try { (window as any).electronAPI?.openPath(saveInfo.trDir); } catch {}
-                    }}>打开</button>
-                  ) : null}
-                </div>
-                <div className="flex items-center gap-2 text-xs timao-support-text break-all mt-1">
-                  <span>弹幕：{saveInfo.dmDir || '—'}</span>
-                  {saveInfo.dmDir ? (
-                    <button className="timao-outline-btn text-[10px] px-2 py-0.5" onClick={() => {
-                      try { (window as any).electronAPI?.openPath(saveInfo.dmDir); } catch {}
-                    }}>打开</button>
-                  ) : null}
-                </div>
-                <div className="flex items-center gap-2 text-xs timao-support-text break-all mt-1">
-                  <span>视频：{saveInfo.videoDir || '—'}</span>
-                  {saveInfo.videoDir ? (
-                    <button className="timao-outline-btn text-[10px] px-2 py-0.5" onClick={() => {
-                      try { (window as any).electronAPI?.openPath(saveInfo.videoDir); } catch {}
-                    }}>打开</button>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </section>
-
-        <section className="flex flex-col gap-4">
-          <div className="timao-card">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-                <span>🎛️</span>
-                音频增强
-              </h3>
-              <span className="text-xs text-slate-400">增益 {agcGain.toFixed(2)}</span>
-            </div>
-            <div className="space-y-3 text-sm text-slate-600">
-              <div className="flex items-center justify-between">
-                <span>自动增益（AGC）</span>
-                <span className="text-purple-600">{agcEnabled ? '已开启（默认）' : '已关闭'}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>说话人分离</span>
-                <span className="text-purple-600">
-                  {diarizationEnabled ? `已开启（≤${maxSpeakers} 人）` : '已关闭'}
-                </span>
-              </div>
-              <div className="text-xs text-slate-400">
-                <span className="mr-1">最近发言者：</span>
-                {renderSpeakerBadge(lastSpeaker)}
-              </div>
-            </div>
-          </div>
-
-          <div className="timao-card">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-                <span>🧾</span>
-                整场回顾
-              </h3>
-              <button className="timao-primary-btn" onClick={handleReportGenerate} disabled={reportBusy}>生成回顾</button>
-            </div>
-            <div className="text-xs timao-support-text mt-1">已自动录制 · 每段约 30 分钟</div>
-            <div className="text-xs timao-support-text mt-1">
-              状态：{reportStatus?.active ? '录制中' : '未开始'}
-              {reportStatus?.status?.segments?.length ? ` · 片段 ${reportStatus.status.segments.length}` : ''}
-            </div>
-            {reportPaths ? (
-              <div className="mt-3 text-xs timao-support-text">
-                <div>· 弹幕：{reportPaths.comments || '—'}</div>
-                <div>· 转写：{reportPaths.transcript || '—'}</div>
-                <div className="flex items-center gap-2">· 报告：{reportPaths.report || '—'}
-                  {reportPaths.report ? (
-                    <button className="timao-outline-btn text-[10px] px-2 py-0.5" onClick={() => {
-                      try { (window as any).electronAPI?.openPath(reportPaths.report as string); } catch {}
-                    }}>打开</button>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          {/* 简洁模式：移除服务状态高级设置卡片 */}
-
-          <div className="timao-card">
-            <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2 mb-3">
-              <span>📎</span>
-              使用提示
-            </h3>
-            <ul className="space-y-2 text-sm timao-support-text">
-              <li>· 无需麦克风权限，直接从直播流抓取音频。</li>
-              <li>· 需安装 ffmpeg 并确保可执行路径可用。</li>
-              <li>· 若启动失败，请查看日志或终端输出。</li>
-            </ul>
           </div>
         </section>
       </div>
