@@ -4,7 +4,7 @@ OpenAI-compatible client for Aliyun DashScope (Qwen MAX / Qwen Omni families).
 Reads standard envs:
 - OPENAI_API_KEY
 - OPENAI_BASE_URL (e.g. https://dashscope.aliyuncs.com/compatible-mode/v1)
-- OPENAI_MODEL (examples: qwen3-max, qwen-max-longcontext, qwen-omni-turbo; default: qwen3-max)
+- OPENAI_MODEL (examples: qwen-plus, qwen-max, qwen-max-longcontext, qwen-omni-turbo; default: qwen-plus)
 
 We default to text-only fusion: transcript + aggregated comments.
 If later we add image/audio packaging (base64 or upload), extend build_messages().
@@ -35,7 +35,7 @@ DEFAULT_OPENAI_BASE_URL = (
 DEFAULT_OPENAI_MODEL = (
     os.getenv("AI_MODEL")
     or os.getenv("OPENAI_MODEL")
-    or "qwen3-max"
+    or "qwen-plus"
 )
 
 try:  # pragma: no cover - optional style memory

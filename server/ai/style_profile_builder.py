@@ -10,49 +10,33 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from openai import OpenAI
-
-try:
-    from .qwen_openai_compatible import (
-        DEFAULT_OPENAI_API_KEY,
-        DEFAULT_OPENAI_BASE_URL,
-        DEFAULT_OPENAI_MODEL,
-    )
-except Exception:  # pragma: no cover - fallback defaults
-    DEFAULT_OPENAI_API_KEY = os.getenv("AI_API_KEY", "")
-    DEFAULT_OPENAI_BASE_URL = os.getenv("AI_BASE_URL", "")
-    DEFAULT_OPENAI_MODEL = os.getenv("AI_MODEL", "qwen-max")
+# 使用统一网关
+from .ai_gateway import get_gateway
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class StyleProfileBuilderConfig:
-    api_key: str
-    base_url: str
-    model: str
+    model: str = "qwen-plus"
     max_chars: int = 8000
     min_tokens: int = 200
 
 
 class StyleProfileBuilder:
-    """Use Qwen3-Max to derive a stable style profile from ASR transcripts."""
+    """Use AI Gateway to derive a stable style profile from ASR transcripts."""
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = None,
+        api_key: Optional[str] = None,  # 保留以便兼容，但不再使用
+        base_url: Optional[str] = None,  # 保留以便兼容，但不再使用
         model: Optional[str] = None,
     ) -> None:
-        cfg = StyleProfileBuilderConfig(
-            api_key=api_key or os.getenv("AI_API_KEY", "") or DEFAULT_OPENAI_API_KEY,
-            base_url=base_url or os.getenv("AI_BASE_URL", "") or DEFAULT_OPENAI_BASE_URL,
-            model=model or os.getenv("AI_MODEL", "") or DEFAULT_OPENAI_MODEL,
+        self.config = StyleProfileBuilderConfig(
+            model=model or os.getenv("AI_MODEL", "qwen-plus"),
         )
-        if not cfg.api_key:
-            raise RuntimeError("StyleProfileBuilder 初始化失败：未配置 AI_API_KEY")
-        self.config = cfg
-        self.client = OpenAI(api_key=cfg.api_key, base_url=cfg.base_url or None)
+        self.gateway = get_gateway()
+        logger.info("StyleProfileBuilder initialized with AI Gateway.")
 
     def build_profile(
         self,
@@ -67,15 +51,22 @@ class StyleProfileBuilder:
             return {}
         if len(excerpt) > self.config.max_chars:
             excerpt = excerpt[: self.config.max_chars]
+        
         prompt = self._build_prompt(anchor_id, session_date, session_index, excerpt)
-        response = self.client.chat.completions.create(
-            model=self.config.model,
+        
+        # 使用网关调用
+        response = self.gateway.chat_completion(
             messages=prompt,
+            model=self.config.model,
             max_tokens=800,
             temperature=0.4,
         )
-        raw = response.choices[0].message.content.strip()
-        summary = self._parse_json(raw)
+        
+        if not response.success:
+            logger.error(f"AI调用失败: {response.error}")
+            return {}
+        
+        summary = self._parse_json(response.content)
         profile = summary.get("style_profile")
         if not isinstance(profile, dict):
             profile = {

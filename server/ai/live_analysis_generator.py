@@ -11,7 +11,8 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from openai import OpenAI
+# 使用统一网关
+from .ai_gateway import get_gateway
 
 try:
     from ..utils.ai_tracking_decorator import track_ai_usage
@@ -27,28 +28,13 @@ logger = logging.getLogger(__name__)
 
 
 class LiveAnalysisGenerator:
-    """Generate live analysis cards via Qwen3-Max."""
+    """Generate live analysis cards via AI Gateway."""
 
     def __init__(self, config: Dict[str, Any]) -> None:
         self.config = config
-        self.client: Optional[OpenAI] = None
-        self.model: str = config.get("ai_model", "qwen3-max")
-        self._init_client()
-
-    def _init_client(self) -> None:
-        try:
-            api_key = self.config.get("ai_api_key")
-            base_url = self.config.get("ai_base_url")
-            if not api_key:
-                raise ValueError("缺少 AI API 密钥，无法生成直播分析卡片")
-            self.client = OpenAI(
-                api_key=api_key,
-                base_url=base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1",
-            )
-            logger.info("LiveAnalysisGenerator initialized with Qwen endpoint.")
-        except Exception as exc:  # pragma: no cover
-            logger.error("Failed to initialize LiveAnalysisGenerator: %s", exc)
-            self.client = None
+        self.gateway = get_gateway()
+        self.model: str = config.get("ai_model", "qwen-plus")
+        logger.info("LiveAnalysisGenerator initialized with AI Gateway.")
 
     def _format_chat_samples(self, chat_signals: List[Dict[str, Any]]) -> str:
         lines: List[str] = []
@@ -274,9 +260,6 @@ class LiveAnalysisGenerator:
         ]
 
     def generate(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        if not self.client:
-            raise RuntimeError("LiveAnalysisGenerator 未初始化成功")
-        
         # 调用带追踪的内部方法
         return self._generate_with_tracking(context)
     
@@ -284,19 +267,22 @@ class LiveAnalysisGenerator:
     def _generate_with_tracking(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """带使用追踪的生成方法"""
         messages = self._build_prompt(context)
-        response = self.client.chat.completions.create(
-            model=self.model,
+        
+        # 使用网关调用
+        response = self.gateway.chat_completion(
             messages=messages,
+            model=self.model,
             temperature=0.3,
             response_format={"type": "json_object"},
             max_tokens=800,
         )
         
-        # 记录 Token 使用（装饰器会自动从 response.usage 提取）
+        if not response.success:
+            logger.error(f"AI调用失败: {response.error}")
+            return {"analysis_overview": "生成失败，请稍后重试"}
         
-        raw = response.choices[0].message.content or "{}"
         try:
-            return json.loads(raw)
+            return json.loads(response.content)
         except json.JSONDecodeError:
-            logger.warning("无法解析 Qwen 返回的 JSON：%s", raw)
-            return {"analysis_overview": raw}
+            logger.warning("无法解析 AI 返回的 JSON：%s", response.content)
+            return {"analysis_overview": response.content}

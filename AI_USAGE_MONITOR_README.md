@@ -203,9 +203,9 @@ http://localhost:10090/api/ai_usage/dashboard
 
 | 模型 | 输入价格 | 输出价格 |
 |------|---------|---------|
+| Qwen-Plus（推荐） | ¥0.0004/1K | ¥0.002/1K |
+| Qwen-Turbo | ¥0.0003/1K | ¥0.0006/1K |
 | Qwen-Max | ¥0.02/1K | ¥0.06/1K |
-| Qwen-Plus | ¥0.004/1K | ¥0.012/1K |
-| Qwen-Turbo | ¥0.002/1K | ¥0.006/1K |
 | GPT-4 | ¥0.21/1K | ¥0.42/1K |
 | GPT-3.5-Turbo | ¥0.0035/1K | ¥0.007/1K |
 
@@ -405,8 +405,8 @@ for model, stats in today.by_model.items():
     print(f"{model}: 平均 ¥{avg_cost_per_call:.4f}/次")
 
 # 输出示例：
-# qwen-max: 平均 ¥0.0819/次
-# qwen-plus: 平均 ¥0.0164/次  ← 更经济
+# qwen-plus: 平均 ¥0.0082/次
+# qwen-turbo: 平均 ¥0.0041/次  ← 更经济
 ```
 
 ---
