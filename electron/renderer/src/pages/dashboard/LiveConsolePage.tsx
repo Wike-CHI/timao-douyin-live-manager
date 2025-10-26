@@ -544,119 +544,197 @@ const LiveConsolePage = () => {
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
       ) : null}
 
-      {/* 顶部横向排列：直播分析卡片 和 风格画像与氛围 */}
-      <div className="grid gap-6 xl:grid-cols-2 lg:grid-cols-2 md:grid-cols-1">
-        {/* 直播分析卡片 */}
-        <div className="timao-card h-[320px] flex flex-col">
-          <div className="flex items-center gap-2 mb-3 flex-shrink-0">
+      <div className="grid gap-6 xl:grid-cols-[1.2fr_1.2fr_0.8fr] lg:grid-cols-[1fr_1fr]">
+        <section className="timao-card h-full flex flex-col">
+          <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-              <span>🧠</span>
-              直播分析卡片
+              <span>📝</span>
+              语音转写流
             </h3>
-            <span className="text-xs timao-support-text">系统默认每 60 秒更新一次</span>
+            <div className="flex items-center gap-3">
+              <span className="timao-status-pill text-xs">{isRunning ? '实时更新中' : '已暂停'}</span>
+              <button
+                className="text-xs timao-support-text hover:text-purple-600"
+                onClick={() => setCollapsed((v) => !v)}
+                title={collapsed ? '展开' : '折叠'}
+              >
+                {collapsed ? '展开 ▾' : '折叠 ▸'}
+              </button>
+            </div>
           </div>
-          {aiEvents.length === 0 ? (
-            <div className="timao-outline-card text-sm timao-support-text flex-1 flex items-center justify-center">{isRunning ? '正在生成直播分析卡片…（开始字幕后约 1 分钟内出现结果）' : '请先在上方开始实时字幕'}
+          {collapsed ? (
+            <div className="space-y-2">
+              <select
+                id="transcript-select"
+                className="timao-input w-full"
+                value={selectedId ?? (log[0]?.id || '')}
+                onChange={(e) => setSelectedId(e.target.value || null)}
+                aria-label="选择转写记录"
+                title="选择转写记录"
+              >
+                {log.length === 0 ? (
+                  <option value="">暂无转写</option>
+                ) : (
+                  log.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {new Date(item.timestamp * 1000).toLocaleTimeString()} · {speakerLabelShort(item.speaker)} · {(item.text || '').slice(0, 24)}
+                    </option>
+                  ))
+                )}
+              </select>
+              <div className="rounded-xl bg-white/90 border p-3 text-sm text-slate-700 min-h-[48px]">
+                {(() => {
+                  const found = log.find((x) => x.id === (selectedId ?? log[0]?.id));
+                  return found ? found.text : '暂无转写结果';
+                })()}
+              </div>
             </div>
           ) : (
-            <div className="space-y-3 flex-1 overflow-y-auto pr-2">
-              {aiEvents.map((ev, idx) => {
-                const sentiment = ev?.audience_sentiment
-                  || (ev?.analysis_card && typeof ev.analysis_card === 'object' ? ev.analysis_card.audience_sentiment : null);
-                const sentimentSignals = Array.isArray(sentiment?.signals) ? sentiment.signals : [];
-                const fallbackTopics = Array.isArray(ev?.topic_playlist) ? ev.topic_playlist : [];
-                const hasAny = ev?.summary
-                  || (Array.isArray(ev?.highlight_points) && ev.highlight_points.length)
-                  || (Array.isArray(ev?.risks) && ev.risks.length)
-                  || (Array.isArray(ev?.suggestions) && ev.suggestions.length)
-                  || (Array.isArray(ev?.top_questions) && ev.top_questions.length)
-                  || (sentiment && (sentiment.label || sentimentSignals.length))
-                  || ev?.analysis_focus
-                  || fallbackTopics.length
-                  || ev?.error || ev?.raw;
-                return (
-                  <div key={idx} className="rounded-xl border border-white/60 shadow-sm p-3 bg-white/95 hover:shadow-md transition-shadow">
-                    {ev?.error ? (
-                      <div className="text-xs text-red-600">AI 分析错误：{String(ev.error)}</div>
-                    ) : null}
-                    {ev?.raw && !ev?.summary ? (
-                      <div className="text-xs text-slate-500 whitespace-pre-wrap">{String(ev.raw)}</div>
-                    ) : null}
-                    {ev?.summary ? (
-                      <div className="text-sm text-slate-700 mb-2 whitespace-pre-wrap">{ev.summary}</div>
-                    ) : null}
-                    {ev?.analysis_focus ? (
-                      <div className="text-xs text-purple-600 mb-2">关注点：{ev.analysis_focus}</div>
-                    ) : null}
-                    {Array.isArray(ev?.highlight_points) && ev.highlight_points.length ? (
-                      <>
-                        <div className="text-xs text-slate-500 mb-1">亮点</div>
-                        <ul className="list-disc pl-5 text-xs text-slate-600">
-                          {ev.highlight_points.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
-                        </ul>
-                      </>
-                    ) : null}
-                    {Array.isArray(ev?.suggestions) && ev.suggestions.length ? (
-                      <>
-                        <div className="text-xs text-slate-500 mt-2 mb-1">建议</div>
-                        <ul className="list-disc pl-5 text-xs text-slate-600">
-                          {ev.suggestions.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
-                        </ul>
-                      </>
-                    ) : null}
-                    {fallbackTopics.length ? (
-                      <>
-                        <div className="text-xs text-slate-500 mt-2 mb-1">话题灵感</div>
-                        <ul className="list-disc pl-5 text-xs text-slate-600">
-                          {fallbackTopics.slice(0, 4).map((item: any, i: number) => (
-                            <li key={`${item?.category || 'topic'}-${i}`}>
-                              {String(item?.topic || '')}
-                              {item?.category ? (
-                                <span className="ml-2 text-[10px] text-slate-400">#{String(item.category)}</span>
-                              ) : null}
-                            </li>
-                          ))}
-                        </ul>
-                      </>
-                    ) : null}
-                    {sentiment && (sentiment.label || sentimentSignals.length) ? (
-                      <>
-                        <div className="text-xs text-slate-500 mt-2 mb-1">观众情绪</div>
-                        <div className="text-xs text-slate-600">
-                          状态：{sentiment.label || '—'}
-                        </div>
-                        {sentimentSignals.length ? (
-                          <ul className="list-disc pl-5 text-xs text-slate-600 mt-1">
-                            {sentimentSignals.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
-                          </ul>
-                        ) : null}
-                      </>
-                    ) : null}
-                    {Array.isArray(ev?.risks) && ev.risks.length ? (
-                      <>
-                        <div className="text-xs text-slate-500 mt-2 mb-1">风险</div>
-                        <ul className="list-disc pl-5 text-xs text-slate-600">
-                          {ev.risks.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
-                        </ul>
-                      </>
-                    ) : null}
-                    {Array.isArray(ev?.top_questions) && ev.top_questions.length ? (
-                      <>
-                        <div className="text-xs text-slate-500 mt-2 mb-1">高频问题</div>
-                        <ul className="list-disc pl-5 text-xs text-slate-600">
-                          {ev.top_questions.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
-                        </ul>
-                      </>
-                    ) : null}
-                    {!hasAny ? (
-                      <div className="text-xs text-slate-400">暂无可显示内容</div>
-                    ) : null}
-                  </div>
-                );
-              })}
+            <div className="flex-1 flex flex-col">
+            {/* 固定高度，列表支持滚动；与右侧卡片齐平 */}
+            <div className="space-y-3 overflow-y-auto pr-1 flex-1 min-h-[1500px] max-h-[1500px]">
+              {log.length === 0 ? (
+                <div className="timao-outline-card text-sm timao-support-text text-center">
+                  暂无转写结果。{isRunning ? '等待识别...' : '点击开始转写以开启实时字幕。'}
+                </div>
+              ) : (
+                log.map((item) => (
+                  <div key={item.id} className="flex-shrink -0 h-fit rounded-2xl border border-white/60 shadow-md p-4 bg-white/95">
+                      <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+                        <span>{new Date(item.timestamp * 1000).toLocaleTimeString()}</span>
+                        {renderSpeakerBadge(item.speaker)}
+                      </div>
+                      {(() => {
+                        const debugText = formatSpeakerDebug(item.speakerDebug);
+                        return debugText
+                          ? (
+                            <div className="text-[10px] text-slate-400 mb-1">
+                              {debugText}
+                            </div>
+                          )
+                          : null;
+                      })()}
+                      <div className="text-slate-600 text-sm leading-relaxed">{item.text}</div>
+                    </div>
+                ))
+              )}
+            </div>
             </div>
           )}
-        </div>
+        </section>
+
+        <section className="flex flex-col gap-4">
+          {/* AI 分析卡片：固定 60 秒窗口自动刷新 */}
+          <div className="timao-card">
+            <div className="flex items-center gap-2 mb-3">
+              <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
+                <span>🧠</span>
+                直播分析卡片
+              </h3>
+              <span className="text-xs timao-support-text">系统默认每 60 秒更新一次</span>
+            </div>
+            {aiEvents.length === 0 ? (
+              <div className="timao-outline-card text-sm timao-support-text">{isRunning ? '正在生成直播分析卡片…（开始字幕后约 1 分钟内出现结果）' : '请先在上方开始实时字幕'}
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[260px] overflow-y-auto pr-1">
+                {aiEvents.map((ev, idx) => {
+                  const sentiment = ev?.audience_sentiment
+                    || (ev?.analysis_card && typeof ev.analysis_card === 'object' ? ev.analysis_card.audience_sentiment : null);
+                  const sentimentSignals = Array.isArray(sentiment?.signals) ? sentiment.signals : [];
+                  const fallbackTopics = Array.isArray(ev?.topic_playlist) ? ev.topic_playlist : [];
+                  const hasAny = ev?.summary
+                    || (Array.isArray(ev?.highlight_points) && ev.highlight_points.length)
+                    || (Array.isArray(ev?.risks) && ev.risks.length)
+                    || (Array.isArray(ev?.suggestions) && ev.suggestions.length)
+                    || (Array.isArray(ev?.top_questions) && ev.top_questions.length)
+                    || (sentiment && (sentiment.label || sentimentSignals.length))
+                    || ev?.analysis_focus
+                    || fallbackTopics.length
+                    || ev?.error || ev?.raw;
+                  return (
+                    <div key={idx} className="rounded-2xl border border-white/60 shadow-md p-3 bg-white/95">
+                      {ev?.error ? (
+                        <div className="text-xs text-red-600">AI 分析错误：{String(ev.error)}</div>
+                      ) : null}
+                      {ev?.raw && !ev?.summary ? (
+                        <div className="text-xs text-slate-500 whitespace-pre-wrap">{String(ev.raw)}</div>
+                      ) : null}
+                      {ev?.summary ? (
+                        <div className="text-sm text-slate-700 mb-2 whitespace-pre-wrap">{ev.summary}</div>
+                      ) : null}
+                      {ev?.analysis_focus ? (
+                        <div className="text-xs text-purple-600 mb-2">关注点：{ev.analysis_focus}</div>
+                      ) : null}
+                      {Array.isArray(ev?.highlight_points) && ev.highlight_points.length ? (
+                        <>
+                          <div className="text-xs text-slate-500 mb-1">亮点</div>
+                          <ul className="list-disc pl-5 text-xs text-slate-600">
+                            {ev.highlight_points.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
+                          </ul>
+                        </>
+                      ) : null}
+                      {Array.isArray(ev?.suggestions) && ev.suggestions.length ? (
+                        <>
+                          <div className="text-xs text-slate-500 mt-2 mb-1">建议</div>
+                          <ul className="list-disc pl-5 text-xs text-slate-600">
+                            {ev.suggestions.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
+                          </ul>
+                        </>
+                      ) : null}
+                      {fallbackTopics.length ? (
+                        <>
+                          <div className="text-xs text-slate-500 mt-2 mb-1">话题灵感</div>
+                          <ul className="list-disc pl-5 text-xs text-slate-600">
+                            {fallbackTopics.slice(0, 4).map((item: any, i: number) => (
+                              <li key={`${item?.category || 'topic'}-${i}`}>
+                                {String(item?.topic || '')}
+                                {item?.category ? (
+                                  <span className="ml-2 text-[10px] text-slate-400">#{String(item.category)}</span>
+                                ) : null}
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      ) : null}
+                      {sentiment && (sentiment.label || sentimentSignals.length) ? (
+                        <>
+                          <div className="text-xs text-slate-500 mt-2 mb-1">观众情绪</div>
+                          <div className="text-xs text-slate-600">
+                            状态：{sentiment.label || '—'}
+                          </div>
+                          {sentimentSignals.length ? (
+                            <ul className="list-disc pl-5 text-xs text-slate-600 mt-1">
+                              {sentimentSignals.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
+                            </ul>
+                          ) : null}
+                        </>
+                      ) : null}
+                      {Array.isArray(ev?.risks) && ev.risks.length ? (
+                        <>
+                          <div className="text-xs text-slate-500 mt-2 mb-1">风险</div>
+                          <ul className="list-disc pl-5 text-xs text-slate-600">
+                            {ev.risks.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
+                          </ul>
+                        </>
+                      ) : null}
+                      {Array.isArray(ev?.top_questions) && ev.top_questions.length ? (
+                        <>
+                          <div className="text-xs text-slate-500 mt-2 mb-1">高频问题</div>
+                          <ul className="list-disc pl-5 text-xs text-slate-600">
+                            {ev.top_questions.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
+                          </ul>
+                        </>
+                      ) : null}
+                      {!hasAny ? (
+                        <div className="text-xs text-slate-400">暂无可显示内容</div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
         {/* 风格画像与氛围 */}
         <div className="timao-card h-[320px] flex flex-col">
