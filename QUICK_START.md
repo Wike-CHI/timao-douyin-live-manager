@@ -6,11 +6,60 @@
 
 - ✅ Node.js ≥ 16
 - ✅ Python ≥ 3.9
+- ✅ **MySQL ≥5.7 / MariaDB ≥10.3**
 - ✅ 通义千问 API Key（或其他 AI 服务商）
 
 ---
 
 ## 🚀 快速启动（3 步）
+
+### 步骤 0: 初始化 MySQL 数据库
+
+#### Windows 用户：
+```bash
+# 运行自动化脚本
+setup-dev-mysql.bat
+```
+
+#### macOS/Linux 用户：
+```bash
+# 运行自动化脚本
+bash setup-dev-mysql.sh
+```
+
+#### 手动配置：
+```bash
+# 1. 创建数据库
+mysql -u root -p
+```
+
+```sql
+CREATE DATABASE timao_live CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'timao'@'localhost' IDENTIFIED BY 'timao123456';
+GRANT ALL PRIVILEGES ON timao_live.* TO 'timao'@'localhost';
+FLUSH PRIVILEGES;
+EXIT;
+```
+
+```bash
+# 2. 配置 .env 文件
+cp .env.example .env
+
+# 3. 安装 MySQL 驱动
+pip install pymysql cryptography
+```
+
+> **提示**：如果没有安装 MySQL，可以使用 Docker：
+> ```bash
+> docker run -d --name timao-mysql \
+>   -e MYSQL_ROOT_PASSWORD=root \
+>   -e MYSQL_DATABASE=timao_live \
+>   -e MYSQL_USER=timao \
+>   -e MYSQL_PASSWORD=timao123456 \
+>   -p 3306:3306 mysql:8.0
+> ```
+
+---
 
 ### 步骤 1: 安装依赖
 
@@ -24,13 +73,21 @@ npm ci
 
 ### 步骤 2: 配置 AI 服务
 
-在项目根目录创建 `.env` 文件：
+编辑 `.env` 文件：
 
 ```bash
 # 必填：AI 服务商配置
 AI_SERVICE=qwen
 AI_API_KEY=sk-your-qwen-api-key-here
 AI_MODEL=qwen-plus
+
+# 必填：MySQL 数据库配置（已预设默认值）
+DB_TYPE=mysql
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_USER=timao
+MYSQL_PASSWORD=timao123456
+MYSQL_DATABASE=timao_live
 
 # 可选：API 地址（使用默认值可不填）
 AI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1

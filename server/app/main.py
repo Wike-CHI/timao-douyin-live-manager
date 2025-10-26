@@ -226,6 +226,17 @@ async def startup_event():
     """应用启动"""
     logging.info("🐱 提猫直播助手启动中...")
     
+    # 初始化 Redis
+    try:
+        from server.utils.redis_manager import init_redis
+        redis_client = init_redis(config_manager.config.redis)
+        if redis_client.is_enabled():
+            logging.info("✅ Redis 缓存已启用")
+        else:
+            logging.warning("⚠️ Redis 缓存未启用，将使用内存存储")
+    except Exception as e:
+        logging.warning(f"⚠️ Redis 初始化失败: {e}")
+    
     # 初始化数据库
     try:
         db_config = config_manager.config.database
@@ -262,6 +273,15 @@ async def startup_event():
 async def shutdown_event():
     """应用关闭"""
     logging.info("🐱 提猫直播助手正在关闭...")
+    
+    # 关闭 Redis 连接
+    try:
+        from server.utils.redis_manager import close_redis
+        close_redis()
+        logging.info("✅ Redis 连接已关闭")
+    except Exception as e:
+        logging.error(f"❌ Redis 关闭失败: {e}")
+    
     try:
         stop_websocket_services()
         logging.info("✅ WebSocket 服务已停止")

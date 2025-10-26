@@ -185,6 +185,32 @@ class SecurityConfig:
 
 
 @dataclass
+class RedisConfig:
+    """
+Redis缓存配置"""
+    # 基本配置
+    enabled: bool = True
+    host: str = "localhost"
+    port: int = 6379
+    db: int = 0
+    password: str = ""
+    
+    # 连接池配置
+    max_connections: int = 10
+    socket_timeout: int = 5
+    socket_connect_timeout: int = 5
+    socket_keepalive: bool = True
+    
+    # 缓存配置
+    default_ttl: int = 3600  # 默认过期时间（秒）
+    key_prefix: str = "timao:"  # 键前缀
+    
+    # 重连配置
+    retry_on_timeout: bool = True
+    health_check_interval: int = 30
+
+
+@dataclass
 class AppConfig:
     """应用总配置"""
     server: ServerConfig = field(default_factory=ServerConfig)
@@ -194,6 +220,7 @@ class AppConfig:
     log: LogConfig = field(default_factory=LogConfig)
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     security: SecurityConfig = field(default_factory=SecurityConfig)
+    redis: RedisConfig = field(default_factory=RedisConfig)
     
     # 应用信息
     app_name: str = "提猫直播助手"
@@ -305,6 +332,15 @@ class ConfigManager:
                 'MYSQL_PASSWORD': ('database', 'mysql_password'),
                 'MYSQL_DATABASE': ('database', 'mysql_database'),
                 'DATABASE_PATH': ('database', 'sqlite_path'),
+                
+                # Redis配置
+                'REDIS_ENABLED': ('redis', 'enabled', bool),
+                'REDIS_HOST': ('redis', 'host'),
+                'REDIS_PORT': ('redis', 'port', int),
+                'REDIS_DB': ('redis', 'db', int),
+                'REDIS_PASSWORD': ('redis', 'password'),
+                'REDIS_MAX_CONNECTIONS': ('redis', 'max_connections', int),
+                'REDIS_CACHE_TTL': ('redis', 'default_ttl', int),
                 
                 # 安全配置
                 'API_KEY': ('security', 'api_key'),
