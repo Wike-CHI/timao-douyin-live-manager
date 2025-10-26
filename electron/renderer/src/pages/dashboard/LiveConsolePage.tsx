@@ -772,6 +772,7 @@ const LiveConsolePage = () => {
             </div>
           )}
         </div>
+        </section>
       </div>
 
       {/* 第二行：主播实时语音转写 和 弹幕评论 */}

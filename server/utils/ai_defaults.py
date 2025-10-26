@@ -14,12 +14,12 @@ from typing import Dict
 _DEFAULTS: Dict[str, str] = {
     "AI_SERVICE": "qwen",
     "AI_BASE_URL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    "AI_MODEL": "qwen3-max",
+    "AI_MODEL": "qwen-plus",
     "AI_API_KEY": "sk-92045f0a33984350925ce3ccffb3489e",
     # OpenAI-compatible aliases (many downstream modules expect these)
     "OPENAI_API_KEY": "sk-92045f0a33984350925ce3ccffb3489e",
     "OPENAI_BASE_URL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    "OPENAI_MODEL": "qwen3-max",
+    "OPENAI_MODEL": "qwen-plus",
 }
 
 
