@@ -1,0 +1,69 @@
+# Git 相关
+.git
+.gitignore
+.gitattributes
+
+# Node 模块
+node_modules
+electron/renderer/node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python 缓存和虚拟环境
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# 构建产物
+dist/
+build/
+*.egg-info/
+.eggs/
+out/
+
+# IDE 和编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 测试
+.pytest_cache/
+.coverage
+htmlcov/
+test_results/
+*.test.js
+
+# 日志
+*.log
+logs/
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+
+# 环境变量文件（可能包含敏感信息）
+.env
+.env.local
+.env.*.local
+
+# 文档
+*.md
+docs/
+AGENTS.md
+README.md
+
+# 其他
+.dockerignore
+Dockerfile
+docker-compose.yml

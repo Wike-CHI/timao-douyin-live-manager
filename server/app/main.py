@@ -240,4 +240,5 @@ async def shutdown_event():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, log_level="info")
+    # 使用默认端口 10090，与 Electron 启动配置保持一致
+    uvicorn.run("main:app", host="0.0.0.0", port=10090, reload=True, log_level="info")
