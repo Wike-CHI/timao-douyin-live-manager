@@ -69,13 +69,10 @@ class DatabaseManager:
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir, exist_ok=True)
         
-        # 创建数据库引擎
+        # 创建数据库引擎（SQLite 不支持 pool_size 等参数）
         self._engine = create_engine(
             f"sqlite:///{db_path}",
             poolclass=StaticPool,
-            pool_size=self.config.pool_size,
-            pool_timeout=self.config.pool_timeout,
-            pool_recycle=self.config.pool_recycle,
             connect_args={
                 "check_same_thread": False,
                 "timeout": self.config.sqlite_timeout

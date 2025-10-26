@@ -8,12 +8,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field, validator
-from ..database import get_db
-from ..core.dependencies import require_admin_role, get_current_user
-from ..services.admin_service import AdminService
-from ..services.audit_service import AuditService
-from ..models.user import User, UserRole
-from ..models.permission import AuditLog
+from server.app.database import get_db
+from server.app.core.dependencies import require_admin_role, get_current_user
+from server.app.services.admin_service import AdminService
+from server.app.services.audit_service import AuditService
+from server.app.models.user import User, UserRole
+from server.app.models.permission import AuditLog
 import logging
 
 logger = logging.getLogger(__name__)

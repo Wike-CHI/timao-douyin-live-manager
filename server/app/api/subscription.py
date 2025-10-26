@@ -9,10 +9,10 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel, validator
 from sqlalchemy.orm import Session
 
-from app.database import get_db_session
-from app.api.auth import get_current_user
-from app.services.subscription_service import SubscriptionService
-from app.models.subscription import SubscriptionPlanTypeEnum, PaymentMethodEnum
+from server.app.database import get_db_session
+from server.app.api.auth import get_current_user
+from server.app.services.subscription_service import SubscriptionService
+from server.app.models.subscription import SubscriptionPlanTypeEnum, PaymentMethodEnum
 
 
 # 创建路由器
@@ -163,8 +163,8 @@ async def get_my_subscription(
 @router.post("/create-payment")
 async def create_payment(
     request: CreatePaymentRequest,
-    current_user: dict = Depends(get_current_user),
     req: Request,
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db_session)
 ):
     """创建支付订单"""

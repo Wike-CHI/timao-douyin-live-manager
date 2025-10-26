@@ -6,11 +6,11 @@ from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, func, text
-from ..models.user import User, UserRole
-from ..models.payment import Subscription, Payment, Plan
-from ..models.permission import AuditLog
-from ..database import get_db
-from ..core.security import hash_password
+from server.app.models.user import User, UserRole
+from server.app.models.payment import Subscription, Payment, Plan
+from server.app.models.permission import AuditLog
+from server.app.database import get_db
+from server.app.core.security import hash_password
 import logging
 
 logger = logging.getLogger(__name__)

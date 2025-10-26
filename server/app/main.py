@@ -229,7 +229,14 @@ async def startup_event():
     # 初始化 Redis
     try:
         from server.utils.redis_manager import init_redis
-        redis_client = init_redis(config_manager.config.redis)
+        from server.config import RedisConfig
+        
+        # 确保传递 RedisConfig 对象
+        redis_config = config_manager.config.redis
+        if isinstance(redis_config, dict):
+            redis_config = RedisConfig(**redis_config)
+        
+        redis_client = init_redis(redis_config)
         if redis_client.is_enabled():
             logging.info("✅ Redis 缓存已启用")
         else:

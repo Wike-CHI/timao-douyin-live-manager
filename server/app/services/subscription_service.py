@@ -11,14 +11,14 @@ from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 
-from app.database import DatabaseManager
-from app.models.subscription import (
+from server.app.database import DatabaseManager
+from server.app.models.subscription import (
     SubscriptionPlan, UserSubscription, PaymentRecord,
     SubscriptionPlanTypeEnum, SubscriptionStatusEnum, 
     PaymentStatusEnum, PaymentMethodEnum
 )
-from app.models.permission import AuditLog
-from app.models.user import User
+from server.app.models.permission import AuditLog
+from server.app.models.user import User
 
 
 class SubscriptionService:
