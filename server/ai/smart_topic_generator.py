@@ -8,14 +8,17 @@ import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
+# 使用统一网关
+from .ai_gateway import get_gateway
+
 logger = logging.getLogger(__name__)
 
 
 class SmartTopicGenerator:
     """基于AI的智能话题生成器"""
     
-    def __init__(self, ai_client=None):
-        self.ai_client = ai_client
+    def __init__(self, ai_client=None):  # 保留以便兼容，但不再使用
+        self.gateway = get_gateway()
         self.sensitive_keywords = {
             "彩礼", "结婚", "离婚", "政治", "宗教", "种族", "性别歧视", 
             "暴力", "色情", "赌博", "毒品", "自杀", "死亡", "疾病",
@@ -46,7 +49,7 @@ class SmartTopicGenerator:
         Returns:
             话题列表，格式: [{"topic": "话题内容", "category": "分类"}]
         """
-        if not self.ai_client:
+        if not self.gateway:
             return self._get_fallback_topics(limit)
         
         try:
@@ -56,15 +59,18 @@ class SmartTopicGenerator:
             
             prompt = self._build_topic_generation_prompt(context)
             
-            response = self.ai_client.chat.completions.create(
-                model="qwen-plus",
+            # 使用网关调用
+            response = self.gateway.chat_completion(
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
                 max_tokens=800
             )
             
-            content = response.choices[0].message.content.strip()
-            topics = self._parse_ai_response(content)
+            if not response.success:
+                logger.error(f"AI调用失败: {response.error}")
+                return self._get_fallback_topics(limit)
+            
+            topics = self._parse_ai_response(response.content)
             
             # 过滤敏感话题
             filtered_topics = self._filter_sensitive_topics(topics)

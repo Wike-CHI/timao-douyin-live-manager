@@ -13,37 +13,22 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from openai import OpenAI
-
+# 使用统一网关
+from .ai_gateway import get_gateway
 from .knowledge_service import get_knowledge_base, preview_snippets
 
 logger = logging.getLogger(__name__)
 
 
 class LiveQuestionResponder:
-    """Generate short, host-style answer scripts for open audience questions."""
+    """Generate short, host-style answer scripts via AI Gateway."""
 
     def __init__(self, config: Dict[str, Any]) -> None:
         self.config = config
-        self.client: Optional[OpenAI] = None
+        self.gateway = get_gateway()
         self.model: str = config.get("ai_model", "qwen-plus")
         self._examples_cache: Optional[str] = None
-        self._init_client()
-
-    def _init_client(self) -> None:
-        try:
-            api_key = self.config.get("ai_api_key")
-            base_url = self.config.get("ai_base_url")
-            if not api_key:
-                raise ValueError("缺少 AI API 密钥，无法生成智能话术")
-            self.client = OpenAI(
-                api_key=api_key,
-                base_url=base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1",
-            )
-            logger.info("LiveQuestionResponder initialized with Qwen endpoint.")
-        except Exception as exc:  # pragma: no cover
-            logger.error("Failed to initialize LiveQuestionResponder: %s", exc)
-            self.client = None
+        logger.info("LiveQuestionResponder initialized with AI Gateway.")
 
     def _build_prompt(self, context: Dict[str, Any]) -> List[Dict[str, Any]]:
         persona = context.get("persona") or {}
@@ -145,25 +130,30 @@ class LiveQuestionResponder:
         return items
 
     def generate(self, context: Dict[str, Any]) -> List[Dict[str, Any]]:
-        if not self.client:
-            raise RuntimeError("LiveQuestionResponder 未初始化成功")
         questions = context.get("questions") or []
         if not questions:
             return []
+        
         messages = self._build_prompt(context)
-        response = self.client.chat.completions.create(
-            model=self.model,
+        
+        # 使用网关调用
+        response = self.gateway.chat_completion(
             messages=messages,
+            model=self.model,
             temperature=0.4,
             response_format={"type": "json_object"},
             max_tokens=900,
         )
-        raw = response.choices[0].message.content or "[]"
-        data = self._parse_response_payload(raw)
+        
+        if not response.success:
+            logger.error(f"AI调用失败: {response.error}")
+            return []
+        
+        data = self._parse_response_payload(response.content)
         if not data:
             logger.warning(
                 "智能话术生成返回为空，已尝试容错处理但未能恢复有效话术。原始片段：%s",
-                raw[:200],
+                response.content[:200],
             )
             return []
         scripts: List[Dict[str, Any]] = []
