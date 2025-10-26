@@ -14,7 +14,7 @@ def test_topic_generation():
     """测试话题生成功能"""
     try:
         print("开始导入模块...")
-        from ai.knowledge_service import get_knowledge_base
+        from server.ai.knowledge_service import get_knowledge_base
         print("成功导入 knowledge_service")
         
         # 初始化知识库

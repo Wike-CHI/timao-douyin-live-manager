@@ -12,9 +12,9 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 logger = logging.getLogger(__name__)
 
 
-KNOWLEDGE_ROOT = Path("docs/直播运营和主播话术/主题分类")
-TOPIC_LIBRARY_PATH = Path("docs/直播运营和主播话术/话题.txt")
-HIGH_EQ_LIBRARY_ROOT = Path("docs/娱乐主播高情商话术大全")
+KNOWLEDGE_ROOT = Path(__file__).parent.parent / "knowledge/直播运营和主播话术/主题分类"
+TOPIC_LIBRARY_PATH = Path(__file__).parent.parent / "knowledge/直播运营和主播话术/话题.txt"
+HIGH_EQ_LIBRARY_ROOT = Path(__file__).parent.parent / "knowledge/直播运营和主播话术/娱乐主播高情商话术大全"
 TOKEN_PATTERN = re.compile(r"[\u4e00-\u9fa5a-zA-Z0-9]+")
 
 
