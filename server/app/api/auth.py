@@ -10,9 +10,9 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr, validator
 from sqlalchemy.orm import Session
 
-from app.database import get_db_session
-from app.services.user_service import UserService
-from app.models.user import UserRoleEnum
+from server.app.database import get_db_session
+from server.app.services.user_service import UserService
+from server.app.models.user import UserRoleEnum
 
 
 # 创建路由器

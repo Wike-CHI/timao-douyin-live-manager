@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, Union
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
 
-from utils.helpers import read_json_file, write_json_file, safe_get
+from server.utils.helpers import read_json_file, write_json_file, safe_get
 
 
 @dataclass

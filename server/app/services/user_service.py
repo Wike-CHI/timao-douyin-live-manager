@@ -9,10 +9,10 @@ from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 
-from app.models import User, UserSession, UserSubscription, AuditLog
-from app.models.user import UserRoleEnum, UserStatusEnum
-from app.models.subscription import SubscriptionStatusEnum
-from app.database import db_session
+from server.app.models import User, UserSession, UserSubscription, AuditLog
+from server.app.models.user import UserRoleEnum, UserStatusEnum
+from server.app.models.subscription import SubscriptionStatusEnum
+from server.app.database import db_session
 
 
 class UserService:

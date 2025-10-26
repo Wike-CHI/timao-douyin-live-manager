@@ -11,8 +11,8 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
-from config import DatabaseConfig
-from app.models import Base
+from server.config import DatabaseConfig
+from server.app.models import Base
 
 
 class DatabaseManager:
