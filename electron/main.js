@@ -78,7 +78,7 @@ function createWindow() {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            webSecurity: true,
+            webSecurity: false,  // 允许访问本地 API
             preload: path.join(__dirname, 'preload.js')
         }
     });

@@ -8,10 +8,10 @@ from typing import Optional, List
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from app.database import DatabaseManager
-from app.models.user import User, UserRole
-from app.models.permission import Permission, RolePermission
-from app.core.security import JWTManager, SessionManager, LoginLimiter
+from server.app.database import DatabaseManager
+from server.app.models.user import User, UserRole
+from server.app.models.permission import Permission, RolePermission
+from server.app.core.security import JWTManager, SessionManager, LoginLimiter
 import logging
 
 logger = logging.getLogger(__name__)
