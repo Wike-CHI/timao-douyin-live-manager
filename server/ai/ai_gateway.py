@@ -255,6 +255,62 @@ class AIGateway:
         
         logger.info(f"已切换至: {provider} / {self.current_model}")
     
+    def unregister_provider(self, provider: str) -> None:
+        """删除一个服务商
+        
+        Args:
+            provider: 服务商名称
+        """
+        provider = provider.lower()
+        
+        if provider not in self.providers:
+            raise ValueError(f"服务商不存在: {provider}")
+        
+        # 如果是当前使用的服务商，不允许删除
+        if provider == self.current_provider:
+            raise ValueError(f"无法删除当前正在使用的服务商: {provider}")
+        
+        # 删除配置和客户端
+        del self.providers[provider]
+        if provider in self.clients:
+            del self.clients[provider]
+        
+        logger.info(f"服务商已删除: {provider}")
+    
+    def update_provider_api_key(
+        self,
+        provider: str,
+        api_key: str,
+    ) -> None:
+        """更新服务商的 API Key
+        
+        Args:
+            provider: 服务商名称
+            api_key: 新的 API 密钥
+        """
+        provider = provider.lower()
+        
+        if provider not in self.providers:
+            raise ValueError(f"服务商不存在: {provider}")
+        
+        config = self.providers[provider]
+        config.api_key = api_key
+        
+        # 重新创建客户端
+        if OpenAI and config.enabled:
+            try:
+                self.clients[provider] = OpenAI(
+                    api_key=api_key,
+                    base_url=config.base_url or None,
+                    timeout=config.timeout,
+                    max_retries=config.max_retries,
+                )
+                logger.info(f"服务商 {provider} 的 API Key 已更新")
+            except Exception as e:
+                logger.error(f"更新 {provider} API Key 失败: {e}")
+                config.enabled = False
+                raise
+    
     def chat_completion(
         self,
         messages: List[Dict[str, str]],

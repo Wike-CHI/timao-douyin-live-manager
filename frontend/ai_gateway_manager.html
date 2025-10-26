@@ -109,6 +109,7 @@
             padding: 15px;
             transition: all 0.3s;
             cursor: pointer;
+            position: relative;
         }
 
         .provider-card:hover {
@@ -242,6 +243,34 @@
             background: #218838;
         }
 
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .delete-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 6px 12px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.85em;
+            transition: all 0.3s;
+        }
+
+        .delete-btn:hover {
+            background: #c82333;
+            transform: scale(1.05);
+        }
+
         .alert {
             padding: 15px;
             border-radius: 8px;
@@ -366,6 +395,22 @@
             <button class="btn btn-success" onclick="registerProvider()">注册</button>
         </div>
 
+        <!-- 更新 API Key -->
+        <div class="card">
+            <h2>🔑 更新 API Key</h2>
+            <div class="form-group">
+                <label for="updateProvider">选择服务商</label>
+                <select id="updateProvider">
+                    <option value="">请选择...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="updateApiKey">新的 API Key</label>
+                <input type="password" id="updateApiKey" placeholder="sk-...">
+            </div>
+            <button class="btn btn-primary" onclick="updateApiKey()">更新 API Key</button>
+        </div>
+
         <!-- 测试调用 -->
         <div class="card">
             <h2>🧪 测试调用</h2>
@@ -431,6 +476,7 @@
 
             const html = Object.entries(providers).map(([name, config]) => `
                 <div class="provider-card ${config.enabled ? 'active' : ''}">
+                    <button class="delete-btn" onclick="deleteProvider('${name}', event)">✕ 删除</button>
                     <div class="provider-header">
                         <div class="provider-name">${config.provider}</div>
                         <div class="provider-status ${config.enabled ? 'status-enabled' : 'status-disabled'}">
@@ -454,11 +500,18 @@
         function updateSelects(providers, currentProvider) {
             const providerSelect = document.getElementById('switchProvider');
             const modelSelect = document.getElementById('switchModel');
+            const updateProviderSelect = document.getElementById('updateProvider');
             
             // 更新服务商选择
             providerSelect.innerHTML = '<option value="">请选择...</option>' +
                 Object.keys(providers).map(name => 
                     `<option value="${name}" ${name === currentProvider ? 'selected' : ''}>${providers[name].provider}</option>`
+                ).join('');
+            
+            // 更新 API Key 更新界面的服务商选择
+            updateProviderSelect.innerHTML = '<option value="">请选择...</option>' +
+                Object.keys(providers).map(name => 
+                    `<option value="${name}">${providers[name].provider}</option>`
                 ).join('');
             
             // 监听服务商变化
@@ -585,6 +638,65 @@
                 }
             } catch (error) {
                 responseBox.textContent = `✗ 调用失败\n\n错误: ${error.message}`;
+            }
+        }
+
+        // 删除服务商
+        async function deleteProvider(provider, event) {
+            event.stopPropagation(); // 阻止事件冒泡
+            
+            if (!confirm(`确定要删除服务商 "${provider}" 吗？`)) {
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/api/ai_gateway/provider/${provider}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await res.json();
+                if (data.success) {
+                    showAlert('✓ ' + data.message, 'success');
+                    loadStatus();
+                } else {
+                    showAlert('✗ 删除失败', 'error');
+                }
+            } catch (error) {
+                showAlert('删除失败: ' + error.message, 'error');
+            }
+        }
+
+        // 更新 API Key
+        async function updateApiKey() {
+            const provider = document.getElementById('updateProvider').value;
+            const api_key = document.getElementById('updateApiKey').value;
+            
+            if (!provider) {
+                showAlert('请选择服务商', 'error');
+                return;
+            }
+            
+            if (!api_key) {
+                showAlert('请输入新的 API Key', 'error');
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/api/ai_gateway/provider/api-key`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ provider, api_key })
+                });
+                
+                const data = await res.json();
+                if (data.success) {
+                    showAlert('✓ ' + data.message, 'success');
+                    document.getElementById('updateApiKey').value = '';
+                } else {
+                    showAlert('✗ 更新失败', 'error');
+                }
+            } catch (error) {
+                showAlert('更新失败: ' + error.message, 'error');
             }
         }
 

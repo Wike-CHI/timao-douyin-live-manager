@@ -39,6 +39,12 @@ class ChatCompletionRequest(BaseModel):
     response_format: Optional[Dict[str, str]] = Field(None, description="响应格式")
 
 
+class UpdateApiKeyRequest(BaseModel):
+    """更新 API Key 请求"""
+    provider: str = Field(..., description="服务商名称")
+    api_key: str = Field(..., description="新的 API 密钥")
+
+
 @router.get("/status")
 async def get_status():
     """获取网关状态"""
@@ -142,3 +148,32 @@ async def get_provider_models(provider: str):
         "models": config.models,
         "default_model": config.default_model,
     }
+
+
+@router.delete("/provider/{provider}")
+async def delete_provider(provider: str):
+    """删除服务商"""
+    try:
+        gateway = get_gateway()
+        gateway.unregister_provider(provider)
+        return {
+            "success": True,
+            "message": f"服务商 {provider} 已删除",
+            "providers": gateway.list_providers(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.put("/provider/api-key")
+async def update_api_key(req: UpdateApiKeyRequest):
+    """更新服务商的 API Key"""
+    try:
+        gateway = get_gateway()
+        gateway.update_provider_api_key(req.provider, req.api_key)
+        return {
+            "success": True,
+            "message": f"服务商 {req.provider} 的 API Key 已更新",
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
