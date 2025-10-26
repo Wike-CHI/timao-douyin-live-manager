@@ -263,7 +263,8 @@
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script>
-        const API_BASE = 'http://127.0.0.1:10090';
+        // 动态获取 API 基础 URL，解决 CORS 问题
+        const API_BASE = window.location.origin;
         let costChart = null;
         
         async function loadDashboard() {

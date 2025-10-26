@@ -9,13 +9,14 @@
 - 🎯 **直播互动中台**：`DouyinLiveWebFetcher` 模块拉取 WebSocket 弹幕/礼物，并通过 REST/SSE 向桌面端推送。
 - 🎤 **本地实时语音转写**：`AST_module` 使用 SenseVoice Small + VAD，实现直播音频直抓、断句校准与字幕流。
 - 🧠 **AI 实时分析**：`server/ai` 基于 LangChain + Qwen/OpenAI 兼容接口生成热词洞察、实时提示与话术。
+- 🚀 **AI 网关统一管理**：支持多 AI 服务商（Qwen/OpenAI/DeepSeek/豆包/ChatGLM）一键切换、集中配置、自动监控。
 - 📊 **直播复盘留存**：自动生成 `comments.jsonl`、`transcript.txt`、`report.html` 等复盘素材，支撑离线分析。
 - 🔒 **隐私与容错**：本地处理、离线可用，内置模型/接口降级策略，日志与缓存全部保存在本地 `logs/`、`records/`。
 
 ## 技术栈
 
 - 桌面端：Electron 38、electron-builder、concurrently、wait-on。
-- 渲染层：React 18、Vite 5、Tailwind CSS、Zustand、CloudBase SDK。
+- 渲染层：React 18、Vite 5、Tailwind CSS、Zustand。
 - 后端：FastAPI + Uvicorn（主要 API）、Flask（遗留 SSE 工具）、WebSocket/SSE、SQLAlchemy + SQLite。
 - AI & NLP：LangChain、Qwen 兼容接口、jieba、SnowNLP、RNNoise、FunASR、SenseVoiceSmall。
 - 音频处理：ffmpeg、PyAudio、librosa、webrtc-audio-processing。
@@ -148,7 +149,24 @@ python start_web_server.py    # 启动测试页面（8080）
 
 ## 配置与数据目录
 
-- `.env`（根目录）：覆盖 `AI_SERVICE`、`AI_API_KEY`、`OPENAI_API_KEY` 等，默认回退至 `server/utils/ai_defaults.py` 中的 DashScope 兼容配置。
+### AI 网关配置（.env 文件）
+
+```bash
+# 主服务商（必填）
+AI_SERVICE=qwen
+AI_API_KEY=sk-your-api-key
+AI_MODEL=qwen-plus
+
+# 备用服务商（可选）
+DEEPSEEK_API_KEY=sk-deepseek-key
+OPENAI_API_KEY=sk-openai-key
+```
+
+**AI 网关管理**：http://localhost:10090/static/ai_gateway_manager.html
+
+### 其他配置
+
+- `.env`（根目录）：AI 配置、环境变量。
 - `electron/renderer/.env`：前端 API 地址、调试开关（默认继承 Electron 主进程环境）。
 - `config.json`：Douyin 房间号、Cookie、缓存等业务参数，可在设置页写入。
 - 持久化：
@@ -162,18 +180,21 @@ python start_web_server.py    # 启动测试页面（8080）
 - `AST_README.md` / `AST_module/docs/`：语音模块架构、测试方法。
 - `docs/MODELS.md`：模型下载、目录规划与容量建议。
 - `docs/Windows打包部署指南.md`：Windows 构建/签名注意事项。
+- `docs/AI_GATEWAY_SIMPLE.md`：AI 网关快速指南。
+- `docs/AI_GATEWAY_API_KEY_MANAGEMENT.md`：API Key 管理文档。
+- `docs/MONITORING_GUIDE.md`：AI 成本监控指南。
 - `docs/提猫直播助手_API_数据模型与接口规范.md`：REST API 字段约定。
 - `docs/安全加固实施指南.md`：生产环境安全配置 Checklist。
 
 ## 注意事项
 
-- `npm run dev` 会尝试占用 30013（Vite）与 8090（FastAPI）；若端口被占用，会跳过后端启动，请手动校验。
+- `npm run dev` 会尝试占用 30013（Vite）与 10090（FastAPI）；若端口被占用，会跳过后端启动，请手动校验。
 - SenseVoice/VAD 缺失时，`/api/live_audio/health` 会给出自动修复脚本提示。
-- 若需代理出站流量，请为 `AI_BASE_URL`、`AI_API_KEY` 设置合规值，避免默认密钥泄露到公网环境。
+- 若需代理出站流量，请为 `.env` 中的 AI 配置设置合规值。
 - 对于离线部署，可通过 `tools/create_release.py` 打出便携包并在 `.env` 中关闭云端 AI（例如设置 `AI_SERVICE=offline`）。
 
 ---
 
-**开发团队**：提猫科技
-**应用版本**：v1.0.0
-**最后更新**：2025年10月16日
+**开发团队**：提猫科技  
+**应用版本**：v1.0.0  
+**最后更新**：2025年10月26日

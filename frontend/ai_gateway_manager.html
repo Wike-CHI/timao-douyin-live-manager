@@ -424,7 +424,8 @@
     </div>
 
     <script>
-        const API_BASE = 'http://localhost:10090';
+        // 动态获取 API 基础 URL，解决 CORS 问题
+        const API_BASE = window.location.origin;
 
         // 加载状态
         async function loadStatus() {
