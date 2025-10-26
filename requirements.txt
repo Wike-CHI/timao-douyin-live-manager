@@ -15,6 +15,9 @@ websocket-client>=1.6.0
 requests==2.31.0
 urllib3==2.0.7
 
+# 流媒体处理
+streamget>=0.1.0
+
 # 数据处理
 pandas==2.1.4
 numpy==1.24.4
@@ -22,6 +25,9 @@ numpy==1.24.4
 # 自然语言处理
 jieba==0.42.1
 snownlp==0.12.3
+
+# 语音识别和转录
+funasr>=1.2.0  # SenseVoice 语音识别核心依赖
 
 # AI服务客户端
 openai>=1.43.0
@@ -71,11 +77,21 @@ flet>=0.24.0
 
 # JavaScript执行
 PyExecJS>=1.5.1
+py-mini-racer>=0.6.0
+
+# protobuf支持（用于DouyinLiveWebFetcher）
+betterproto==2.0.0b6
 
 # langchain生态
 langchain>=0.3.0
 langchain-community>=0.3.0
 langchain-text-splitters>=0.3.0
 langchain-openai>=0.2.0
+langchain-core>=0.3.0
 langchain-huggingface>=0.1.1
 sentence-transformers>=3.3.0
+
+# PyTorch及相关库 (兼容版本组合)
+torch==2.2.1
+torchvision==0.17.1
+torchaudio==2.2.1
