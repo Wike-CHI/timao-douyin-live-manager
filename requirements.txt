@@ -25,7 +25,7 @@ snownlp==0.12.3
 openai>=1.43.0
 dashscope==1.14.1  # 阿里云通义千问
 baidu-aip==4.16.13  # 百度AI
-./acrcloud_sdk_python  # ACRCloud 音频识别（使用仓库内子模块）
+# ./acrcloud_sdk_python  # ACRCloud 音频识别（使用仓库内子模块）- 暂时注释掉
 
 # 数据库
 SQLAlchemy==2.0.23
