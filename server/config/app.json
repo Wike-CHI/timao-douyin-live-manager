@@ -1,0 +1,130 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 5000,
+    "debug": false,
+    "secret_key": "your-secret-key-here",
+    "cors_origins": [
+      "*"
+    ],
+    "max_content_length": 16777216,
+    "websocket_enabled": true,
+    "websocket_cors_allowed_origins": [
+      "*"
+    ],
+    "websocket_ping_timeout": 60,
+    "websocket_ping_interval": 25
+  },
+  "ai": {
+    "openai_api_key": "",
+    "openai_base_url": "https://api.openai.com/v1",
+    "openai_model": "gpt-3.5-turbo",
+    "openai_max_tokens": 1000,
+    "openai_temperature": 0.7,
+    "qwen_api_key": "",
+    "qwen_model": "qwen-turbo",
+    "baidu_api_key": "",
+    "baidu_secret_key": "",
+    "baidu_model": "ERNIE-Bot-turbo",
+    "default_provider": "openai",
+    "script_max_length": 200,
+    "script_temperature": 0.8,
+    "script_batch_size": 5,
+    "script_retry_times": 3,
+    "sentiment_enabled": true,
+    "sentiment_threshold": 0.6
+  },
+  "comment": {
+    "max_queue_size": 1000,
+    "process_interval": 0.1,
+    "batch_size": 10,
+    "hotword_min_length": 2,
+    "hotword_max_length": 10,
+    "hotword_min_count": 2,
+    "hotword_time_window": 300,
+    "hotword_max_count": 50,
+    "filter_enabled": true,
+    "filter_keywords": [
+      "广告",
+      "刷屏",
+      "垃圾"
+    ],
+    "filter_min_length": 1,
+    "filter_max_length": 500,
+    "simulation_enabled": false,
+    "simulation_interval": 2.0,
+    "simulation_comments": [
+      "主播好棒！",
+      "这个产品不错",
+      "价格怎么样？",
+      "有优惠吗？",
+      "质量好吗？",
+      "包邮吗？",
+      "什么时候发货？",
+      "支持退换吗？"
+    ]
+  },
+  "ui": {
+    "theme": "light",
+    "primary_color": "#1890ff",
+    "success_color": "#52c41a",
+    "warning_color": "#faad14",
+    "error_color": "#f5222d",
+    "sidebar_width": 250,
+    "header_height": 60,
+    "footer_height": 40,
+    "comments_per_page": 50,
+    "hotwords_display_count": 20,
+    "scripts_per_page": 20,
+    "comment_refresh_interval": 1000,
+    "hotword_refresh_interval": 5000,
+    "script_refresh_interval": 10000,
+    "animation_enabled": true,
+    "animation_duration": 300
+  },
+  "log": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    "file_enabled": true,
+    "file_path": "logs/app.log",
+    "file_max_size": 10485760,
+    "file_backup_count": 5,
+    "console_enabled": true
+  },
+  "database": {
+    "sqlite_path": "data/app.db",
+    "sqlite_timeout": 30,
+    "pool_size": 10,
+    "pool_timeout": 30,
+    "pool_recycle": 3600,
+    "backup_enabled": true,
+    "backup_interval": 3600,
+    "backup_keep_days": 7
+  },
+  "security": {
+    "api_rate_limit": 100,
+    "api_key_required": false,
+    "api_key": "",
+    "cors_enabled": true,
+    "cors_origins": [
+      "*"
+    ],
+    "cors_methods": [
+      "GET",
+      "POST",
+      "PUT",
+      "DELETE"
+    ],
+    "cors_headers": [
+      "Content-Type",
+      "Authorization"
+    ],
+    "encryption_enabled": false,
+    "encryption_key": ""
+  },
+  "app_name": "提猫直播助手",
+  "app_version": "1.0.0",
+  "app_description": "智能直播评论分析和话术生成助手",
+  "environment": "development",
+  "debug": true
+}

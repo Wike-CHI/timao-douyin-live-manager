@@ -1,0 +1,38 @@
+# 测试依赖文件
+# 基础测试框架
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+pytest-mock>=3.12.0
+pytest-xdist>=3.3.0  # 并行测试
+
+# HTTP客户端测试
+httpx>=0.25.0
+requests>=2.31.0
+
+# 数据库测试
+sqlalchemy-utils>=0.41.0
+
+# 模拟和测试工具
+factory-boy>=3.3.0
+faker>=20.0.0
+freezegun>=1.2.0  # 时间模拟
+responses>=0.24.0  # HTTP响应模拟
+
+# 测试报告
+pytest-html>=4.1.0
+pytest-json-report>=1.5.0
+
+# 代码质量检查
+flake8>=6.0.0
+black>=23.0.0
+isort>=5.12.0
+
+# 安全测试
+bandit>=1.7.0
+
+# 性能测试
+pytest-benchmark>=4.0.0
+
+# 测试数据生成
+mimesis>=11.0.0

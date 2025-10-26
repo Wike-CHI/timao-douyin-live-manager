@@ -1,0 +1,98 @@
+version: '3.8'
+
+services:
+  # MySQL 数据库服务
+  mysql:
+    image: mysql:8.0
+    container_name: timao-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: timao_live
+      MYSQL_USER: timao
+      MYSQL_PASSWORD: timao123456
+    ports:
+      - "3306:3306"
+    volumes:
+      - timao-mysql-data:/var/lib/mysql
+    command: 
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    restart: unless-stopped
+    networks:
+      - timao-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis 缓存服务（可选）
+  redis:
+    image: redis:7-alpine
+    container_name: timao-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - timao-redis-data:/data
+    restart: unless-stopped
+    networks:
+      - timao-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 应用服务
+  timao-live-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: timao-app
+    image: timao-live-manager:latest
+    ports:
+      - "30013:30013"  # Vite 前端
+      - "10090:10090"  # FastAPI 后端
+      - "5000:5000"    # Flask 服务
+    environment:
+      - NODE_ENV=production
+      - PYTHONUNBUFFERED=1
+      # 数据库配置
+      - DB_TYPE=mysql
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=timao
+      - MYSQL_PASSWORD=timao123456
+      - MYSQL_DATABASE=timao_live
+      # Redis 配置
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      # 从 .env 文件加载其他配置
+      - SECRET_KEY=${SECRET_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - AI_SERVICE=${AI_SERVICE}
+      - AI_API_KEY=${AI_API_KEY}
+      - AI_MODEL=${AI_MODEL}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - timao-network
+
+volumes:
+  timao-mysql-data:
+    driver: local
+  timao-redis-data:
+    driver: local
+
+networks:
+  timao-network:
+    driver: bridge

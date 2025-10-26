@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, Union
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
 
-from .utils.helpers import load_json_file, save_json_file, safe_get
+from utils.helpers import read_json_file, write_json_file, safe_get
 
 
 @dataclass
@@ -137,14 +137,27 @@ class LogConfig:
 @dataclass
 class DatabaseConfig:
     """数据库配置"""
-    # SQLite配置
+    # 数据库类型
+    db_type: str = "mysql"  # mysql 或 sqlite
+    
+    # MySQL配置
+    mysql_host: str = "localhost"
+    mysql_port: int = 3306
+    mysql_user: str = "timao"
+    mysql_password: str = ""
+    mysql_database: str = "timao_live"
+    mysql_charset: str = "utf8mb4"
+    
+    # SQLite配置（备用）
     sqlite_path: str = "data/app.db"
     sqlite_timeout: int = 30
     
     # 连接池配置
-    pool_size: int = 10
+    pool_size: int = 20
     pool_timeout: int = 30
     pool_recycle: int = 3600
+    pool_pre_ping: bool = True  # 连接前测试
+    max_overflow: int = 10  # 最大溢出连接数
     
     # 备份配置
     backup_enabled: bool = True
@@ -213,7 +226,7 @@ class ConfigManager:
         """加载配置文件"""
         try:
             if self.config_file.exists():
-                config_data = load_json_file(str(self.config_file))
+                config_data = read_json_file(str(self.config_file))
                 return self._dict_to_config(config_data)
             else:
                 # 创建默认配置
@@ -285,6 +298,12 @@ class ConfigManager:
                 'AI_PROVIDER': ('ai', 'default_provider'),
                 
                 # 数据库配置
+                'DB_TYPE': ('database', 'db_type'),
+                'MYSQL_HOST': ('database', 'mysql_host'),
+                'MYSQL_PORT': ('database', 'mysql_port', int),
+                'MYSQL_USER': ('database', 'mysql_user'),
+                'MYSQL_PASSWORD': ('database', 'mysql_password'),
+                'MYSQL_DATABASE': ('database', 'mysql_database'),
                 'DATABASE_PATH': ('database', 'sqlite_path'),
                 
                 # 安全配置
@@ -338,7 +357,7 @@ class ConfigManager:
                 config = self.config
             
             config_dict = asdict(config)
-            save_json_file(str(self.config_file), config_dict)
+            write_json_file(str(self.config_file), config_dict)
             print(f"配置已保存到: {self.config_file}")
             
         except Exception as e:
@@ -469,7 +488,7 @@ DEBUG=false
         """导出配置"""
         try:
             config_dict = asdict(self.config)
-            save_json_file(file_path, config_dict)
+            write_json_file(file_path, config_dict)
             print(f"配置已导出到: {file_path}")
         except Exception as e:
             print(f"导出配置失败: {e}")
@@ -477,7 +496,7 @@ DEBUG=false
     def import_config(self, file_path: str):
         """导入配置"""
         try:
-            config_data = load_json_file(file_path)
+            config_data = read_json_file(file_path)
             self.config = self._dict_to_config(config_data)
             self.save_config()
             print(f"配置已从 {file_path} 导入")

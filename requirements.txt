@@ -37,6 +37,8 @@ baidu-aip==4.16.13  # 百度AI
 
 # 数据库
 SQLAlchemy==2.0.23
+pymysql==1.1.0  # MySQL 驱动
+cryptography>=41.0.7  # PyMySQL 密码加密支持
 
 # 异步支持
 aiohttp==3.9.1

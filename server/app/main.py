@@ -21,7 +21,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from ..utils.ai_defaults import ensure_default_ai_env
+from server.app.database import DatabaseManager
+from server.app.models import Base
+from server.utils.ai_defaults import ensure_default_ai_env
+from server.config import config_manager
 
 
 def _disable_ssl_verify_if_requested() -> None:
@@ -108,10 +111,13 @@ _include_router_safe("资源自检", "server.app.api.bootstrap")
 _include_router_safe("工具", "server.app.api.tools")
 _include_router_safe("AI 使用监控", "server.app.api.ai_usage")
 _include_router_safe("AI 网关管理", "server.app.api.ai_gateway_api")
+_include_router_safe("用户认证", "server.app.api.auth")
+_include_router_safe("订阅管理", "server.app.api.subscription")
+_include_router_safe("管理员", "server.app.api.admin")
 
 # WebSocket 广播与管理服务（容错）
 try:
-    from ..websocket_handler import (start_websocket_services,  # type: ignore
+    from server.websocket_handler import (start_websocket_services,  # type: ignore
                                      stop_websocket_services)
     logging.info("✅ WebSocket 服务导入成功")
 except Exception as e:
@@ -219,6 +225,16 @@ async def health_check():
 async def startup_event():
     """应用启动"""
     logging.info("🐱 提猫直播助手启动中...")
+    
+    # 初始化数据库
+    try:
+        db_config = config_manager.config.database
+        db_manager = DatabaseManager(db_config)
+        db_manager.initialize()
+        logging.info("✅ 数据库已初始化")
+    except Exception as e:
+        logging.error(f"❌ 数据库初始化失败: {e}")
+    
     try:
         start_websocket_services()
         logging.info("✅ WebSocket 服务已启动")
