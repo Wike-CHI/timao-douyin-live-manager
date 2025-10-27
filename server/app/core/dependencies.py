@@ -32,10 +32,34 @@ def get_db() -> Session:
         session.close()
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
     db: Session = Depends(get_db)
 ) -> User:
     """获取当前用户"""
+    # 读取安全配置开关
+    try:
+        from server.config import config_manager
+        sec = config_manager.config.security
+    except Exception:
+        sec = None
+
+    # 如果未提供凭证
+    if credentials is None:
+        if not sec or getattr(sec, "auth_required", True):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated"
+            )
+        # 认证关闭时返回一个匿名用户占位对象
+        class _AnonymousUser:
+            id = 0
+            username = "anonymous"
+            email = "anonymous@example.com"
+            is_active = True
+            is_locked = False
+            roles = []
+        return _AnonymousUser()  # type: ignore[return-value]
+
     token = credentials.credentials
     
     try:
@@ -63,7 +87,7 @@ async def get_current_user(
                 detail="User account is disabled"
             )
         
-        if user.is_locked:
+        if getattr(user, "is_locked", False):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User account is locked"
@@ -89,6 +113,13 @@ async def get_current_active_user(
     current_user: User = Depends(get_current_user)
 ) -> User:
     """获取当前活跃用户"""
+    # 若配置关闭认证直接通过
+    try:
+        from server.config import config_manager
+        if not getattr(config_manager.config.security, "auth_required", True):
+            return current_user
+    except Exception:
+        pass
     if not current_user.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -99,6 +130,13 @@ async def get_current_active_user(
 def require_roles(required_roles: List[str]):
     """要求特定角色的依赖项"""
     def role_checker(current_user: User = Depends(get_current_active_user)) -> User:
+        # 角色检查关闭时跳过
+        try:
+            from server.config import config_manager
+            if not getattr(config_manager.config.security, "role_required", True):
+                return current_user
+        except Exception:
+            pass
         user_roles = [role.name for role in current_user.roles]
         if not any(role in user_roles for role in required_roles):
             raise HTTPException(
@@ -114,6 +152,13 @@ def require_permissions(required_permissions: List[str]):
         current_user: User = Depends(get_current_active_user),
         db: Session = Depends(get_db)
     ) -> User:
+        # 权限检查关闭时跳过
+        try:
+            from server.config import config_manager
+            if not getattr(config_manager.config.security, "permission_required", True):
+                return current_user
+        except Exception:
+            pass
         # 获取用户所有权限
         user_permissions = set()
         for role in current_user.roles:
@@ -141,6 +186,12 @@ def require_permissions(required_permissions: List[str]):
 
 def require_admin_role(current_user: User = Depends(get_current_active_user)) -> User:
     """要求管理员角色"""
+    try:
+        from server.config import config_manager
+        if not getattr(config_manager.config.security, "role_required", True):
+            return current_user
+    except Exception:
+        pass
     user_roles = [role.name for role in current_user.roles]
     if "admin" not in user_roles and "super_admin" not in user_roles:
         raise HTTPException(
@@ -151,6 +202,12 @@ def require_admin_role(current_user: User = Depends(get_current_active_user)) ->
 
 def require_super_admin_role(current_user: User = Depends(get_current_active_user)) -> User:
     """要求超级管理员角色"""
+    try:
+        from server.config import config_manager
+        if not getattr(config_manager.config.security, "role_required", True):
+            return current_user
+    except Exception:
+        pass
     user_roles = [role.name for role in current_user.roles]
     if "super_admin" not in user_roles:
         raise HTTPException(

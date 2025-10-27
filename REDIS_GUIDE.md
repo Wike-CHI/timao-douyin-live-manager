@@ -16,6 +16,25 @@ Redis 作为高性能内存数据库，为应用提供：
 
 ## 🚀 快速开始
 
+### 跳过 Redis 启动（开发/演示）
+
+如需暂时不启用 Redis 并改用内存缓存，在 `.env` 中设置：
+
+```bash
+REDIS_ENABLED=false
+```
+
+效果：
+- 启动时不会尝试连接 Redis
+- 所有 `RedisManager` 方法自动使用内存回退（支持键值、哈希、列表、集合、过期、计数等）
+- 适合本地演示或未配置 Redis 的环境
+
+开启后恢复使用 Redis，只需改回：
+
+```bash
+REDIS_ENABLED=true
+```
+
 ### 方式一：Docker（推荐）
 
 ```bash

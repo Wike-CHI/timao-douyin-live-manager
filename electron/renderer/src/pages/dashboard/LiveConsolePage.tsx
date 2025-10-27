@@ -677,7 +677,8 @@ const LiveConsolePage = () => {
           />
           {/* 简洁模式：不暴露“预设”选择，保持默认策略 */}
           {/* 模式/引擎固定：稳妥（VAD）· 轻量（Small） */}
-          <button className="timao-primary-btn" onClick={handleStart} disabled={loading || isRunning}>
+          {/* 开始转写按钮和停止转写按钮向右移动600px */}
+          <button className="timao-primary-btn ml-[600px]" onClick={handleStart} disabled={loading || isRunning}>
             {loading ? '处理中...' : isRunning ? '运行中' : '开始转写'}
           </button>
           <button className="timao-outline-btn" onClick={handleStop} disabled={loading || !isRunning}>
@@ -918,7 +919,12 @@ const LiveConsolePage = () => {
                   {answerScripts.slice(0, 4).map((script, idx) => (
                     <div key={idx} className="rounded-lg border bg-white/90 p-2 text-sm text-slate-700">
                       <div className="font-medium text-slate-800 mb-1">话术 {idx + 1}</div>
-                      <div className="leading-relaxed text-slate-600">{script}</div>
+                      <div className="leading-relaxed text-slate-600">
+                        {typeof script === 'string' ? script : script?.line || script?.question || '暂无内容'}
+                      </div>
+                      {typeof script === 'object' && script?.notes && (
+                        <div className="text-xs text-slate-500 mt-1">备注：{script.notes}</div>
+                      )}
                     </div>
                   ))}
                 </div>

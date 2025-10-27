@@ -15,7 +15,8 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import base64
 import os
-import redis
+from server.utils.redis_manager import get_redis, RedisManager
+from server.config import RedisConfig
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from fastapi import HTTPException, status
@@ -42,20 +43,21 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
-# Redis连接（用于会话管理和登录限制）
-try:
-    redis_client = redis.Redis(
-        host=os.getenv("REDIS_HOST", "localhost"),
-        port=int(os.getenv("REDIS_PORT", 6379)),
-        db=int(os.getenv("REDIS_DB", 0)),
-        decode_responses=True
-    )
-except Exception as e:
-    logger.warning(f"Redis连接失败，将使用内存存储: {e}")
-    redis_client = None
+# 统一通过 RedisManager 访问缓存（带内存回退）
+# 注意：应用启动时会在 startup_event 中初始化 RedisManager
+# 这里在运行期按需获取，若尚未初始化则临时使用内存字典
 
-# 内存存储（Redis不可用时的备选方案）
-memory_store: Dict[str, Any] = {}
+# 内存模式回退：若未初始化全局 RedisManager，则创建一个禁用Redis的本地实例
+_fallback_rm: Optional[RedisManager] = None
+
+def _get_rm() -> RedisManager:
+    rm = get_redis()
+    if rm:
+        return rm
+    global _fallback_rm
+    if _fallback_rm is None:
+        _fallback_rm = RedisManager(RedisConfig(enabled=False))
+    return _fallback_rm
 
 
 class PasswordPolicy:
@@ -168,46 +170,23 @@ class LoginLimiter:
     @classmethod
     def _store_get(cls, key: str) -> Optional[str]:
         """从存储获取值"""
-        if redis_client:
-            return redis_client.get(key)
-        return memory_store.get(key)
+        rm = _get_rm()
+        return rm.get(key)
     
     @classmethod
     def _store_set(cls, key: str, value: str, expire: int = None):
         """存储值"""
-        if redis_client:
-            if expire:
-                redis_client.setex(key, expire, value)
-            else:
-                redis_client.set(key, value)
-        else:
-            memory_store[key] = value
-            if expire:
-                # 简单的过期处理
-                import threading
-                def expire_key():
-                    time.sleep(expire)
-                    memory_store.pop(key, None)
-                threading.Thread(target=expire_key, daemon=True).start()
+        rm = _get_rm()
+        rm.set(key, value, ttl=expire)
     
     @classmethod
     def _store_incr(cls, key: str, expire: int = None) -> int:
         """递增计数"""
-        if redis_client:
-            count = redis_client.incr(key)
-            if expire and count == 1:
-                redis_client.expire(key, expire)
-            return count
-        else:
-            count = memory_store.get(key, 0) + 1
-            memory_store[key] = count
-            if expire and count == 1:
-                import threading
-                def expire_key():
-                    time.sleep(expire)
-                    memory_store.pop(key, None)
-                threading.Thread(target=expire_key, daemon=True).start()
-            return count
+        rm = _get_rm()
+        count = rm.incr(key) or 0
+        if expire and count == 1:
+            rm.expire(key, expire)
+        return count
     
     @classmethod
     def is_locked(cls, identifier: str, attempt_type: str = "login") -> bool:
@@ -220,10 +199,8 @@ class LoginLimiter:
                 return True
             else:
                 # 锁定时间已过，清除锁定
-                if redis_client:
-                    redis_client.delete(lockout_key)
-                else:
-                    memory_store.pop(lockout_key, None)
+                rm = _get_rm()
+                rm.delete(lockout_key)
         
         return False
     
@@ -233,10 +210,8 @@ class LoginLimiter:
         if success:
             # 成功时清除计数
             attempt_key = cls._get_key(identifier, attempt_type)
-            if redis_client:
-                redis_client.delete(attempt_key)
-            else:
-                memory_store.pop(attempt_key, None)
+            rm = _get_rm()
+            rm.delete(attempt_key)
             return {"locked": False, "attempts": 0, "remaining": cls.MAX_ATTEMPTS}
         
         # 失败时增加计数
@@ -313,19 +288,12 @@ class SessionManager:
         }
         
         expire_seconds = expire_minutes * 60
-        
-        if redis_client:
-            # 存储会话数据
-            redis_client.setex(session_key, expire_seconds, 
-                             str(session_data).encode())
-            # 添加到用户会话集合
-            redis_client.sadd(user_sessions_key, session_id)
-            redis_client.expire(user_sessions_key, expire_seconds)
-        else:
-            memory_store[session_key] = session_data
-            if user_sessions_key not in memory_store:
-                memory_store[user_sessions_key] = set()
-            memory_store[user_sessions_key].add(session_id)
+        rm = _get_rm()
+        # 存储会话数据（统一用 JSON 序列化）
+        rm.set(session_key, session_data, ttl=expire_seconds)
+        # 添加到用户会话集合
+        rm.sadd(user_sessions_key, session_id)
+        rm.expire(user_sessions_key, expire_seconds)
         
         return session_id
     
@@ -333,14 +301,10 @@ class SessionManager:
     def get_session(cls, session_id: str) -> Optional[Dict[str, Any]]:
         """获取会话"""
         session_key = cls._get_session_key(session_id)
-        
-        if redis_client:
-            session_data = redis_client.get(session_key)
-            if session_data:
-                return eval(session_data.decode())
-        else:
-            return memory_store.get(session_key)
-        
+        rm = _get_rm()
+        session_data = rm.get(session_key)
+        if session_data:
+            return session_data
         return None
     
     @classmethod
@@ -352,15 +316,13 @@ class SessionManager:
         
         session_data["last_activity"] = time.time()
         session_key = cls._get_session_key(session_id)
-        
-        if redis_client:
-            # 获取剩余过期时间
-            ttl = redis_client.ttl(session_key)
-            if ttl > 0:
-                redis_client.setex(session_key, ttl, 
-                                 str(session_data).encode())
+        rm = _get_rm()
+        # 获取剩余过期时间
+        ttl = rm.ttl(session_key)
+        if ttl > 0:
+            rm.set(session_key, session_data, ttl)
         else:
-            memory_store[session_key] = session_data
+            rm.set(session_key, session_data)
         
         return True
     
@@ -374,14 +336,9 @@ class SessionManager:
         user_id = session_data["user_id"]
         session_key = cls._get_session_key(session_id)
         user_sessions_key = cls._get_user_sessions_key(user_id)
-        
-        if redis_client:
-            redis_client.delete(session_key)
-            redis_client.srem(user_sessions_key, session_id)
-        else:
-            memory_store.pop(session_key, None)
-            if user_sessions_key in memory_store:
-                memory_store[user_sessions_key].discard(session_id)
+        rm = _get_rm()
+        rm.delete(session_key)
+        rm.srem(user_sessions_key, session_id)
         
         return True
     
@@ -389,25 +346,15 @@ class SessionManager:
     def delete_user_sessions(cls, user_id: str) -> int:
         """删除用户所有会话"""
         user_sessions_key = cls._get_user_sessions_key(user_id)
-        
-        if redis_client:
-            session_ids = redis_client.smembers(user_sessions_key)
-            count = 0
-            for session_id in session_ids:
-                session_key = cls._get_session_key(session_id)
-                if redis_client.delete(session_key):
-                    count += 1
-            redis_client.delete(user_sessions_key)
-            return count
-        else:
-            session_ids = memory_store.get(user_sessions_key, set())
-            count = 0
-            for session_id in session_ids:
-                session_key = cls._get_session_key(session_id)
-                if memory_store.pop(session_key, None):
-                    count += 1
-            memory_store.pop(user_sessions_key, None)
-            return count
+        rm = _get_rm()
+        session_ids = rm.smembers(user_sessions_key)
+        count = 0
+        for session_id in session_ids:
+            session_key = cls._get_session_key(session_id)
+            if rm.delete(session_key):
+                count += 1
+        rm.delete(user_sessions_key)
+        return count
 
 
 class DataEncryption:

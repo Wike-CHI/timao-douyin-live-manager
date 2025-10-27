@@ -239,12 +239,16 @@ async def startup_event():
         redis_config = config_manager.config.redis
         if isinstance(redis_config, dict):
             redis_config = RedisConfig(**redis_config)
-        
-        redis_client = init_redis(redis_config)
-        if redis_client.is_enabled():
-            logging.info("✅ Redis 缓存已启用")
+        # 如果禁用，则跳过连接，直接进入内存模式
+        if not redis_config.enabled:
+            redis_client = init_redis(redis_config)
+            logging.info("⏭️ 已跳过 Redis 启动，使用内存缓存")
         else:
-            logging.warning("⚠️ Redis 缓存未启用，将使用内存存储")
+            redis_client = init_redis(redis_config)
+            if redis_client.is_enabled():
+                logging.info("✅ Redis 缓存已启用")
+            else:
+                logging.warning("⚠️ Redis 连接失败，已回退到内存缓存")
     except Exception as e:
         logging.warning(f"⚠️ Redis 初始化失败: {e}")
     

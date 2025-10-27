@@ -186,6 +186,11 @@ class SecurityConfig:
     encryption_enabled: bool = False
     encryption_key: str = ""
 
+    # 认证与权限开关（用于开发/调试阶段）
+    auth_required: bool = True           # 是否强制要求认证
+    permission_required: bool = True     # 是否强制检查权限
+    role_required: bool = True           # 是否强制检查角色
+
 
 @dataclass
 class RedisConfig:
@@ -350,6 +355,11 @@ class ConfigManager:
                 # 安全配置
                 'API_KEY': ('security', 'api_key'),
                 'API_RATE_LIMIT': ('security', 'api_rate_limit', int),
+                # 认证与权限开关
+                'AUTH_REQUIRED': ('security', 'auth_required', bool),
+                'LOGIN_REQUIRED': ('security', 'auth_required', bool),  # 别名，兼容UI设置
+                'PERMISSION_REQUIRED': ('security', 'permission_required', bool),
+                'ROLE_REQUIRED': ('security', 'role_required', bool),
                 
                 # 应用配置
                 'ENVIRONMENT': ('environment',),
@@ -505,6 +515,11 @@ DATABASE_PATH=data/app.db
 # 安全配置
 API_KEY=your-api-key
 API_RATE_LIMIT=100
+
+# 认证与权限开关（开发/调试用）
+AUTH_REQUIRED=true
+PERMISSION_REQUIRED=true
+ROLE_REQUIRED=true
 
 # 应用配置
 ENVIRONMENT=production

@@ -5,7 +5,8 @@ Redis 缓存管理器
 
 import json
 import logging
-from typing import Optional, Any, Union
+import time
+from typing import Optional, Any, Union, Dict, List, Set
 from datetime import timedelta
 import redis
 from redis.connection import ConnectionPool
@@ -30,9 +31,19 @@ class RedisManager:
         self._pool: Optional[ConnectionPool] = None
         self._client: Optional[redis.Redis] = None
         self._enabled = self.config.enabled
+        # 内存缓存回退（当 Redis 未启用或连接失败时）
+        self._use_memory: bool = False
+        self._mem_kv: Dict[str, Any] = {}
+        self._mem_hash: Dict[str, Dict[str, Any]] = {}
+        self._mem_list: Dict[str, List[Any]] = {}
+        self._mem_set: Dict[str, Set[Any]] = {}
+        self._mem_expiry: Dict[str, float] = {}
         
         if self._enabled:
             self._initialize()
+        else:
+            # 未启用时，默认使用内存缓存
+            self._use_memory = True
     
     def _initialize(self) -> None:
         """初始化 Redis 连接"""
@@ -66,11 +77,15 @@ class RedisManager:
             self._enabled = False
             self._client = None
             self._pool = None
+            # 使用内存缓存作为回退
+            self._use_memory = True
         except Exception as e:
             logger.error(f"❌ Redis 初始化失败: {e}")
             self._enabled = False
             self._client = None
             self._pool = None
+            # 使用内存缓存作为回退
+            self._use_memory = True
     
     def is_enabled(self) -> bool:
         """检查 Redis 是否可用"""
@@ -79,6 +94,27 @@ class RedisManager:
     def _get_key(self, key: str) -> str:
         """获取完整的键名（添加前缀）"""
         return f"{self.config.key_prefix}{key}"
+
+    # ===== 内存缓存辅助方法 =====
+    def _now(self) -> float:
+        return time.time()
+
+    def _is_expired(self, key: str) -> bool:
+        exp = self._mem_expiry.get(key)
+        return exp is not None and exp <= self._now()
+
+    def _cleanup_if_expired(self, key: str) -> None:
+        if self._is_expired(key):
+            self._mem_expiry.pop(key, None)
+            self._mem_kv.pop(key, None)
+            self._mem_hash.pop(key, None)
+            self._mem_list.pop(key, None)
+            self._mem_set.pop(key, None)
+
+    def _set_expiry(self, key: str, ttl: Optional[int]) -> None:
+        if ttl is None:
+            ttl = self.config.default_ttl
+        self._mem_expiry[key] = self._now() + max(0, int(ttl))
     
     def get(self, key: str, default: Any = None) -> Optional[Any]:
         """
@@ -92,6 +128,11 @@ class RedisManager:
             缓存值或默认值
         """
         if not self.is_enabled():
+            # 内存回退
+            if self._use_memory:
+                k = self._get_key(key)
+                self._cleanup_if_expired(k)
+                return self._mem_kv.get(k, default)
             return default
         
         try:
@@ -131,6 +172,18 @@ class RedisManager:
             是否设置成功
         """
         if not self.is_enabled():
+            # 内存回退
+            if self._use_memory:
+                k = self._get_key(key)
+                self._cleanup_if_expired(k)
+                exists = k in self._mem_kv
+                if nx and exists:
+                    return False
+                if xx and not exists:
+                    return False
+                self._mem_kv[k] = value
+                self._set_expiry(k, ttl)
+                return True
             return False
         
         try:
@@ -169,6 +222,28 @@ class RedisManager:
             删除的键数量
         """
         if not self.is_enabled() or not keys:
+            if not self.is_enabled() and self._use_memory:
+                count = 0
+                for key in keys:
+                    k = self._get_key(key)
+                    self._cleanup_if_expired(k)
+                    removed = False
+                    if k in self._mem_kv:
+                        self._mem_kv.pop(k, None)
+                        removed = True
+                    if k in self._mem_hash:
+                        self._mem_hash.pop(k, None)
+                        removed = True
+                    if k in self._mem_list:
+                        self._mem_list.pop(k, None)
+                        removed = True
+                    if k in self._mem_set:
+                        self._mem_set.pop(k, None)
+                        removed = True
+                    self._mem_expiry.pop(k, None)
+                    if removed:
+                        count += 1
+                return count
             return 0
         
         try:
@@ -189,6 +264,14 @@ class RedisManager:
             存在的键数量
         """
         if not self.is_enabled() or not keys:
+            if not self.is_enabled() and self._use_memory:
+                cnt = 0
+                for key in keys:
+                    k = self._get_key(key)
+                    self._cleanup_if_expired(k)
+                    if k in self._mem_kv or k in self._mem_hash or k in self._mem_list or k in self._mem_set:
+                        cnt += 1
+                return cnt
             return 0
         
         try:
@@ -210,6 +293,13 @@ class RedisManager:
             是否设置成功
         """
         if not self.is_enabled():
+            if self._use_memory:
+                k = self._get_key(key)
+                self._cleanup_if_expired(k)
+                if k in self._mem_kv or k in self._mem_hash or k in self._mem_list or k in self._mem_set:
+                    self._set_expiry(k, seconds)
+                    return True
+                return False
             return False
         
         try:
@@ -229,6 +319,16 @@ class RedisManager:
             剩余时间（秒），-1 表示永不过期，-2 表示键不存在
         """
         if not self.is_enabled():
+            if self._use_memory:
+                k = self._get_key(key)
+                self._cleanup_if_expired(k)
+                if not (k in self._mem_kv or k in self._mem_hash or k in self._mem_list or k in self._mem_set):
+                    return -2
+                exp = self._mem_expiry.get(k)
+                if exp is None:
+                    return -1
+                remaining = int(exp - self._now())
+                return remaining if remaining >= 0 else -2
             return -2
         
         try:
@@ -249,6 +349,18 @@ class RedisManager:
             增加后的值
         """
         if not self.is_enabled():
+            if self._use_memory:
+                k = self._get_key(key)
+                self._cleanup_if_expired(k)
+                current = self._mem_kv.get(k, 0)
+                try:
+                    current_int = int(current)
+                except (ValueError, TypeError):
+                    current_int = 0
+                current_int += amount
+                self._mem_kv[k] = current_int
+                # 不改变原有过期策略；如需设置过期请调用 expire
+                return current_int
             return None
         
         try:
@@ -269,6 +381,17 @@ class RedisManager:
             减少后的值
         """
         if not self.is_enabled():
+            if self._use_memory:
+                k = self._get_key(key)
+                self._cleanup_if_expired(k)
+                current = self._mem_kv.get(k, 0)
+                try:
+                    current_int = int(current)
+                except (ValueError, TypeError):
+                    current_int = 0
+                current_int -= amount
+                self._mem_kv[k] = current_int
+                return current_int
             return None
         
         try:
@@ -289,6 +412,14 @@ class RedisManager:
             字段值
         """
         if not self.is_enabled():
+            if self._use_memory:
+                n = self._get_key(name)
+                self._cleanup_if_expired(n)
+                table = self._mem_hash.get(n)
+                if not table:
+                    return None
+                val = table.get(key)
+                return val if val is not None else None
             return None
         
         try:
@@ -310,6 +441,15 @@ class RedisManager:
             是否设置成功
         """
         if not self.is_enabled():
+            if self._use_memory:
+                n = self._get_key(name)
+                self._cleanup_if_expired(n)
+                table = self._mem_hash.get(n)
+                if table is None:
+                    table = {}
+                    self._mem_hash[n] = table
+                table[key] = value
+                return True
             return False
         
         try:
@@ -335,6 +475,11 @@ class RedisManager:
             字段字典
         """
         if not self.is_enabled():
+            if self._use_memory:
+                n = self._get_key(name)
+                self._cleanup_if_expired(n)
+                table = self._mem_hash.get(n)
+                return dict(table) if table else {}
             return {}
         
         try:
@@ -355,6 +500,20 @@ class RedisManager:
             删除的字段数量
         """
         if not self.is_enabled() or not keys:
+            if not self.is_enabled() and self._use_memory and keys:
+                n = self._get_key(name)
+                self._cleanup_if_expired(n)
+                table = self._mem_hash.get(n)
+                if not table:
+                    return 0
+                count = 0
+                for k in keys:
+                    if k in table:
+                        del table[k]
+                        count += 1
+                if not table:
+                    self._mem_hash.pop(n, None)
+                return count
             return 0
         
         try:
@@ -375,6 +534,25 @@ class RedisManager:
             列表长度
         """
         if not self.is_enabled() or not values:
+            if not self.is_enabled() and self._use_memory and values:
+                k = self._get_key(key)
+                self._cleanup_if_expired(k)
+                lst = self._mem_list.get(k)
+                if lst is None:
+                    lst = []
+                    self._mem_list[k] = lst
+                # 序列化与原实现保持一致
+                serialized_values = []
+                for value in values:
+                    if isinstance(value, (dict, list, tuple)):
+                        serialized_values.append(json.dumps(value, ensure_ascii=False))
+                    elif not isinstance(value, str):
+                        serialized_values.append(str(value))
+                    else:
+                        serialized_values.append(value)
+                for v in serialized_values:
+                    lst.insert(0, v)
+                return len(lst)
             return None
         
         try:
@@ -405,6 +583,23 @@ class RedisManager:
             列表长度
         """
         if not self.is_enabled() or not values:
+            if not self.is_enabled() and self._use_memory and values:
+                k = self._get_key(key)
+                self._cleanup_if_expired(k)
+                lst = self._mem_list.get(k)
+                if lst is None:
+                    lst = []
+                    self._mem_list[k] = lst
+                serialized_values = []
+                for value in values:
+                    if isinstance(value, (dict, list, tuple)):
+                        serialized_values.append(json.dumps(value, ensure_ascii=False))
+                    elif not isinstance(value, str):
+                        serialized_values.append(str(value))
+                    else:
+                        serialized_values.append(value)
+                lst.extend(serialized_values)
+                return len(lst)
             return None
         
         try:
@@ -436,6 +631,18 @@ class RedisManager:
             元素列表
         """
         if not self.is_enabled():
+            if self._use_memory:
+                k = self._get_key(key)
+                self._cleanup_if_expired(k)
+                lst = self._mem_list.get(k, [])
+                n = len(lst)
+                s = start if start >= 0 else n + start
+                e = end if end >= 0 else n + end
+                s = max(s, 0)
+                e = min(e, n - 1)
+                if s > e or n == 0:
+                    return []
+                return lst[s:e + 1]
             return []
         
         try:
@@ -457,6 +664,22 @@ class RedisManager:
             是否成功
         """
         if not self.is_enabled():
+            if self._use_memory:
+                k = self._get_key(key)
+                self._cleanup_if_expired(k)
+                lst = self._mem_list.get(k)
+                if lst is None:
+                    return True
+                n = len(lst)
+                s = start if start >= 0 else n + start
+                e = end if end >= 0 else n + end
+                s = max(s, 0)
+                e = min(e, n - 1)
+                if s > e or n == 0:
+                    self._mem_list[k] = []
+                    return True
+                self._mem_list[k] = lst[s:e + 1]
+                return True
             return False
         
         try:
@@ -477,6 +700,25 @@ class RedisManager:
             添加的成员数量
         """
         if not self.is_enabled() or not members:
+            if not self.is_enabled() and self._use_memory and members:
+                k = self._get_key(key)
+                self._cleanup_if_expired(k)
+                s = self._mem_set.get(k)
+                if s is None:
+                    s = set()
+                    self._mem_set[k] = s
+                before = len(s)
+                serialized_members = []
+                for member in members:
+                    if isinstance(member, (dict, list, tuple)):
+                        serialized_members.append(json.dumps(member, ensure_ascii=False))
+                    elif not isinstance(member, str):
+                        serialized_members.append(str(member))
+                    else:
+                        serialized_members.append(member)
+                for m in serialized_members:
+                    s.add(m)
+                return len(s) - before
             return None
         
         try:
@@ -506,6 +748,10 @@ class RedisManager:
             成员集合
         """
         if not self.is_enabled():
+            if self._use_memory:
+                k = self._get_key(key)
+                self._cleanup_if_expired(k)
+                return set(self._mem_set.get(k, set()))
             return set()
         
         try:
@@ -526,6 +772,28 @@ class RedisManager:
             删除的成员数量
         """
         if not self.is_enabled() or not members:
+            if not self.is_enabled() and self._use_memory and members:
+                k = self._get_key(key)
+                self._cleanup_if_expired(k)
+                s = self._mem_set.get(k)
+                if not s:
+                    return 0
+                serialized_members = []
+                for member in members:
+                    if isinstance(member, (dict, list, tuple)):
+                        serialized_members.append(json.dumps(member, ensure_ascii=False))
+                    elif not isinstance(member, str):
+                        serialized_members.append(str(member))
+                    else:
+                        serialized_members.append(member)
+                count = 0
+                for m in serialized_members:
+                    if m in s:
+                        s.remove(m)
+                        count += 1
+                if not s:
+                    self._mem_set.pop(k, None)
+                return count
             return None
         
         try:
@@ -552,6 +820,14 @@ class RedisManager:
             是否成功
         """
         if not self.is_enabled():
+            if self._use_memory:
+                # 清空内存数据
+                self._mem_kv.clear()
+                self._mem_hash.clear()
+                self._mem_list.clear()
+                self._mem_set.clear()
+                self._mem_expiry.clear()
+                return True
             return False
         
         try:
@@ -568,6 +844,9 @@ class RedisManager:
             是否连接正常
         """
         if not self.is_enabled():
+            # 在使用内存回退时，认为“缓存后端可用”
+            if self._use_memory:
+                return True
             return False
         
         try:
