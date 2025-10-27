@@ -10,6 +10,8 @@ import AboutPage from './pages/about/AboutPage';
 import LiveConsolePage from './pages/dashboard/LiveConsolePage';
 import ReportsPage from './pages/dashboard/ReportsPage';
 import ToolsPage from './pages/settings/ToolsPage';
+import AIGatewayPage from './pages/ai/AIGatewayPage';
+import AIUsagePage from './pages/ai/AIUsagePage';
 import useAuthGuard from './hooks/useAuthGuard';
 import useAuthInterceptor from './hooks/useAuthInterceptor';
 
@@ -45,6 +47,8 @@ const AppRoutes = () => {
         <Route path="live" element={<LiveConsolePage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="tools" element={<ToolsPage />} />
+        <Route path="ai-gateway" element={<AIGatewayPage />} />
+        <Route path="ai-usage" element={<AIUsagePage />} />
         <Route path="about" element={<AboutPage />} />
       </Route>
 

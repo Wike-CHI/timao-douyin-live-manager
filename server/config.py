@@ -41,7 +41,7 @@ class AIConfig:
     
     # 通义千问配置
     qwen_api_key: str = ""
-    qwen_model: str = "qwen-turbo"
+    qwen_model: str = "qwen3-max"
     
     # 百度文心配置
     baidu_api_key: str = ""
@@ -68,7 +68,7 @@ class CommentConfig:
     # 评论队列配置
     max_queue_size: int = 1000
     process_interval: float = 0.1
-    batch_size: int = 10
+    batch_size: int = 50
     
     # 热词统计配置
     hotword_min_length: int = 2
@@ -144,7 +144,7 @@ class DatabaseConfig:
     mysql_host: str = "localhost"
     mysql_port: int = 3306
     mysql_user: str = "timao"
-    mysql_password: str = ""
+    mysql_password: str = "timao-20251030"
     mysql_database: str = "timao_live"
     mysql_charset: str = "utf8mb4"
     

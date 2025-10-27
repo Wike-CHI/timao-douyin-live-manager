@@ -1,0 +1,83 @@
+{
+  "deployment": {
+    "name": "提猫直播助手本地化版本",
+    "version": "1.0.0",
+    "mode": "standalone",
+    "auto_start_services": true
+  },
+  "services": {
+    "fastapi": {
+      "enabled": true,
+      "host": "127.0.0.1",
+      "port": 10090,
+      "auto_start": true
+    },
+    "flask": {
+      "enabled": true,
+      "host": "127.0.0.1", 
+      "port": 10090,
+      "fallback_mode": true
+    },
+    "websocket": {
+      "enabled": true,
+      "max_connections": 100,
+      "heartbeat_interval": 30,
+      "cors_origins": ["*"]
+    }
+  },
+  "ai_services": {
+    "default_provider": "qwen",
+    "providers": {
+      "qwen": {
+        "enabled": true,
+        "api_key": "sk-92045f0a33984350925ce3ccffb3489e",
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "model": "qwen3-max",
+        "max_tokens": 1000,
+        "temperature": 0.7
+      },
+      "openai": {
+        "enabled": false,
+        "api_key": "",
+        "base_url": "https://api.openai.com/v1",
+        "model": "gpt-3.5-turbo"
+      }
+    },
+    "features": {
+      "script_generation": true,
+      "sentiment_analysis": true,
+      "hotword_analysis": true,
+      "style_memory": true
+    }
+  },
+  "live_connection": {
+    "douyin": {
+      "enabled": true,
+      "websocket_enabled": true,
+      "auto_reconnect": true,
+      "max_retries": 5
+    },
+    "comment_processing": {
+      "max_queue_size": 1000,
+      "batch_size": 10,
+      "filter_enabled": true
+    }
+  },
+  "database": {
+    "type": "sqlite",
+    "path": "data/local.db",
+    "auto_create": true,
+    "backup_enabled": true
+  },
+  "logging": {
+    "level": "INFO",
+    "file_enabled": true,
+    "console_enabled": true,
+    "path": "logs/app.log"
+  },
+  "security": {
+    "cors_enabled": true,
+    "api_rate_limit": 100,
+    "encryption_enabled": false
+  }
+}
