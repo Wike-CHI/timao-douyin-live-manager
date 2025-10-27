@@ -72,6 +72,8 @@ const LiveConsolePage = () => {
   const [diarizationEnabled, setDiarizationEnabled] = useState<boolean>(true);
   const [maxSpeakers, setMaxSpeakers] = useState<number>(2);
   const [lastSpeaker, setLastSpeaker] = useState<string>('unknown');
+  const [douyinStatus, setDouyinStatus] = useState<any>(null);
+  const [douyinConnected, setDouyinConnected] = useState<boolean>(false);
   const navigate = useNavigate();
   const { isPaid } = useAuthStore();
 
@@ -130,6 +132,22 @@ const LiveConsolePage = () => {
     try {
       const result = await getLiveAudioStatus(FASTAPI_BASE_URL);
       setStatus(result);
+      
+      // 获取抖音直播间状态
+      try {
+        const douyinResult = await getDouyinRelayStatus(FASTAPI_BASE_URL);
+        // 应用重启后不保留上次直播间信息：当未运行时，清空 live_id/room_id
+        const normalized = douyinResult?.is_running
+          ? douyinResult
+          : { ...douyinResult, live_id: null, room_id: null };
+        setDouyinStatus(normalized);
+        setDouyinConnected(!!normalized.is_running);
+      } catch (err) {
+        console.error('获取抖音状态失败:', err);
+        setDouyinStatus(null);
+        setDouyinConnected(false);
+      }
+      
       // 简洁模式：不再同步 profile 到 UI
       // sync persist settings if present（高级选项已移除）
       try {
@@ -184,6 +202,16 @@ const LiveConsolePage = () => {
       getLiveAudioStatus(FASTAPI_BASE_URL)
         .then(setStatus)
         .catch(() => {});
+      // 同时轮询抖音状态
+      getDouyinRelayStatus(FASTAPI_BASE_URL)
+        .then((douyinResult) => {
+          setDouyinStatus(douyinResult);
+          setDouyinConnected(douyinResult.is_running);
+        })
+        .catch(() => {
+          setDouyinStatus(null);
+          setDouyinConnected(false);
+        });
     }, 2000);
     return () => clearInterval(id);
   }, [isRunning]);
@@ -500,6 +528,19 @@ const LiveConsolePage = () => {
     if (payload.answer_scripts !== undefined) {
       normalized.answer_scripts = toArray(payload.answer_scripts);
     }
+    // 确保所有字段都正确处理
+    if (payload.topic_playlist !== undefined) {
+      normalized.topic_playlist = toArray(payload.topic_playlist);
+    }
+    if (payload.lead_candidates !== undefined) {
+      normalized.lead_candidates = toArray(payload.lead_candidates);
+    }
+    // 确保观众情绪数据正确处理
+    if (payload.audience_sentiment !== undefined) {
+      normalized.audience_sentiment = payload.audience_sentiment;
+    } else if (card && typeof card === 'object' && card.audience_sentiment !== undefined) {
+      normalized.audience_sentiment = card.audience_sentiment;
+    }
     return normalized;
   }, []);
 
@@ -618,7 +659,7 @@ const LiveConsolePage = () => {
   // --------------- State persistence ---------------
   return (
     <div className="space-y-8">
-      <div className="timao-soft-card flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="timao-soft-card relative min-h-[250px] flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
         <div className="flex items-center gap-4">
           <div className="text-4xl">📡</div>
           <div>
@@ -626,7 +667,7 @@ const LiveConsolePage = () => {
             <div className="text-sm timao-support-text">{isRunning ? '运行中' : '未开始'}</div>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 justify-center w-full lg:basis-full lg:justify-center">
           <input
             value={liveInput}
             onChange={(event) => setLiveInput(event.target.value)}
@@ -643,33 +684,269 @@ const LiveConsolePage = () => {
             停止
           </button>
         </div>
+        {/* 直播间状态信息（左下角，三行内联显示） */}
+        <div className="absolute bottom-3 left-3 text-xs space-y-1.5">
+          {/* 第一行：连接状态 + 当前直播间ID */}
+          <div className="flex items-center gap-3">
+            <span className="text-gray-600">连接状态：</span>
+            <span className={`px-2 py-0.5 rounded-full font-medium transition-colors duration-200 ${
+              douyinConnected ? 'text-emerald-700' : 'text-rose-700'
+            }`}>
+              {douyinConnected ? '运行中' : '已断开'}
+            </span>
+            <span className="text-gray-600">当前直播间ID：</span>
+            <span className={`text-gray-800 font-mono text-xs px-2 py-1 rounded ${
+              douyinStatus?.live_id ? 'text-blue-700' : 'text-gray-700'
+            }`}>
+              {douyinStatus?.live_id ?? '—'}
+            </span>
+          </div>
+          {/* 第二行：当前直播间ID + Room ID */}
+          <div className="flex items-center gap-3">
+            <span className="text-gray-600">当前直播间ID：</span>
+            <span className={`text-gray-800 font-mono text-xs px-2 py-1 rounded ${
+              douyinStatus?.live_id ? 'text-blue-700' : 'text-gray-700'
+            }`}>
+              {douyinStatus?.live_id ?? '—'}
+            </span>
+            <span className="text-gray-600">Room ID：</span>
+            <span className={`text-gray-800 font-mono text-xs px-2 py-1 rounded ${
+              douyinStatus?.room_id ? 'text-purple-700' : 'text-gray-700'
+            }`}>
+              {douyinStatus?.room_id ?? '—'}
+            </span>
+          </div>
+          {/* 第三行：实时通道状态 */}
+          <div className="flex items-center gap-3">
+            <span className="text-gray-600">实时通道状态：</span>
+            <span className={`px-2 py-0.5 rounded-full font-medium transition-colors duration-200 ${
+              (douyinConnected && getLiveConsoleSocket()?.readyState === WebSocket.OPEN) ? 'text-emerald-700' : 'text-amber-700'
+            }`}>
+              {(douyinConnected && getLiveConsoleSocket()?.readyState === WebSocket.OPEN) ? '已连接' : '未连接'}
+            </span>
+          </div>
+        </div>
       </div>
 
       {error ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
       ) : null}
 
-      <div className="grid gap-6">
-        {/* 语音转写流卡片 - 已隐藏，使用下方的“主播实时语音转写” */}
-        {/* <section className="timao-card h-full flex flex-col">...</section> */}
-
-        {/* 直播分析卡片、风格画像和智能话术建议并排 */}
-        <div className="grid gap-6 xl:grid-cols-3 lg:grid-cols-2 md:grid-cols-1">
-          {/* AI 分析卡片 */}
-          <div className="timao-card">
-            <div className="flex items-center gap-2 mb-3">
-              <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-                <span>🧠</span>
-                直播分析卡片
-              </h3>
-              <span className="text-xs timao-support-text">系统默认每 60 秒更新一次</span>
+      {/* 四宫格布局 */}
+      <div className="grid grid-cols-2 gap-4 h-[900px]">
+        {/* 第一宫格：主播实时语音转写和弹幕数据流 */}
+        <div className="timao-card flex flex-col h-[450px] w-full min-h-[450px] max-h-[450px] min-w-0 overflow-hidden px-4 pt-4">
+          {/* 简化的标题栏 */}
+          <div className="flex items-center justify-between mb-3 flex-shrink-0">
+            <h3 className="text-base font-semibold text-purple-600 flex items-center gap-2 ml-[5px]">
+              实时语音转写
+            </h3>
+            <div className="flex items-center gap-2">
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${isRunning ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                {isRunning ? '实时' : '暂停'}
+              </span>
+              <button
+                className={`px-2 py-1 rounded-md text-xs transition-colors ${
+                  collapsed 
+                    ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                onClick={() => setCollapsed((v) => !v)}
+              >
+                {collapsed ? '选择' : '展开'}
+              </button>
             </div>
-            {aiEvents.length === 0 ? (
-              <div className="timao-outline-card text-sm timao-support-text">{isRunning ? '正在生成直播分析卡片…（开始字幕后约 1 分钟内出现结果）' : '请先在上方开始实时字幕'}
+          </div>
+          
+          {/* 并排显示：语音转写和弹幕数据流 */}
+          <div className="flex-1 flex flex-col lg:flex-row gap-4 overflow-hidden min-h-0">
+            {/* 左侧：语音转写区域 */}
+            <div className="flex-1 flex flex-col min-h-0 lg:min-w-0">
+              <div className="flex items-center justify-between mb-2 flex-shrink-0">
+                <h4 className="text-sm font-medium text-gray-700 ml-[10px]">语音转写</h4>
+                <button
+                  className={`px-2 py-1 rounded-md text-xs transition-colors ${
+                    collapsed 
+                      ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                  onClick={() => setCollapsed((v) => !v)}
+                >
+                  {collapsed ? '选择' : '展开'}
+                </button>
+              </div>
+              
+              <div className="flex-1 min-h-0">
+                {collapsed ? (
+                  // 选择模式 - 简化版
+                  <div className="space-y-2 overflow-y-auto flex-1 min-h-0 custom-scrollbar max-h-[380px]">
+                    <select
+                      className="timao-input w-full text-sm"
+                      value={selectedId ?? (log[0]?.id || '')}
+                      onChange={(e) => setSelectedId(e.target.value || null)}
+                    >
+                      {log.length === 0 ? (
+                        <option value="">暂无记录</option>
+                      ) : (
+                        log.map((item, index) => (
+                          <option key={item.id} value={item.id}>
+                            {index === 0 ? '[最新] ' : ''}{new Date(item.timestamp * 1000).toLocaleTimeString()} · {(item.text || '').slice(0, 15)}...
+                          </option>
+                        ))
+                      )}
+                    </select>
+                    <div className="rounded-lg bg-white border p-2 lg:p-3 text-sm min-h-[60px] lg:min-h-[80px]">
+                      {(() => {
+                        const found = log.find((x) => x.id === (selectedId ?? log[0]?.id));
+                        return found ? (
+                          <div>
+                            <div className="text-xs text-gray-500 mb-2">
+                              {new Date(found.timestamp * 1000).toLocaleTimeString()}
+                            </div>
+                            <div className="text-gray-800 text-xs lg:text-sm">{found.text}</div>
+                          </div>
+                        ) : (
+                          <div className="text-center text-gray-500 py-2 lg:py-4">
+                            {isRunning ? '等待识别...' : '暂无内容'}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                ) : (
+                  // 展开模式 - 简化版
+                  <div className="space-y-2 overflow-y-auto flex-1 min-h-0 custom-scrollbar max-h-[380px]">
+                    {log.length === 0 ? (
+                      <div className="text-center py-4 lg:py-8 text-gray-500">
+                        <div className="text-xs lg:text-sm">{isRunning ? '等待语音识别...' : '点击开始转写'}</div>
+                      </div>
+                    ) : (
+                      <>
+                        {/* 显示所有记录 */}
+                        {log.map((item, index) => (
+                          <div key={item.id} className={`rounded-lg border bg-white p-2 ${index === 0 ? 'border-2 border-purple-200 bg-purple-50' : ''}`}>
+                            <div className="flex justify-between text-xs text-purple-600 mb-1">
+                              <span>{index === 0 ? '最新' : `记录 ${index + 1}`}</span>
+                              <span>{new Date(item.timestamp * 1000).toLocaleTimeString()}</span>
+                            </div>
+                            <div className="text-xs lg:text-sm text-gray-800">{item.text}</div>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* 右侧：弹幕数据流区域 */}
+            <div className="flex-1 flex flex-col min-h-0 lg:min-w-0">
+              <div className="flex items-center justify-between mb-2 flex-shrink-0">
+                <h4 className="text-sm font-medium text-gray-700 flex items-center gap-1 ml-[10px]">
+                  实时弹幕
+                </h4>
+              </div>
+              
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <DouyinRelayPanel 
+                  baseUrl={FASTAPI_BASE_URL} 
+                  onSelectQuestion={handleSelectQuestion}
+                  liveId={liveInput}
+                  isRunning={isRunning}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 第二宫格：智能话术建议 */}
+         <div className="timao-card flex flex-col h-[450px] w-full min-h-[450px] max-h-[450px] min-w-0 overflow-hidden px-4 pt-4">
+           <div className="flex items-center justify-between mb-3 flex-shrink-0">
+             <h3 className="text-base font-semibold text-purple-600 flex items-center gap-2">
+               智能话术建议
+             </h3>
+             <span className="text-xs timao-support-text">点击弹幕生成话术</span>
+           </div>
+          <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+            <div>
+              <div className="text-xs text-slate-500 mb-1">已选问题</div>
+              {selectedQuestions.length ? (
+                <ul className="space-y-2 max-h-20 overflow-y-auto">
+                  {selectedQuestions.slice(0, 3).map((q) => (
+                    <li key={q} className="flex items-start justify-between gap-2 rounded-lg border bg-white/90 p-2 text-sm text-slate-700">
+                      <span className="flex-1 leading-relaxed">{q}</span>
+                      <button
+                        className="timao-support-text text-[10px] hover:text-rose-500 flex-shrink-0"
+                        onClick={() => handleRemoveQuestion(q)}
+                        title="移除该问题"
+                      >
+                        移除
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="timao-outline-card text-xs timao-support-text py-2">
+                  在弹幕列表中点击对应按钮，即可将问题加入这里。
+                </div>
+              )}
+              <div className="mt-2 flex items-center gap-2 ml-[5px]">
+                <button
+                  className="timao-primary-btn text-xs px-3 py-1"
+                  onClick={handleGenerateAnswers}
+                  disabled={!selectedQuestions.length || answerLoading}
+                >
+                  {answerLoading ? '生成中…' : '生成话术'}
+                </button>
+                <button
+                  className="timao-outline-btn text-xs"
+                  onClick={handleClearQuestions}
+                  disabled={!selectedQuestions.length || answerLoading}
+                >
+                  清空
+                </button>
+              </div>
+              {answerError ? (
+                <div className="mt-2 text-xs text-rose-500">{answerError}</div>
+              ) : null}
+            </div>
+
+            <div>
+              <div className="text-xs text-slate-500 mb-1">生成结果</div>
+              {Array.isArray(answerScripts) && answerScripts.length ? (
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {answerScripts.slice(0, 4).map((script, idx) => (
+                    <div key={idx} className="rounded-lg border bg-white/90 p-2 text-sm text-slate-700">
+                      <div className="font-medium text-slate-800 mb-1">话术 {idx + 1}</div>
+                      <div className="leading-relaxed text-slate-600">{script}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="timao-outline-card text-xs timao-support-text py-2">
+                  选择问题后点击"生成话术"按钮。
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 第三宫格：直播间分析 */}
+        <div className="timao-card flex flex-col h-[450px] w-full min-h-[450px] max-h-[450px] min-w-0 overflow-hidden px-4 pt-4">
+          <div className="flex items-center justify-between mb-3 flex-shrink-0">
+            <h3 className="text-base font-semibold text-purple-600 flex items-center gap-2 ml-[5px]">
+              直播间分析
+            </h3>
+            <span className="text-xs timao-support-text">AI分析结果</span>
+          </div>
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {!aiEvents.length ? (
+              <div className="timao-outline-card text-sm timao-support-text flex items-center justify-center h-full">
+                {isRunning ? '正在生成直播分析…（开始字幕后约1分钟内出现结果）' : '请先开始实时字幕'}
               </div>
             ) : (
-              <div className="space-y-3 max-h-[450px] overflow-y-auto pr-1">
-                {aiEvents.map((ev, idx) => {
+              <div className="space-y-3 p-1">
+                {aiEvents.slice(0, 2).map((ev, idx) => {
                   const sentiment = ev?.audience_sentiment
                     || (ev?.analysis_card && typeof ev.analysis_card === 'object' ? ev.analysis_card.audience_sentiment : null);
                   const sentimentSignals = Array.isArray(sentiment?.signals) ? sentiment.signals : [];
@@ -680,85 +957,81 @@ const LiveConsolePage = () => {
                     || (Array.isArray(ev?.suggestions) && ev.suggestions.length)
                     || (Array.isArray(ev?.top_questions) && ev.top_questions.length)
                     || (sentiment && (sentiment.label || sentimentSignals.length))
+                    || (ev?.audience_sentiment && (ev.audience_sentiment.label || (Array.isArray(ev.audience_sentiment.signals) && ev.audience_sentiment.signals.length)))
                     || ev?.analysis_focus
                     || fallbackTopics.length
                     || ev?.error || ev?.raw;
                   return (
-                    <div key={idx} className="rounded-2xl border border-white/60 shadow-md p-3 bg-white/95">
+                    <div key={idx} className="rounded-lg border border-white/60 shadow-sm p-3 bg-white/95">
                       {ev?.error ? (
-                        <div className="text-xs text-red-600">AI 分析错误：{String(ev.error)}</div>
-                      ) : null}
-                      {ev?.raw && !ev?.summary ? (
-                        <div className="text-xs text-slate-500 whitespace-pre-wrap">{String(ev.raw)}</div>
+                        <div className="text-xs text-red-600 mb-2">AI 分析错误：{String(ev.error)}</div>
                       ) : null}
                       {ev?.summary ? (
-                        <div className="text-sm text-slate-700 mb-2 whitespace-pre-wrap">{ev.summary}</div>
-                      ) : null}
-                      {ev?.analysis_focus ? (
-                        <div className="text-xs text-purple-600 mb-2">关注点：{ev.analysis_focus}</div>
+                        <div className="text-sm text-slate-700 mb-3 whitespace-pre-wrap leading-relaxed">{ev.summary}</div>
                       ) : null}
                       {Array.isArray(ev?.highlight_points) && ev.highlight_points.length ? (
                         <>
-                          <div className="text-xs text-slate-500 mb-1">亮点</div>
-                          <ul className="list-disc pl-5 text-xs text-slate-600">
-                            {ev.highlight_points.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
+                          <div className="text-xs text-slate-500 mb-1 font-medium">亮点</div>
+                          <ul className="list-disc pl-4 text-sm text-slate-600 space-y-1">
+                            {ev.highlight_points.slice(0, 2).map((x: any, i: number) => (<li key={i} className="truncate">{String(x)}</li>))}
+                          </ul>
+                        </>
+                      ) : null}
+                      {Array.isArray(ev?.risks) && ev.risks.length ? (
+                        <>
+                          <div className="text-xs text-slate-500 mt-2 mb-1 font-medium">风险</div>
+                          <ul className="list-disc pl-4 text-sm text-slate-600 space-y-1">
+                            {ev.risks.slice(0, 2).map((x: any, i: number) => (<li key={i} className="truncate">{String(x)}</li>))}
                           </ul>
                         </>
                       ) : null}
                       {Array.isArray(ev?.suggestions) && ev.suggestions.length ? (
                         <>
-                          <div className="text-xs text-slate-500 mt-2 mb-1">建议</div>
-                          <ul className="list-disc pl-5 text-xs text-slate-600">
-                            {ev.suggestions.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
+                          <div className="text-xs text-slate-500 mt-2 mb-1 font-medium">建议</div>
+                          <ul className="list-disc pl-4 text-sm text-slate-600 space-y-1">
+                            {ev.suggestions.slice(0, 3).map((x: any, i: number) => (<li key={i} className="truncate">{String(x)}</li>))}
                           </ul>
                         </>
                       ) : null}
-                      {fallbackTopics.length ? (
+                      {(sentiment && (sentiment.label || sentimentSignals.length)) || (ev?.audience_sentiment && (ev.audience_sentiment.label || (Array.isArray(ev.audience_sentiment.signals) && ev.audience_sentiment.signals.length))) ? (
                         <>
-                          <div className="text-xs text-slate-500 mt-2 mb-1">话题灵感</div>
-                          <ul className="list-disc pl-5 text-xs text-slate-600">
-                            {fallbackTopics.slice(0, 4).map((item: any, i: number) => (
-                              <li key={`${item?.category || 'topic'}-${i}`}>
-                                {String(item?.topic || '')}
-                                {item?.category ? (
-                                  <span className="ml-2 text-[10px] text-slate-400">#{String(item.category)}</span>
-                                ) : null}
-                              </li>
-                            ))}
-                          </ul>
-                        </>
-                      ) : null}
-                      {sentiment && (sentiment.label || sentimentSignals.length) ? (
-                        <>
-                          <div className="text-xs text-slate-500 mt-2 mb-1">观众情绪</div>
-                          <div className="text-xs text-slate-600">
-                            状态：{sentiment.label || '—'}
+                          <div className="text-xs text-slate-500 mt-2 mb-1 font-medium">观众情绪</div>
+                          <div className="text-sm text-slate-600">
+                            状态：<span className="font-medium">{sentiment?.label || ev?.audience_sentiment?.label || '—'}</span>
                           </div>
                           {sentimentSignals.length ? (
-                            <ul className="list-disc pl-5 text-xs text-slate-600 mt-1">
-                              {sentimentSignals.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
+                            <ul className="list-disc pl-4 text-sm text-slate-600 mt-1 space-y-1">
+                              {sentimentSignals.slice(0, 2).map((signal: any, i: number) => (
+                                <li key={i} className="truncate">{String(signal)}</li>
+                              ))}
+                            </ul>
+                          ) : Array.isArray(ev?.audience_sentiment?.signals) && ev.audience_sentiment.signals.length ? (
+                            <ul className="list-disc pl-4 text-sm text-slate-600 mt-1 space-y-1">
+                              {ev.audience_sentiment.signals.slice(0, 2).map((signal: any, i: number) => (
+                                <li key={i} className="truncate">{String(signal)}</li>
+                              ))}
                             </ul>
                           ) : null}
                         </>
                       ) : null}
-                      {Array.isArray(ev?.risks) && ev.risks.length ? (
+                      {Array.isArray(ev?.top_questions) && ev.top_questions.length ? (
                         <>
-                          <div className="text-xs text-slate-500 mt-2 mb-1">风险</div>
-                          <ul className="list-disc pl-5 text-xs text-slate-600">
-                            {ev.risks.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
+                          <div className="text-xs text-slate-500 mt-2 mb-1 font-medium">高频问题</div>
+                          <ul className="list-disc pl-4 text-sm text-slate-600 space-y-1">
+                            {ev.top_questions.slice(0, 2).map((x: any, i: number) => (<li key={i} className="truncate">{String(x)}</li>))}
                           </ul>
                         </>
                       ) : null}
-                      {Array.isArray(ev?.top_questions) && ev.top_questions.length ? (
+                      {Array.isArray(ev?.topic_playlist) && ev.topic_playlist.length ? (
                         <>
-                          <div className="text-xs text-slate-500 mt-2 mb-1">高频问题</div>
-                          <ul className="list-disc pl-5 text-xs text-slate-600">
-                            {ev.top_questions.slice(0, 4).map((x: any, i: number) => (<li key={i}>{String(x)}</li>))}
+                          <div className="text-xs text-slate-500 mt-2 mb-1 font-medium">话题推荐</div>
+                          <ul className="list-disc pl-4 text-sm text-slate-600 space-y-1">
+                            {ev.topic_playlist.slice(0, 2).map((x: any, i: number) => (<li key={i} className="truncate">{String(x.topic)}</li>))}
                           </ul>
                         </>
                       ) : null}
                       {!hasAny ? (
-                        <div className="text-xs text-slate-400">暂无可显示内容</div>
+                        <div className="text-sm text-slate-400 text-center py-4">暂无可显示内容</div>
                       ) : null}
                     </div>
                   );
@@ -766,242 +1039,107 @@ const LiveConsolePage = () => {
               </div>
             )}
           </div>
+        </div>
 
-          {/* 风格画像与氛围 */}
-          <div className="timao-card h-[500px] flex flex-col">
+        {/* 第四宫格：主播画像与氛围分析 */}
+        <div className="timao-card flex flex-col h-[450px] w-full min-h-[450px] max-h-[450px] min-w-0 overflow-hidden px-4 pt-4">
           <div className="flex items-center justify-between mb-3 flex-shrink-0">
-            <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-              <span>🎛️</span>
-              风格画像与氛围
+            <h3 className="text-base font-semibold text-purple-600 flex items-center gap-2 ml-[5px]">
+              主播画像与氛围分析
             </h3>
+            <span className="text-xs timao-support-text">实时情绪识别</span>
           </div>
-          {(!styleProfile && !vibe) ? (
-            <div className="timao-outline-card text-xs timao-support-text flex-1 flex items-center justify-center">{isRunning ? '正在学习主播风格与氛围…' : '开始实时字幕后自动学习'}</div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 flex-1 overflow-y-auto">
-              {styleProfile ? (
-                <div className="rounded-xl bg-white/90 border p-3">
-                  <div className="text-xs text-slate-500 mb-1">风格画像</div>
-                  <div className="text-xs text-slate-600">
-                    <div>人物：{String(styleProfile.persona ?? '—')}</div>
-                    <div>语气：{String(styleProfile.tone ?? '—')} · 节奏：{String(styleProfile.tempo ?? '—')} · 用词：{String(styleProfile.register ?? '—')}</div>
-                    {Array.isArray(styleProfile.catchphrases) && styleProfile.catchphrases.length ? (
-                      <div>口头禅：{styleProfile.catchphrases.slice(0, 4).join('、')}</div>
-                    ) : null}
-                    {Array.isArray(styleProfile.slang) && styleProfile.slang.length ? (
-                      <div>俚语：{styleProfile.slang.slice(0, 4).join('、')}</div>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-              {vibe ? (
-                <div className="rounded-xl bg-white/90 border p-3">
-                  <div className="text-xs text-slate-500 mb-1">直播间氛围</div>
-                  <div className="text-xs text-slate-600">热度：{String(vibe.level ?? '—')} · 分数：{String(vibe.score ?? '—')}</div>
-                </div>
-              ) : null}
-            </div>
-          )}
-        </div>
-
-          {/* 智能话术建议 */}
-          <div className="timao-card h-[500px] flex flex-col">
-            <div className="flex items-center justify-between mb-3 flex-shrink-0">
-              <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-                <span>🗣️</span>
-                智能话术建议
-              </h3>
-              <span className="text-xs timao-support-text">在弹幕中点"生成答疑话术"</span>
-            </div>
-            <div className="flex-1 overflow-y-auto space-y-3">
-              <div>
-                <div className="text-xs text-slate-500 mb-1">已选问题</div>
-                {selectedQuestions.length ? (
-                  <ul className="space-y-2">
-                    {selectedQuestions.map((q) => (
-                      <li key={q} className="flex items-start justify-between gap-3 rounded-xl border bg-white/90 px-3 py-2 text-xs text-slate-600">
-                        <span className="flex-1 leading-relaxed">{q}</span>
-                        <button
-                          className="timao-support-text text-[11px] hover:text-rose-500"
-                          onClick={() => handleRemoveQuestion(q)}
-                          title="移除该问题"
-                        >
-                          移除
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="timao-outline-card text-xs timao-support-text">
-                    在实时弹幕列表中点击对应按钮，即可将问题加入这里。
-                  </div>
-                )}
-                <div className="mt-3 flex items-center gap-2">
-                  <button
-                    className="timao-primary-btn text-xs"
-                    onClick={handleGenerateAnswers}
-                    disabled={!selectedQuestions.length || answerLoading}
-                  >
-                    {answerLoading ? '生成中…' : '生成话术'}
-                  </button>
-                  <button
-                    className="timao-outline-btn text-xs"
-                    onClick={handleClearQuestions}
-                    disabled={!selectedQuestions.length || answerLoading}
-                  >
-                    清空
-                  </button>
-                </div>
-                {answerError ? (
-                  <div className="mt-2 text-xs text-rose-500">{answerError}</div>
-                ) : null}
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {(!styleProfile && !vibe) ? (
+              <div className="timao-outline-card text-sm timao-support-text flex items-center justify-center h-full">
+                {isRunning ? '正在学习主播风格与氛围…' : '开始实时字幕'}
               </div>
-
-              <div>
-                <div className="text-xs text-slate-500 mb-1">生成结果</div>
-                {Array.isArray(answerScripts) && answerScripts.length ? (
-                  <div className="space-y-3">
-                    {answerScripts.slice(0, 3).map((item, idx) => (
-                      <div key={idx} className="rounded-xl bg-white/90 border p-3 text-xs text-slate-600 space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          {item?.question ? (
-                            <span className="text-[11px] text-purple-500">
-                              问：{String(item.question)}
-                            </span>
-                          ) : null}
-                          {item?.style ? (
-                            <span className="rounded-full border border-purple-200 bg-purple-50 px-2 py-[1px] text-[10px] text-purple-600">
-                              {String(item.style)}
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="text-sm text-slate-800 leading-relaxed">
-                          {String(item?.line || '')}
-                        </div>
-                        <div className="flex items-center justify-between">
-                          {item?.notes ? (
-                            <span className="text-[11px] text-slate-400">{String(item.notes)}</span>
-                          ) : <span />}
-                          <button
-                            className="timao-outline-btn text-[11px] px-2 py-0.5"
-                            onClick={() => handleCopyAnswer(String(item?.line || ''))}
-                            title="复制话术"
-                          >
-                            复制
-                          </button>
-                        </div>
+            ) : (
+              <div className="space-y-3">
+                {styleProfile ? (
+                  <div className="rounded-lg bg-white/90 border p-3">
+                    <div className="text-xs text-slate-500 mb-2 font-medium">主播风格画像</div>
+                    <div className="text-sm text-slate-600 space-y-2">
+                      <div className="flex items-center">
+                        <span className="text-slate-500 w-16 flex-shrink-0">人物：</span>
+                        <span className="truncate">{String(styleProfile.persona ?? '—')}</span>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="timao-outline-card text-xs timao-support-text">
-                    生成后的话术会展示在此，帮助你用主播语气快速回复观众。
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 第二行：主播实时语音转写 和 弹幕评论 */}
-      <div className="grid gap-6 xl:grid-cols-2 lg:grid-cols-2 md:grid-cols-1">
-        <section className="timao-card flex flex-col h-[600px]">
-          <div className="flex items-center justify-between mb-4 flex-shrink-0">
-            <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-              <span>📝</span>
-              主播实时语音转写
-            </h3>
-            <div className="flex items-center gap-3">
-              <span className="timao-status-pill text-xs">{isRunning ? '实时更新中' : '已暂停'}</span>
-              <button
-                className="text-xs timao-support-text hover:text-purple-600"
-                onClick={() => setCollapsed((v) => !v)}
-                title={collapsed ? '展开' : '折叠'}
-              >
-                {collapsed ? '展开 ▾' : '折叠 ▸'}
-              </button>
-            </div>
-          </div>
-          {collapsed ? (
-            <div className="space-y-2">
-              <select
-                id="transcript-select"
-                className="timao-input w-full"
-                value={selectedId ?? (log[0]?.id || '')}
-                onChange={(e) => setSelectedId(e.target.value || null)}
-                aria-label="选择转写记录"
-                title="选择转写记录"
-              >
-                {log.length === 0 ? (
-                  <option value="">暂无转写</option>
-                ) : (
-                  log.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {new Date(item.timestamp * 1000).toLocaleTimeString()} · {speakerLabelShort(item.speaker)} · {(item.text || '').slice(0, 24)}
-                    </option>
-                  ))
-                )}
-              </select>
-              <div className="rounded-xl bg-white/90 border p-3 text-sm text-slate-700 min-h-[48px]">
-                {(() => {
-                  const found = log.find((x) => x.id === (selectedId ?? log[0]?.id));
-                  return found ? found.text : '暂无转写结果';
-                })()}
-              </div>
-            </div>
-          ) : (
-            <div className="flex-1 flex flex-col overflow-hidden">
-            {/* 内容区域，支持滚动 */}
-            <div className="space-y-3 overflow-y-auto pr-2 flex-1">
-              {log.length === 0 ? (
-                <div className="timao-outline-card text-sm timao-support-text text-center">
-                  暂无转写结果。{isRunning ? '等待识别...' : '点击开始转写以开启实时字幕。'}
-                </div>
-              ) : (
-                log.map((item) => (
-                  <div key={item.id} className="flex-shrink-0 rounded-xl border border-white/60 shadow-sm p-3 bg-white/95 hover:shadow-md transition-shadow">
-                      <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                        <span>{new Date(item.timestamp * 1000).toLocaleTimeString()}</span>
-                        {renderSpeakerBadge(item.speaker)}
+                      <div className="flex items-center">
+                        <span className="text-slate-500 w-16 flex-shrink-0">语气：</span>
+                        <span className="truncate">{String(styleProfile.tone ?? '—')}</span>
                       </div>
-                      {(() => {
-                        const debugText = formatSpeakerDebug(item.speakerDebug);
-                        return debugText
-                          ? (
-                            <div className="text-[10px] text-slate-400 mb-1">
-                              {debugText}
-                            </div>
-                          )
-                          : null;
-                      })()}
-                      <div className="text-slate-600 text-sm leading-relaxed">{item.text}</div>
+                      <div className="flex items-center">
+                        <span className="text-slate-500 w-16 flex-shrink-0">节奏：</span>
+                        <span className="truncate">{String(styleProfile.tempo ?? '—')}</span>
+                      </div>
+                      <div className="flex items-center">
+                        <span className="text-slate-500 w-16 flex-shrink-0">用词：</span>
+                        <span className="truncate">{String(styleProfile.register ?? '—')}</span>
+                      </div>
+                      {Array.isArray(styleProfile.catchphrases) && styleProfile.catchphrases.length ? (
+                        <div className="flex items-center">
+                          <span className="text-slate-500 w-16 flex-shrink-0">口头禅：</span>
+                          <span className="truncate">{styleProfile.catchphrases.slice(0, 2).join('、')}</span>
+                        </div>
+                      ) : null}
                     </div>
-                ))
-              )}
-            </div>
-            </div>
-          )}
-        </section>
-
-        <section className="timao-card flex flex-col h-[600px]">
-          <div className="flex items-center justify-between mb-4 flex-shrink-0">
-            <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-              <span>💬</span>
-              弹幕评论
-            </h3>
-            <span className="timao-status-pill text-xs">{isRunning ? '实时更新中' : '已暂停'}</span>
+                  </div>
+                ) : null}
+                
+                {vibe ? (
+                  <div className="rounded-lg bg-white/90 border p-3">
+                    <div className="text-xs text-slate-500 mb-2 font-medium">直播间氛围指数</div>
+                    <div className="text-sm text-slate-600 space-y-2">
+                      <div className="flex items-center">
+                        <span className="text-slate-500 w-20 flex-shrink-0">热度等级：</span>
+                        <span>{String(vibe.level ?? '—')}</span>
+                      </div>
+                      <div className="flex items-center">
+                        <span className="text-slate-500 w-20 flex-shrink-0">氛围分数：</span>
+                        <span>{String(vibe.score ?? '—')}</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+                
+                {/* 实时统计 */}
+                <div className="rounded-xl bg-white/90 border p-3">
+                  <div className="text-xs text-slate-500 mb-2 font-medium">实时统计</div>
+                  <div className="text-sm text-slate-600 space-y-2">
+                    <div className="flex items-center">
+                      <span className="text-slate-500 w-20 flex-shrink-0">转写记录：</span>
+                      <span>{log.length} 条</span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="text-slate-500 w-20 flex-shrink-0">AI分析：</span>
+                      <span>{aiEvents.length} 次</span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="text-slate-500 w-20 flex-shrink-0">已选问题：</span>
+                      <span>{selectedQuestions.length} 个</span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="text-slate-500 w-20 flex-shrink-0">生成话术：</span>
+                      <span>{Array.isArray(answerScripts) ? answerScripts.length : 0} 条</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* 错误信息显示 */}
+            {douyinStatus?.last_error && (
+              <div className="flex items-start justify-between pt-3 border-t border-gray-100 mt-3">
+                <span className="text-gray-600">错误信息：</span>
+                <span className="text-red-600 text-sm max-w-40 text-right break-words">
+                  {douyinStatus.last_error}
+                </span>
+              </div>
+            )}
           </div>
-          <div className="flex-1 overflow-hidden">
-            <DouyinRelayPanel 
-              baseUrl={FASTAPI_BASE_URL} 
-              onSelectQuestion={handleSelectQuestion}
-              liveId={liveInput}
-              isRunning={isRunning}
-            />
-          </div>
-        </section>
+        </div>
       </div>
+
+      
 
       {/* 第三行：其他功能区域 */}
       <div className="grid gap-6 xl:grid-cols-3 lg:grid-cols-2 md:grid-cols-1">

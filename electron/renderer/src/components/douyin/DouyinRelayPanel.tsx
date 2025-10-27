@@ -483,18 +483,8 @@ const DouyinRelayPanel = ({
   };
 
   return (
-    <section className="timao-card space-y-4">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="text-3xl">📡</div>
-          <div>
-            <div className="text-lg font-semibold text-purple-600">抖音直播互动</div>
-            <div className="text-sm timao-support-text">{currentStatusText}</div>
-            <div className="text-xs text-slate-400">实时 · 弹幕、礼物、点赞</div>
-          </div>
-        </div>
-        {/* 移除原有的输入框和按钮，使用父组件统一控制 */}
-      </div>
+    <section className="space-y-3">
+      {/* 删除原有的标题区域，包含抖音直播互动标签、状态提示文本、功能描述标签、直播状态图标 */}
 
       {banner ? (
         <div className={`rounded-2xl border px-4 py-3 text-sm ${toneClasses[banner.tone]}`}>
@@ -508,172 +498,49 @@ const DouyinRelayPanel = ({
         </div>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <div className="timao-soft-card flex h-full flex-col">
-          <div className="mb-3 flex items-center justify-between">
-            <h4 className="flex items-center gap-2 text-sm font-semibold text-purple-600">
-              <span>💬</span>
-              实时弹幕
-            </h4>
-            <span className="text-xs timao-support-text">{chatLog.length} 条</span>
-          </div>
-          <div className="max-h-[360px] space-y-3 overflow-y-auto pr-1">
-            {chatLog.length === 0 ? (
-              <div className="timao-outline-card text-center text-sm timao-support-text">
-                {isRunning ? '等待实时弹幕…' : '未启动，请先开始'}
-              </div>
-            ) : (
-              chatLog.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-2xl border border-white/70 bg-white/95 p-3 shadow-sm"
-                >
-                  <div className="mb-1 flex items-center justify-between text-xs text-slate-400">
-                    <span>{new Date(item.timestamp).toLocaleTimeString()}</span>
-                    <span>{chatCategoryLabel[item.category]}</span>
-                  </div>
-                  <div className="text-sm leading-relaxed text-slate-700">
-                    <span className="font-medium text-purple-500">{item.nickname}</span>
-                    <span className="ml-2 text-slate-600">{item.content}</span>
-                  </div>
-                  {onSelectQuestion && item.category === 'chat' ? (
-                    <div className="mt-2 flex justify-end">
-                      <button
-                        className="timao-outline-btn text-[11px] px-2 py-0.5"
-                        onClick={() => onSelectQuestion(item)}
-                        disabled={false}
-                        title="生成答疑话术"
-                      >
-                        生成答疑话术
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              ))
-            )}
-          </div>
+      {/* 只显示弹幕数据，隐藏互动事件和粉丝贡献榜 */}
+      <div className="flex h-full flex-col">
+        <div className="mb-3 flex items-center justify-between">
+          <h4 className="flex items-center gap-2 text-sm font-semibold text-purple-600">
+            <span>💬</span>
+            实时弹幕
+          </h4>
+          <span className="text-xs timao-support-text">{chatLog.length} 条</span>
         </div>
-
-        <div className="flex flex-col gap-4">
-          {/* Interaction Events (non chat/gift) */}
-          <div className="timao-soft-card">
-            <div className="mb-3 flex items-center justify-between">
-              <h4 className="flex items-center gap-2 text-sm font-semibold text-purple-600">
-                <span>🛰️</span>
-                互动事件
-              </h4>
-              <span className="text-xs timao-support-text">{filteredEvents.length} 条</span>
+        <div className="max-h-[400px] space-y-3 overflow-y-auto pr-1 flex-1 custom-scrollbar">
+          {chatLog.length === 0 ? (
+            <div className="timao-outline-card text-center text-sm timao-support-text">
+              {isRunning ? '等待实时弹幕…' : '未启动，请先开始'}
             </div>
-            <div className="mb-2 flex flex-wrap gap-3 text-xs timao-support-text">
-              {([
-                'like',
-                'member',
-                'follow',
-                'fansclub',
-                'emoji_chat',
-                'room_info',
-                'room_stats',
-                'room_user_stats',
-                'room_control',
-                'stream_adaptation',
-                'status',
-                'error',
-              ] as OtherEventType[]).map((k) => (
-                <label key={k} className="inline-flex items-center gap-1 cursor-pointer">
-                  <input type="checkbox" checked={!!eventFilters[k]} onChange={() => toggleFilter(k)} />
-                  <span>{
-                    {
-                      like: '点赞',
-                      member: '进场',
-                      follow: '关注',
-                      fansclub: '粉丝团',
-                      emoji_chat: '表情',
-                      room_info: '房间',
-                      room_stats: '统计',
-                      room_user_stats: '在线',
-                      room_control: '控制',
-                      stream_adaptation: '自适应',
-                      status: '状态',
-                      error: '错误',
-                      room_rank: '排行',
-                    }[k]
-                  }</span>
-                </label>
-              ))}
-            </div>
-            <div className="max-h-[220px] space-y-2 overflow-y-auto pr-1">
-              {filteredEvents.length === 0 ? (
-                <div className="timao-outline-card text-center text-xs timao-support-text">
-                  {isRunning ? '等待互动事件…' : '未启动，请先开始'}
+          ) : (
+            chatLog.map((item) => (
+              <div
+                key={item.id}
+                className="rounded-2xl border border-white/70 bg-white/95 p-3 shadow-sm"
+              >
+                <div className="mb-1 flex items-center justify-between text-xs text-slate-400">
+                  <span>{new Date(item.timestamp).toLocaleTimeString()}</span>
+                  <span>{chatCategoryLabel[item.category]}</span>
                 </div>
-              ) : (
-                filteredEvents.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between text-sm text-slate-600">
-                    <div className="flex items-center gap-2">
-                      <div className="w-16 text-xs text-slate-400">{new Date(item.timestamp).toLocaleTimeString()}</div>
-                      <div className="text-slate-700">{item.text}</div>
-                    </div>
-                    <div className="text-xs timao-support-text">{item.type}</div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="timao-soft-card">
-            <div className="mb-3 flex items-center justify-between">
-              <h4 className="flex items-center gap-2 text-sm font-semibold text-purple-600">
-                <span>🏆</span>
-                粉丝贡献榜
-              </h4>
-              <span className="text-xs timao-support-text">
-                {rankList.length ? `Top ${rankList.length}` : '暂无数据'}
-              </span>
-            </div>
-            <div className="max-h-[220px] space-y-2 overflow-y-auto pr-1">
-              {rankList.length === 0 ? (
-                <div className="timao-outline-card text-center text-xs timao-support-text">
-                  等待贡献榜更新
+                <div className="text-sm leading-relaxed text-slate-700">
+                  <span className="font-medium text-purple-500">{item.nickname}</span>
+                  <span className="ml-2 text-slate-600">{item.content}</span>
                 </div>
-              ) : (
-                rankList.map((item) => (
-                  <div key={`${item.rank}-${item.nickname}`} className="flex items-center justify-between text-sm text-slate-600">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 text-sm font-semibold text-purple-500">#{item.rank}</div>
-                      {item.avatar ? (
-                        <img
-                          src={item.avatar}
-                          alt={item.nickname}
-                          className="h-8 w-8 rounded-full border border-purple-100 object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100/70 text-xs text-purple-600">
-                          猫
-                        </div>
-                      )}
-                      <div>
-                        <div className="font-medium text-slate-700 leading-tight">{item.nickname}</div>
-                        {item.userId ? (
-                          <div className="text-xs text-slate-400">ID {String(item.userId)}</div>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div className="text-xs text-purple-500">{item.score}</div>
+                {onSelectQuestion && item.category === 'chat' ? (
+                  <div className="mt-2 flex justify-end">
+                    <button
+                      className="timao-outline-btn text-[11px] px-2 py-0.5"
+                      onClick={() => onSelectQuestion(item)}
+                      disabled={false}
+                      title="生成答疑话术"
+                    >
+                      生成答疑话术
+                    </button>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="timao-soft-card space-y-2 text-xs text-slate-500">
-            <div>· 连接状态：{isRunning ? '运行中' : '未启动'}</div>
-            <div>· 当前直播间：{status?.live_id || lastStartedLiveIdRef.current || '—'}</div>
-            <div>· Room ID：{status?.room_id || '—'}</div>
-            <div>· 实时通道：{streamConnected ? '已连接' : '未连接'}</div>
-            {status?.last_error ? (
-              <div className="text-rose-600">· 最近错误：{status.last_error}</div>
-            ) : null}
-          </div>
+                ) : null}
+              </div>
+            ))
+          )}
         </div>
       </div>
     </section>
