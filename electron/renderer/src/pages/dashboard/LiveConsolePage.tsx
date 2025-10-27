@@ -18,6 +18,7 @@ import { useLiveConsoleStore, getLiveConsoleSocket } from '../../store/useLiveCo
 const FASTAPI_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:10090';
 
 const LiveConsolePage = () => {
+  const [showSaveInfo, setShowSaveInfo] = useState(false);
   const {
     liveInput,
     status,
@@ -236,8 +237,7 @@ const LiveConsolePage = () => {
     try {
       // 检查付费状态
       if (!isPaid) {
-        setError('请先选择订阅套餐');
-        navigate('/pay/subscription');
+        setError('功能暂时不可用');
         setLoading(false);
         return;
       }
@@ -685,8 +685,8 @@ const LiveConsolePage = () => {
             停止
           </button>
         </div>
-        {/* 直播间状态信息（左下角，三行内联显示） */}
-        <div className="absolute bottom-3 left-3 text-xs space-y-1.5">
+        {/* 直播间状态信息（左下角，三行内联显示与输入框左对齐） */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
           {/* 第一行：连接状态 + 当前直播间ID */}
           <div className="flex items-center gap-3">
             <span className="text-gray-600">连接状态：</span>
@@ -915,7 +915,7 @@ const LiveConsolePage = () => {
             <div>
               <div className="text-xs text-slate-500 mb-1">生成结果</div>
               {Array.isArray(answerScripts) && answerScripts.length ? (
-                <div className="space-y-2 max-h-32 overflow-y-auto">
+                <div className="space-y-2 max-h-62 overflow-y-auto">
                   {answerScripts.slice(0, 4).map((script, idx) => (
                     <div key={idx} className="rounded-lg border bg-white/90 p-2 text-sm text-slate-700">
                       <div className="font-medium text-slate-800 mb-1">话术 {idx + 1}</div>
@@ -1289,7 +1289,7 @@ const LiveConsolePage = () => {
             </div>
           </div>
 
-          {saveInfo ? (
+          {showSaveInfo && saveInfo ? (
             <div className="timao-soft-card">
               <div className="text-sm text-slate-500 mb-1">保存位置</div>
               <div className="flex items-center gap-2 text-xs timao-support-text break-all">
