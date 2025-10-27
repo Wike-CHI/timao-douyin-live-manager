@@ -2,9 +2,16 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export interface UserInfo {
-  id: string;
+  id: number;
+  username?: string;
   email?: string;
   nickname?: string;
+  avatar_url?: string;
+  role?: string;
+  status?: string;
+  email_verified?: boolean;
+  phone_verified?: boolean;
+  created_at?: string;
 }
 
 interface AuthState {

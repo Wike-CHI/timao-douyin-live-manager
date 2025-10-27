@@ -130,22 +130,45 @@ async def get_current_user(
     """获取当前认证用户"""
     try:
         token = credentials.credentials
-        user = UserService.validate_session(token)
         
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="无效的认证令牌",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+        # 首先尝试JWT token验证
+        from server.app.core.security import JWTManager
+        try:
+            payload = JWTManager.verify_token(token, "access")
+            user_id = payload.get("sub")
+            if user_id:
+                # 从数据库获取用户信息，确保user_id是整数类型
+                user = UserService.get_user_by_id(int(user_id))
+                if user and user.status not in [UserStatusEnum.BANNED, UserStatusEnum.SUSPENDED]:
+                    return {
+                        "id": user.id,
+                        "user_id": user.id,  # 添加 user_id 字段以兼容 useFree 接口
+                        "username": user.username,
+                        "email": user.email,
+                        "role": user.role.value,
+                        "status": user.status.value
+                    }
+        except:
+            # JWT验证失败，尝试session token验证（向后兼容）
+            user = UserService.validate_session(token)
+            if user:
+                return {
+                    "id": user.id,
+                    "user_id": user.id,  # 添加 user_id 字段以兼容 useFree 接口
+                    "username": user.username,
+                    "email": user.email,
+                    "role": user.role.value,
+                    "status": user.status.value
+                }
         
-        return {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "role": user.role.value,
-            "status": user.status.value
-        }
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="无效的认证令牌",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -221,12 +244,12 @@ async def login_user(
                 detail="用户名/邮箱或密码错误"
             )
         
-        # 创建会话
-        session = UserService.create_session(
-            user=user,
-            ip_address=client_ip,
-            user_agent=user_agent
-        )
+        # 创建JWT token而不是session token
+        from server.app.core.security import JWTManager
+        
+        # 生成JWT access token和refresh token
+        access_token = JWTManager.create_access_token(data={"sub": str(user.id)})
+        refresh_token = JWTManager.create_refresh_token(data={"sub": str(user.id)})
         
         # 获取用户订阅信息
         subscription_info = SubscriptionService.get_usage_stats(user.id)
@@ -238,9 +261,9 @@ async def login_user(
         
         return LoginResponse(
             success=True,
-            token=session.session_token,  # 前端期望的字段名
-            access_token=session.session_token,
-            refresh_token=session.refresh_token,
+            token=access_token,  # 前端期望的字段名
+            access_token=access_token,
+            refresh_token=refresh_token,
             isPaid=is_paid,
             firstFreeUsed=first_free_used,
             user=UserResponse(
@@ -276,25 +299,47 @@ async def refresh_token(
 ):
     """刷新访问令牌"""
     try:
-        session = UserService.refresh_session(request.refresh_token)
+        from server.app.core.security import JWTManager
         
-        if not session:
+        # 验证refresh token
+        try:
+            payload = JWTManager.verify_token(request.refresh_token, "refresh")
+            user_id = payload.get("sub")
+            if not user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="无效的刷新令牌"
+                )
+        except:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="无效的刷新令牌"
             )
         
         # 获取用户信息
-        user = UserService.get_user_by_id(session.user_id)
+        user = UserService.get_user_by_id(int(user_id))
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="用户不存在"
             )
         
+        # 生成新的JWT tokens
+        new_access_token = JWTManager.create_access_token(data={"sub": str(user.id)})
+        new_refresh_token = JWTManager.create_refresh_token(data={"sub": str(user.id)})
+        
+        subscription_info = SubscriptionService.get_usage_stats(user.id)
+        has_subscription = subscription_info.get("has_subscription", False)
+        first_free_used = user.ai_quota_used > 0
+        
         return LoginResponse(
-            access_token=session.session_token,
-            refresh_token=session.refresh_token,
+            success=True,
+            token=new_access_token,
+            access_token=new_access_token,
+            refresh_token=new_refresh_token,
+            expires_in=86400,
+            isPaid=has_subscription,
+            firstFreeUsed=first_free_used,
             user=UserResponse(
                 id=user.id,
                 username=user.username,
@@ -439,7 +484,7 @@ async def use_first_free(
 ):
     """使用首次免费额度"""
     try:
-        user_id = current_user["user_id"]
+        user_id = current_user["id"]
         user = UserService.get_user_by_id(user_id)
         
         if not user:
@@ -456,7 +501,7 @@ async def use_first_free(
             )
         
         # 标记首次免费已使用
-        UserService.increment_ai_quota_used(user_id, 1)
+        user.consume_ai_quota(1)
         
         return {
             "success": True,
