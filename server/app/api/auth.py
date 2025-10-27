@@ -228,8 +228,8 @@ async def login_user(
             user_agent=user_agent
         )
         
-        # 获取用户订阅状态
-        subscription_info = SubscriptionService.get_user_subscription_info(user.id)
+        # 获取用户订阅信息
+        subscription_info = SubscriptionService.get_usage_stats(user.id)
         
         # 计算用户支付状态
         has_subscription = subscription_info.get("has_subscription", False)

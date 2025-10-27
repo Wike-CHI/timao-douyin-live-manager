@@ -47,13 +47,12 @@ class SubscriptionService:
     @staticmethod
     def get_user_subscription(user_id: int) -> Optional[UserSubscription]:
         """获取用户当前订阅"""
-        with DatabaseManager.get_session() as session:
+        from server.app.database import db_session
+        
+        with db_session() as session:
             return session.query(UserSubscription).filter(
                 UserSubscription.user_id == user_id,
-                UserSubscription.status.in_([
-                    SubscriptionStatusEnum.ACTIVE,
-                    SubscriptionStatusEnum.TRIAL
-                ])
+                UserSubscription.status == SubscriptionStatusEnum.ACTIVE
             ).first()
     
     @staticmethod
@@ -208,10 +207,7 @@ class SubscriptionService:
         # 查找现有订阅
         existing_subscription = session.query(UserSubscription).filter(
             UserSubscription.user_id == user_id,
-            UserSubscription.status.in_([
-                SubscriptionStatusEnum.ACTIVE,
-                SubscriptionStatusEnum.TRIAL
-            ])
+            UserSubscription.status == SubscriptionStatusEnum.ACTIVE
         ).first()
         
         now = datetime.utcnow()
@@ -313,7 +309,9 @@ class SubscriptionService:
     @staticmethod
     def get_usage_stats(user_id: int) -> Dict[str, Any]:
         """获取使用统计"""
-        with DatabaseManager.get_session() as session:
+        from server.app.database import db_session
+        
+        with db_session() as session:
             subscription = SubscriptionService.get_user_subscription(user_id)
             
             if not subscription:
