@@ -11,8 +11,8 @@ import json
 import logging
 from enum import Enum
 
-from app.models import AuditLog, User
-from app.database import DatabaseManager
+from server.app.models import AuditLog, User
+from server.app.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class AuditService:
     def __init__(self, db_manager=None):
         # 如果没有提供db_manager，则使用全局的数据库连接
         if db_manager is None:
-            from app.database import db_manager as global_db_manager
+            from server.app.database import db_manager as global_db_manager
             self.db_manager = global_db_manager
         else:
             self.db_manager = db_manager

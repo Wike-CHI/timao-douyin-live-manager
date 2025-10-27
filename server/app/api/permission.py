@@ -8,14 +8,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from datetime import datetime
 
-from app.core.dependencies import (
+from server.app.core.dependencies import (
     get_current_user,
     require_admin_role,
     require_permissions,
     get_request_info
 )
-from app.models import User, AuditLog
-from app.services.permission_service import permission_service
+from server.app.models import User, AuditLog
+from server.app.services.permission_service import permission_service
 
 router = APIRouter(prefix="/permission", tags=["权限管理"])
 

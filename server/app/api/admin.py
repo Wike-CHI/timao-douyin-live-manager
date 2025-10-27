@@ -7,12 +7,12 @@ from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, EmailStr
 from server.app.database import get_db
 from server.app.core.dependencies import require_admin_role, get_current_user
 from server.app.services.admin_service import AdminService
 from server.app.services.audit_service import AuditService
-from server.app.models.user import User, UserRole
+from server.app.models.user import User, UserRoleEnum, UserStatusEnum
 from server.app.models.permission import AuditLog
 import logging
 
@@ -28,7 +28,7 @@ class UserListResponse(BaseModel):
     username: str
     email: str
     full_name: Optional[str]
-    role: UserRole
+    role: UserRoleEnum
     is_active: bool
     is_verified: bool
     created_at: datetime
@@ -51,7 +51,7 @@ class UserUpdateRequest(BaseModel):
     """用户更新请求"""
     full_name: Optional[str] = None
     email: Optional[str] = None
-    role: Optional[UserRole] = None
+    role: Optional[UserRoleEnum] = None
     is_active: Optional[bool] = None
     is_verified: Optional[bool] = None
     password: Optional[str] = Field(None, min_length=8)
@@ -109,7 +109,7 @@ class CleanupResultResponse(BaseModel):
 
 class ExportRequest(BaseModel):
     """导出请求"""
-    format: str = Field("csv", regex="^(csv|json)$")
+    format: str = Field("csv", pattern="^(csv|json)$")
     filters: Optional[Dict[str, Any]] = None
 
 
@@ -190,7 +190,7 @@ class UpdateSubscriptionPlanRequest(BaseModel):
 @router.get("/users", response_model=Dict[str, Any])
 async def get_users(
     search: Optional[str] = Query(None, description="搜索关键词"),
-    role: Optional[UserRole] = Query(None, description="用户角色"),
+    role: Optional[UserRoleEnum] = Query(None, description="用户角色"),
     is_active: Optional[bool] = Query(None, description="是否活跃"),
     is_verified: Optional[bool] = Query(None, description="是否已验证"),
     page: int = Query(1, ge=1, description="页码"),

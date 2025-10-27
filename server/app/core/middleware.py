@@ -10,9 +10,9 @@ from typing import Callable
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.security import LoginLimiter
-from app.models.permission import AuditLog
-from app.database import DatabaseManager
+from server.app.core.security import LoginLimiter
+from server.app.models.permission import AuditLog
+from server.app.database import DatabaseManager
 import json
 
 logger = logging.getLogger(__name__)
@@ -149,7 +149,7 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         auth_header = request.headers.get("authorization")
         if auth_header and auth_header.startswith("Bearer "):
             try:
-                from app.core.security import JWTManager
+                from server.app.core.security import JWTManager
                 token = auth_header.split(" ")[1]
                 payload = JWTManager.verify_token(token, "access")
                 user_id = payload.get("sub")

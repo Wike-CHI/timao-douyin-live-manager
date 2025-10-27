@@ -11,10 +11,10 @@ from datetime import datetime, timedelta
 import json
 import logging
 
-from app.models import (
+from server.app.models import (
     User, UserRole, Permission, RolePermission, AuditLog
 )
-from app.database import DatabaseManager
+from server.app.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 

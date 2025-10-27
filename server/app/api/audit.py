@@ -10,9 +10,9 @@ from pydantic import BaseModel, validator
 from datetime import datetime, timedelta
 import io
 
-from app.core.dependencies import require_admin_role, get_current_active_user
-from app.services.audit_service import audit_service, AuditLevel, AuditCategory
-from app.models import User
+from server.app.core.dependencies import require_admin_role, get_current_active_user
+from server.app.services.audit_service import audit_service, AuditLevel, AuditCategory
+from server.app.models import User
 
 router = APIRouter(prefix="/audit", tags=["审计日志"])
 

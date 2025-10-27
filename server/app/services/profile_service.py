@@ -14,9 +14,9 @@ from PIL import Image
 import io
 import base64
 
-from app.models import User, AuditLog
-from app.database import DatabaseManager
-from app.core.security import encryptor
+from server.app.models import User, AuditLog
+from server.app.database import DatabaseManager
+from server.app.core.security import encryptor
 
 logger = logging.getLogger(__name__)
 

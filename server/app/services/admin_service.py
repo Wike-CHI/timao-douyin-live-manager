@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, func, text
-from server.app.models.user import User, UserRole
+from server.app.models.user import User, UserRoleEnum
 from server.app.models.payment import Subscription, Payment, Plan
 from server.app.models.permission import AuditLog
 from server.app.database import get_db
@@ -27,7 +27,7 @@ class AdminService:
     def get_users(
         self,
         search: Optional[str] = None,
-        role: Optional[UserRole] = None,
+        role: Optional[UserRoleEnum] = None,
         is_active: Optional[bool] = None,
         is_verified: Optional[bool] = None,
         skip: int = 0,

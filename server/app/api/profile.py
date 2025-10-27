@@ -8,9 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel, EmailStr, validator
 from datetime import datetime
 
-from app.core.dependencies import get_current_active_user
-from app.services.profile_service import profile_service
-from app.models import User
+from server.app.core.dependencies import get_current_active_user
+from server.app.services.profile_service import profile_service
+from server.app.models import User
 
 router = APIRouter(prefix="/profile", tags=["用户资料"])
 
