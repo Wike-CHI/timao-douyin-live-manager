@@ -96,7 +96,7 @@
     "mysql_host": "localhost",
     "mysql_port": 3306,
     "mysql_user": "timao",
-    "mysql_password": "",
+    "mysql_password": "timao-1030",
     "mysql_database": "timao_live",
     "mysql_charset": "utf8mb4",
     "sqlite_path": "data/app.db",
