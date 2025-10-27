@@ -261,6 +261,50 @@ class UserService:
                 return True
             
             return False
+
+    @staticmethod
+    def mark_first_free_used(user_id: int) -> None:
+        """标记用户的首次免费额度已使用"""
+        with db_session() as session:
+            user = session.query(User).filter(User.id == user_id).first()
+            if not user:
+                return
+            
+            current_used = user.ai_quota_used or 0
+            if current_used < 1:
+                user.ai_quota_used = 1
+                if not user.ai_quota_reset_at:
+                    user.ai_quota_reset_at = datetime.utcnow()
+            session.commit()
+
+    @staticmethod
+    def increment_ai_usage(user_id: int, tokens: int = 0, requests: int = 1) -> None:
+        """增加用户的 AI 使用量"""
+        tokens = max(0, int(tokens or 0))
+        requests = max(0, int(requests or 0))
+        if tokens == 0 and requests == 0:
+            return
+        
+        with db_session() as session:
+            user = session.query(User).filter(User.id == user_id).first()
+            if not user:
+                return
+            
+            current_used = user.ai_quota_used or 0
+            new_total = current_used
+            
+            if tokens > 0:
+                new_total += tokens
+            elif current_used < 1 and requests > 0:
+                # 没有 token 变化但有调用次数时，也至少标记一次使用
+                new_total = 1
+            
+            if new_total != current_used:
+                user.ai_quota_used = new_total
+            if not user.ai_quota_reset_at:
+                user.ai_quota_reset_at = datetime.utcnow()
+            
+            session.commit()
     
     @staticmethod
     def get_user_by_username(username: str, session: Optional[Session] = None) -> Optional[User]:

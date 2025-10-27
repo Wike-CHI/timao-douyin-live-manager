@@ -307,32 +307,117 @@ class SubscriptionService:
             return True
     
     @staticmethod
+    def record_ai_usage(user_id: int, tokens: int = 0, requests: int = 1) -> None:
+        """记录用户的 AI 使用量"""
+        tokens = max(0, int(tokens or 0))
+        requests = max(0, int(requests or 0))
+        if tokens == 0 and requests == 0:
+            return
+        
+        with DatabaseManager.get_session() as session:
+            user = session.query(User).filter(User.id == user_id).first()
+            if not user:
+                return
+            
+            current_used = user.ai_quota_used or 0
+            if tokens > 0:
+                user.ai_quota_used = current_used + tokens
+            elif current_used < 1 and requests > 0:
+                user.ai_quota_used = 1
+            if not user.ai_quota_reset_at:
+                user.ai_quota_reset_at = datetime.utcnow()
+            
+            subscription = session.query(UserSubscription).filter(
+                and_(
+                    UserSubscription.user_id == user_id,
+                    UserSubscription.status == SubscriptionStatusEnum.ACTIVE
+                )
+            ).first()
+            
+            if subscription:
+                if requests > 0:
+                    subscription.ai_requests_used = (subscription.ai_requests_used or 0) + requests
+                
+                usage_stats = subscription.usage_stats or {}
+                usage_stats = dict(usage_stats)
+                if tokens > 0:
+                    usage_stats["ai_tokens_used"] = usage_stats.get("ai_tokens_used", 0) + tokens
+                if requests > 0:
+                    usage_stats["ai_requests_used"] = usage_stats.get(
+                        "ai_requests_used",
+                        subscription.ai_requests_used or 0
+                    )
+                subscription.usage_stats = usage_stats
+            
+            session.commit()
+    
+    @staticmethod
     def get_usage_stats(user_id: int) -> Dict[str, Any]:
         """获取使用统计"""
-        from server.app.database import db_session
-        
-        with db_session() as session:
-            subscription = SubscriptionService.get_user_subscription(user_id)
-            
-            if not subscription:
+        with DatabaseManager.get_session() as session:
+            user = session.query(User).filter(User.id == user_id).first()
+            if not user:
                 return {
                     "has_subscription": False,
                     "plan_name": None,
                     "usage_stats": {},
-                    "limits": {}
+                    "limits": {},
+                    "features": {},
+                    "ai_usage": {
+                        "tokens_used": 0,
+                        "token_quota": 0,
+                        "token_limit": None,
+                        "requests_used": 0,
+                        "request_limit": None,
+                        "first_free_used": False,
+                    },
                 }
             
+            subscription = session.query(UserSubscription).filter(
+                and_(
+                    UserSubscription.user_id == user_id,
+                    UserSubscription.status == SubscriptionStatusEnum.ACTIVE
+                )
+            ).first()
+            
+            has_subscription = subscription is not None
+            usage_stats: Dict[str, Any] = subscription.usage_stats or {} if subscription else {}
+            limits = subscription.plan.usage_limits if subscription else {}
+            features = subscription.plan.features if subscription else None
+            
+            ai_usage = {
+                "tokens_used": int(user.ai_quota_used or 0),
+                "token_quota": None if user.ai_unlimited else int(user.ai_quota_monthly or 0),
+                "token_limit": None,
+                "requests_used": 0,
+                "request_limit": None,
+                "first_free_used": (user.ai_quota_used or 0) > 0,
+            }
+            
+            if subscription:
+                stats = subscription.usage_stats or {}
+                tokens_used = int(stats.get("ai_tokens_used", 0))
+                if tokens_used:
+                    ai_usage["tokens_used"] = max(ai_usage["tokens_used"], tokens_used)
+                
+                ai_usage["requests_used"] = int(stats.get("ai_requests_used", subscription.ai_requests_used or 0))
+                ai_usage["request_limit"] = subscription.plan.max_ai_requests
+                
+                if isinstance(limits, dict):
+                    ai_usage["token_limit"] = limits.get("ai_tokens")
+            
             return {
-                "has_subscription": True,
-                "plan_name": subscription.plan.name,
-                "plan_type": subscription.plan.plan_type.value,
-                "status": subscription.status.value,
-                "start_date": subscription.start_date.isoformat(),
-                "end_date": subscription.end_date.isoformat(),
-                "auto_renew": subscription.auto_renew,
-                "usage_stats": subscription.usage_stats,
-                "limits": subscription.plan.usage_limits,
-                "features": subscription.plan.features
+                "has_subscription": has_subscription,
+                "plan_name": subscription.plan.name if subscription else None,
+                "plan_type": subscription.plan.plan_type.value if subscription else None,
+                "status": subscription.status.value if subscription else None,
+                "start_date": subscription.start_date.isoformat() if subscription else None,
+                "end_date": subscription.end_date.isoformat() if subscription else None,
+                "auto_renew": subscription.auto_renew if subscription else False,
+                "usage_stats": usage_stats,
+                "limits": limits,
+                "features": features,
+                "ai_usage": ai_usage,
             }
     
     @staticmethod

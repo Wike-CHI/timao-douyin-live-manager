@@ -367,6 +367,13 @@ class AIUsageMonitor:
             error_msg=error_msg
         )
         
+        numeric_user_id: Optional[int] = None
+        try:
+            if user_id is not None:
+                numeric_user_id = int(user_id)
+        except (TypeError, ValueError):
+            numeric_user_id = None
+        
         with self._lock:
             # 添加到缓存
             self._records.append(record)
@@ -382,6 +389,17 @@ class AIUsageMonitor:
             
             # 持久化到文件
             self._save_record(record)
+        
+        if numeric_user_id is not None:
+            try:
+                from server.app.services.subscription_service import SubscriptionService
+                SubscriptionService.record_ai_usage(
+                    user_id=numeric_user_id,
+                    tokens=total_tokens,
+                    requests=1
+                )
+            except Exception as exc:  # pragma: no cover - 防御性记录
+                logger.debug(f"记录 AI 使用量失败: {exc}")
         
         logger.info(
             f"AI 调用记录: {function}({model}) | "

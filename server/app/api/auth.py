@@ -5,7 +5,7 @@
 
 from datetime import datetime
 import secrets
-from typing import Optional
+from typing import Optional, Dict, Any
 import re
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -97,6 +97,8 @@ class LoginResponse(BaseModel):
     expires_in: int = 86400  # 24小时
     user: UserResponse
     isPaid: bool = False
+    firstFreeUsed: bool = False
+    aiUsage: Optional[Dict[str, Any]] = None
 
 
 class RefreshTokenRequest(BaseModel):
@@ -285,13 +287,18 @@ async def login_user(
         # 计算用户支付状态
         has_subscription = subscription_info.get("has_subscription", False)
         is_paid = has_subscription
+        ai_usage = subscription_info.get("ai_usage") if isinstance(subscription_info, dict) else None
+        first_free_used = bool(ai_usage.get("first_free_used")) if isinstance(ai_usage, dict) else (user.ai_quota_used or 0) > 0
         
         return LoginResponse(
             success=True,
             token=access_token,  # 前端期望的字段名
             access_token=access_token,
             refresh_token=refresh_token,
+            expires_in=86400,
             isPaid=is_paid,
+            firstFreeUsed=first_free_used,
+            aiUsage=ai_usage,
             user=UserResponse(
                 id=user.id,
                 username=user.username,
@@ -356,6 +363,8 @@ async def refresh_token(
         
         subscription_info = SubscriptionService.get_usage_stats(user.id)
         has_subscription = subscription_info.get("has_subscription", False)
+        ai_usage = subscription_info.get("ai_usage") if isinstance(subscription_info, dict) else None
+        first_free_used = bool(ai_usage.get("first_free_used")) if isinstance(ai_usage, dict) else (user.ai_quota_used or 0) > 0
         
         return LoginResponse(
             success=True,
@@ -364,6 +373,8 @@ async def refresh_token(
             refresh_token=new_refresh_token,
             expires_in=86400,
             isPaid=has_subscription,
+            firstFreeUsed=first_free_used,
+            aiUsage=ai_usage,
             user=UserResponse(
                 id=user.id,
                 username=user.username,
@@ -502,6 +513,43 @@ async def verify_email(
 
 
 
+
+
+@router.post("/useFree")
+async def use_first_free(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db_session)
+):
+    """使用首次免费额度"""
+    try:
+        user_id = current_user["id"]
+        usage = SubscriptionService.get_usage_stats(user_id)
+        ai_usage = usage.get("ai_usage") if isinstance(usage, dict) else {}
+        if isinstance(ai_usage, dict) and ai_usage.get("first_free_used"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="首次免费额度已使用"
+            )
+        
+        SubscriptionService.record_ai_usage(user_id=user_id, tokens=0, requests=1)
+        UserService.mark_first_free_used(user_id)
+        
+        updated = SubscriptionService.get_usage_stats(user_id)
+        new_ai_usage = updated.get("ai_usage") if isinstance(updated, dict) else {}
+        
+        return {
+            "success": True,
+            "firstFreeUsed": bool(new_ai_usage.get("first_free_used")) if isinstance(new_ai_usage, dict) else True,
+            "aiUsage": new_ai_usage
+        }
+        
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="使用首次免费额度失败"
+        )
 
 
 @router.get("/stats")
