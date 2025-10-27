@@ -35,7 +35,7 @@ def _load_env_once() -> None:
 # 预先加载环境变量，确保在配置模块导入前生效
 _load_env_once()
 
-from server.app.database import DatabaseManager
+from server.app.database import init_database, close_database
 from server.app.models import Base
 from server.utils.ai_defaults import ensure_default_ai_env
 from server.config import config_manager
@@ -249,8 +249,7 @@ async def startup_event():
     # 初始化数据库
     try:
         db_config = config_manager.config.database
-        db_manager = DatabaseManager(db_config)
-        db_manager.initialize()
+        init_database(db_config)
         logging.info("✅ 数据库已初始化")
     except Exception as e:
         logging.error(f"❌ 数据库初始化失败: {e}")
@@ -296,6 +295,12 @@ async def shutdown_event():
         logging.info("✅ WebSocket 服务已停止")
     except Exception as e:
         logging.error(f"❌ WebSocket 服务停止失败: {e}")
+    
+    try:
+        close_database()
+        logging.info("✅ 数据库连接已关闭")
+    except Exception as e:
+        logging.error(f"❌ 数据库关闭失败: {e}")
     logging.info("✅ FastAPI服务已关闭")
 
 

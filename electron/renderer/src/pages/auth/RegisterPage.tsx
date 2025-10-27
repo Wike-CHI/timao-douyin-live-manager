@@ -41,14 +41,17 @@ const RegisterPage = () => {
     }
 
     try {
-      const response = await register({
+      const newUser = await register({
         email: formData.email,
         password: formData.password,
         nickname: formData.nickname,
+        username: formData.nickname || formData.email.split('@')[0],
       });
-      if (response.success) {
+      if (newUser?.id) {
         setSuccess(true);
         setTimeout(() => navigate('/auth/login', { replace: true }), 1200);
+      } else {
+        setError('注册响应异常，请稍后重试');
       }
     } catch (err) {
       setError((err as Error).message);

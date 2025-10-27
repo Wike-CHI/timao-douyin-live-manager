@@ -1,8 +1,10 @@
 import { mockLogin, mockPaymentPoll, mockPaymentUpload, mockRegister, mockGetWallet, mockRecharge, mockConsume, mockUseFirstFree } from './mockAuth';
 import useAuthStore from '../store/useAuthStore';
 
-const AUTH_BASE_URL = (import.meta.env?.VITE_AUTH_BASE_URL as string | undefined)?.trim();
-const isMock = !AUTH_BASE_URL; // 未配置云端地址时使用本地模拟
+const RAW_AUTH_BASE_URL = (import.meta.env?.VITE_AUTH_BASE_URL as string | undefined)?.trim();
+const FASTAPI_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined)?.trim();
+const AUTH_BASE_URL = (RAW_AUTH_BASE_URL || FASTAPI_BASE_URL || '').replace(/\s+$/, '');
+const isMock = !AUTH_BASE_URL; // 未配置真实后端地址时使用本地模拟
 
 const joinUrl = (path: string) => {
   if (!AUTH_BASE_URL) return path; // mock 模式下不使用
@@ -20,6 +22,8 @@ export interface RegisterPayload {
   email: string;
   password: string;
   nickname: string;
+  username?: string;
+  phone?: string;
 }
 
 export const login = async (payload: LoginPayload) => {
@@ -38,10 +42,15 @@ export const login = async (payload: LoginPayload) => {
 
 export const register = async (payload: RegisterPayload) => {
   if (isMock) return mockRegister(payload);
+  const body: RegisterPayload = { ...payload };
+  if (!body.username) {
+    const fallback = body.nickname?.trim() || body.email.split('@')[0];
+    body.username = fallback.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 50) || `user_${Date.now()}`;
+  }
   const resp = await fetch(joinUrl('/api/auth/register'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
   if (!resp.ok) {
     const txt = await resp.text().catch(() => '注册失败');
@@ -146,4 +155,3 @@ export const useFirstFree = async () => {
   }
   return resp.json();
 };
-

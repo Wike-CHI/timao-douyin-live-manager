@@ -4,7 +4,9 @@
 """
 
 from datetime import datetime
+import secrets
 from typing import Optional
+import re
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr, validator
@@ -25,19 +27,34 @@ security = HTTPBearer()
 # Pydantic 模型
 class UserRegisterRequest(BaseModel):
     """用户注册请求"""
-    username: str
     email: EmailStr
     password: str
-    phone: Optional[str] = None
     nickname: Optional[str] = None
+    username: Optional[str] = None
+    phone: Optional[str] = None
     
-    @validator('username')
-    def validate_username(cls, v):
-        if len(v) < 3 or len(v) > 50:
+    @validator('username', pre=True, always=True)
+    def validate_or_generate_username(cls, v, values):
+        candidate = (v or "").strip()
+        email = values.get("email")
+        nickname = (values.get("nickname") or "").strip()
+        
+        if not candidate:
+            if nickname:
+                candidate = nickname
+            elif email:
+                candidate = email.split("@")[0]
+        
+        candidate = re.sub(r"[^A-Za-z0-9_-]", "", candidate or "")
+        if len(candidate) < 3:
+            candidate = f"user_{secrets.token_hex(3)}"
+        candidate = candidate[:50]
+        
+        if len(candidate) < 3 or len(candidate) > 50:
             raise ValueError('用户名长度必须在3-50个字符之间')
-        if not v.replace('_', '').replace('-', '').isalnum():
+        if not candidate.replace('_', '').replace('-', '').isalnum():
             raise ValueError('用户名只能包含字母、数字、下划线和连字符')
-        return v
+        return candidate
     
     @validator('password')
     def validate_password(cls, v):
