@@ -12,11 +12,11 @@ if (process.env.NODE_ENV !== 'production') {
 const defaultAiEnv = {
     AI_SERVICE: 'qwen',
     AI_BASE_URL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    AI_MODEL: 'qwen-plus',
+    AI_MODEL: 'qwen3-max',
     AI_API_KEY: 'sk-92045f0a33984350925ce3ccffb3489e',
     OPENAI_API_KEY: 'sk-92045f0a33984350925ce3ccffb3489e',
     OPENAI_BASE_URL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    OPENAI_MODEL: 'qwen-plus',
+    OPENAI_MODEL: 'qwen3-max',
 };
 for (const [key, value] of Object.entries(defaultAiEnv)) {
     if (!process.env[key]) {
@@ -117,17 +117,30 @@ function startFastAPI() {
 
             // Use uvicorn to run server.app.main:app on 127.0.0.1:10090 (default FastAPI port for Electron)
             // Spawn with project root as cwd so Python can import local packages
+            // 准备后端运行环境变量：默认使用本地SQLite并禁用Redis，确保无外部依赖即可运行
+            const userDataDir = app.getPath('userData');
+            const sqliteDir = path.join(userDataDir, 'data');
+            try { fs.mkdirSync(sqliteDir, { recursive: true }); } catch {}
+            const sqlitePath = path.join(sqliteDir, 'app.db');
+
+            const envForApi = {
+                ...process.env,
+                // 强制优先走SQLite，若外部已设置DB_TYPE/DATABASE_PATH则保留外部配置
+                DB_TYPE: process.env.DB_TYPE || 'sqlite',
+                DATABASE_PATH: process.env.DATABASE_PATH || sqlitePath,
+                // 没有Redis服务的本地演示默认关闭Redis
+                REDIS_ENABLED: process.env.REDIS_ENABLED || 'false',
+                // Force UTF-8 so emojis/Chinese don't garble in Windows pipes
+                PYTHONIOENCODING: 'utf-8',
+                PYTHONUTF8: '1',
+            };
+
             apiProcess = spawn(
                 process.platform === 'win32' ? 'python' : 'python3',
                 ['-m', 'uvicorn', 'server.app.main:app', '--host', '127.0.0.1', '--port', '10090'],
                 {
                     cwd: path.join(__dirname, '..'),
-                    env: {
-                        ...process.env,
-                        // Force UTF-8 so emojis/Chinese don't garble in Windows pipes
-                        PYTHONIOENCODING: 'utf-8',
-                        PYTHONUTF8: '1',
-                    },
+                    env: envForApi,
                 }
             );
 
