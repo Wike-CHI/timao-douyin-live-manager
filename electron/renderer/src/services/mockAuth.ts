@@ -9,8 +9,7 @@ interface RegisterPayload {
   nickname: string;
 }
 
-// 简易内存态，模拟钱包
-let mockBalance = 0;
+// 简易内存态，模拟首次免费使用
 let mockFirstFreeUsed = false;
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -29,7 +28,6 @@ export const mockLogin = async (payload: LoginPayload) => {
       nickname: '提猫主播',
     },
     isPaid: false,
-    balance: mockBalance,
     firstFreeUsed: mockFirstFreeUsed,
   };
 };
@@ -39,8 +37,7 @@ export const mockRegister = async (payload: RegisterPayload) => {
   if (!payload.email || !payload.password || !payload.nickname) {
     throw new Error('请填写完整信息');
   }
-  // 注册后重置钱包（演示）
-  mockBalance = 0;
+  // 注册后重置首次免费状态
   mockFirstFreeUsed = false;
   return {
     success: true,
@@ -72,27 +69,6 @@ export const mockPaymentPoll = async () => {
     status: approved ? 'APPROVED' : 'REJECTED',
     message: approved ? '支付已验证，感谢支持！' : '截图识别失败，请重新上传',
   };
-};
-
-// 钱包相关 Mock
-export const mockGetWallet = async () => {
-  await delay(400);
-  return { success: true, balance: mockBalance, firstFreeUsed: mockFirstFreeUsed };
-};
-
-export const mockRecharge = async (amount: number) => {
-  await delay(600);
-  if (!amount || amount <= 0) throw new Error('充值金额无效');
-  mockBalance += amount;
-  return { success: true, balance: mockBalance };
-};
-
-export const mockConsume = async (amount: number) => {
-  await delay(300);
-  if (!amount || amount <= 0) throw new Error('扣费金额无效');
-  if (mockBalance < amount) throw new Error('余额不足');
-  mockBalance -= amount;
-  return { success: true, balance: mockBalance };
 };
 
 export const mockUseFirstFree = async () => {

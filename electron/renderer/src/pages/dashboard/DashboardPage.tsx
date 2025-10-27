@@ -53,15 +53,15 @@ const DashboardPage: React.FC = () => {
 
         <div className="timao-soft-card">
           <h2 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-            <span>🧾</span>钱包与账号管理
+            <span>🧾</span>订阅与账号管理
           </h2>
           <ul className="mt-3 space-y-2 text-sm timao-support-text">
-            <li>登录后自动保存身份，随时查看余额</li>
-            <li>首次可领取一次免费使用额度</li>
-            <li>钱包页支持上传转账凭证，提醒补充套餐</li>
+            <li>登录后自动保存身份，随时查看订阅状态</li>
+            <li>支持多种积分套餐，满足不同使用需求</li>
+            <li>基于积分消耗的灵活计费模式</li>
             <li>账号内所有功能已与鉴权打通</li>
           </ul>
-          <div className="mt-4 text-xs text-purple-500">入口：侧边栏「支付」&nbsp;/&nbsp;右上角余额卡片</div>
+          <div className="mt-4 text-xs text-purple-500">入口：侧边栏「订阅」</div>
         </div>
 
         <div className="timao-soft-card">

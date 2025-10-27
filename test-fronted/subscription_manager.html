@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>订阅管理 - 提猫直播助手</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: rgba(255,255,255,0.95);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+
+        .header .subtitle {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .card {
+            background: rgba(255,255,255,0.95);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+
+        .current-subscription {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .current-subscription h3 {
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+
+        .subscription-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .subscription-item:last-child {
+            border-bottom: none;
+        }
+
+        .subscription-label {
+            font-weight: 500;
+            opacity: 0.9;
+        }
+
+        .subscription-value {
+            font-family: 'Courier New', monospace;
+            background: rgba(255,255,255,0.2);
+            padding: 4px 12px;
+            border-radius: 5px;
+        }
+
+        .plans-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .plan-card {
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 15px;
+            padding: 25px;
+            transition: all 0.3s;
+            cursor: pointer;
+            position: relative;
+            text-align: center;
+        }
+
+        .plan-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 8px 25px rgba(102,126,234,0.2);
+            transform: translateY(-5px);
+        }
+
+        .plan-card.popular {
+            border-color: #28a745;
+            background: linear-gradient(135deg, rgba(40,167,69,0.1) 0%, rgba(40,167,69,0.05) 100%);
+        }
+
+        .plan-card.popular::before {
+            content: "推荐";
+            position: absolute;
+            top: -10px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            font-weight: 500;
+        }
+
+        .plan-name {
+            font-size: 1.4em;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .plan-price {
+            font-size: 2.5em;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .plan-price .currency {
+            font-size: 0.6em;
+            vertical-align: top;
+        }
+
+        .plan-period {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 20px;
+        }
+
+        .plan-features {
+            list-style: none;
+            margin-bottom: 25px;
+        }
+
+        .plan-features li {
+            padding: 8px 0;
+            color: #555;
+            position: relative;
+            padding-left: 25px;
+        }
+
+        .plan-features li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102,126,234,0.4);
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .usage-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .usage-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            border: 2px solid #e0e0e0;
+        }
+
+        .usage-number {
+            font-size: 2em;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .usage-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 模态框样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            position: relative;
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .close {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #aaa;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        .payment-methods {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .payment-method {
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .payment-method:hover {
+            border-color: #667eea;
+        }
+
+        .payment-method.selected {
+            border-color: #667eea;
+            background: rgba(102,126,234,0.1);
+        }
+
+        .payment-icon {
+            font-size: 2em;
+            margin-bottom: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 0.95em;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <div class="header">
+            <h1>💳 订阅管理</h1>
+            <div class="subtitle">管理您的订阅计划和AI使用配额</div>
+        </div>
+
+        <!-- 当前订阅状态 -->
+        <div class="card">
+            <h2>📊 当前订阅状态</h2>
+            <div id="currentSubscription" class="current-subscription">
+                <div class="loading"></div> 加载中...
+            </div>
+        </div>
+
+        <!-- 使用统计 -->
+        <div class="card">
+            <h2>📈 使用统计</h2>
+            <div id="usageStats" class="usage-stats">
+                <div class="usage-card">
+                    <div class="usage-number" id="aiQuotaUsed">-</div>
+                    <div class="usage-label">本月已用AI配额</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="aiQuotaProgress" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="usage-card">
+                    <div class="usage-number" id="aiQuotaRemaining">-</div>
+                    <div class="usage-label">剩余AI配额</div>
+                </div>
+                <div class="usage-card">
+                    <div class="usage-number" id="subscriptionDays">-</div>
+                    <div class="usage-label">订阅剩余天数</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 订阅计划 -->
+        <div class="card">
+            <h2>🎯 选择订阅计划</h2>
+            <div id="alert" style="display:none;"></div>
+            <div id="subscriptionPlans" class="plans-grid">
+                <div class="loading"></div> 加载中...
+            </div>
+        </div>
+    </div>
+
+    <!-- 支付模态框 -->
+    <div id="paymentModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closePaymentModal()">&times;</span>
+            <h2 style="color: #667eea; margin-bottom: 20px;">💳 订阅支付</h2>
+            
+            <div id="selectedPlanInfo" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <!-- 选中的计划信息将在这里显示 -->
+            </div>
+
+            <div class="form-group">
+                <label>选择支付方式</label>
+                <div class="payment-methods">
+                    <div class="payment-method" data-method="alipay" onclick="selectPaymentMethod('alipay')">
+                        <div class="payment-icon">💰</div>
+                        <div>支付宝</div>
+                    </div>
+                    <div class="payment-method" data-method="wechat" onclick="selectPaymentMethod('wechat')">
+                        <div class="payment-icon">💚</div>
+                        <div>微信支付</div>
+                    </div>
+                    <div class="payment-method" data-method="card" onclick="selectPaymentMethod('card')">
+                        <div class="payment-icon">💳</div>
+                        <div>银行卡</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="cardPaymentForm" style="display: none;">
+                <div class="form-group">
+                    <label for="cardNumber">卡号</label>
+                    <input type="text" id="cardNumber" placeholder="1234 5678 9012 3456" maxlength="19">
+                </div>
+                <div style="display: flex; gap: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label for="expiryDate">有效期</label>
+                        <input type="text" id="expiryDate" placeholder="MM/YY" maxlength="5">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="cvv">CVV</label>
+                        <input type="text" id="cvv" placeholder="123" maxlength="3">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="cardName">持卡人姓名</label>
+                    <input type="text" id="cardName" placeholder="张三">
+                </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="processPayment()" id="paymentBtn">
+                确认支付
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 动态获取 API 基础 URL
+        const API_BASE = window.location.origin;
+        let selectedPlan = null;
+        let selectedPaymentMethod = null;
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCurrentSubscription();
+            loadSubscriptionPlans();
+            loadUsageStats();
+        });
+
+        // 加载当前订阅状态
+        async function loadCurrentSubscription() {
+            try {
+                const response = await fetch(`${API_BASE}/api/subscription/current`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('获取订阅信息失败');
+                }
+                
+                const data = await response.json();
+                displayCurrentSubscription(data);
+            } catch (error) {
+                console.error('加载订阅状态失败:', error);
+                document.getElementById('currentSubscription').innerHTML = 
+                    '<div style="color: rgba(255,255,255,0.8);">❌ 加载失败，请检查网络连接</div>';
+            }
+        }
+
+        // 显示当前订阅信息
+        function displayCurrentSubscription(data) {
+            const container = document.getElementById('currentSubscription');
+            
+            if (!data || !data.subscription) {
+                container.innerHTML = `
+                    <h3>🆓 免费用户</h3>
+                    <div class="subscription-item">
+                        <span class="subscription-label">当前计划</span>
+                        <span class="subscription-value">免费版</span>
+                    </div>
+                    <div class="subscription-item">
+                        <span class="subscription-label">AI配额</span>
+                        <span class="subscription-value">每月 ${data.free_quota || 10} 次</span>
+                    </div>
+                `;
+                return;
+            }
+
+            const sub = data.subscription;
+            const plan = data.plan;
+            
+            container.innerHTML = `
+                <h3>✨ ${plan.name}</h3>
+                <div class="subscription-item">
+                    <span class="subscription-label">订阅状态</span>
+                    <span class="subscription-value">${getStatusText(sub.status)}</span>
+                </div>
+                <div class="subscription-item">
+                    <span class="subscription-label">AI配额</span>
+                    <span class="subscription-value">每月 ${plan.max_ai_requests} 次</span>
+                </div>
+                <div class="subscription-item">
+                    <span class="subscription-label">到期时间</span>
+                    <span class="subscription-value">${formatDate(sub.expires_at)}</span>
+                </div>
+                <div class="subscription-item">
+                    <span class="subscription-label">自动续费</span>
+                    <span class="subscription-value">${sub.auto_renew ? '已开启' : '已关闭'}</span>
+                </div>
+            `;
+        }
+
+        // 加载订阅计划
+        async function loadSubscriptionPlans() {
+            try {
+                const response = await fetch(`${API_BASE}/api/subscription/plans`);
+                
+                if (!response.ok) {
+                    throw new Error('获取订阅计划失败');
+                }
+                
+                const plans = await response.json();
+                displaySubscriptionPlans(plans);
+            } catch (error) {
+                console.error('加载订阅计划失败:', error);
+                document.getElementById('subscriptionPlans').innerHTML = 
+                    '<div style="text-align:center;color:#999;">❌ 加载失败，请检查网络连接</div>';
+            }
+        }
+
+        // 显示订阅计划
+        function displaySubscriptionPlans(plans) {
+            const container = document.getElementById('subscriptionPlans');
+            
+            if (!plans || plans.length === 0) {
+                container.innerHTML = '<div style="text-align:center;color:#999;">暂无可用的订阅计划</div>';
+                return;
+            }
+
+            const html = plans.map((plan, index) => `
+                <div class="plan-card ${index === 1 ? 'popular' : ''}" onclick="selectPlan(${plan.id})">
+                    <div class="plan-name">${plan.name}</div>
+                    <div class="plan-price">
+                        <span class="currency">¥</span>${plan.price}
+                    </div>
+                    <div class="plan-period">/${getBillingCycleText(plan.billing_cycle)}</div>
+                    <ul class="plan-features">
+                        <li>AI配额: ${plan.max_ai_requests} 次/月</li>
+                        <li>优先客服支持</li>
+                        <li>高级功能访问</li>
+                        ${plan.billing_cycle === 'yearly' ? '<li>年付享8折优惠</li>' : ''}
+                    </ul>
+                    <button class="btn ${index === 1 ? 'btn-success' : 'btn-primary'}">
+                        选择此计划
+                    </button>
+                </div>
+            `).join('');
+            
+            container.innerHTML = html;
+        }
+
+        // 加载使用统计
+        async function loadUsageStats() {
+            try {
+                const response = await fetch(`${API_BASE}/api/subscription/usage`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('获取使用统计失败');
+                }
+                
+                const data = await response.json();
+                displayUsageStats(data);
+            } catch (error) {
+                console.error('加载使用统计失败:', error);
+            }
+        }
+
+        // 显示使用统计
+        function displayUsageStats(data) {
+            document.getElementById('aiQuotaUsed').textContent = data.ai_quota_used || 0;
+            document.getElementById('aiQuotaRemaining').textContent = data.ai_quota_remaining || 0;
+            document.getElementById('subscriptionDays').textContent = data.subscription_days_remaining || 0;
+            
+            const usagePercent = data.ai_quota_total > 0 ? 
+                (data.ai_quota_used / data.ai_quota_total * 100) : 0;
+            document.getElementById('aiQuotaProgress').style.width = `${Math.min(usagePercent, 100)}%`;
+        }
+
+        // 选择订阅计划
+        async function selectPlan(planId) {
+            try {
+                const response = await fetch(`${API_BASE}/api/subscription/plans/${planId}`);
+                
+                if (!response.ok) {
+                    throw new Error('获取计划详情失败');
+                }
+                
+                selectedPlan = await response.json();
+                showPaymentModal();
+            } catch (error) {
+                console.error('选择计划失败:', error);
+                showAlert('选择计划失败: ' + error.message, 'error');
+            }
+        }
+
+        // 显示支付模态框
+        function showPaymentModal() {
+            if (!selectedPlan) return;
+            
+            document.getElementById('selectedPlanInfo').innerHTML = `
+                <h3>${selectedPlan.name}</h3>
+                <p>价格: ¥${selectedPlan.price} / ${getBillingCycleText(selectedPlan.billing_cycle)}</p>
+                <p>AI配额: ${selectedPlan.max_ai_requests} 次/月</p>
+            `;
+            
+            document.getElementById('paymentModal').style.display = 'block';
+        }
+
+        // 关闭支付模态框
+        function closePaymentModal() {
+            document.getElementById('paymentModal').style.display = 'none';
+            selectedPlan = null;
+            selectedPaymentMethod = null;
+            
+            // 重置支付方式选择
+            document.querySelectorAll('.payment-method').forEach(el => {
+                el.classList.remove('selected');
+            });
+            
+            // 隐藏银行卡表单
+            document.getElementById('cardPaymentForm').style.display = 'none';
+        }
+
+        // 选择支付方式
+        function selectPaymentMethod(method) {
+            selectedPaymentMethod = method;
+            
+            // 更新UI
+            document.querySelectorAll('.payment-method').forEach(el => {
+                el.classList.remove('selected');
+            });
+            document.querySelector(`[data-method="${method}"]`).classList.add('selected');
+            
+            // 显示/隐藏银行卡表单
+            document.getElementById('cardPaymentForm').style.display = 
+                method === 'card' ? 'block' : 'none';
+        }
+
+        // 处理支付
+        async function processPayment() {
+            if (!selectedPlan || !selectedPaymentMethod) {
+                showAlert('请选择计划和支付方式', 'error');
+                return;
+            }
+
+            const paymentBtn = document.getElementById('paymentBtn');
+            paymentBtn.disabled = true;
+            paymentBtn.innerHTML = '<div class="loading"></div> 处理中...';
+
+            try {
+                const paymentData = {
+                    plan_id: selectedPlan.id,
+                    payment_method: selectedPaymentMethod
+                };
+
+                // 如果是银行卡支付，添加卡片信息
+                if (selectedPaymentMethod === 'card') {
+                    paymentData.card_info = {
+                        number: document.getElementById('cardNumber').value,
+                        expiry: document.getElementById('expiryDate').value,
+                        cvv: document.getElementById('cvv').value,
+                        name: document.getElementById('cardName').value
+                    };
+                }
+
+                const response = await fetch(`${API_BASE}/api/payment/create`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify(paymentData)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showAlert('✓ 支付成功！订阅已激活', 'success');
+                    closePaymentModal();
+                    // 重新加载页面数据
+                    setTimeout(() => {
+                        loadCurrentSubscription();
+                        loadUsageStats();
+                    }, 1000);
+                } else {
+                    throw new Error(result.message || '支付失败');
+                }
+            } catch (error) {
+                console.error('支付失败:', error);
+                showAlert('✗ 支付失败: ' + error.message, 'error');
+            } finally {
+                paymentBtn.disabled = false;
+                paymentBtn.innerHTML = '确认支付';
+            }
+        }
+
+        // 工具函数
+        function getStatusText(status) {
+            const statusMap = {
+                'active': '✅ 活跃',
+                'expired': '❌ 已过期',
+                'cancelled': '🚫 已取消',
+                'pending': '⏳ 待激活'
+            };
+            return statusMap[status] || status;
+        }
+
+        function getBillingCycleText(cycle) {
+            const cycleMap = {
+                'monthly': '月',
+                'yearly': '年',
+                'weekly': '周'
+            };
+            return cycleMap[cycle] || cycle;
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            return new Date(dateString).toLocaleDateString('zh-CN');
+        }
+
+        function showAlert(message, type) {
+            const alertDiv = document.getElementById('alert');
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.textContent = message;
+            alertDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                alertDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        // 格式化银行卡号输入
+        document.addEventListener('DOMContentLoaded', function() {
+            const cardNumberInput = document.getElementById('cardNumber');
+            if (cardNumberInput) {
+                cardNumberInput.addEventListener('input', function(e) {
+                    let value = e.target.value.replace(/\s/g, '').replace(/[^0-9]/gi, '');
+                    let formattedValue = value.match(/.{1,4}/g)?.join(' ') || value;
+                    e.target.value = formattedValue;
+                });
+            }
+
+            const expiryInput = document.getElementById('expiryDate');
+            if (expiryInput) {
+                expiryInput.addEventListener('input', function(e) {
+                    let value = e.target.value.replace(/\D/g, '');
+                    if (value.length >= 2) {
+                        value = value.substring(0, 2) + '/' + value.substring(2, 4);
+                    }
+                    e.target.value = value;
+                });
+            }
+        });
+
+        // 点击模态框外部关闭
+        window.onclick = function(event) {
+            const modal = document.getElementById('paymentModal');
+            if (event.target === modal) {
+                closePaymentModal();
+            }
+        }
+    </script>
+</body>
+</html>

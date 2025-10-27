@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from collections import defaultdict
 import threading
+from decimal import Decimal, ROUND_HALF_UP
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +157,23 @@ class ModelPricing:
         },
     }
     
+    # 兼容别名（带后缀的版本号、长上下文等）
+    ALIAS_MAP = {
+        "qwen-max-longcontext": "qwen-max",
+        "qwen-plus-longcontext": "qwen-plus",
+        "qwen-turbo-longcontext": "qwen-turbo",
+        "gpt-4o": "gpt-4o",
+        "gpt-4o-mini": "gpt-4o-mini",
+        "gpt-4o-mini-preview": "gpt-4o-mini",
+        "gpt-4o-mini-latest": "gpt-4o-mini",
+        "gpt-4o-mini-2024-07-18": "gpt-4o-mini",
+        "gpt-4o-2024-08-06": "gpt-4o",
+        "gpt-4-1106-preview": "gpt-4-turbo",
+        "gpt-4-turbo-preview": "gpt-4-turbo",
+        "gpt-4.1-mini": "gpt-4o-mini",
+        "glm-4-plus": "glm-4",
+    }
+    
     # 合并所有定价
     ALL_PRICING = {
         **QWEN_PRICING,
@@ -166,28 +184,86 @@ class ModelPricing:
     }
     
     @classmethod
-    def calculate_cost(cls, model: str, input_tokens: int, output_tokens: int) -> float:
-        """计算单次调用费用"""
-        pricing = cls.ALL_PRICING.get(model)
-        if not pricing:
-            # 未知模型，使用 Qwen-Plus 价格作为默认
-            logger.warning(f"未知模型 {model}，使用默认定价")
-            pricing = cls.QWEN_PRICING["qwen-plus"]
+    def _normalize_model_name(cls, model: Optional[str]) -> Optional[str]:
+        if not model:
+            return None
+        return model.strip().lower()
+    
+    @classmethod
+    def _resolve_pricing(cls, model: Optional[str]) -> Optional[Dict[str, Any]]:
+        """根据模型名称解析定价，兼容带版本号/别名的写法"""
+        normalized = cls._normalize_model_name(model)
+        if not normalized:
+            return None
         
-        input_cost = (input_tokens / 1000) * pricing["input"]
-        output_cost = (output_tokens / 1000) * pricing["output"]
-        return round(input_cost + output_cost, 6)
+        # 直接匹配
+        if normalized in cls.ALL_PRICING:
+            return cls.ALL_PRICING[normalized]
+        
+        # 别名映射
+        alias_target = cls.ALIAS_MAP.get(normalized)
+        if alias_target and alias_target in cls.ALL_PRICING:
+            return cls.ALL_PRICING[alias_target]
+        
+        # 去掉常见的版本号或后缀（"-2024-07-18"、":latest" 等）
+        separators = ["@", ":", "#", "?"]
+        candidate = normalized
+        for sep in separators:
+            if sep in candidate:
+                candidate = candidate.split(sep, 1)[0]
+                if candidate in cls.ALL_PRICING:
+                    return cls.ALL_PRICING[candidate]
+                alias_target = cls.ALIAS_MAP.get(candidate)
+                if alias_target and alias_target in cls.ALL_PRICING:
+                    return cls.ALL_PRICING[alias_target]
+        
+        # 逐步截短 "-" 后的后缀
+        candidate = normalized
+        while "-" in candidate:
+            candidate = candidate.rsplit("-", 1)[0]
+            if candidate in cls.ALL_PRICING:
+                return cls.ALL_PRICING[candidate]
+            alias_target = cls.ALIAS_MAP.get(candidate)
+            if alias_target and alias_target in cls.ALL_PRICING:
+                return cls.ALL_PRICING[alias_target]
+        
+        return None
+    
+    @classmethod
+    def calculate_cost(
+        cls,
+        model: Optional[str],
+        input_tokens: int,
+        output_tokens: int
+    ) -> float:
+        """计算单次调用费用。如果没有匹配定价则返回 0."""
+        from decimal import Decimal, ROUND_HALF_UP
+        
+        pricing = cls._resolve_pricing(model)
+        if not pricing:
+            logger.debug("未找到模型 %s 对应的定价，费用按 0 计入", model)
+            return 0.0
+        
+        input_tokens = max(0, int(input_tokens or 0))
+        output_tokens = max(0, int(output_tokens or 0))
+        
+        input_cost = Decimal(input_tokens) * Decimal(str(pricing["input"])) / Decimal(1000)
+        output_cost = Decimal(output_tokens) * Decimal(str(pricing["output"])) / Decimal(1000)
+        total = (input_cost + output_cost).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+        return float(total)
     
     @classmethod
     def get_model_display_name(cls, model: str) -> str:
         """获取模型显示名称"""
-        pricing = cls.ALL_PRICING.get(model)
-        return pricing["display_name"] if pricing else model
+        pricing = cls._resolve_pricing(model)
+        if pricing:
+            return pricing.get("display_name", model)
+        return model
     
     @classmethod
     def get_pricing(cls, model: str) -> Optional[Dict[str, Any]]:
         """获取模型定价信息"""
-        return cls.ALL_PRICING.get(model)
+        return cls._resolve_pricing(model)
 
 
 class AIUsageMonitor:
@@ -224,11 +300,14 @@ class AIUsageMonitor:
     
     def record_usage(
         self,
-        model: str,
+        model: Optional[str],
         function: str,
         input_tokens: int,
         output_tokens: int,
         duration_ms: float,
+        *,
+        cost: Optional[float] = None,
+        total_tokens: Optional[int] = None,
         success: bool = True,
         user_id: Optional[str] = None,
         anchor_id: Optional[str] = None,
@@ -253,8 +332,24 @@ class AIUsageMonitor:
         Returns:
             UsageRecord: 使用记录
         """
-        total_tokens = input_tokens + output_tokens
-        cost = ModelPricing.calculate_cost(model, input_tokens, output_tokens)
+        sanitized_input = max(0, int(input_tokens or 0))
+        sanitized_output = max(0, int(output_tokens or 0))
+        calculated_total = sanitized_input + sanitized_output
+        total_tokens = (
+            max(int(total_tokens), calculated_total)
+            if total_tokens is not None
+            else calculated_total
+        )
+        
+        if cost is None:
+            cost_value = ModelPricing.calculate_cost(model, sanitized_input, sanitized_output)
+        else:
+            cost_value = float(cost)
+            if cost_value < 0:
+                cost_value = 0.0
+        
+        cost_decimal = Decimal(str(cost_value)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+        cost_value = float(cost_decimal)
         
         record = UsageRecord(
             timestamp=time.time(),
@@ -263,10 +358,10 @@ class AIUsageMonitor:
             session_id=session_id,
             model=model,
             function=function,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
+            input_tokens=sanitized_input,
+            output_tokens=sanitized_output,
             total_tokens=total_tokens,
-            cost=cost,
+            cost=cost_value,
             duration_ms=duration_ms,
             success=success,
             error_msg=error_msg
@@ -283,15 +378,15 @@ class AIUsageMonitor:
                 stats = self._session_stats[session_id]
                 stats["calls"] += 1
                 stats["tokens"] += total_tokens
-                stats["cost"] += cost
+                stats["cost"] += cost_value
             
             # 持久化到文件
             self._save_record(record)
         
         logger.info(
             f"AI 调用记录: {function}({model}) | "
-            f"Tokens: {input_tokens}+{output_tokens}={total_tokens} | "
-            f"Cost: ¥{cost:.4f} | "
+            f"Tokens: {sanitized_input}+{sanitized_output}={total_tokens} | "
+            f"Cost: ¥{cost_value:.4f} | "
             f"Duration: {duration_ms:.0f}ms"
         )
         
@@ -434,7 +529,7 @@ class AIUsageMonitor:
             "input_tokens": 0,
             "output_tokens": 0,
             "total_tokens": 0,
-            "cost": 0.0
+            "cost": 0.0,
         })
         for r in records:
             stats = by_model[r.model]
@@ -447,40 +542,64 @@ class AIUsageMonitor:
         # 按功能统计
         by_function = defaultdict(lambda: {
             "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
             "total_tokens": 0,
-            "cost": 0.0
+            "cost": 0.0,
         })
         for r in records:
             stats = by_function[r.function]
             stats["calls"] += 1
+            stats["input_tokens"] += r.input_tokens
+            stats["output_tokens"] += r.output_tokens
             stats["total_tokens"] += r.total_tokens
             stats["cost"] += r.cost
         
         # 按用户统计
         by_user = defaultdict(lambda: {
             "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
             "total_tokens": 0,
-            "cost": 0.0
+            "cost": 0.0,
         })
         for r in records:
             if r.user_id:
                 stats = by_user[r.user_id]
                 stats["calls"] += 1
+                stats["input_tokens"] += r.input_tokens
+                stats["output_tokens"] += r.output_tokens
                 stats["total_tokens"] += r.total_tokens
                 stats["cost"] += r.cost
         
         # 按主播统计
         by_anchor = defaultdict(lambda: {
             "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
             "total_tokens": 0,
-            "cost": 0.0
+            "cost": 0.0,
         })
         for r in records:
             if r.anchor_id:
                 stats = by_anchor[r.anchor_id]
                 stats["calls"] += 1
+                stats["input_tokens"] += r.input_tokens
+                stats["output_tokens"] += r.output_tokens
                 stats["total_tokens"] += r.total_tokens
                 stats["cost"] += r.cost
+        
+        def finalize_cost(value: float, digits: str = "0.000001") -> float:
+            return float(Decimal(str(value)).quantize(Decimal(digits), rounding=ROUND_HALF_UP))
+        
+        def finalize_group(group: Dict[str, Dict[str, Any]], include_display: bool = False) -> Dict[str, Dict[str, Any]]:
+            result: Dict[str, Dict[str, Any]] = {}
+            for key, stats in group.items():
+                stats["cost"] = finalize_cost(stats["cost"])
+                if include_display:
+                    stats["display_name"] = ModelPricing.get_model_display_name(key)
+                result[key] = stats
+            return result
         
         return UsageSummary(
             period=period,
@@ -492,11 +611,11 @@ class AIUsageMonitor:
             total_input_tokens=total_input_tokens,
             total_output_tokens=total_output_tokens,
             total_tokens=total_tokens,
-            total_cost=round(total_cost, 2),
-            by_model=dict(by_model),
-            by_function=dict(by_function),
-            by_user=dict(by_user),
-            by_anchor=dict(by_anchor)
+            total_cost=float(Decimal(str(total_cost)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            by_model=finalize_group(by_model, include_display=True),
+            by_function=finalize_group(by_function),
+            by_user=finalize_group(by_user),
+            by_anchor=finalize_group(by_anchor),
         )
     
     def _save_record(self, record: UsageRecord):

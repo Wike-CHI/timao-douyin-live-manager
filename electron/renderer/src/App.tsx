@@ -4,14 +4,14 @@ import PaymentLayout from './layout/PaymentLayout';
 import MainLayout from './layout/MainLayout';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
-import PaymentVerifyPage from './pages/payment/PaymentVerifyPage';
+import SubscriptionPage from './pages/payment/SubscriptionPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import AboutPage from './pages/about/AboutPage';
 import LiveConsolePage from './pages/dashboard/LiveConsolePage';
 import ReportsPage from './pages/dashboard/ReportsPage';
 import ToolsPage from './pages/settings/ToolsPage';
 import useAuthGuard from './hooks/useAuthGuard';
-import WalletPage from '@/pages/payment/WalletPage';
+
 
 const App = () => {
   const { requireAuth, requirePayment, isAuthenticated } = useAuthGuard();
@@ -34,9 +34,8 @@ const App = () => {
           path="/pay"
           element={requireAuth(<PaymentLayout />)}
         >
-          <Route index element={<Navigate to="wallet" replace />} />
-          <Route path="verify" element={<PaymentVerifyPage />} />
-          <Route path="wallet" element={<WalletPage />} />
+          <Route index element={<Navigate to="subscription" replace />} />
+          <Route path="subscription" element={<SubscriptionPage />} />
         </Route>
 
         <Route

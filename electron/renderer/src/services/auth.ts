@@ -1,4 +1,4 @@
-import { mockLogin, mockPaymentPoll, mockPaymentUpload, mockRegister, mockGetWallet, mockRecharge, mockConsume, mockUseFirstFree } from './mockAuth';
+import { mockLogin, mockPaymentPoll, mockPaymentUpload, mockRegister, mockUseFirstFree } from './mockAuth';
 import useAuthStore from '../store/useAuthStore';
 
 const RAW_AUTH_BASE_URL = (import.meta.env?.VITE_AUTH_BASE_URL as string | undefined)?.trim();
@@ -96,60 +96,12 @@ export const pollPayment = async () => {
   return resp.json();
 };
 
-// 钱包相关 API
-export const getWallet = async () => {
-  if (isMock) return mockGetWallet();
-  const { token } = useAuthStore.getState();
-  const headers: Record<string, string> = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
-  const resp = await fetch(joinUrl('/api/wallet/balance'), { method: 'GET', headers });
-  if (!resp.ok) {
-    const txt = await resp.text().catch(() => '查询钱包失败');
-    throw new Error(txt || '查询钱包失败');
-  }
-  return resp.json();
-};
-
-export const recharge = async (amount: number) => {
-  if (isMock) return mockRecharge(amount);
-  const { token } = useAuthStore.getState();
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  const resp = await fetch(joinUrl('/api/wallet/recharge'), {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ amount }),
-  });
-  if (!resp.ok) {
-    const txt = await resp.text().catch(() => '充值失败');
-    throw new Error(txt || '充值失败');
-  }
-  return resp.json();
-};
-
-export const consume = async (amount: number, reason?: string) => {
-  if (isMock) return mockConsume(amount);
-  const { token } = useAuthStore.getState();
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  const resp = await fetch(joinUrl('/api/wallet/consume'), {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ amount, reason }),
-  });
-  if (!resp.ok) {
-    const txt = await resp.text().catch(() => '扣费失败');
-    throw new Error(txt || '扣费失败');
-  }
-  return resp.json();
-};
-
 export const useFirstFree = async () => {
   if (isMock) return mockUseFirstFree();
   const { token } = useAuthStore.getState();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const resp = await fetch(joinUrl('/api/wallet/useFree'), {
+  const resp = await fetch(joinUrl('/api/auth/useFree'), {
     method: 'POST',
     headers,
     body: JSON.stringify({}),

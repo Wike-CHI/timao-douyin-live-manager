@@ -1,23 +1,26 @@
-import { ReactElement } from 'react';
 import { Navigate } from 'react-router-dom';
-import useAuthStore from '../store/useAuthStore';
+import { useAuthStore } from '../store/useAuthStore';
 
 const useAuthGuard = () => {
-  const { isAuthenticated, balance, firstFreeUsed } = useAuthStore();
+  const { isAuthenticated, firstFreeUsed } = useAuthStore();
 
-  const requireAuth = (element: ReactElement) =>
-    isAuthenticated ? element : <Navigate to="/auth/login" replace />;
-
-  const requirePayment = (element: ReactElement) => {
+  const requireAuth = (component: React.ReactElement) => {
     if (!isAuthenticated) {
       return <Navigate to="/auth/login" replace />;
     }
-    // 钱包策略：余额>0 或 仍可享受首次免费（firstFreeUsed=false）即可进入主应用
-    const canEnter = (balance ?? 0) > 0 || !firstFreeUsed;
-    if (!canEnter) {
-      return <Navigate to="/pay/wallet" replace />;
+    return component;
+  };
+
+  const requirePayment = (component: React.ReactElement) => {
+    if (!isAuthenticated) {
+      return <Navigate to="/auth/login" replace />;
     }
-    return element;
+    // 积分策略：如果仍可享受首次免费（firstFreeUsed=false）即可进入主应用
+    const canEnter = !firstFreeUsed;
+    if (!canEnter) {
+      return <Navigate to="/pay/subscription" replace />;
+    }
+    return component;
   };
 
   return { requireAuth, requirePayment, isAuthenticated };

@@ -74,7 +74,7 @@ const LiveConsolePage = () => {
   const [maxSpeakers, setMaxSpeakers] = useState<number>(2);
   const [lastSpeaker, setLastSpeaker] = useState<string>('unknown');
   const navigate = useNavigate();
-  const { balance, firstFreeUsed, setFirstFreeUsed } = useAuthStore();
+  const { firstFreeUsed, setFirstFreeUsed } = useAuthStore();
 
   const isRunning = status?.is_running ?? false;
   const generatingRef = useRef(false);
@@ -207,24 +207,22 @@ const LiveConsolePage = () => {
     setLoading(true);
     setError(null);
     try {
-      // 余额校验
-      const currentBalance = Number(balance ?? 0);
-      if (currentBalance <= 0) {
-        if (!firstFreeUsed) {
-          const res = await useFirstFreeApi();
-          if (res?.success) {
-            setFirstFreeUsed(true);
-          } else {
-            setError(res?.message || '首次免费使用失败');
-            setLoading(false);
-            return;
-          }
-        } else {
-          setError('余额不足，请先前往充值或购买套餐');
-          navigate('/pay/wallet');
-          setLoading(false);
-          return;
-        }
+      // 检查首次免费使用权限
+      if (firstFreeUsed) {
+        setError('首次免费已使用，请选择订阅套餐');
+        navigate('/pay/subscription');
+        setLoading(false);
+        return;
+      }
+      
+      // 使用首次免费权限
+      const res = await useFirstFreeApi();
+      if (res?.success) {
+        setFirstFreeUsed(true);
+      } else {
+        setError(res?.message || '首次免费使用失败');
+        setLoading(false);
+        return;
       }
 
       const input = liveInput.trim();

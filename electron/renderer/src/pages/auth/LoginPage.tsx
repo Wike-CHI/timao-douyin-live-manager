@@ -6,9 +6,7 @@ import TermsModal from '../../components/TermsModal';
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const setAuth = useAuthStore((state) => state.setAuth);
-  const setBalance = useAuthStore((state) => state.setBalance);
-  const setFirstFreeUsed = useAuthStore((state) => state.setFirstFreeUsed);
+  const { setAuth, setFirstFreeUsed } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,16 +21,22 @@ const LoginPage = () => {
     try {
       const response = await login({ email, password });
       if (response.success) {
-        setAuth({ user: response.user, token: response.token, isPaid: response.isPaid });
-        // 写入钱包状态
-        if (typeof response.balance === 'number') {
-          setBalance(response.balance);
-        }
+        // 写入认证状态
+        setAuth({
+          user: response.user,
+          token: response.token,
+          isPaid: response.isPaid,
+          firstFreeUsed: response.firstFreeUsed
+        });
+
+        // 写入首次免费使用状态
         if (typeof response.firstFreeUsed === 'boolean') {
           setFirstFreeUsed(response.firstFreeUsed);
         }
-        const canEnter = (response.balance ?? 0) > 0 || !response.firstFreeUsed;
-        navigate(canEnter ? '/dashboard' : '/pay/wallet');
+
+        // 根据订阅状态决定跳转
+        const canEnter = !response.firstFreeUsed;
+        navigate(canEnter ? '/dashboard' : '/pay/subscription');
       }
     } catch (err) {
       setError((err as Error).message);

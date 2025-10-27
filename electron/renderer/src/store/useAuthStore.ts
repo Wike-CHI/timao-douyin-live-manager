@@ -12,14 +12,12 @@ interface AuthState {
   token: string | null;
   isPaid: boolean;
   isAuthenticated: boolean;
-  // 钱包相关
-  balance: number;
+  // 首次免费使用状态
   firstFreeUsed: boolean;
-  setAuth: (payload: { user: UserInfo; token: string; isPaid?: boolean; balance?: number; firstFreeUsed?: boolean }) => void;
+  setAuth: (payload: { user: UserInfo; token: string; isPaid?: boolean; firstFreeUsed?: boolean }) => void;
   clearAuth: () => void;
   logout: () => void;
   setPaid: (value: boolean) => void;
-  setBalance: (value: number) => void;
   setFirstFreeUsed: (value: boolean) => void;
 }
 
@@ -30,16 +28,14 @@ const useAuthStore = create<AuthState>()(
       token: null,
       isPaid: false,
       isAuthenticated: false,
-      balance: 0,
       firstFreeUsed: false,
-      setAuth: ({ user, token, isPaid = false, balance = 0, firstFreeUsed = false }) =>
-        set({ user, token, isPaid, isAuthenticated: true, balance, firstFreeUsed }),
+      setAuth: ({ user, token, isPaid = false, firstFreeUsed = false }) =>
+        set({ user, token, isPaid, isAuthenticated: true, firstFreeUsed }),
       clearAuth: () =>
-        set({ user: null, token: null, isPaid: false, isAuthenticated: false, balance: 0, firstFreeUsed: false }),
+        set({ user: null, token: null, isPaid: false, isAuthenticated: false, firstFreeUsed: false }),
       logout: () =>
-        set({ user: null, token: null, isPaid: false, isAuthenticated: false, balance: 0, firstFreeUsed: false }),
+        set({ user: null, token: null, isPaid: false, isAuthenticated: false, firstFreeUsed: false }),
       setPaid: (value: boolean) => set({ isPaid: value }),
-      setBalance: (value: number) => set({ balance: value }),
       setFirstFreeUsed: (value: boolean) => set({ firstFreeUsed: value }),
     }),
     {
@@ -49,7 +45,6 @@ const useAuthStore = create<AuthState>()(
         token: state.token,
         isPaid: state.isPaid,
         isAuthenticated: state.isAuthenticated,
-        balance: state.balance,
         firstFreeUsed: state.firstFreeUsed,
       }),
     }

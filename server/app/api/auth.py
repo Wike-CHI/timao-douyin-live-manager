@@ -97,7 +97,6 @@ class LoginResponse(BaseModel):
     expires_in: int = 86400  # 24小时
     user: UserResponse
     isPaid: bool = False
-    balance: float = 0.0
     firstFreeUsed: bool = False
 
 
@@ -232,10 +231,9 @@ async def login_user(
         # 获取用户订阅状态
         subscription_info = SubscriptionService.get_user_subscription_info(user.id)
         
-        # 计算用户支付状态和余额
+        # 计算用户支付状态
         has_subscription = subscription_info.get("has_subscription", False)
         is_paid = has_subscription
-        balance = 100.0 if has_subscription else 0.0  # 简化逻辑：有订阅则余额100，否则为0
         first_free_used = user.ai_quota_used > 0  # 如果已使用AI配额，则认为首次免费已使用
         
         return LoginResponse(
@@ -244,7 +242,6 @@ async def login_user(
             access_token=session.session_token,
             refresh_token=session.refresh_token,
             isPaid=is_paid,
-            balance=balance,
             firstFreeUsed=first_free_used,
             user=UserResponse(
                 id=user.id,
@@ -432,6 +429,47 @@ async def verify_email(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="邮箱验证失败"
+        )
+
+
+@router.post("/useFree")
+async def use_first_free(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db_session)
+):
+    """使用首次免费额度"""
+    try:
+        user_id = current_user["user_id"]
+        user = UserService.get_user_by_id(user_id)
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="用户不存在"
+            )
+        
+        # 检查是否已使用首次免费
+        if user.ai_quota_used > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="首次免费额度已使用"
+            )
+        
+        # 标记首次免费已使用
+        UserService.increment_ai_quota_used(user_id, 1)
+        
+        return {
+            "success": True,
+            "message": "首次免费额度使用成功",
+            "firstFreeUsed": True
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="使用首次免费额度失败"
         )
 
 
