@@ -164,6 +164,9 @@ class DatabaseConfig:
     backup_interval: int = 3600  # 1小时
     backup_keep_days: int = 7
 
+    # 自动建库配置
+    mysql_auto_create_db: bool = True
+
 
 @dataclass
 class SecurityConfig:

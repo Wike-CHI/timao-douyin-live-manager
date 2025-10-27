@@ -9,11 +9,11 @@ import os
 import ssl
 import sys
 
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-import asyncio
 from dotenv import load_dotenv
 
 # 确保项目根目录在 Python 路径中，以便正确导入 DouyinLiveWebFetcher 等模块
@@ -21,11 +21,24 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+def _load_env_once() -> None:
+    """Load .env from project root regardless of working directory."""
+    try:
+        root_env = Path(__file__).resolve().parents[2] / ".env"
+        if root_env.exists():
+            load_dotenv(dotenv_path=root_env, override=False)
+        else:
+            load_dotenv(override=False)
+    except Exception:
+        load_dotenv(override=False)
+
+# 预先加载环境变量，确保在配置模块导入前生效
+_load_env_once()
+
 from server.app.database import DatabaseManager
 from server.app.models import Base
 from server.utils.ai_defaults import ensure_default_ai_env
 from server.config import config_manager
-
 
 def _disable_ssl_verify_if_requested() -> None:
     """Opt-in dev helper to skip SSL certificate verification."""
@@ -39,19 +52,6 @@ def _disable_ssl_verify_if_requested() -> None:
     except Exception:
         pass
 
-def _load_env_once() -> None:
-    """Load .env from project root regardless of working directory."""
-    try:
-        root_env = Path(__file__).resolve().parents[2] / ".env"
-        if root_env.exists():
-            load_dotenv(dotenv_path=root_env, override=False)
-        else:
-            load_dotenv(override=False)
-    except Exception:
-        load_dotenv(override=False)
-
-# 预先加载环境变量，确保下游模块（Qwen 等）能读取 .env
-_load_env_once()
 ensure_default_ai_env()
 _disable_ssl_verify_if_requested()
 
