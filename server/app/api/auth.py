@@ -122,6 +122,7 @@ class EmailVerifyRequest(BaseModel):
     token: str
 
 
+python
 # 依赖注入：获取当前用户
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -130,16 +131,26 @@ async def get_current_user(
     """获取当前认证用户"""
     try:
         token = credentials.credentials
+        print(f"[DEBUG] 收到token: {token[:50]}...")
         
         # 首先尝试JWT token验证
         from server.app.core.security import JWTManager
         try:
+            print("[DEBUG] 开始JWT token验证...")
             payload = JWTManager.verify_token(token, "access")
+            print(f"[DEBUG] JWT payload: {payload}")
+            
             user_id = payload.get("sub")
+            print(f"[DEBUG] 从JWT获取user_id: {user_id} (类型: {type(user_id)})")
+            
             if user_id:
                 # 从数据库获取用户信息，确保user_id是整数类型
+                print(f"[DEBUG] 正在查询用户ID: {int(user_id)}")
                 user = UserService.get_user_by_id(int(user_id))
+                print(f"[DEBUG] 查询到用户: {user.username if user else 'None'}")
+                
                 if user and user.status not in [UserStatusEnum.BANNED, UserStatusEnum.SUSPENDED]:
+                    print("[DEBUG] JWT验证成功，返回用户信息")
                     return {
                         "id": user.id,
                         "user_id": user.id,  # 添加 user_id 字段以兼容 useFree 接口
@@ -148,10 +159,19 @@ async def get_current_user(
                         "role": user.role.value,
                         "status": user.status.value
                     }
-        except:
+                else:
+                    print(f"[DEBUG] 用户状态无效或被禁用: {user.status if user else 'None'}")
+            else:
+                print("[DEBUG] JWT payload中没有找到sub字段")
+                
+        except Exception as jwt_error:
             # JWT验证失败，尝试session token验证（向后兼容）
+            print(f"[DEBUG] JWT验证失败: {str(jwt_error)}")
+            print("[DEBUG] 尝试session token验证...")
+            
             user = UserService.validate_session(token)
             if user:
+                print("[DEBUG] Session token验证成功")
                 return {
                     "id": user.id,
                     "user_id": user.id,  # 添加 user_id 字段以兼容 useFree 接口
@@ -160,7 +180,10 @@ async def get_current_user(
                     "role": user.role.value,
                     "status": user.status.value
                 }
+            else:
+                print("[DEBUG] Session token验证也失败")
         
+        print("[DEBUG] 所有验证方式都失败，抛出401错误")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="无效的认证令牌",
@@ -170,6 +193,7 @@ async def get_current_user(
     except HTTPException:
         raise
     except Exception as e:
+        print(f"[DEBUG] 认证过程中发生异常: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="认证失败",
