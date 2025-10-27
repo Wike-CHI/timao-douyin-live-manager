@@ -50,6 +50,7 @@ def track_ai_usage(
             result = None
             input_tokens = 0
             output_tokens = 0
+            total_tokens = 0
             model = model_name
             
             try:
@@ -57,12 +58,21 @@ def track_ai_usage(
                 
                 # 尝试从结果中提取 Token 信息
                 if extract_tokens:
-                    input_tokens, output_tokens = extract_tokens(result)
+                    extracted = extract_tokens(result)
+                    if isinstance(extracted, tuple):
+                        if len(extracted) == 2:
+                            input_tokens, output_tokens = extracted
+                        elif len(extracted) >= 3:
+                            input_tokens, output_tokens, total_tokens = extracted[:3]
                 elif hasattr(result, 'usage'):
                     # 标准 OpenAI 格式
-                    input_tokens = getattr(result.usage, 'prompt_tokens', 0)
-                    output_tokens = getattr(result.usage, 'completion_tokens', 0)
-                
+                    usage = result.usage
+                    input_tokens = getattr(usage, 'prompt_tokens', 0)
+                    output_tokens = getattr(usage, 'completion_tokens', 0)
+                    total_tokens = getattr(usage, 'total_tokens', 0) or (input_tokens + output_tokens)
+                if total_tokens == 0:
+                    total_tokens = input_tokens + output_tokens
+
                 # 尝试从结果中提取模型名称
                 if not model and hasattr(result, 'model'):
                     model = result.model
@@ -98,6 +108,7 @@ def track_ai_usage(
                         input_tokens=input_tokens,
                         output_tokens=output_tokens,
                         duration_ms=duration_ms,
+                        total_tokens=total_tokens,
                         success=success,
                         user_id=user_id,
                         anchor_id=anchor_id,
@@ -115,6 +126,7 @@ def track_ai_usage(
             result = None
             input_tokens = 0
             output_tokens = 0
+            total_tokens = 0
             model = model_name
             
             try:
@@ -122,12 +134,21 @@ def track_ai_usage(
                 
                 # 尝试从结果中提取 Token 信息
                 if extract_tokens:
-                    input_tokens, output_tokens = extract_tokens(result)
+                    extracted = extract_tokens(result)
+                    if isinstance(extracted, tuple):
+                        if len(extracted) == 2:
+                            input_tokens, output_tokens = extracted
+                        elif len(extracted) >= 3:
+                            input_tokens, output_tokens, total_tokens = extracted[:3]
                 elif hasattr(result, 'usage'):
                     # 标准 OpenAI 格式
-                    input_tokens = getattr(result.usage, 'prompt_tokens', 0)
-                    output_tokens = getattr(result.usage, 'completion_tokens', 0)
-                
+                    usage = result.usage
+                    input_tokens = getattr(usage, 'prompt_tokens', 0)
+                    output_tokens = getattr(usage, 'completion_tokens', 0)
+                    total_tokens = getattr(usage, 'total_tokens', 0) or (input_tokens + output_tokens)
+                if total_tokens == 0:
+                    total_tokens = input_tokens + output_tokens
+
                 # 尝试从结果中提取模型名称
                 if not model and hasattr(result, 'model'):
                     model = result.model
@@ -163,6 +184,7 @@ def track_ai_usage(
                         input_tokens=input_tokens,
                         output_tokens=output_tokens,
                         duration_ms=duration_ms,
+                        total_tokens=total_tokens,
                         success=success,
                         user_id=user_id,
                         anchor_id=anchor_id,

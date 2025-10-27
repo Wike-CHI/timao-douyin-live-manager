@@ -455,6 +455,7 @@ class AIGateway:
                 function=f"gateway_{provider}",
                 input_tokens=usage["prompt_tokens"],
                 output_tokens=usage["completion_tokens"],
+                total_tokens=usage.get("total_tokens"),
                 cost=cost,
                 duration_ms=duration_ms,
                 success=True,
