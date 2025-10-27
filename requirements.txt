@@ -1,13 +1,13 @@
 # 提猫直播助手 - Python依赖包
 
-# Web框架
-Flask==2.3.3
-Flask-CORS==4.0.0
-Flask-SocketIO==5.3.6
+# Web框架 - 已迁移到FastAPI
+# Flask==2.3.3  # 已废弃，迁移到FastAPI
+# Flask-CORS==4.0.0  # 已废弃，迁移到FastAPI
+# Flask-SocketIO==5.3.6  # 已废弃，迁移到FastAPI
 
-# WebSocket支持
-python-socketio==5.9.0
-python-engineio==4.7.1
+# WebSocket支持 - 保留用于其他用途
+# python-socketio==5.9.0  # 已废弃，Flask相关
+# python-engineio==4.7.1  # 已废弃，Flask相关
 websockets>=11.0.0
 websocket-client>=1.6.0
 

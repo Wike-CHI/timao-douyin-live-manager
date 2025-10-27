@@ -5,7 +5,7 @@
 
 class LiveAssistantApp {
     constructor() {
-        this.flaskUrl = '';
+        this.serviceUrl = '';
         this.eventSource = null;
         this.isConnected = false;
         this.comments = [];
@@ -32,8 +32,8 @@ class LiveAssistantApp {
             // 显示加载指示器
             this.showLoading(true);
             
-            // 获取Flask服务URL
-            this.flaskUrl = await window.electronAPI.getFlaskUrl();
+            // 获取服务URL
+            this.serviceUrl = await window.electronAPI.getServiceUrl();
             
             // 初始化UI
             this.initUI();
@@ -151,7 +151,7 @@ class LiveAssistantApp {
      */
     async checkConnection() {
         try {
-            const result = await window.electronAPI.checkFlaskHealth();
+            const result = await window.electronAPI.checkServiceHealth();
             
             if (result.success) {
                 this.isConnected = true;
@@ -211,7 +211,7 @@ class LiveAssistantApp {
             this.eventSource.close();
         }
 
-        const url = `${this.flaskUrl}/api/comments/stream`;
+        const url = `${this.serviceUrl}/api/comments/stream`;
         this.eventSource = new EventSource(url);
 
         this.eventSource.onopen = () => {
@@ -333,7 +333,7 @@ class LiveAssistantApp {
      */
     async fetchHotWords() {
         try {
-            const response = await fetch(`${this.flaskUrl}/api/analysis/hot-words?limit=${this.config.hotWordsLimit}`);
+            const response = await fetch(`${this.serviceUrl}/api/analysis/hot-words?limit=${this.config.hotWordsLimit}`);
             const result = await response.json();
             
             if (result.success) {
@@ -413,7 +413,7 @@ class LiveAssistantApp {
      */
     async fetchLatestScript() {
         try {
-            const response = await fetch(`${this.flaskUrl}/api/ai/latest-script`);
+            const response = await fetch(`${this.serviceUrl}/api/ai/latest-script`);
             const result = await response.json();
             
             if (result.success && result.data) {
@@ -442,7 +442,7 @@ class LiveAssistantApp {
             button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
             button.disabled = true;
             
-            const response = await fetch(`${this.flaskUrl}/api/ai/generate-script`, {
+            const response = await fetch(`${this.serviceUrl}/api/ai/generate-script`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -533,7 +533,7 @@ class LiveAssistantApp {
      */
     async markScriptUsed(scriptId) {
         try {
-            const response = await fetch(`${this.flaskUrl}/api/ai/mark-used`, {
+            const response = await fetch(`${this.serviceUrl}/api/ai/mark-used`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

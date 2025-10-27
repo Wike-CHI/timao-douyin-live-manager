@@ -55,9 +55,15 @@ def _disable_ssl_verify_if_requested() -> None:
 ensure_default_ai_env()
 _disable_ssl_verify_if_requested()
 
-# 配置日志
+# 配置日志 - 支持UTF-8编码以正确显示中文
+import os
+if os.name == 'nt':  # Windows系统
+    os.environ['PYTHONIOENCODING'] = 'utf-8'
+
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, 
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    encoding='utf-8'
 )
 # Reduce noisy httpx logs (e.g., HEAD 405 from CDN probes)
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -118,20 +124,15 @@ _include_router_safe("AI 网关管理", "server.app.api.ai_gateway_api")
 _include_router_safe("用户认证", "server.app.api.auth")
 _include_router_safe("订阅管理", "server.app.api.subscription")
 _include_router_safe("管理员", "server.app.api.admin")
+_include_router_safe("直播评论管理", "server.app.api.live_comments")
 
-# WebSocket 广播与管理服务（容错）
-try:
-    from server.websocket_handler import (start_websocket_services,  # type: ignore
-                                     stop_websocket_services)
-    logging.info("✅ WebSocket 服务导入成功")
-except Exception as e:
-    logging.error(f"❌ WebSocket 服务导入失败: {e}")
+# WebSocket 服务已迁移到 FastAPI 原生 WebSocket 实现
+# 原 Flask WebSocket 处理器已归档到 docs/legacy_flask_code/
+def start_websocket_services():
+    logging.info("✅ WebSocket 服务已集成到 FastAPI 路由中")
 
-    def start_websocket_services():
-        logging.warning("⚠️ start_websocket_services 未加载，跳过启动")
-
-    def stop_websocket_services():
-        logging.warning("⚠️ stop_websocket_services 未加载，跳过停止")
+def stop_websocket_services():
+    logging.info("✅ WebSocket 服务停止（由 FastAPI 管理）")
 
 
 # 静态文件服务 (前端)

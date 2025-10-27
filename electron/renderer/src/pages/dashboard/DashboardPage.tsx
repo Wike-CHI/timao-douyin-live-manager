@@ -17,10 +17,8 @@ const DashboardPage: React.FC = () => {
             <span>🎤</span>实时字幕与音频增强
           </h2>
           <ul className="mt-3 space-y-2 text-sm timao-support-text">
-            <li>输入抖音直播间链接，即刻拉起 SenseVoice 实时转写</li>
+            <li>输入抖音直播间链接，自动拉取音频流并实时转写</li>
             <li>自动增益（AGC）+ VAD 保持声音稳定，字幕可本地落盘</li>
-            <li>内置说话人分离，字幕自动标注【主播 / 嘉宾】身份</li>
-            <li>音量指示条与最近发言者提示，及时把握麦克风状态</li>
           </ul>
           <div className="mt-4 text-xs text-purple-500">入口：侧边栏「直播控制台」</div>
         </div>

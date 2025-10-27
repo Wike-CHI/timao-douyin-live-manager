@@ -1,0 +1,14 @@
+# Flask相关依赖包 (已废弃)
+# 这些依赖包用于原有的Flask应用，现已迁移到FastAPI
+
+# Web框架
+Flask==2.3.3
+Flask-CORS==4.0.0
+Flask-SocketIO==5.3.6
+
+# WebSocket支持
+python-socketio==5.9.0
+python-engineio==4.7.1
+
+# 注意：这些依赖已从主requirements.txt中移除
+# 项目现在使用FastAPI + Uvicorn架构

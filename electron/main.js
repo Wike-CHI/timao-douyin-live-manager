@@ -31,13 +31,10 @@ const rendererDevServerURL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.
 let mainWindow;
 
 // Child process for backend API (FastAPI via uvicorn)
-let apiProcess = null;
+let fastAPIProcess = null;
 const logsDir = path.join(__dirname, '..', 'logs');
 try { if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true }); } catch {}
 const uvicornLogPath = path.join(logsDir, 'uvicorn.log');
-
-// Legacy: test flask server (kept for voice_transcription.html fallback)
-let legacyFlaskProcess = null;
 
 function resolveProductionIndex() {
     const distIndex = path.join(__dirname, 'renderer', 'dist', 'index.html');
@@ -103,7 +100,7 @@ function createWindow() {
 function startFastAPI() {
     return new Promise(async (resolve, reject) => {
         try {
-            if (apiProcess) {
+            if (fastAPIProcess) {
                 return resolve({ success: true, message: 'FastAPI already running' });
             }
 
@@ -135,7 +132,7 @@ function startFastAPI() {
                 PYTHONUTF8: '1',
             };
 
-            apiProcess = spawn(
+            fastAPIProcess = spawn(
                 process.platform === 'win32' ? 'python' : 'python3',
                 ['-m', 'uvicorn', 'server.app.main:app', '--host', '127.0.0.1', '--port', '10090'],
                 {
@@ -144,24 +141,24 @@ function startFastAPI() {
                 }
             );
 
-            apiProcess.stdout.on('data', (data) => {
+            fastAPIProcess.stdout.on('data', (data) => {
                 const text = data.toString();
                 console.log(`[uvicorn] ${text}`.trim());
                 if (mainWindow) mainWindow.webContents.send('service-log', text);
                 try { fs.appendFileSync(uvicornLogPath, text); } catch {}
             });
 
-            apiProcess.stderr.on('data', (data) => {
+            fastAPIProcess.stderr.on('data', (data) => {
                 const text = data.toString();
                 console.error(`[uvicorn] ${text}`.trim());
                 if (mainWindow) mainWindow.webContents.send('service-error', text);
                 try { fs.appendFileSync(uvicornLogPath, text); } catch {}
             });
 
-            apiProcess.on('close', (code) => {
+            fastAPIProcess.on('close', (code) => {
                 console.log(`FastAPI process exited: ${code}`);
                 if (mainWindow) mainWindow.webContents.send('service-stopped', code);
-                apiProcess = null;
+                fastAPIProcess = null;
             });
 
             // Give uvicorn a brief moment to boot
@@ -208,10 +205,6 @@ app.on('window-all-closed', async function () {
     if (process.platform !== 'darwin') {
         // Stop backends
         try { await stopFastAPI(); } catch (e) {}
-        if (legacyFlaskProcess) {
-            try { legacyFlaskProcess.kill(); } catch (e) {}
-            legacyFlaskProcess = null;
-        }
         app.quit();
     }
 });
@@ -230,6 +223,22 @@ ipcMain.handle('start-service', async () => {
 // IPC处理程序 - 停止FastAPI服务
 ipcMain.handle('stop-service', async () => {
     return stopFastAPI();
+});
+
+// IPC处理程序 - 检查服务健康状态
+ipcMain.handle('check-service-health', async () => {
+    try {
+        const response = await fetch('http://127.0.0.1:10090/health');
+        const data = await response.json();
+        return { success: true, data };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+// IPC处理程序 - 获取服务URL
+ipcMain.handle('get-service-url', async () => {
+    return 'http://127.0.0.1:10090';
 });
 
 // IPC处理程序 - 检查服务状态
