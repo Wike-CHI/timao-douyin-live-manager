@@ -78,7 +78,12 @@ class UserService:
             return _create_user_impl(session)
         else:
             with db_session() as session:
-                return _create_user_impl(session)
+                user = _create_user_impl(session)
+                session.commit()  # 确保提交事务
+                session.refresh(user)  # 刷新对象状态
+                # 将对象从会话中分离，避免DetachedInstanceError
+                session.expunge(user)
+                return user
     
     @staticmethod
     def authenticate_user(username_or_email: str, password: str, ip_address: str = None) -> Optional[User]:
@@ -148,6 +153,13 @@ class UserService:
             )
             session.add(audit_log)
             
+            # 提交事务
+            session.commit()
+            # 刷新用户对象以获取最新状态
+            session.refresh(user)
+            # 将用户对象从会话中分离，避免DetachedInstanceError
+            session.expunge(user)
+            
             return user
     
     @staticmethod
@@ -172,6 +184,10 @@ class UserService:
             )
             
             session.add(user_session)
+            session.commit()  # 提交事务
+            session.refresh(user_session)  # 刷新对象状态
+            # 将对象从会话中分离，避免DetachedInstanceError
+            session.expunge(user_session)
             return user_session
     
     @staticmethod

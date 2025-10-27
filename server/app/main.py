@@ -81,6 +81,8 @@ app.add_middleware(
         "http://localhost:8090",     # 兼容旧端口
         "http://localhost:8001",
         "http://127.0.0.1:8001",
+        "http://127.0.0.1:8000",    # 兼容测试端口
+        "http://localhost:8000",     # 兼容测试端口
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],

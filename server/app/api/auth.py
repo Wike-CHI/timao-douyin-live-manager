@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from server.app.database import get_db_session
 from server.app.services.user_service import UserService
+from server.app.services.subscription_service import SubscriptionService
 from server.app.models.user import UserRoleEnum
 
 
@@ -88,11 +89,16 @@ class UserResponse(BaseModel):
 
 class LoginResponse(BaseModel):
     """登录响应"""
+    success: bool = True
+    token: str  # 前端期望的字段名
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
     expires_in: int = 86400  # 24小时
     user: UserResponse
+    isPaid: bool = False
+    balance: float = 0.0
+    firstFreeUsed: bool = False
 
 
 class RefreshTokenRequest(BaseModel):
@@ -223,9 +229,23 @@ async def login_user(
             user_agent=user_agent
         )
         
+        # 获取用户订阅状态
+        subscription_info = SubscriptionService.get_user_subscription_info(user.id)
+        
+        # 计算用户支付状态和余额
+        has_subscription = subscription_info.get("has_subscription", False)
+        is_paid = has_subscription
+        balance = 100.0 if has_subscription else 0.0  # 简化逻辑：有订阅则余额100，否则为0
+        first_free_used = user.ai_quota_used > 0  # 如果已使用AI配额，则认为首次免费已使用
+        
         return LoginResponse(
+            success=True,
+            token=session.session_token,  # 前端期望的字段名
             access_token=session.session_token,
             refresh_token=session.refresh_token,
+            isPaid=is_paid,
+            balance=balance,
+            firstFreeUsed=first_free_used,
             user=UserResponse(
                 id=user.id,
                 username=user.username,

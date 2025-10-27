@@ -115,7 +115,7 @@ class TeamMember(BaseModel):
     
     # 关联关系
     team = relationship("Team", back_populates="members")
-    user = relationship("User", foreign_keys=[user_id], back_populates="team_memberships")
+    user = relationship("User", foreign_keys=[user_id])
     inviter = relationship("User", foreign_keys=[invited_by])
     
     # 索引

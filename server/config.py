@@ -289,6 +289,8 @@ class ConfigManager:
                     config_dict[key] = DatabaseConfig(**value)
                 elif key == "security" and isinstance(value, dict):
                     config_dict[key] = SecurityConfig(**value)
+                elif key == "redis" and isinstance(value, dict):
+                    config_dict[key] = RedisConfig(**value)
                 else:
                     config_dict[key] = value
             

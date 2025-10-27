@@ -12,6 +12,7 @@ import hashlib
 import secrets
 
 from .base import BaseModel, UUIDMixin, SoftDeleteMixin
+from .team import TeamMember
 
 
 class UserRoleEnum(enum.Enum):
@@ -108,7 +109,12 @@ class User(BaseModel, UUIDMixin, SoftDeleteMixin):
     invoices = relationship("Invoice", back_populates="user", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="user", cascade="all, delete-orphan")
     live_sessions = relationship("LiveSession", back_populates="user", cascade="all, delete-orphan")
-    team_memberships = relationship("TeamMember", back_populates="user", cascade="all, delete-orphan")
+    team_memberships = relationship(
+        "TeamMember",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        foreign_keys=[TeamMember.user_id]
+    )
     
     # 索引
     __table_args__ = (

@@ -28,10 +28,15 @@ export interface RegisterPayload {
 
 export const login = async (payload: LoginPayload) => {
   if (isMock) return mockLogin(payload);
+  // 转换前端字段名到后端期望的字段名
+  const requestBody = {
+    username_or_email: payload.email,
+    password: payload.password
+  };
   const resp = await fetch(joinUrl('/api/auth/login'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(requestBody),
   });
   if (!resp.ok) {
     const txt = await resp.text().catch(() => '登录失败');

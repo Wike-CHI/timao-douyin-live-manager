@@ -10,6 +10,11 @@ from .subscription import (
     SubscriptionPlanTypeEnum, SubscriptionStatusEnum, 
     PaymentStatusEnum, PaymentMethodEnum
 )
+from .payment import (
+    Plan, Subscription, Payment, Invoice, Coupon, CouponUsage,
+    PlanType, PlanDuration, PaymentStatus, PaymentMethod, 
+    SubscriptionStatus, InvoiceStatus
+)
 from .permission import Permission, RolePermission, AuditLog
 from .live import LiveSession
 from .team import Team, TeamMember, TeamRoleEnum
@@ -22,10 +27,15 @@ __all__ = [
     'User', 'UserSession', 'UserRole',
     'UserRoleEnum', 'UserStatusEnum',
     
-    # Subscription models
+    # Subscription models (new system)
     'SubscriptionPlan', 'UserSubscription', 'PaymentRecord',
     'SubscriptionPlanTypeEnum', 'SubscriptionStatusEnum',
     'PaymentStatusEnum', 'PaymentMethodEnum',
+    
+    # Payment models (legacy system)
+    'Plan', 'Subscription', 'Payment', 'Invoice', 'Coupon', 'CouponUsage',
+    'PlanType', 'PlanDuration', 'PaymentStatus', 'PaymentMethod',
+    'SubscriptionStatus', 'InvoiceStatus',
     
     # Permission models
     'Permission', 'RolePermission', 'AuditLog',
