@@ -452,7 +452,7 @@ if __name__ == '__main__':
         
         # 获取配置
         host = os.getenv('FLASK_HOST', '127.0.0.1')
-        port = int(os.getenv('FLASK_PORT', 5001))
+        port = int(os.getenv('FLASKAPI_PORT', '10090'))
         debug = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
         
         logger.info(f"启动Flask应用: http://{host}:{port}")
