@@ -184,6 +184,7 @@ const MainLayout = () => {
             <div className="text-sm timao-support-text">祝你今晚直播顺利喵～</div>
           </div>
           <div className="flex items-center gap-4">
+            {/* 超级管理员也能看到订阅服务按钮 */}
             <button
               onClick={() => navigate('/pay/subscription')}
               className="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors duration-200 text-sm font-medium"

@@ -122,6 +122,24 @@ const SubscriptionPage = () => {
           <p className="text-xl text-gray-600">解锁更多 AI 分析功能，提升直播效果</p>
         </div>
 
+        {/* 超级管理员提示 */}
+        {user?.role === 'super_admin' && (
+          <div className="mb-8 bg-green-50 border border-green-200 rounded-md p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-green-800">
+                  您是超级管理员，已自动获得所有功能权限，无需订阅即可使用所有功能。
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 错误提示 */}
         {error && (
           <div className="mb-8 bg-red-50 border border-red-200 rounded-md p-4">

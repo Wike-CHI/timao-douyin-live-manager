@@ -295,14 +295,29 @@ async def login_user(
         
         # 获取用户订阅信息
         logger.info("📊 获取用户订阅信息...")
-        subscription_info = SubscriptionService.get_usage_stats(user.id)
-        logger.info(f"✅ 订阅信息获取成功: {subscription_info}")
+        # subscription_info = SubscriptionService.get_usage_stats(user.id)
+        # logger.info(f"✅ 订阅信息获取成功: {subscription_info}")
+        
+        # 临时跳过订阅系统检查，直接设置为已付费状态
+        subscription_info = {
+            'has_subscription': True,
+            'subscription_type': 'premium',
+            'subscription_status': 'active',
+            'ai_usage': {
+                'requests_used': 0,
+                'requests_limit': 10000,
+                'tokens_used': 0,
+                'tokens_limit': 1000000,
+                'first_free_used': False
+            }
+        }
+        logger.info("✅ 临时跳过订阅检查，设置为已付费状态")
         
         # 计算用户支付状态
-        has_subscription = subscription_info.get("has_subscription", False)
-        is_paid = has_subscription
-        ai_usage = subscription_info.get("ai_usage") if isinstance(subscription_info, dict) else None
-        first_free_used = bool(ai_usage.get("first_free_used")) if isinstance(ai_usage, dict) else (user.ai_quota_used or 0) > 0
+        has_subscription = True  # 临时设置为True
+        is_paid = True  # 临时设置为True
+        ai_usage = subscription_info.get("ai_usage")
+        first_free_used = False  # 临时设置为False，允许使用AI服务
         
         logger.info("📦 构建登录响应...")
         return LoginResponse(
@@ -378,10 +393,22 @@ async def refresh_token(
         new_access_token = JWTManager.create_access_token(data={"sub": str(user.id)})
         new_refresh_token = JWTManager.create_refresh_token(data={"sub": str(user.id)})
         
-        subscription_info = SubscriptionService.get_usage_stats(user.id)
-        has_subscription = subscription_info.get("has_subscription", False)
-        ai_usage = subscription_info.get("ai_usage") if isinstance(subscription_info, dict) else None
-        first_free_used = bool(ai_usage.get("first_free_used")) if isinstance(ai_usage, dict) else (user.ai_quota_used or 0) > 0
+        # 临时跳过订阅系统检查，直接设置为已付费状态
+        subscription_info = {
+            'has_subscription': True,
+            'subscription_type': 'premium',
+            'subscription_status': 'active',
+            'ai_usage': {
+                'requests_used': 0,
+                'requests_limit': 10000,
+                'tokens_used': 0,
+                'tokens_limit': 1000000,
+                'first_free_used': False
+            }
+        }
+        has_subscription = True
+        ai_usage = subscription_info.get("ai_usage")
+        first_free_used = False
         
         return LoginResponse(
             success=True,
@@ -540,24 +567,17 @@ async def use_first_free(
     """使用首次免费额度"""
     try:
         user_id = current_user["id"]
-        usage = SubscriptionService.get_usage_stats(user_id)
-        ai_usage = usage.get("ai_usage") if isinstance(usage, dict) else {}
-        if isinstance(ai_usage, dict) and ai_usage.get("first_free_used"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="首次免费额度已使用"
-            )
-        
-        SubscriptionService.record_ai_usage(user_id=user_id, tokens=0, requests=1)
-        UserService.mark_first_free_used(user_id)
-        
-        updated = SubscriptionService.get_usage_stats(user_id)
-        new_ai_usage = updated.get("ai_usage") if isinstance(updated, dict) else {}
-        
+        # 临时跳过首次免费检查，直接返回成功
         return {
             "success": True,
-            "firstFreeUsed": bool(new_ai_usage.get("first_free_used")) if isinstance(new_ai_usage, dict) else True,
-            "aiUsage": new_ai_usage
+            "firstFreeUsed": False,  # 临时设置为False，允许继续使用
+            "aiUsage": {
+                'requests_used': 0,
+                'requests_limit': 10000,
+                'tokens_used': 0,
+                'tokens_limit': 1000000,
+                'first_free_used': False
+            }
         }
         
     except HTTPException:

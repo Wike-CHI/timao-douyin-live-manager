@@ -21,12 +21,15 @@ security = HTTPBearer()
 
 def get_db() -> Session:
     """获取数据库会话"""
-    db_manager = DatabaseManager()
-    db = db_manager.get_session()
+    from server.app.database import db_manager
+    if not db_manager:
+        raise RuntimeError("Database not initialized")
+    
+    session = db_manager.get_session_sync()
     try:
-        yield db
+        yield session
     finally:
-        db.close()
+        session.close()
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),

@@ -153,7 +153,7 @@ class SubscriptionService:
             if payment.status != PaymentStatusEnum.PENDING:
                 raise ValueError("支付状态不正确")
             
-            # 检查支付是否过�?
+            # 检查支付是否过期
             expires_at_str = payment.payment_data.get("expires_at")
             if expires_at_str:
                 expires_at = datetime.fromisoformat(expires_at_str)
@@ -162,7 +162,7 @@ class SubscriptionService:
                     session.commit()
                     raise ValueError("支付已过期")
             
-            # 更新支付状�?
+            # 更新支付状态
             payment.status = PaymentStatusEnum.COMPLETED
             payment.transaction_id = transaction_id
             payment.paid_at = datetime.utcnow()
@@ -170,7 +170,7 @@ class SubscriptionService:
             if payment_data:
                 payment.payment_data.update(payment_data)
             
-            # 创建或更新用户订�?
+            # 创建或更新用户订阅
             SubscriptionService._create_or_update_subscription(
                 session, payment.user_id, payment.subscription_plan_id
             )
@@ -197,13 +197,13 @@ class SubscriptionService:
         user_id: int,
         plan_id: int
     ):
-        """创建或更新用户订�?""
+        """创建或更新用户订阅"""
         plan = session.query(SubscriptionPlan).filter(
             SubscriptionPlan.id == plan_id
         ).first()
         
         if not plan:
-            raise ValueError("套餐不存�?)
+            raise ValueError("套餐不存在")
         
         # 查找现有订阅
         existing_subscription = session.query(UserSubscription).filter(
@@ -216,10 +216,10 @@ class SubscriptionService:
         if existing_subscription:
             # 延长现有订阅
             if existing_subscription.end_date > now:
-                # 从当前结束时间开始延�?
+                # 从当前结束时间开始延长
                 start_date = existing_subscription.end_date
             else:
-                # 从现在开始延�?
+                # 从现在开始延长
                 start_date = now
             
             existing_subscription.subscription_plan_id = plan_id
@@ -230,7 +230,7 @@ class SubscriptionService:
             existing_subscription.usage_stats = {}
             
         else:
-            # 创建新订�?
+            # 创建新订阅
             subscription = UserSubscription(
                 user_id=user_id,
                 subscription_plan_id=plan_id,
@@ -491,11 +491,11 @@ class SubscriptionService:
     
     @staticmethod
     def check_subscription_expiry():
-        """检查订阅过期（定时任务�?""
+        """检查订阅过期（定时任务）"""
         with db_session() as session:
             now = datetime.utcnow()
             
-            # 查找即将过期的订�?
+            # 查找即将过期的订阅
             expiring_subscriptions = session.query(UserSubscription).filter(
                 UserSubscription.status == SubscriptionStatusEnum.ACTIVE,
                 UserSubscription.end_date <= now + timedelta(days=3),
@@ -529,7 +529,7 @@ class SubscriptionService:
     def _auto_renew_subscription(session: Session, subscription: UserSubscription):
         """自动续费订阅"""
         # 这里需要实现自动续费逻辑
-        # 可能需要调用支付接口或使用保存的支付方�?
+        # 可能需要调用支付接口或使用保存的支付方式
         
         # 示例：直接延长订阅（实际应该先处理支付）
         plan = subscription.plan

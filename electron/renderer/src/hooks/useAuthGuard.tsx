@@ -2,7 +2,7 @@ import { Navigate } from 'react-router-dom';
 import useAuthStore from '../store/useAuthStore';
 
 const useAuthGuard = () => {
-  const { isAuthenticated, isPaid } = useAuthStore();
+  const { isAuthenticated, isPaid, user } = useAuthStore();
 
   const requireAuth = (component: React.ReactElement) => {
     if (!isAuthenticated) {
@@ -15,6 +15,12 @@ const useAuthGuard = () => {
     if (!isAuthenticated) {
       return <Navigate to="/auth/login" replace />;
     }
+    
+    // 检查用户是否为超级管理员，如果是则跳过订阅检查
+    if (user?.role === 'super_admin') {
+      return component;
+    }
+    
     // 检查是否已付费
     if (!isPaid) {
       return <Navigate to="/pay/subscription" replace />;

@@ -234,8 +234,15 @@ def get_db_session() -> Generator[Session, None, None]:
     if not db_manager:
         raise RuntimeError("Database not initialized")
     
-    with db_manager.get_session() as session:
+    session = db_manager.get_session_sync()
+    try:
         yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 
 def get_db() -> Session:

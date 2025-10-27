@@ -143,7 +143,7 @@ export const updateLiveAudioAdvanced = async (
   baseUrl: string = DEFAULT_BASE_URL
 ) => {
   const headers = await buildHeaders();
-  const response = await fetch(`${baseUrl}/api/live-audio/advanced`, {
+  const response = await fetch(`${baseUrl}/api/live_audio/advanced`, {
     method: 'POST',
     headers,
     body: JSON.stringify(payload),
