@@ -1,14 +1,14 @@
 import useAuthStore from '../store/useAuthStore';
+import authService from './authService';
 
 const DEFAULT_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:10090';
 
-const buildHeaders = () => {
-  const { token } = useAuthStore.getState();
-  const headers: Record<string, string> = {
+const buildHeaders = async () => {
+  const authHeaders = await authService.getAuthHeaders();
+  return {
     'Content-Type': 'application/json',
+    ...authHeaders,
   };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  return headers;
 };
 
 const handleResponse = async <T>(response: Response): Promise<T> => {
@@ -91,7 +91,7 @@ export const startLiveAudio = async (
   if (typeof payload.minSentenceChars === 'number') body.min_sentence_chars = payload.minSentenceChars;
   const response = await fetch(`${baseUrl}/api/live_audio/start`, {
     method: 'POST',
-    headers: buildHeaders(),
+    headers: await buildHeaders(),
     body: JSON.stringify(body),
   });
   return handleResponse(response);
@@ -100,7 +100,7 @@ export const startLiveAudio = async (
 export const stopLiveAudio = async (baseUrl: string = DEFAULT_BASE_URL) => {
   const response = await fetch(`${baseUrl}/api/live_audio/stop`, {
     method: 'POST',
-    headers: buildHeaders(),
+    headers: await buildHeaders(),
   });
   return handleResponse(response);
 };
@@ -110,7 +110,7 @@ export const getLiveAudioStatus = async (
 ): Promise<LiveAudioStatus> => {
   const response = await fetch(`${baseUrl}/api/live_audio/status`, {
     method: 'GET',
-    headers: buildHeaders(),
+    headers: await buildHeaders(),
   });
   return handleResponse(response);
 };
@@ -142,10 +142,11 @@ export const updateLiveAudioAdvanced = async (
   },
   baseUrl: string = DEFAULT_BASE_URL
 ) => {
-  const response = await fetch(`${baseUrl}/api/live_audio/advanced`, {
+  const headers = await buildHeaders();
+  const response = await fetch(`${baseUrl}/api/live-audio/advanced`, {
     method: 'POST',
-    headers: buildHeaders(),
-    body: JSON.stringify(payload || {}),
+    headers,
+    body: JSON.stringify(payload),
   });
   return handleResponse(response);
 };

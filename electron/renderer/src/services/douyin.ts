@@ -1,4 +1,5 @@
 import useAuthStore from '../store/useAuthStore';
+import authService from './authService';
 
 // Align with FastAPI default port 10090 used by Electron main
 const DEFAULT_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:10090';
@@ -14,15 +15,12 @@ const joinUrl = (baseUrl: string | undefined, path: string) => {
   return `${normalizedBase}${normalizedPath}`;
 };
 
-const buildHeaders = () => {
-  const { token } = useAuthStore.getState();
-  const headers: Record<string, string> = {
+const buildHeaders = async () => {
+  const authHeaders = await authService.getAuthHeaders();
+  return {
     'Content-Type': 'application/json',
+    ...authHeaders,
   };
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-  return headers;
 };
 
 const handleResponse = async <T>(response: Response): Promise<T> => {
@@ -59,9 +57,10 @@ export const startDouyinRelay = async (
   liveId: string,
   baseUrl?: string
 ): Promise<DouyinRelayResponse> => {
+  const headers = await buildHeaders();
   const response = await fetch(joinUrl(baseUrl, '/api/douyin/web/start'), {
     method: 'POST',
-    headers: buildHeaders(),
+    headers,
     body: JSON.stringify({ live_id: liveId }),
   });
   return handleResponse<DouyinRelayResponse>(response);
@@ -70,9 +69,10 @@ export const startDouyinRelay = async (
 export const stopDouyinRelay = async (
   baseUrl?: string
 ): Promise<DouyinRelayResponse> => {
+  const headers = await buildHeaders();
   const response = await fetch(joinUrl(baseUrl, '/api/douyin/web/stop'), {
     method: 'POST',
-    headers: buildHeaders(),
+    headers,
   });
   return handleResponse<DouyinRelayResponse>(response);
 };
@@ -80,9 +80,10 @@ export const stopDouyinRelay = async (
 export const getDouyinRelayStatus = async (
   baseUrl?: string
 ): Promise<DouyinRelayStatus> => {
+  const headers = await buildHeaders();
   const response = await fetch(joinUrl(baseUrl, '/api/douyin/web/status'), {
     method: 'GET',
-    headers: buildHeaders(),
+    headers,
   });
   return handleResponse<DouyinRelayStatus>(response);
 };
@@ -125,10 +126,11 @@ export const updateDouyinPersist = async (
   payload: { persist_enabled?: boolean; persist_root?: string },
   baseUrl?: string
 ) => {
+  const headers = await buildHeaders();
   const response = await fetch(joinUrl(baseUrl, '/api/douyin/web/persist'), {
     method: 'POST',
-    headers: buildHeaders(),
-    body: JSON.stringify(payload || {}),
+    headers,
+    body: JSON.stringify(payload),
   });
   return handleResponse(response);
 };

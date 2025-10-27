@@ -1,19 +1,17 @@
 import useAuthStore from '../store/useAuthStore';
+import authService from './authService';
 
 const DEFAULT_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:10090';
 
 /**
  * 构建包含鉴权信息的请求头
  */
-const buildHeaders = (): Record<string, string> => {
-  const { token } = useAuthStore.getState();
-  const headers: Record<string, string> = {
+const buildHeaders = async (): Promise<Record<string, string>> => {
+  const authHeaders = await authService.getAuthHeaders();
+  return {
     'Content-Type': 'application/json',
+    ...authHeaders,
   };
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-  return headers;
 };
 
 /**
@@ -21,7 +19,7 @@ const buildHeaders = (): Record<string, string> => {
  */
 const authFetch = async (url: string, options?: RequestInit): Promise<Response> => {
   const headers = {
-    ...buildHeaders(),
+    ...(await buildHeaders()),
     ...(options?.headers || {}),
   };
   

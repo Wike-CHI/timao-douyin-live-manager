@@ -1,12 +1,14 @@
 import useAuthStore from '../store/useAuthStore';
+import authService from './authService';
 
 const DEFAULT_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:10090';
 
-const buildHeaders = () => {
-  const { token } = useAuthStore.getState();
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  return headers;
+const buildHeaders = async () => {
+  const authHeaders = await authService.getAuthHeaders();
+  return {
+    'Content-Type': 'application/json',
+    ...authHeaders,
+  };
 };
 
 const handleResponse = async <T>(response: Response): Promise<T> => {
@@ -24,26 +26,30 @@ export interface LiveReportStatusResp { active: boolean; status: any }
 export interface LiveReportGenResp { success: boolean; data?: { comments: string; transcript: string; report: string } }
 
 export const startLiveReport = async (liveUrl: string, segmentMinutes = 30, baseUrl: string = DEFAULT_BASE_URL) => {
+  const headers = await buildHeaders();
   const response = await fetch(`${baseUrl}/api/report/live/start`, {
     method: 'POST',
-    headers: buildHeaders(),
+    headers,
     body: JSON.stringify({ live_url: liveUrl, segment_minutes: segmentMinutes } satisfies LiveReportStartReq),
   });
   return handleResponse<LiveReportStartResp>(response);
 };
 
 export const stopLiveReport = async (baseUrl: string = DEFAULT_BASE_URL) => {
-  const response = await fetch(`${baseUrl}/api/report/live/stop`, { method: 'POST', headers: buildHeaders() });
+  const headers = await buildHeaders();
+  const response = await fetch(`${baseUrl}/api/report/live/stop`, { method: 'POST', headers });
   return handleResponse<LiveReportStartResp>(response);
 };
 
 export const getLiveReportStatus = async (baseUrl: string = DEFAULT_BASE_URL) => {
-  const response = await fetch(`${baseUrl}/api/report/live/status`, { headers: buildHeaders() });
+  const headers = await buildHeaders();
+  const response = await fetch(`${baseUrl}/api/report/live/status`, { headers });
   return handleResponse<LiveReportStatusResp>(response);
 };
 
 export const generateLiveReport = async (baseUrl: string = DEFAULT_BASE_URL) => {
-  const response = await fetch(`${baseUrl}/api/report/live/generate`, { method: 'POST', headers: buildHeaders() });
+  const headers = await buildHeaders();
+  const response = await fetch(`${baseUrl}/api/report/live/generate`, { method: 'POST', headers });
   return handleResponse<LiveReportGenResp>(response);
 };
 

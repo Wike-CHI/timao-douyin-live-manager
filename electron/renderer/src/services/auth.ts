@@ -1,4 +1,5 @@
 import useAuthStore from '../store/useAuthStore';
+import authService from './authService';
 
 const RAW_AUTH_BASE_URL = (import.meta.env?.VITE_AUTH_BASE_URL as string | undefined)?.trim();
 const FASTAPI_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined)?.trim();
@@ -34,7 +35,6 @@ export interface LoginResponse {
   token: string;
   access_token: string;
   refresh_token: string;
-  token_type: string;
   expires_in: number;
   user: UserInfo;
   isPaid: boolean;
@@ -100,12 +100,10 @@ export const register = async (payload: RegisterPayload): Promise<RegisterRespon
 export const uploadPayment = async (file: File) => {
   const form = new FormData();
   form.append('file', file);
-  const { token } = useAuthStore.getState();
-  const headers: Record<string, string> = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const authHeaders = await authService.getAuthHeaders();
   const resp = await fetch(joinUrl('/api/payment/upload'), {
     method: 'POST',
-    headers,
+    headers: authHeaders,
     body: form,
   });
   if (!resp.ok) {
@@ -116,9 +114,11 @@ export const uploadPayment = async (file: File) => {
 };
 
 export const pollPayment = async () => {
-  const { token } = useAuthStore.getState();
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const authHeaders = await authService.getAuthHeaders();
+  const headers = { 
+    'Content-Type': 'application/json',
+    ...authHeaders
+  };
   const resp = await fetch(joinUrl('/api/payment/poll'), {
     method: 'GET',
     headers,

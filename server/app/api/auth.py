@@ -256,12 +256,19 @@ async def login_user(
     db: Session = Depends(get_db_session)
 ):
     """用户登录"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
+        logger.info(f"🔍 开始登录流程，用户名/邮箱: {request.username_or_email}")
+        
         # 获取客户端IP
         client_ip = req.client.host if req.client else None
         user_agent = req.headers.get("user-agent")
+        logger.info(f"🌐 客户端信息 - IP: {client_ip}, User-Agent: {user_agent}")
         
         # 认证用户
+        logger.info("🔐 开始用户认证...")
         user = UserService.authenticate_user(
             username_or_email=request.username_or_email,
             password=request.password,
@@ -269,20 +276,27 @@ async def login_user(
         )
         
         if not user:
+            logger.warning(f"❌ 用户认证失败: {request.username_or_email}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="用户名/邮箱或密码错误"
             )
         
+        logger.info(f"✅ 用户认证成功: {user.username} (ID: {user.id})")
+        
         # 创建JWT token而不是session token
+        logger.info("🔑 开始创建JWT token...")
         from server.app.core.security import JWTManager
         
         # 生成JWT access token和refresh token
         access_token = JWTManager.create_access_token(data={"sub": str(user.id)})
         refresh_token = JWTManager.create_refresh_token(data={"sub": str(user.id)})
+        logger.info("✅ JWT token创建成功")
         
         # 获取用户订阅信息
+        logger.info("📊 获取用户订阅信息...")
         subscription_info = SubscriptionService.get_usage_stats(user.id)
+        logger.info(f"✅ 订阅信息获取成功: {subscription_info}")
         
         # 计算用户支付状态
         has_subscription = subscription_info.get("has_subscription", False)
@@ -290,6 +304,7 @@ async def login_user(
         ai_usage = subscription_info.get("ai_usage") if isinstance(subscription_info, dict) else None
         first_free_used = bool(ai_usage.get("first_free_used")) if isinstance(ai_usage, dict) else (user.ai_quota_used or 0) > 0
         
+        logger.info("📦 构建登录响应...")
         return LoginResponse(
             success=True,
             token=access_token,  # 前端期望的字段名
@@ -314,11 +329,13 @@ async def login_user(
         )
         
     except ValueError as e:
+        logger.error(f"❌ 登录验证错误: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e)
         )
     except Exception as e:
+        logger.error(f"💥 登录过程中发生未知错误: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="登录失败，请稍后重试"

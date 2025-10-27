@@ -385,10 +385,10 @@ const LiveConsolePage = () => {
     return normalized;
   }, []);
 
-  const connectAIStream = useCallback(() => {
+  const connectAIStream = useCallback(async () => {
     if (aiSourceRef.current) return;
     // 使用统一的鉴权 SSE 流
-    const es = openAILiveStream(
+    const es = await openAILiveStream(
       (ev) => {
         try {
           const data = JSON.parse(ev.data);

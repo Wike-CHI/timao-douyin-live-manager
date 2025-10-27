@@ -11,7 +11,7 @@ from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 
-from server.app.database import DatabaseManager
+from server.app.database import db_session
 from server.app.models.subscription import (
     SubscriptionPlan, UserSubscription, PaymentRecord,
     SubscriptionPlanTypeEnum, SubscriptionStatusEnum, 
@@ -27,7 +27,7 @@ class SubscriptionService:
     @staticmethod
     def get_subscription_plans(active_only: bool = True) -> List[SubscriptionPlan]:
         """获取订阅套餐列表"""
-        with DatabaseManager.get_session() as session:
+        with db_session() as session:
             query = session.query(SubscriptionPlan)
             
             if active_only:
@@ -38,23 +38,24 @@ class SubscriptionService:
     @staticmethod
     def get_subscription_plan(plan_id: int) -> Optional[SubscriptionPlan]:
         """获取订阅套餐"""
-        with DatabaseManager.get_session() as session:
+        with db_session() as session:
             return session.query(SubscriptionPlan).filter(
                 SubscriptionPlan.id == plan_id,
                 SubscriptionPlan.is_active == True
             ).first()
-    
+
     @staticmethod
     def get_user_subscription(user_id: int) -> Optional[UserSubscription]:
-        """获取用户当前订阅"""
-        from server.app.database import db_session
-        
+        """获取用户订阅信息"""
         with db_session() as session:
             return session.query(UserSubscription).filter(
                 UserSubscription.user_id == user_id,
-                UserSubscription.status == SubscriptionStatusEnum.ACTIVE
+                UserSubscription.status.in_([
+                    SubscriptionStatusEnum.ACTIVE,
+                    SubscriptionStatusEnum.TRIAL
+                ])
             ).first()
-    
+
     @staticmethod
     def create_payment(
         user_id: int,
@@ -64,8 +65,8 @@ class SubscriptionService:
         cancel_url: Optional[str] = None,
         client_ip: Optional[str] = None
     ) -> PaymentRecord:
-        """创建支付订单"""
-        with DatabaseManager.get_session() as session:
+        """创建支付记录"""
+        with db_session() as session:
             # 获取套餐信息
             plan = session.query(SubscriptionPlan).filter(
                 SubscriptionPlan.id == plan_id,
@@ -141,7 +142,7 @@ class SubscriptionService:
         payment_data: Optional[Dict[str, Any]] = None
     ) -> bool:
         """确认支付"""
-        with DatabaseManager.get_session() as session:
+        with db_session() as session:
             payment = session.query(PaymentRecord).filter(
                 PaymentRecord.id == payment_id
             ).first()
@@ -152,7 +153,7 @@ class SubscriptionService:
             if payment.status != PaymentStatusEnum.PENDING:
                 raise ValueError("支付状态不正确")
             
-            # 检查支付是否过期
+            # 检查支付是否过�?
             expires_at_str = payment.payment_data.get("expires_at")
             if expires_at_str:
                 expires_at = datetime.fromisoformat(expires_at_str)
@@ -161,7 +162,7 @@ class SubscriptionService:
                     session.commit()
                     raise ValueError("支付已过期")
             
-            # 更新支付状态
+            # 更新支付状�?
             payment.status = PaymentStatusEnum.COMPLETED
             payment.transaction_id = transaction_id
             payment.paid_at = datetime.utcnow()
@@ -169,7 +170,7 @@ class SubscriptionService:
             if payment_data:
                 payment.payment_data.update(payment_data)
             
-            # 创建或更新用户订阅
+            # 创建或更新用户订�?
             SubscriptionService._create_or_update_subscription(
                 session, payment.user_id, payment.subscription_plan_id
             )
@@ -196,13 +197,13 @@ class SubscriptionService:
         user_id: int,
         plan_id: int
     ):
-        """创建或更新用户订阅"""
+        """创建或更新用户订�?""
         plan = session.query(SubscriptionPlan).filter(
             SubscriptionPlan.id == plan_id
         ).first()
         
         if not plan:
-            raise ValueError("套餐不存在")
+            raise ValueError("套餐不存�?)
         
         # 查找现有订阅
         existing_subscription = session.query(UserSubscription).filter(
@@ -215,10 +216,10 @@ class SubscriptionService:
         if existing_subscription:
             # 延长现有订阅
             if existing_subscription.end_date > now:
-                # 从当前结束时间开始延长
+                # 从当前结束时间开始延�?
                 start_date = existing_subscription.end_date
             else:
-                # 从现在开始延长
+                # 从现在开始延�?
                 start_date = now
             
             existing_subscription.subscription_plan_id = plan_id
@@ -229,7 +230,7 @@ class SubscriptionService:
             existing_subscription.usage_stats = {}
             
         else:
-            # 创建新订阅
+            # 创建新订�?
             subscription = UserSubscription(
                 user_id=user_id,
                 subscription_plan_id=plan_id,
@@ -248,7 +249,7 @@ class SubscriptionService:
         offset: int = 0
     ) -> List[PaymentRecord]:
         """获取支付历史"""
-        with DatabaseManager.get_session() as session:
+        with db_session() as session:
             return session.query(PaymentRecord).filter(
                 PaymentRecord.user_id == user_id
             ).order_by(
@@ -258,7 +259,7 @@ class SubscriptionService:
     @staticmethod
     def update_auto_renew(subscription_id: int, auto_renew: bool) -> bool:
         """更新自动续费设置"""
-        with DatabaseManager.get_session() as session:
+        with db_session() as session:
             subscription = session.query(UserSubscription).filter(
                 UserSubscription.id == subscription_id
             ).first()
@@ -283,7 +284,7 @@ class SubscriptionService:
     @staticmethod
     def cancel_subscription(subscription_id: int) -> bool:
         """取消订阅"""
-        with DatabaseManager.get_session() as session:
+        with db_session() as session:
             subscription = session.query(UserSubscription).filter(
                 UserSubscription.id == subscription_id
             ).first()
@@ -308,13 +309,13 @@ class SubscriptionService:
     
     @staticmethod
     def record_ai_usage(user_id: int, tokens: int = 0, requests: int = 1) -> None:
-        """记录用户的 AI 使用量"""
+        """记录用户的AI使用量"""
         tokens = max(0, int(tokens or 0))
         requests = max(0, int(requests or 0))
         if tokens == 0 and requests == 0:
             return
         
-        with DatabaseManager.get_session() as session:
+        with db_session() as session:
             user = session.query(User).filter(User.id == user_id).first()
             if not user:
                 return
@@ -354,7 +355,7 @@ class SubscriptionService:
     @staticmethod
     def get_usage_stats(user_id: int) -> Dict[str, Any]:
         """获取使用统计"""
-        with DatabaseManager.get_session() as session:
+        with db_session() as session:
             user = session.query(User).filter(User.id == user_id).first()
             if not user:
                 return {
@@ -424,10 +425,10 @@ class SubscriptionService:
     def handle_payment_webhook(body: bytes, headers: Dict[str, str]) -> Dict[str, Any]:
         """处理支付回调webhook"""
         # 这里需要根据具体的支付提供商实现webhook验证和处理逻辑
-        # 以下是示例实现
+        # 以下是示例实�?
         
         try:
-            # 解析请求体
+            # 解析请求�?
             data = json.loads(body.decode('utf-8'))
             
             # 验证签名（示例）
@@ -435,7 +436,7 @@ class SubscriptionService:
             if not SubscriptionService._verify_webhook_signature(body, signature):
                 raise ValueError("Invalid webhook signature")
             
-            # 处理不同类型的事件
+            # 处理不同类型的事�?
             event_type = data.get('event_type')
             
             if event_type == 'payment.completed':
@@ -452,7 +453,7 @@ class SubscriptionService:
             elif event_type == 'payment.failed':
                 payment_id = data.get('payment_id')
                 if payment_id:
-                    with DatabaseManager.get_session() as session:
+                    with db_session() as session:
                         payment = session.query(PaymentRecord).filter(
                             PaymentRecord.id == payment_id
                         ).first()
@@ -472,8 +473,8 @@ class SubscriptionService:
     @staticmethod
     def _verify_webhook_signature(body: bytes, signature: str) -> bool:
         """验证webhook签名"""
-        # 这里需要根据具体的支付提供商实现签名验证
-        # 以下是示例实现
+        # 这里需要根据具体的支付提供商实现签名验�?
+        # 以下是示例实�?
         
         if not signature:
             return False
@@ -490,11 +491,11 @@ class SubscriptionService:
     
     @staticmethod
     def check_subscription_expiry():
-        """检查订阅过期（定时任务）"""
-        with DatabaseManager.get_session() as session:
+        """检查订阅过期（定时任务�?""
+        with db_session() as session:
             now = datetime.utcnow()
             
-            # 查找即将过期的订阅
+            # 查找即将过期的订�?
             expiring_subscriptions = session.query(UserSubscription).filter(
                 UserSubscription.status == SubscriptionStatusEnum.ACTIVE,
                 UserSubscription.end_date <= now + timedelta(days=3),
@@ -528,7 +529,7 @@ class SubscriptionService:
     def _auto_renew_subscription(session: Session, subscription: UserSubscription):
         """自动续费订阅"""
         # 这里需要实现自动续费逻辑
-        # 可能需要调用支付接口或使用保存的支付方式
+        # 可能需要调用支付接口或使用保存的支付方�?
         
         # 示例：直接延长订阅（实际应该先处理支付）
         plan = subscription.plan

@@ -1,26 +1,24 @@
 import useAuthStore from '../store/useAuthStore';
+import authService from './authService';
 
 const DEFAULT_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:10090';
 
 /**
  * 构建包含鉴权信息的请求头
  */
-const buildHeaders = (): Record<string, string> => {
-  const { token } = useAuthStore.getState();
-  const headers: Record<string, string> = {
+const buildHeaders = async (): Promise<Record<string, string>> => {
+  const authHeaders = await authService.getAuthHeaders();
+  return {
     'Content-Type': 'application/json',
+    ...authHeaders,
   };
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-  return headers;
 };
 
 /**
  * 构建包含 token 的 URL（用于 EventSource，因为它不支持自定义 headers）
  */
-const buildAuthUrl = (url: string): string => {
-  const { token } = useAuthStore.getState();
+const buildAuthUrl = async (url: string): Promise<string> => {
+  const token = await authService.ensureValidToken();
   if (!token) return url;
   
   const urlObj = new URL(url);
@@ -33,7 +31,7 @@ const buildAuthUrl = (url: string): string => {
  */
 const authFetch = async (url: string, options?: RequestInit): Promise<Response> => {
   const headers = {
-    ...buildHeaders(),
+    ...(await buildHeaders()),
     ...(options?.headers || {}),
   };
   
@@ -88,13 +86,13 @@ export const stopAILiveAnalysis = async (baseUrl: string = DEFAULT_BASE_URL) => 
 /**
  * 打开 AI 实时分析 SSE 流（带鉴权）
  */
-export const openAILiveStream = (
+export const openAILiveStream = async (
   onMessage: (event: MessageEvent) => void,
   onError?: (event: Event) => void,
   baseUrl: string = DEFAULT_BASE_URL
-): EventSource => {
+): Promise<EventSource> => {
   // EventSource 不支持自定义 headers，需要通过 URL 参数传递 token
-  const url = buildAuthUrl(`${baseUrl}/api/ai/live/stream`);
+  const url = await buildAuthUrl(`${baseUrl}/api/ai/live/stream`);
   const eventSource = new EventSource(url);
   
   eventSource.onmessage = onMessage;
