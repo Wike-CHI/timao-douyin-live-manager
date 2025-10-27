@@ -220,28 +220,107 @@ const LiveConsolePage = () => {
       const liveId = idMatch ? idMatch[1] : input;
       const liveUrl = idMatch ? input : `https://live.douyin.com/${liveId}`;
 
-      // 1) 弹幕
-      try { await startDouyinRelay(liveId, FASTAPI_BASE_URL); } catch {}
-      // 默认开启弹幕持久化
-      try { await updateDouyinPersist({ persist_enabled: true }, FASTAPI_BASE_URL); } catch {}
-      // 2) 音频（后端固定 Small+VAD，前端不暴露专业选项）
-      await startLiveAudio({ liveUrl }, FASTAPI_BASE_URL);
-      connectWebSocket(FASTAPI_BASE_URL);
-      // 默认开启字幕持久化
-      try {
-        await updateLiveAudioAdvanced(
-          {
-            persist_enabled: true,
-            agc: agcEnabled,
-            diarization: diarizationEnabled,
-            max_speakers: diarizationEnabled ? maxSpeakers : 1,
-          },
-          FASTAPI_BASE_URL
-        );
-      } catch {}
+      // 异步启动所有服务，不阻塞彼此
+      const services = [
+        // 1) 弹幕服务启动函数
+        async () => {
+          let retries = 0;
+          const maxRetries = 5;
+          while (retries < maxRetries) {
+            try {
+              await startDouyinRelay(liveId, FASTAPI_BASE_URL);
+              // 默认开启弹幕持久化
+              await updateDouyinPersist({ persist_enabled: true }, FASTAPI_BASE_URL);
+              console.log('抖音直播互动服务启动成功');
+              return true;
+            } catch (err) {
+              retries++;
+              console.error(`抖音直播互动服务启动失败 (尝试 ${retries}/${maxRetries}):`, err);
+              if (retries >= maxRetries) {
+                throw new Error(`抖音直播互动服务启动失败: ${(err as Error).message}`);
+              }
+              // 等待一段时间后重试
+              await new Promise(resolve => setTimeout(resolve, 2000 * retries));
+            }
+          }
+        },
+        // 2) 音频服务启动函数
+        async () => {
+          let retries = 0;
+          const maxRetries = 5;
+          while (retries < maxRetries) {
+            try {
+              await startLiveAudio({ liveUrl }, FASTAPI_BASE_URL);
+              connectWebSocket(FASTAPI_BASE_URL);
+              // 默认开启字幕持久化
+              await updateLiveAudioAdvanced(
+                {
+                  persist_enabled: true,
+                  agc: agcEnabled,
+                  diarization: diarizationEnabled,
+                  max_speakers: diarizationEnabled ? maxSpeakers : 1,
+                },
+                FASTAPI_BASE_URL
+              );
+              console.log('实时音频转写服务启动成功');
+              return true;
+            } catch (err) {
+              retries++;
+              console.error(`实时音频转写服务启动失败 (尝试 ${retries}/${maxRetries}):`, err);
+              if (retries >= maxRetries) {
+                throw new Error(`实时音频转写服务启动失败: ${(err as Error).message}`);
+              }
+              // 等待一段时间后重试
+              await new Promise(resolve => setTimeout(resolve, 2000 * retries));
+            }
+          }
+        },
+        // 3) 录制服务启动函数
+        async () => {
+          let retries = 0;
+          const maxRetries = 3;
+          while (retries < maxRetries) {
+            try {
+              await startLiveReport(liveUrl, 30, FASTAPI_BASE_URL);
+              console.log('直播录制服务启动成功');
+              return true;
+            } catch (err) {
+              retries++;
+              console.error(`直播录制服务启动失败 (尝试 ${retries}/${maxRetries}):`, err);
+              if (retries >= maxRetries) {
+                console.warn(`直播录制服务启动失败: ${(err as Error).message}`);
+                // 录制服务失败不阻塞其他服务
+                return false;
+              }
+              // 等待一段时间后重试
+              await new Promise(resolve => setTimeout(resolve, 2000 * retries));
+            }
+          }
+        }
+      ];
 
-      // 3) 录制整场（30 分钟分段）
-      try { await startLiveReport(liveUrl, 30, FASTAPI_BASE_URL); } catch {}
+      // 并行启动所有服务
+      const results = await Promise.allSettled(services.map(service => service()));
+      
+      // 检查结果并处理错误
+      const errors: string[] = [];
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const serviceName = ['抖音直播互动服务', '实时音频转写服务', '直播录制服务'][index];
+          errors.push(`${serviceName}: ${result.reason.message}`);
+        }
+      });
+
+      if (errors.length > 0) {
+        // 如果关键服务（前两个）都失败了，则抛出错误
+        if (results[0].status === 'rejected' && results[1].status === 'rejected') {
+          throw new Error(`多个服务启动失败:\n${errors.join('\n')}`);
+        }
+        // 如果只有非关键服务失败，显示警告但不阻塞
+        if (errors.length > 0) {
+          console.warn('部分服务启动失败:', errors.join('\n'));
+        }
+      }
 
       await refreshStatus();
 
@@ -268,7 +347,7 @@ const LiveConsolePage = () => {
       } catch {}
     } catch (err) {
       console.error(err);
-      setError((err as Error).message ?? '启动直播音频失败');
+      setError((err as Error).message ?? '启动直播服务失败');
     } finally {
       setLoading(false);
     }
@@ -278,10 +357,49 @@ const LiveConsolePage = () => {
     setLoading(true);
     setError(null);
     try {
-      await stopLiveAudio(FASTAPI_BASE_URL);
-      try { await stopDouyinRelay(FASTAPI_BASE_URL); } catch {}
-      try { await stopLiveReport(FASTAPI_BASE_URL); } catch {}
-      try { await stopAILiveAnalysis(FASTAPI_BASE_URL).catch(() => {}); } catch {}
+      // 异步停止所有服务
+      const services = [
+        async () => {
+          try {
+            await stopLiveAudio(FASTAPI_BASE_URL);
+            console.log('实时音频转写服务停止成功');
+          } catch (err) {
+            console.error('实时音频转写服务停止失败:', err);
+            throw err;
+          }
+        },
+        async () => {
+          try {
+            await stopDouyinRelay(FASTAPI_BASE_URL);
+            console.log('抖音直播互动服务停止成功');
+          } catch (err) {
+            console.error('抖音直播互动服务停止失败:', err);
+            // 不抛出错误，继续执行其他停止操作
+          }
+        },
+        async () => {
+          try {
+            await stopLiveReport(FASTAPI_BASE_URL);
+            console.log('直播录制服务停止成功');
+          } catch (err) {
+            console.error('直播录制服务停止失败:', err);
+            // 不抛出错误，继续执行其他停止操作
+          }
+        },
+        async () => {
+          try {
+            await stopAILiveAnalysis(FASTAPI_BASE_URL).catch(() => {});
+            console.log('AI实时分析服务停止成功');
+          } catch (err) {
+            console.error('AI实时分析服务停止失败:', err);
+            // 不抛出错误，继续执行其他停止操作
+          }
+        }
+      ];
+
+      // 并行停止所有服务
+      await Promise.allSettled(services.map(service => service()));
+
       resetSessionState();
       disconnectWebSocket();
       analysisBootRef.current = false;
@@ -291,7 +409,7 @@ const LiveConsolePage = () => {
       setAnswerScripts([]);
     } catch (err) {
       console.error(err);
-      setError((err as Error).message ?? '停止直播音频失败');
+      setError((err as Error).message ?? '停止直播服务失败');
     } finally {
       setLoading(false);
     }
@@ -504,7 +622,7 @@ const LiveConsolePage = () => {
         <div className="flex items-center gap-4">
           <div className="text-4xl">📡</div>
           <div>
-            <div className="text-lg font-semibold text-purple-600">实时字幕</div>
+            <div className="text-lg font-semibold text-purple-600">直播控制台</div>
             <div className="text-sm timao-support-text">{isRunning ? '运行中' : '未开始'}</div>
           </div>
         </div>
@@ -875,7 +993,12 @@ const LiveConsolePage = () => {
             <span className="timao-status-pill text-xs">{isRunning ? '实时更新中' : '已暂停'}</span>
           </div>
           <div className="flex-1 overflow-hidden">
-            <DouyinRelayPanel baseUrl={FASTAPI_BASE_URL} onSelectQuestion={handleSelectQuestion} />
+            <DouyinRelayPanel 
+              baseUrl={FASTAPI_BASE_URL} 
+              onSelectQuestion={handleSelectQuestion}
+              liveId={liveInput}
+              isRunning={isRunning}
+            />
           </div>
         </section>
       </div>

@@ -275,13 +275,13 @@ class LiveAudioStreamService:
         self.music_detection_enabled: bool = bool(int(os.getenv("LIVE_VAD_MUSIC_DETECT", "1")))
         if np is None:
             self.music_detection_enabled = False
-        self.music_detect_alpha: float = 0.25           # 提高平滑系数，减少误检
-        self.music_detect_threshold: float = 0.45       # 进一步降低检测阈值，更早检测到音乐
-        self.music_release_threshold: float = 0.35      # 进一步降低释放阈值，更快恢复正常VAD
-        self.music_release_frames: int = 2              # 进一步减少释放帧数，加快恢复
-        self.music_rms_boost: float = 2.2               # 进一步增加RMS提升倍数，更好抑制背景音乐
-        self.music_min_speech_boost: float = 1.8        # 进一步增加最小语音时间倍数
-        self.music_min_silence_scale: float = 1.4       # 进一步增加最小静音时间倍数
+        self.music_detect_alpha: float = 0.15           # 进一步降低平滑系数，减少误检
+        self.music_detect_threshold: float = 0.35       # 进一步降低检测阈值，更早检测到音乐
+        self.music_release_threshold: float = 0.25      # 进一步降低释放阈值，更快恢复正常VAD
+        self.music_release_frames: int = 1              # 进一步减少释放帧数，加快恢复
+        self.music_rms_boost: float = 2.5               # 进一步增加RMS提升倍数，更好抑制背景音乐
+        self.music_min_speech_boost: float = 2.0        # 进一步增加最小语音时间倍数
+        self.music_min_silence_scale: float = 1.6       # 进一步增加最小静音时间倍数
         self._music_ema: float = 0.0
         self._music_flag: bool = False
         self._music_release_counter: int = 0

@@ -123,44 +123,47 @@ def is_speech_like(pcm16: bytes, sr: int = 16000) -> Tuple[bool, dict]:
     mod = _envelope_modulation(y, sr)
 
     # Enhanced heuristics for better music suppression
-    # 1. 更严格的人声频带要求
-    voice_dominant = r_voice >= 0.50  # 提高人声频带占比要求，更严格过滤音乐
+    # 1. 人声频带要求（进一步放宽，优先保证语音通过）
+    voice_dominant = r_voice >= 0.30  # 进一步降低要求，确保语音不被误过滤
     
-    # 2. 更精确的频谱质心范围（人声特征）
-    centroid_human = 400 <= centroid <= 2200  # 缩小质心范围，更精确识别人声
+    # 2. 频谱质心范围（扩大范围适应更多语音特征）
+    centroid_human = 150 <= centroid <= 3500  # 进一步扩大范围，适应更多语音类型
     
-    # 3. 增强的调制能量检测（语音节律特征）
-    modulation_present = mod >= 0.15  # 提高调制能量要求，更好识别语音节律
+    # 3. 调制能量检测（进一步降低要求）
+    modulation_present = mod >= 0.05  # 进一步降低要求，适应轻声语音
     
-    # 4. 更严格的频谱平坦度要求（抑制音乐的谐波结构）
-    flatness_ok = flatness <= 0.5  # 进一步收紧平坦度阈值，更好抑制音乐
+    # 4. 频谱平坦度要求（进一步放宽）
+    flatness_ok = flatness <= 0.8  # 进一步放宽，避免过度抑制
     
-    # 5. 新增：低频能量抑制（音乐通常低频能量较高）
-    low_freq_ok = r_low <= 0.35  # 进一步收紧低频能量限制，抑制低频音乐
+    # 5. 低频能量抑制（进一步放宽）
+    low_freq_ok = r_low <= 0.60  # 进一步放宽，适应低音语音
     
-    # 6. 新增：高频能量检查（人声通常有适度高频成分）
-    high_freq_ok = 0.000001 <= r_high <= 0.45  # 适度收紧高频能量上限
+    # 6. 高频能量检查（进一步放宽范围）
+    high_freq_ok = 0.000001 <= r_high <= 0.70  # 进一步放宽上限
     
-    # 7. 新增：音乐特征检测（强谐波结构检测）
-    # 检测强谐波结构，这是音乐的典型特征
+    # 7. 音乐特征检测（保持较高阈值，精确识别强音乐特征）
     harmonic_strength = _detect_harmonic_structure(mag, sr)
-    music_like = harmonic_strength > 0.7  # 强谐波结构表明可能是音乐
+    music_like = harmonic_strength > 0.75  # 适度降低，但仍保持较高标准
     
-    # 8. 新增：节拍检测（音乐通常有规律节拍）
+    # 8. 节拍检测（保持较高阈值，精确识别强节拍）
     beat_regularity = _detect_beat_regularity(y, sr)
-    regular_beat = beat_regularity > 0.6  # 规律节拍表明可能是音乐
+    regular_beat = beat_regularity > 0.65  # 适度降低，但仍保持较高标准
     
-    # 综合判断：所有条件都需要满足，且不能有明显音乐特征
-    keep = (
+    # 综合判断：基础条件满足且没有强音乐特征
+    basic_speech_criteria = (
         voice_dominant and 
         centroid_human and 
         modulation_present and 
         flatness_ok and 
         low_freq_ok and 
-        high_freq_ok and
-        not music_like and  # 排除强谐波结构
-        not regular_beat    # 排除规律节拍
+        high_freq_ok
     )
+    
+    # 音乐排除条件：只有在检测到强音乐特征时才排除
+    strong_music_features = music_like or regular_beat
+    
+    # 最终判断：满足基础语音条件且没有强音乐特征
+    keep = basic_speech_criteria and not strong_music_features
     
     dbg = {
         "rms": rms,
@@ -180,6 +183,8 @@ def is_speech_like(pcm16: bytes, sr: int = 16000) -> Tuple[bool, dict]:
         "high_freq_ok": high_freq_ok,
         "music_like": music_like,
         "regular_beat": regular_beat,
+        "basic_speech_criteria": basic_speech_criteria,
+        "strong_music_features": strong_music_features,
     }
     return bool(keep), dbg
 

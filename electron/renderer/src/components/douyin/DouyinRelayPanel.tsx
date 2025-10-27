@@ -58,6 +58,10 @@ interface DouyinRelayPanelProps {
   baseUrl?: string;
   maxMessages?: number;
   onSelectQuestion?: (entry: ChatEntry) => void;
+  liveId?: string; // 添加 liveId 属性，从父组件传入
+  isRunning?: boolean; // 添加运行状态属性
+  onStart?: () => void; // 添加启动回调
+  onStop?: () => void; // 添加停止回调
 }
 
 const toneClasses: Record<StatusTone, string> = {
@@ -74,7 +78,15 @@ const chatCategoryLabel: Record<ChatCategory, string> = {
   system: '系统',
 };
 
-const DouyinRelayPanel = ({ baseUrl, maxMessages = DEFAULT_MAX_MESSAGES, onSelectQuestion }: DouyinRelayPanelProps) => {
+const DouyinRelayPanel = ({ 
+  baseUrl, 
+  maxMessages = DEFAULT_MAX_MESSAGES, 
+  onSelectQuestion,
+  liveId, // 从父组件接收 liveId
+  isRunning, // 从父组件接收运行状态
+  onStart, // 从父组件接收启动回调
+  onStop // 从父组件接收停止回调
+}: DouyinRelayPanelProps) => {
   const [status, setStatus] = useState<DouyinRelayStatus | null>(null);
   const [chatLog, setChatLog] = useState<ChatEntry[]>([]);
   const [rankList, setRankList] = useState<RankEntry[]>([]);
@@ -86,12 +98,9 @@ const DouyinRelayPanel = ({ baseUrl, maxMessages = DEFAULT_MAX_MESSAGES, onSelec
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [streamConnected, setStreamConnected] = useState(false);
-  const [liveIdInput, setLiveIdInput] = useState('');
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const lastStartedLiveIdRef = useRef<string>('');
-
-  const isRunning = status?.is_running ?? false;
 
   // Event filter toggles; by default show core interactive events, hide room_* noise
   const [eventFilters, setEventFilters] = useState<Record<OtherEventType, boolean>>({
@@ -395,36 +404,60 @@ const DouyinRelayPanel = ({ baseUrl, maxMessages = DEFAULT_MAX_MESSAGES, onSelec
     }
   }, [baseUrl, connectStream, disconnectStream]);
 
-  const handleStart = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const liveId = (liveIdInput || '').trim();
-      if (!liveId) throw new Error('请填写直播间ID或完整链接');
-      await startDouyinRelay(liveId, baseUrl);
-      lastStartedLiveIdRef.current = liveId;
-      await refreshStatus();
-      connectStream();
-    } catch (e) {
-      setError((e as Error).message || '启动失败');
-    } finally {
-      setLoading(false);
+  // 使用从父组件传入的 liveId 和 isRunning 状态
+  useEffect(() => {
+    if (isRunning && liveId) {
+      // 启动抖音直播互动（带重试机制）
+      const startDouyin = async () => {
+        let retries = 0;
+        const maxRetries = 5;
+        while (retries < maxRetries) {
+          try {
+            setLoading(true);
+            setError(null);
+            await startDouyinRelay(liveId, baseUrl);
+            lastStartedLiveIdRef.current = liveId;
+            await refreshStatus();
+            connectStream();
+            console.log('抖音直播互动服务启动成功');
+            break; // 成功启动则退出循环
+          } catch (e) {
+            retries++;
+            console.error(`抖音直播互动服务启动失败 (尝试 ${retries}/${maxRetries}):`, e);
+            if (retries >= maxRetries) {
+              setError((e as Error).message || '启动失败');
+            } else {
+              // 等待一段时间后重试
+              await new Promise(resolve => setTimeout(resolve, 2000 * retries));
+            }
+          } finally {
+            if (retries >= maxRetries || !loading) {
+              setLoading(false);
+            }
+          }
+        }
+      };
+      startDouyin();
+    } else if (!isRunning) {
+      // 停止抖音直播互动
+      const stopDouyin = async () => {
+        try {
+          setLoading(true);
+          setError(null);
+          await stopDouyinRelay(baseUrl);
+          disconnectStream();
+          await refreshStatus();
+          console.log('抖音直播互动服务停止成功');
+        } catch (e) {
+          console.error('抖音直播互动服务停止失败:', e);
+          setError((e as Error).message || '停止失败');
+        } finally {
+          setLoading(false);
+        }
+      };
+      stopDouyin();
     }
-  }, [baseUrl, connectStream, liveIdInput, refreshStatus]);
-
-  const handleStop = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      await stopDouyinRelay(baseUrl);
-      disconnectStream();
-      await refreshStatus();
-    } catch (e) {
-      setError((e as Error).message || '停止失败');
-    } finally {
-      setLoading(false);
-    }
-  }, [baseUrl, disconnectStream, refreshStatus]);
+  }, [isRunning, liveId, baseUrl, connectStream, disconnectStream, refreshStatus]);
 
   useEffect(() => {
     refreshStatus();
@@ -460,21 +493,7 @@ const DouyinRelayPanel = ({ baseUrl, maxMessages = DEFAULT_MAX_MESSAGES, onSelec
             <div className="text-xs text-slate-400">实时 · 弹幕、礼物、点赞</div>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <input
-            value={liveIdInput}
-            onChange={(e) => setLiveIdInput(e.target.value)}
-            className="timao-input w-48 text-sm"
-            placeholder="直播间ID或完整链接"
-            disabled={loading}
-          />
-          <button className="timao-primary-btn" onClick={handleStart} disabled={loading || isRunning}>
-            {loading ? '处理中...' : '启动'}
-          </button>
-          <button className="timao-outline-btn" onClick={handleStop} disabled={loading || !isRunning}>
-            停止
-          </button>
-        </div>
+        {/* 移除原有的输入框和按钮，使用父组件统一控制 */}
       </div>
 
       {banner ? (
