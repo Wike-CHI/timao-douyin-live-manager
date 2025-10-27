@@ -2,16 +2,16 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export interface UserInfo {
-  id: number;
-  username?: string;
-  email?: string;
+  id: number;  // 修改为number类型，与后端保持一致
+  username: string;
+  email: string;
   nickname?: string;
   avatar_url?: string;
-  role?: string;
-  status?: string;
-  email_verified?: boolean;
-  phone_verified?: boolean;
-  created_at?: string;
+  role: string;
+  status: string;
+  email_verified: boolean;
+  phone_verified: boolean;
+  created_at: string; // 日期时间在JSON中会转换为字符串
 }
 
 interface AuthState {

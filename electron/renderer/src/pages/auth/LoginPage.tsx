@@ -1,6 +1,6 @@
 import React, { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { login } from '../../services/auth';
+import { login, type LoginResponse } from '../../services/auth';
 import useAuthStore from '../../store/useAuthStore';
 import TermsModal from '../../components/TermsModal';
 
@@ -19,7 +19,7 @@ const LoginPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await login({ email, password });
+      const response: LoginResponse = await login({ email, password });
       if (response.success) {
         // 写入认证状态
         setAuth({

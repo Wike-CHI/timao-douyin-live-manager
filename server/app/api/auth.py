@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from server.app.database import get_db_session
 from server.app.services.user_service import UserService
 from server.app.services.subscription_service import SubscriptionService
-from server.app.models.user import UserRoleEnum
+from server.app.models.user import UserRoleEnum, UserStatusEnum
 
 
 # 创建路由器
@@ -122,7 +122,6 @@ class EmailVerifyRequest(BaseModel):
     token: str
 
 
-python
 # 依赖注入：获取当前用户
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -144,21 +143,27 @@ async def get_current_user(
             print(f"[DEBUG] 从JWT获取user_id: {user_id} (类型: {type(user_id)})")
             
             if user_id:
-                # 从数据库获取用户信息，确保user_id是整数类型
+                # 从数据库获取用户信息，确保user_id是整数类型，并传递session
                 print(f"[DEBUG] 正在查询用户ID: {int(user_id)}")
-                user = UserService.get_user_by_id(int(user_id))
+                user = UserService.get_user_by_id(int(user_id), session=db)
                 print(f"[DEBUG] 查询到用户: {user.username if user else 'None'}")
                 
                 if user and user.status not in [UserStatusEnum.BANNED, UserStatusEnum.SUSPENDED]:
                     print("[DEBUG] JWT验证成功，返回用户信息")
-                    return {
-                        "id": user.id,
-                        "user_id": user.id,  # 添加 user_id 字段以兼容 useFree 接口
-                        "username": user.username,
-                        "email": user.email,
-                        "role": user.role.value,
-                        "status": user.status.value
-                    }
+                    try:
+                        user_data = {
+                            "id": user.id,
+                            "user_id": user.id,  # 添加 user_id 字段以兼容 useFree 接口
+                            "username": user.username,
+                            "email": user.email,
+                            "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
+                            "status": user.status.value if hasattr(user.status, 'value') else str(user.status)
+                        }
+                        print(f"[DEBUG] 构造的用户数据: {user_data}")
+                        return user_data
+                    except Exception as e:
+                        print(f"[DEBUG] 构造用户数据时出错: {e}")
+                        raise HTTPException(status_code=500, detail=f"构造用户数据失败: {str(e)}")
                 else:
                     print(f"[DEBUG] 用户状态无效或被禁用: {user.status if user else 'None'}")
             else:

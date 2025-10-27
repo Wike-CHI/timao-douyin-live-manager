@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import ThemeToggle from '../components/ThemeToggle';
 import useAuthStore from '../store/useAuthStore';
 import logoUrl from '../assets/logo.jpg';
+import type { UserInfo } from '../services/auth'; // 导入UserInfo类型
 
 const navItems = [
   { to: '/dashboard', label: '总览', icon: '📊' },
@@ -178,13 +179,9 @@ const MainLayout = () => {
         <header className="flex justify-between items-center px-8 py-6">
           <div>
             <div className="text-lg font-semibold text-slate-700">
-              欢迎回来，{user?.nickname || user?.email || '提猫主播'}！
+              欢迎回来，{(user as UserInfo)?.nickname || (user as UserInfo)?.email || '提猫主播'}！
             </div>
             <div className="text-sm timao-support-text">祝你今晚直播顺利喵～</div>
-          </div>
-          <div className="flex items-center gap-4">
-
-            <ThemeToggle />
           </div>
         </header>
         {/* 顶部资源提示条 */}

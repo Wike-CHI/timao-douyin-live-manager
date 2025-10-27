@@ -9,12 +9,15 @@ interface RegisterPayload {
   nickname: string;
 }
 
+// 导入类型
+import type { UserInfo, LoginResponse, RegisterResponse } from './auth';
+
 // 简易内存态，模拟首次免费使用
 let mockFirstFreeUsed = false;
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export const mockLogin = async (payload: LoginPayload) => {
+export const mockLogin = async (payload: LoginPayload): Promise<LoginResponse> => {
   await delay(800);
   if (!payload.email || !payload.password) {
     throw new Error('请输入邮箱和密码');
@@ -22,17 +25,27 @@ export const mockLogin = async (payload: LoginPayload) => {
   return {
     success: true,
     token: 'mock-token',
+    access_token: 'mock-access-token',
+    refresh_token: 'mock-refresh-token',
+    token_type: 'bearer',
+    expires_in: 86400, // 24小时
     user: {
-      id: 'user-1',
+      id: 1,
+      username: 'mockuser',
       email: payload.email,
       nickname: '提猫主播',
+      role: 'user',
+      status: 'active',
+      email_verified: true,
+      phone_verified: false,
+      created_at: new Date().toISOString(),
     },
     isPaid: false,
     firstFreeUsed: mockFirstFreeUsed,
   };
 };
 
-export const mockRegister = async (payload: RegisterPayload) => {
+export const mockRegister = async (payload: RegisterPayload): Promise<RegisterResponse> => {
   await delay(1000);
   if (!payload.email || !payload.password || !payload.nickname) {
     throw new Error('请填写完整信息');
@@ -42,9 +55,15 @@ export const mockRegister = async (payload: RegisterPayload) => {
   return {
     success: true,
     user: {
-      id: 'user-new',
+      id: 2,
+      username: 'mockuser',
       email: payload.email,
       nickname: payload.nickname,
+      role: 'user',
+      status: 'active',
+      email_verified: true,
+      phone_verified: false,
+      created_at: new Date().toISOString(),
     },
   };
 };

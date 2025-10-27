@@ -10,6 +10,7 @@ import {
   type Subscription,
   type Coupon
 } from '../../services/payment';
+import type { UserInfo } from '../../services/auth'; // 导入UserInfo类型
 
 const SubscriptionPage = () => {
   const navigate = useNavigate();

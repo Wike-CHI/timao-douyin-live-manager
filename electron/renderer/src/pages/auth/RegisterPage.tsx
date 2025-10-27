@@ -41,13 +41,13 @@ const RegisterPage = () => {
     }
 
     try {
-      const newUser = await register({
+      const response = await register({
         email: formData.email,
         password: formData.password,
         nickname: formData.nickname,
         username: formData.nickname || formData.email.split('@')[0],
       });
-      if (newUser?.id) {
+      if (response?.success) {
         setSuccess(true);
         setTimeout(() => navigate('/auth/login', { replace: true }), 1200);
       } else {

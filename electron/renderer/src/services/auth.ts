@@ -13,6 +13,36 @@ const joinUrl = (path: string) => {
   return `${base}${p}`;
 };
 
+// 定义与后端UserResponse模型一致的接口
+export interface UserInfo {
+  id: number;
+  username: string;
+  email: string;
+  nickname?: string;
+  avatar_url?: string;
+  role: string;
+  status: string;
+  email_verified: boolean;
+  phone_verified: boolean;
+  created_at: string; // 日期时间在JSON中会转换为字符串
+}
+
+// 定义与后端LoginResponse模型一致的接口
+export interface LoginResponse {
+  success: boolean;
+  token: string;
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+  user: UserInfo;
+  isPaid: boolean;
+  firstFreeUsed: boolean;
+}
+
+// 定义与后端UserResponse模型一致的接口（用于注册响应）
+export interface UserResponse extends UserInfo {}
+
 export interface LoginPayload {
   email: string;
   password: string;
@@ -26,7 +56,12 @@ export interface RegisterPayload {
   phone?: string;
 }
 
-export const login = async (payload: LoginPayload) => {
+export interface RegisterResponse {
+  success: boolean;
+  user: UserResponse;
+}
+
+export const login = async (payload: LoginPayload): Promise<LoginResponse> => {
   if (isMock) return mockLogin(payload);
   // 转换前端字段名到后端期望的字段名
   const requestBody = {
@@ -45,7 +80,7 @@ export const login = async (payload: LoginPayload) => {
   return resp.json();
 };
 
-export const register = async (payload: RegisterPayload) => {
+export const register = async (payload: RegisterPayload): Promise<RegisterResponse> => {
   if (isMock) return mockRegister(payload);
   const body: RegisterPayload = { ...payload };
   if (!body.username) {
