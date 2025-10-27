@@ -19,8 +19,8 @@ def test_usefree_api():
     print("\n🔍 步骤1: 登录获取token...")
     login_url = f"{base_url}/api/auth/login"
     login_data = {
-        "username": "admin",
-        "password": "admin123"
+        "username_or_email": "dev_admin",
+        "password": "DevAdmin@2024!"
     }
     
     try:

@@ -10,7 +10,6 @@ import { startLiveReport, stopLiveReport, getLiveReportStatus, generateLiveRepor
 import { startDouyinRelay, stopDouyinRelay, getDouyinRelayStatus, updateDouyinPersist } from '../../services/douyin';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../store/useAuthStore';
-import { useFirstFree as useFirstFreeApi } from '../../services/auth';
 import { startAILiveAnalysis, stopAILiveAnalysis, openAILiveStream, generateAnswerScripts } from '../../services/ai';
 import { useLiveConsoleStore, getLiveConsoleSocket } from '../../store/useLiveConsoleStore';
 
@@ -74,7 +73,7 @@ const LiveConsolePage = () => {
   const [maxSpeakers, setMaxSpeakers] = useState<number>(2);
   const [lastSpeaker, setLastSpeaker] = useState<string>('unknown');
   const navigate = useNavigate();
-  const { firstFreeUsed, setFirstFreeUsed } = useAuthStore();
+  const { isPaid } = useAuthStore();
 
   const isRunning = status?.is_running ?? false;
   const generatingRef = useRef(false);
@@ -207,20 +206,10 @@ const LiveConsolePage = () => {
     setLoading(true);
     setError(null);
     try {
-      // 检查首次免费使用权限
-      if (firstFreeUsed) {
-        setError('首次免费已使用，请选择订阅套餐');
+      // 检查付费状态
+      if (!isPaid) {
+        setError('请先选择订阅套餐');
         navigate('/pay/subscription');
-        setLoading(false);
-        return;
-      }
-      
-      // 使用首次免费权限
-      const res = await useFirstFreeApi();
-      if (res?.success) {
-        setFirstFreeUsed(true);
-      } else {
-        setError(res?.message || '首次免费使用失败');
         setLoading(false);
         return;
       }

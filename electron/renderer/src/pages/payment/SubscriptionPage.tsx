@@ -14,7 +14,7 @@ import type { UserInfo } from '../../services/auth'; // 导入UserInfo类型
 
 const SubscriptionPage = () => {
   const navigate = useNavigate();
-  const { user, setFirstFreeUsed } = useAuthStore();
+  const { user } = useAuthStore();
   const [currentSubscription, setCurrentSubscription] = useState<Subscription | null>(null);
   const [availablePlans, setAvailablePlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(false);
@@ -95,7 +95,6 @@ const SubscriptionPage = () => {
       if (result.success) {
         // 支付成功，更新状态
         setCurrentSubscription(result.subscription || null);
-        setFirstFreeUsed(false); // 重置免费使用状态
         
         // 跳转到主应用
         navigate('/dashboard');

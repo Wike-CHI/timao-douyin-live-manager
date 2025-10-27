@@ -155,40 +155,6 @@ class ASTService:
             Path(self.config.audio_output_dir).mkdir(parents=True, exist_ok=True)
 
     # 移除运行时切换后端/模型的能力，统一使用 SenseVoiceSmall
-    
-    def _create_basic_mock_service(self):
-        """创建基础模拟服务"""
-        class BasicMockService:
-            def __init__(self):
-                self.is_initialized = False
-            
-            async def initialize(self):
-                self.is_initialized = True
-                return True
-            
-            async def transcribe_audio(self, audio_data: bytes):
-                return {
-                    "success": True,
-                    "type": "final",
-                    "text": "模拟转录结果",
-                    "confidence": 0.9,
-                    "words": [],
-                    "timestamp": time.time()
-                }
-            
-            async def cleanup(self):
-                pass
-            
-            def get_model_info(self):
-                return {
-                    "model_id": "mock",
-                    "sample_rate": 16000,
-                    "is_initialized": self.is_initialized,
-                    "model_type": "mock-service",
-                    "deployment_mode": "mock",
-                }
-
-        return BasicMockService()
 
     async def initialize(self) -> bool:
         """

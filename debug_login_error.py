@@ -99,7 +99,6 @@ def debug_login_process():
             # 计算用户支付状态
             has_subscription = subscription_info.get("has_subscription", False)
             is_paid = has_subscription
-            first_free_used = user.ai_quota_used > 0
             
             response = LoginResponse(
                 success=True,
@@ -107,7 +106,6 @@ def debug_login_process():
                 access_token=session.session_token,
                 refresh_token=session.refresh_token,
                 isPaid=is_paid,
-                firstFreeUsed=first_free_used,
                 user=UserResponse(
                     id=user.id,
                     username=user.username,
@@ -128,7 +126,6 @@ def debug_login_process():
             print(f"   - 用户ID: {response.user.id}")
             print(f"   - 用户名: {response.user.username}")
             print(f"   - 支付状态: {response.isPaid}")
-            print(f"   - 首次免费已使用: {response.firstFreeUsed}")
             
         except Exception as e:
             print(f"❌ 登录响应构建异常: {e}")

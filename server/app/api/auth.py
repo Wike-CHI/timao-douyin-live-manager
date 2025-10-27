@@ -88,7 +88,7 @@ class UserResponse(BaseModel):
 
 
 class LoginResponse(BaseModel):
-    """登录响应"""
+    """登录响应模型"""
     success: bool = True
     token: str  # 前端期望的字段名
     access_token: str
@@ -97,7 +97,6 @@ class LoginResponse(BaseModel):
     expires_in: int = 86400  # 24小时
     user: UserResponse
     isPaid: bool = False
-    firstFreeUsed: bool = False
 
 
 class RefreshTokenRequest(BaseModel):
@@ -286,7 +285,6 @@ async def login_user(
         # 计算用户支付状态
         has_subscription = subscription_info.get("has_subscription", False)
         is_paid = has_subscription
-        first_free_used = user.ai_quota_used > 0  # 如果已使用AI配额，则认为首次免费已使用
         
         return LoginResponse(
             success=True,
@@ -294,7 +292,6 @@ async def login_user(
             access_token=access_token,
             refresh_token=refresh_token,
             isPaid=is_paid,
-            firstFreeUsed=first_free_used,
             user=UserResponse(
                 id=user.id,
                 username=user.username,
@@ -359,7 +356,6 @@ async def refresh_token(
         
         subscription_info = SubscriptionService.get_usage_stats(user.id)
         has_subscription = subscription_info.get("has_subscription", False)
-        first_free_used = user.ai_quota_used > 0
         
         return LoginResponse(
             success=True,
@@ -368,7 +364,6 @@ async def refresh_token(
             refresh_token=new_refresh_token,
             expires_in=86400,
             isPaid=has_subscription,
-            firstFreeUsed=first_free_used,
             user=UserResponse(
                 id=user.id,
                 username=user.username,
@@ -506,45 +501,7 @@ async def verify_email(
         )
 
 
-@router.post("/useFree")
-async def use_first_free(
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db_session)
-):
-    """使用首次免费额度"""
-    try:
-        user_id = current_user["id"]
-        user = UserService.get_user_by_id(user_id)
-        
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="用户不存在"
-            )
-        
-        # 检查是否已使用首次免费
-        if user.ai_quota_used > 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="首次免费额度已使用"
-            )
-        
-        # 标记首次免费已使用
-        user.consume_ai_quota(1)
-        
-        return {
-            "success": True,
-            "message": "首次免费额度使用成功",
-            "firstFreeUsed": True
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="使用首次免费额度失败"
-        )
+
 
 
 @router.get("/stats")

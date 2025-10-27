@@ -183,6 +183,16 @@ const MainLayout = () => {
             </div>
             <div className="text-sm timao-support-text">祝你今晚直播顺利喵～</div>
           </div>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/pay/subscription')}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors duration-200 text-sm font-medium"
+            >
+              <span>💎</span>
+              订阅服务
+            </button>
+            <ThemeToggle />
+          </div>
         </header>
         {/* 顶部资源提示条 */}
         {showBoot && (

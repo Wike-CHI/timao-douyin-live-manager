@@ -1,13 +1,14 @@
-import { mockLogin, mockPaymentPoll, mockPaymentUpload, mockRegister, mockUseFirstFree } from './mockAuth';
 import useAuthStore from '../store/useAuthStore';
 
 const RAW_AUTH_BASE_URL = (import.meta.env?.VITE_AUTH_BASE_URL as string | undefined)?.trim();
 const FASTAPI_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined)?.trim();
 const AUTH_BASE_URL = (RAW_AUTH_BASE_URL || FASTAPI_BASE_URL || '').replace(/\s+$/, '');
-const isMock = !AUTH_BASE_URL; // 未配置真实后端地址时使用本地模拟
+
+if (!AUTH_BASE_URL) {
+  throw new Error('请配置后端服务地址 VITE_AUTH_BASE_URL 或 VITE_FASTAPI_URL');
+}
 
 const joinUrl = (path: string) => {
-  if (!AUTH_BASE_URL) return path; // mock 模式下不使用
   const base = AUTH_BASE_URL.replace(/\/$/, '');
   const p = path.startsWith('/') ? path : `/${path}`;
   return `${base}${p}`;
@@ -37,7 +38,6 @@ export interface LoginResponse {
   expires_in: number;
   user: UserInfo;
   isPaid: boolean;
-  firstFreeUsed: boolean;
 }
 
 // 定义与后端UserResponse模型一致的接口（用于注册响应）
@@ -62,7 +62,6 @@ export interface RegisterResponse {
 }
 
 export const login = async (payload: LoginPayload): Promise<LoginResponse> => {
-  if (isMock) return mockLogin(payload);
   // 转换前端字段名到后端期望的字段名
   const requestBody = {
     username_or_email: payload.email,
@@ -81,7 +80,6 @@ export const login = async (payload: LoginPayload): Promise<LoginResponse> => {
 };
 
 export const register = async (payload: RegisterPayload): Promise<RegisterResponse> => {
-  if (isMock) return mockRegister(payload);
   const body: RegisterPayload = { ...payload };
   if (!body.username) {
     const fallback = body.nickname?.trim() || body.email.split('@')[0];
@@ -100,7 +98,6 @@ export const register = async (payload: RegisterPayload): Promise<RegisterRespon
 };
 
 export const uploadPayment = async (file: File) => {
-  if (isMock) return mockPaymentUpload(file);
   const form = new FormData();
   form.append('file', file);
   const { token } = useAuthStore.getState();
@@ -119,31 +116,16 @@ export const uploadPayment = async (file: File) => {
 };
 
 export const pollPayment = async () => {
-  if (isMock) return mockPaymentPoll();
-  const { token } = useAuthStore.getState();
-  const headers: Record<string, string> = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
-  const resp = await fetch(joinUrl('/api/payment/status'), { method: 'GET', headers });
-  if (!resp.ok) {
-    const txt = await resp.text().catch(() => '查询失败');
-    throw new Error(txt || '查询失败');
-  }
-  return resp.json();
-};
-
-export const useFirstFree = async () => {
-  if (isMock) return mockUseFirstFree();
   const { token } = useAuthStore.getState();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const resp = await fetch(joinUrl('/api/auth/useFree'), {
-    method: 'POST',
+  const resp = await fetch(joinUrl('/api/payment/poll'), {
+    method: 'GET',
     headers,
-    body: JSON.stringify({}),
   });
   if (!resp.ok) {
-    const txt = await resp.text().catch(() => '首次免费失败');
-    throw new Error(txt || '首次免费失败');
+    const txt = await resp.text().catch(() => '查询支付状态失败');
+    throw new Error(txt || '查询支付状态失败');
   }
   return resp.json();
 };

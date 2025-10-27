@@ -6,7 +6,7 @@ import TermsModal from '../../components/TermsModal';
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const { setAuth, setFirstFreeUsed } = useAuthStore();
+  const { setAuth, rememberMe, setRememberMe } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,18 +25,12 @@ const LoginPage = () => {
         setAuth({
           user: response.user,
           token: response.token,
-          isPaid: response.isPaid,
-          firstFreeUsed: response.firstFreeUsed
+          refreshToken: response.refresh_token,
+          isPaid: response.isPaid
         });
 
-        // 写入首次免费使用状态
-        if (typeof response.firstFreeUsed === 'boolean') {
-          setFirstFreeUsed(response.firstFreeUsed);
-        }
-
-        // 根据订阅状态决定跳转
-        const canEnter = !response.firstFreeUsed;
-        navigate(canEnter ? '/dashboard' : '/pay/subscription');
+        // 登录成功后统一跳转到dashboard
+        navigate('/dashboard');
       }
     } catch (err) {
       setError((err as Error).message);
@@ -87,6 +81,18 @@ const LoginPage = () => {
             required
             autoComplete="current-password"
           />
+        </div>
+        <div className="flex items-center">
+          <input
+            id="remember-me"
+            type="checkbox"
+            checked={rememberMe}
+            onChange={(e) => setRememberMe(e.target.checked)}
+            className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+          />
+          <label htmlFor="remember-me" className="ml-2 block text-sm timao-support-text">
+            记住我
+          </label>
         </div>
         {error && (
           <div className="text-sm text-red-500 bg-red-50 rounded-xl px-3 py-2" role="alert">
