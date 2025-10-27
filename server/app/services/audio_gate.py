@@ -93,15 +93,15 @@ def _envelope_modulation(y: np.ndarray, sr: int) -> float:
 def is_speech_like(pcm16: bytes, sr: int = 16000) -> Tuple[bool, dict]:
     """Return (keep, debug) where keep=True indicates human speech-like segment.
 
-    Thresholds tuned empirically; may need adjustments per stream.
+    Enhanced thresholds for better background music suppression and voice detection.
     """
-    if not pcm16:
+    if not pcm16 or len(pcm16) == 0:
         return False, {"reason": "empty"}
     y = np.frombuffer(pcm16, dtype=np.int16).astype(np.float32) / 32768.0
     if y.size < sr * 0.1:
         return False, {"reason": "too_short"}
     rms = float(np.sqrt(np.mean(y * y) + 1e-12))
-    if rms < 0.005:
+    if rms < 0.003:  # 降低RMS阈值，提高对轻声说话的敏感度
         return False, {"reason": "too_quiet", "rms": rms}
 
     mag = _stft_mag(y, n_fft=512, hop=160, win=400)
@@ -115,24 +115,172 @@ def is_speech_like(pcm16: bytes, sr: int = 16000) -> Tuple[bool, dict]:
     et = e_low + e_voice + e_high + 1e-12
     r_voice = e_voice / et
     r_high = e_high / et
+    r_low = e_low / et
 
     # Spectral stats
     centroid = _spectral_centroid(mag, sr)
     flatness = _spectral_flatness(mag)
     mod = _envelope_modulation(y, sr)
 
-    # Heuristics
-    # voice band should dominate; centroid in human region; modulation present; flatness not too high
+    # Enhanced heuristics for better music suppression
+    # 1. 更严格的人声频带要求
+    voice_dominant = r_voice >= 0.50  # 提高人声频带占比要求，更严格过滤音乐
+    
+    # 2. 更精确的频谱质心范围（人声特征）
+    centroid_human = 400 <= centroid <= 2200  # 缩小质心范围，更精确识别人声
+    
+    # 3. 增强的调制能量检测（语音节律特征）
+    modulation_present = mod >= 0.15  # 提高调制能量要求，更好识别语音节律
+    
+    # 4. 更严格的频谱平坦度要求（抑制音乐的谐波结构）
+    flatness_ok = flatness <= 0.5  # 进一步收紧平坦度阈值，更好抑制音乐
+    
+    # 5. 新增：低频能量抑制（音乐通常低频能量较高）
+    low_freq_ok = r_low <= 0.35  # 进一步收紧低频能量限制，抑制低频音乐
+    
+    # 6. 新增：高频能量检查（人声通常有适度高频成分）
+    high_freq_ok = 0.000001 <= r_high <= 0.45  # 适度收紧高频能量上限
+    
+    # 7. 新增：音乐特征检测（强谐波结构检测）
+    # 检测强谐波结构，这是音乐的典型特征
+    harmonic_strength = _detect_harmonic_structure(mag, sr)
+    music_like = harmonic_strength > 0.7  # 强谐波结构表明可能是音乐
+    
+    # 8. 新增：节拍检测（音乐通常有规律节拍）
+    beat_regularity = _detect_beat_regularity(y, sr)
+    regular_beat = beat_regularity > 0.6  # 规律节拍表明可能是音乐
+    
+    # 综合判断：所有条件都需要满足，且不能有明显音乐特征
     keep = (
-        (r_voice >= 0.45) and (300 <= centroid <= 2200) and (mod >= 0.10) and (flatness <= 0.6)
+        voice_dominant and 
+        centroid_human and 
+        modulation_present and 
+        flatness_ok and 
+        low_freq_ok and 
+        high_freq_ok and
+        not music_like and  # 排除强谐波结构
+        not regular_beat    # 排除规律节拍
     )
+    
     dbg = {
         "rms": rms,
         "r_voice": r_voice,
         "r_high": r_high,
+        "r_low": r_low,
         "centroid": centroid,
         "flatness": flatness,
         "mod": mod,
+        "harmonic_strength": harmonic_strength,
+        "beat_regularity": beat_regularity,
+        "voice_dominant": voice_dominant,
+        "centroid_human": centroid_human,
+        "modulation_present": modulation_present,
+        "flatness_ok": flatness_ok,
+        "low_freq_ok": low_freq_ok,
+        "high_freq_ok": high_freq_ok,
+        "music_like": music_like,
+        "regular_beat": regular_beat,
     }
     return bool(keep), dbg
+
+
+def _detect_harmonic_structure(mag: np.ndarray, sr: int) -> float:
+    """检测谐波结构强度，音乐通常有强谐波结构"""
+    if mag.shape[0] == 0:
+        return 0.0
+    
+    # 计算频谱的峰值
+    freqs = np.linspace(0, sr / 2.0, mag.shape[1], dtype=np.float32)
+    avg_mag = np.mean(mag, axis=0)
+    
+    # 寻找峰值
+    peaks = []
+    for i in range(1, len(avg_mag) - 1):
+        if avg_mag[i] > avg_mag[i-1] and avg_mag[i] > avg_mag[i+1]:
+            if avg_mag[i] > np.mean(avg_mag) * 1.5:  # 只考虑显著峰值
+                peaks.append((freqs[i], avg_mag[i]))
+    
+    if len(peaks) < 2:
+        return 0.0
+    
+    # 检查谐波关系
+    peaks.sort(key=lambda x: x[1], reverse=True)  # 按幅度排序
+    fundamental_candidates = peaks[:3]  # 取前3个最强峰值作为基频候选
+    
+    max_harmonic_score = 0.0
+    for fund_freq, fund_amp in fundamental_candidates:
+        if fund_freq < 50:  # 基频太低，跳过
+            continue
+            
+        harmonic_score = 0.0
+        harmonic_count = 0
+        
+        # 检查2-6次谐波
+        for h in range(2, 7):
+            target_freq = fund_freq * h
+            if target_freq > sr / 2:
+                break
+                
+            # 在目标频率附近寻找峰值
+            tolerance = fund_freq * 0.1  # 10%容差
+            for peak_freq, peak_amp in peaks:
+                if abs(peak_freq - target_freq) < tolerance:
+                    harmonic_score += peak_amp / fund_amp
+                    harmonic_count += 1
+                    break
+        
+        if harmonic_count > 0:
+            avg_harmonic_strength = harmonic_score / harmonic_count
+            max_harmonic_score = max(max_harmonic_score, avg_harmonic_strength)
+    
+    return float(np.clip(max_harmonic_score, 0.0, 1.0))
+
+
+def _detect_beat_regularity(y: np.ndarray, sr: int) -> float:
+    """检测节拍规律性，音乐通常有规律节拍"""
+    if len(y) < sr:  # 至少需要1秒音频
+        return 0.0
+    
+    # 计算包络
+    hop_length = 512
+    frame_length = 1024
+    
+    # 简单的包络提取
+    envelope = []
+    for i in range(0, len(y) - frame_length, hop_length):
+        frame = y[i:i + frame_length]
+        envelope.append(np.sqrt(np.mean(frame ** 2)))
+    
+    envelope = np.array(envelope)
+    if len(envelope) < 10:
+        return 0.0
+    
+    # 计算包络的自相关
+    envelope = envelope - np.mean(envelope)
+    autocorr = np.correlate(envelope, envelope, mode='full')
+    autocorr = autocorr[len(autocorr)//2:]
+    
+    if len(autocorr) < 10:
+        return 0.0
+    
+    # 寻找周期性峰值
+    autocorr = autocorr / (autocorr[0] + 1e-8)  # 归一化
+    
+    # 在合理的节拍范围内寻找峰值 (60-180 BPM)
+    min_period = int(sr / hop_length * 60 / 180)  # 180 BPM对应的最小周期
+    max_period = int(sr / hop_length * 60 / 60)   # 60 BPM对应的最大周期
+    
+    if max_period >= len(autocorr):
+        max_period = len(autocorr) - 1
+    
+    if min_period >= max_period:
+        return 0.0
+    
+    # 寻找最强的周期性
+    max_periodicity = 0.0
+    for i in range(min_period, max_period):
+        if i < len(autocorr):
+            max_periodicity = max(max_periodicity, autocorr[i])
+    
+    return float(np.clip(max_periodicity, 0.0, 1.0))
 

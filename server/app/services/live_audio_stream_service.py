@@ -203,12 +203,12 @@ class LiveAudioStreamService:
         except Exception:
             self._corrector = None
 
-        # Automatic gain control (SenseVoice gain assistant)
+        # Automatic gain control (SenseVoice gain assistant) - 优化参数
         self.agc_enabled = bool(int(os.getenv("LIVE_AUDIO_AGC", "1")))
-        self.agc_target_rms = float(os.getenv("LIVE_AUDIO_AGC_TARGET", "0.06"))
-        self.agc_max_gain = float(os.getenv("LIVE_AUDIO_AGC_MAX_GAIN", "5.0"))
-        self.agc_min_gain = float(os.getenv("LIVE_AUDIO_AGC_MIN_GAIN", "0.4"))
-        self.agc_smooth = float(os.getenv("LIVE_AUDIO_AGC_SMOOTH", "0.2"))
+        self.agc_target_rms = float(os.getenv("LIVE_AUDIO_AGC_TARGET", "0.08"))    # 提高目标RMS，增强人声
+        self.agc_max_gain = float(os.getenv("LIVE_AUDIO_AGC_MAX_GAIN", "6.0"))     # 增加最大增益
+        self.agc_min_gain = float(os.getenv("LIVE_AUDIO_AGC_MIN_GAIN", "0.3"))     # 降低最小增益
+        self.agc_smooth = float(os.getenv("LIVE_AUDIO_AGC_SMOOTH", "0.15"))        # 降低平滑系数，提高响应速度
         self._agc_gain = 1.0
 
         # Speaker diarization (host vs guest)
@@ -228,11 +228,12 @@ class LiveAudioStreamService:
         # Model size: 'small'|'medium'|'large'
         self._model_size: str = "small"
         # Streaming/VAD parameters are applied via profile presets (default -> stable)
+        # 优化VAD参数以提高人声检测精度，特别是在背景音乐环境下
         self.chunk_seconds: float = 0.8
-        self.vad_min_silence_sec: float = 0.80
-        self.vad_min_speech_sec: float = 0.50
-        self.vad_hangover_sec: float = 0.30
-        self.vad_min_rms: float = 0.018
+        self.vad_min_silence_sec: float = 0.60  # 减少最小静音时间，提高响应速度
+        self.vad_min_speech_sec: float = 0.35   # 减少最小语音时间，更快检测到人声
+        self.vad_hangover_sec: float = 0.40     # 增加挂起时间，避免语音被截断
+        self.vad_min_rms: float = 0.015         # 降低RMS阈值，提高对轻声说话的敏感度
         self.vad_force_flush_sec: float = 6.0
         self.vad_force_flush_overlap_sec: float = 0.25
         # Track partial text already emitted via delta
@@ -270,17 +271,17 @@ class LiveAudioStreamService:
         self.persist_root: Optional[str] = None
         self._persist_tr: Optional[Any] = None
 
-        # 背景音乐检测与自适应阈值
+        # 背景音乐检测与自适应阈值 - 优化参数以更好地抑制背景音乐
         self.music_detection_enabled: bool = bool(int(os.getenv("LIVE_VAD_MUSIC_DETECT", "1")))
         if np is None:
             self.music_detection_enabled = False
-        self.music_detect_alpha: float = 0.25
-        self.music_detect_threshold: float = 0.58
-        self.music_release_threshold: float = 0.45
-        self.music_release_frames: int = 4
-        self.music_rms_boost: float = 1.6
-        self.music_min_speech_boost: float = 1.3
-        self.music_min_silence_scale: float = 1.1
+        self.music_detect_alpha: float = 0.25           # 提高平滑系数，减少误检
+        self.music_detect_threshold: float = 0.45       # 进一步降低检测阈值，更早检测到音乐
+        self.music_release_threshold: float = 0.35      # 进一步降低释放阈值，更快恢复正常VAD
+        self.music_release_frames: int = 2              # 进一步减少释放帧数，加快恢复
+        self.music_rms_boost: float = 2.2               # 进一步增加RMS提升倍数，更好抑制背景音乐
+        self.music_min_speech_boost: float = 1.8        # 进一步增加最小语音时间倍数
+        self.music_min_silence_scale: float = 1.4       # 进一步增加最小静音时间倍数
         self._music_ema: float = 0.0
         self._music_flag: bool = False
         self._music_release_counter: int = 0

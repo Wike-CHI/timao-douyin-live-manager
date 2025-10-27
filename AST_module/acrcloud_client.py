@@ -10,11 +10,10 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
 try:
-    from acrcloud.recognizer import ACRCloudConfig, ACRCloudRecognizer  # type: ignore
+    from acrcloud.recognizer import ACRCloudRecognizer  # type: ignore
 
     ACR_SDK_AVAILABLE = True
 except ImportError:  # pragma: no cover - SDK 未安装时降级
-    ACRCloudConfig = object  # type: ignore
     ACRCloudRecognizer = object  # type: ignore
     ACR_SDK_AVAILABLE = False
 
@@ -66,12 +65,15 @@ class ACRCloudClient:
             raise RuntimeError("acrcloud_sdk_python 未安装，无法启用 ACRCloud 背景音乐识别。")
         self.logger = logger or LOGGER
         self.min_score = max(0.0, min_score)
-        cfg = ACRCloudConfig()
-        cfg.host = host
-        cfg.access_key = access_key
-        cfg.access_secret = access_secret
-        cfg.timeout = max(3, int(timeout))
-        self._recognizer = ACRCloudRecognizer(cfg)
+        
+        # 使用字典配置而不是ACRCloudConfig类
+        config = {
+            'host': host,
+            'access_key': access_key,
+            'access_secret': access_secret,
+            'timeout': max(3, int(timeout))
+        }
+        self._recognizer = ACRCloudRecognizer(config)
 
     def identify(self, audio_bytes: bytes) -> Optional[ACRMusicMatch]:
         if not audio_bytes:

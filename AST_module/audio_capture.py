@@ -16,18 +16,18 @@ from pathlib import Path
 
 @dataclass
 class AudioConfig:
-    """音频配置"""
+    """音频配置 - 优化参数以提高人声检测和背景音乐抑制"""
     sample_rate: int = 16000  # SenseVoice 推荐采样率
     channels: int = 1         # 单声道
     chunk_size: int = 1024    # 每次读取的帧数
     format: int = pyaudio.paInt16  # 16位深度
     input_device_index: Optional[int] = None
-    # 降噪与电平控制
+    # 降噪与电平控制 - 优化参数
     enable_denoise: bool = True
-    denoise_backend: str = "auto"   # auto|rnnoise|webrtc|spectral|gate|off
-    denoise_level: str = "moderate" # low|moderate|high
-    enable_agc: bool = True         # 自动增益（自动控制响度）
-    target_rms: float = 0.05        # 目标 RMS（0~1，对应 16-bit 全幅的比例）
+    denoise_backend: str = "spectral"   # 使用频谱门限降噪，更好抑制背景音乐
+    denoise_level: str = "high"         # 提高降噪等级
+    enable_agc: bool = True             # 自动增益（自动控制响度）
+    target_rms: float = 0.08            # 提高目标RMS，增强人声
 
 class AudioCapture:
     """音频采集器"""
