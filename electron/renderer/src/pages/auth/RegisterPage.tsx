@@ -1,6 +1,7 @@
 import React, { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { register } from '../../services/auth';
+import TermsModal from '../../components/TermsModal';
 
 const RegisterPage = () => {
   const navigate = useNavigate();
@@ -13,6 +14,9 @@ const RegisterPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [agreeTerms, setAgreeTerms] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalType, setModalType] = useState<'terms' | 'privacy'>('terms');
 
   const handleChange = (key: string, value: string) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
@@ -23,6 +27,12 @@ const RegisterPage = () => {
     setLoading(true);
     setError(null);
     setSuccess(false);
+
+    if (!agreeTerms) {
+      setError('请先阅读并同意服务条款和隐私政策');
+      setLoading(false);
+      return;
+    }
 
     if (formData.password !== formData.confirmPassword) {
       setError('两次输入的密码不一致');
@@ -45,6 +55,11 @@ const RegisterPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const openTermsModal = (type: 'terms' | 'privacy') => {
+    setModalType(type);
+    setModalOpen(true);
   };
 
   return (
@@ -113,6 +128,37 @@ const RegisterPage = () => {
             autoComplete="new-password"
           />
         </div>
+        
+        {/* 同意条款复选框 */}
+        <div className="flex items-start space-x-3 py-3">
+          <input
+            id="agree-terms"
+            type="checkbox"
+            checked={agreeTerms}
+            onChange={(e) => setAgreeTerms(e.target.checked)}
+            className="mt-1 w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500 focus:ring-2"
+            required
+          />
+          <label htmlFor="agree-terms" className="text-sm text-gray-700 leading-relaxed">
+            我已阅读并同意
+            <button 
+              type="button"
+              onClick={() => openTermsModal('terms')}
+              className="text-purple-500 hover:text-purple-600 underline mx-1 font-medium"
+            >
+              《服务条款》
+            </button>
+            和
+            <button 
+              type="button"
+              onClick={() => openTermsModal('privacy')}
+              className="text-purple-500 hover:text-purple-600 underline mx-1 font-medium"
+            >
+              《隐私政策》
+            </button>
+          </label>
+        </div>
+        
         {error && (
           <div className="text-sm text-red-500 bg-red-50 rounded-xl px-3 py-2" role="alert">
             {error}
@@ -123,7 +169,7 @@ const RegisterPage = () => {
             注册成功，即将跳转登录
           </div>
         )}
-        <button type="submit" className="timao-primary-btn w-full" disabled={loading}>
+        <button type="submit" className="timao-primary-btn w-full" disabled={loading || !agreeTerms}>
           {loading ? '注册中...' : '注册'}
         </button>
       </form>
@@ -133,6 +179,12 @@ const RegisterPage = () => {
           立即登录
         </Link>
       </div>
+      
+      <TermsModal 
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        type={modalType}
+      />
     </div>
   );
 };

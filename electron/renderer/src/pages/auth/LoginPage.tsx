@@ -2,6 +2,7 @@ import React, { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { login } from '../../services/auth';
 import useAuthStore from '../../store/useAuthStore';
+import TermsModal from '../../components/TermsModal';
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -12,6 +13,8 @@ const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalType, setModalType] = useState<'terms' | 'privacy'>('terms');
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -36,6 +39,11 @@ const LoginPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const openTermsModal = (type: 'terms' | 'privacy') => {
+    setModalType(type);
+    setModalOpen(true);
   };
 
   return (
@@ -91,6 +99,30 @@ const LoginPage = () => {
           立即注册
         </Link>
       </div>
+      
+      {/* 服务条款和隐私政策链接 */}
+      <div className="text-xs text-gray-500 mt-4 text-center leading-relaxed">
+        登录即表示您同意我们的
+        <button 
+          onClick={() => openTermsModal('terms')}
+          className="text-purple-500 hover:text-purple-600 underline mx-1 font-medium"
+        >
+          服务条款
+        </button>
+        和
+        <button 
+          onClick={() => openTermsModal('privacy')}
+          className="text-purple-500 hover:text-purple-600 underline mx-1 font-medium"
+        >
+          隐私政策
+        </button>
+      </div>
+      
+      <TermsModal 
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        type={modalType}
+      />
     </div>
   );
 };

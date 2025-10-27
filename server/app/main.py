@@ -79,6 +79,8 @@ app.add_middleware(
         "http://localhost:10090",   # 允许后端静态文件访问 API
         "http://127.0.0.1:8090",    # 兼容旧端口
         "http://localhost:8090",     # 兼容旧端口
+        "http://localhost:8001",
+        "http://127.0.0.1:8001",
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],

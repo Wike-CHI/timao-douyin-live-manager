@@ -548,8 +548,8 @@ const LiveConsolePage = () => {
         {/* 语音转写流卡片 - 已隐藏，使用下方的“主播实时语音转写” */}
         {/* <section className="timao-card h-full flex flex-col">...</section> */}
 
-        {/* 直播分析卡片和风格画像平铺 */}
-        <div className="grid gap-6 xl:grid-cols-2 lg:grid-cols-2 md:grid-cols-1">
+        {/* 直播分析卡片、风格画像和智能话术建议并排 */}
+        <div className="grid gap-6 xl:grid-cols-3 lg:grid-cols-2 md:grid-cols-1">
           {/* AI 分析卡片 */}
           <div className="timao-card">
             <div className="flex items-center gap-2 mb-3">
@@ -563,7 +563,7 @@ const LiveConsolePage = () => {
               <div className="timao-outline-card text-sm timao-support-text">{isRunning ? '正在生成直播分析卡片…（开始字幕后约 1 分钟内出现结果）' : '请先在上方开始实时字幕'}
               </div>
             ) : (
-              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+              <div className="space-y-3 max-h-[450px] overflow-y-auto pr-1">
                 {aiEvents.map((ev, idx) => {
                   const sentiment = ev?.audience_sentiment
                     || (ev?.analysis_card && typeof ev.analysis_card === 'object' ? ev.analysis_card.audience_sentiment : null);
@@ -698,6 +698,104 @@ const LiveConsolePage = () => {
             </div>
           )}
         </div>
+
+          {/* 智能话术建议 */}
+          <div className="timao-card h-[500px] flex flex-col">
+            <div className="flex items-center justify-between mb-3 flex-shrink-0">
+              <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
+                <span>🗣️</span>
+                智能话术建议
+              </h3>
+              <span className="text-xs timao-support-text">在弹幕中点"生成答疑话术"</span>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-3">
+              <div>
+                <div className="text-xs text-slate-500 mb-1">已选问题</div>
+                {selectedQuestions.length ? (
+                  <ul className="space-y-2">
+                    {selectedQuestions.map((q) => (
+                      <li key={q} className="flex items-start justify-between gap-3 rounded-xl border bg-white/90 px-3 py-2 text-xs text-slate-600">
+                        <span className="flex-1 leading-relaxed">{q}</span>
+                        <button
+                          className="timao-support-text text-[11px] hover:text-rose-500"
+                          onClick={() => handleRemoveQuestion(q)}
+                          title="移除该问题"
+                        >
+                          移除
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="timao-outline-card text-xs timao-support-text">
+                    在实时弹幕列表中点击对应按钮，即可将问题加入这里。
+                  </div>
+                )}
+                <div className="mt-3 flex items-center gap-2">
+                  <button
+                    className="timao-primary-btn text-xs"
+                    onClick={handleGenerateAnswers}
+                    disabled={!selectedQuestions.length || answerLoading}
+                  >
+                    {answerLoading ? '生成中…' : '生成话术'}
+                  </button>
+                  <button
+                    className="timao-outline-btn text-xs"
+                    onClick={handleClearQuestions}
+                    disabled={!selectedQuestions.length || answerLoading}
+                  >
+                    清空
+                  </button>
+                </div>
+                {answerError ? (
+                  <div className="mt-2 text-xs text-rose-500">{answerError}</div>
+                ) : null}
+              </div>
+
+              <div>
+                <div className="text-xs text-slate-500 mb-1">生成结果</div>
+                {Array.isArray(answerScripts) && answerScripts.length ? (
+                  <div className="space-y-3">
+                    {answerScripts.slice(0, 3).map((item, idx) => (
+                      <div key={idx} className="rounded-xl bg-white/90 border p-3 text-xs text-slate-600 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {item?.question ? (
+                            <span className="text-[11px] text-purple-500">
+                              问：{String(item.question)}
+                            </span>
+                          ) : null}
+                          {item?.style ? (
+                            <span className="rounded-full border border-purple-200 bg-purple-50 px-2 py-[1px] text-[10px] text-purple-600">
+                              {String(item.style)}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="text-sm text-slate-800 leading-relaxed">
+                          {String(item?.line || '')}
+                        </div>
+                        <div className="flex items-center justify-between">
+                          {item?.notes ? (
+                            <span className="text-[11px] text-slate-400">{String(item.notes)}</span>
+                          ) : <span />}
+                          <button
+                            className="timao-outline-btn text-[11px] px-2 py-0.5"
+                            onClick={() => handleCopyAnswer(String(item?.line || ''))}
+                            title="复制话术"
+                          >
+                            复制
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="timao-outline-card text-xs timao-support-text">
+                    生成后的话术会展示在此，帮助你用主播语气快速回复观众。
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -799,7 +897,7 @@ const LiveConsolePage = () => {
       <div className="grid gap-6 xl:grid-cols-3 lg:grid-cols-2 md:grid-cols-1">
         {/* 左侧：音频增强等卡片 */}
         <section className="flex flex-col gap-4">
-          <div className="timao-card">
+          <div className="timao-card hidden">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
                 <span>🎛️</span>
@@ -825,7 +923,7 @@ const LiveConsolePage = () => {
             </div>
           </div>
 
-          <div className="timao-card">
+          <div className="timao-card hidden">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
                 <span>🧾</span>
@@ -853,7 +951,7 @@ const LiveConsolePage = () => {
             ) : null}
           </div>
 
-          <div className="timao-card">
+          <div className="timao-card hidden">
             <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2 mb-3">
               <span>📎</span>
               使用提示
@@ -868,7 +966,7 @@ const LiveConsolePage = () => {
 
         {/* 中间：实时字幕和当前会话 */}
         <section className="flex flex-col gap-4">
-          <div className="timao-card">
+          <div className="timao-card hidden">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
                 <span>💡</span>
@@ -929,7 +1027,7 @@ const LiveConsolePage = () => {
             ) : null}
           </div>
 
-          <div className="timao-soft-card">
+          <div className="timao-soft-card hidden">
             <div className="text-sm text-slate-500 mb-1">当前会话</div>
             <div className="text-lg font-semibold text-purple-600">{status?.session_id ?? '—'}</div>
             <div className="text-xs timao-support-text mt-2">
@@ -968,105 +1066,6 @@ const LiveConsolePage = () => {
           ) : null}
         </section>
 
-        {/* 右侧：智能话术建议 */}
-        <section className="flex flex-col gap-4">
-          <div className="timao-card">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-                <span>🗣️</span>
-                智能话术建议
-              </h3>
-              <span className="text-xs timao-support-text">在弹幕中点“生成答疑话术”即可添加</span>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <div className="text-xs text-slate-500 mb-1">已选问题</div>
-                {selectedQuestions.length ? (
-                  <ul className="space-y-2">
-                    {selectedQuestions.map((q) => (
-                      <li key={q} className="flex items-start justify-between gap-3 rounded-xl border bg-white/90 px-3 py-2 text-xs text-slate-600">
-                        <span className="flex-1 leading-relaxed">{q}</span>
-                        <button
-                          className="timao-support-text text-[11px] hover:text-rose-500"
-                          onClick={() => handleRemoveQuestion(q)}
-                          title="移除该问题"
-                        >
-                          移除
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="timao-outline-card text-xs timao-support-text">
-                    在实时弹幕列表中点击对应按钮，即可将问题加入这里。
-                  </div>
-                )}
-                <div className="mt-3 flex items-center gap-2">
-                  <button
-                    className="timao-primary-btn text-xs"
-                    onClick={handleGenerateAnswers}
-                    disabled={!selectedQuestions.length || answerLoading}
-                  >
-                    {answerLoading ? '生成中…' : '生成话术'}
-                  </button>
-                  <button
-                    className="timao-outline-btn text-xs"
-                    onClick={handleClearQuestions}
-                    disabled={!selectedQuestions.length || answerLoading}
-                  >
-                    清空
-                  </button>
-                </div>
-                {answerError ? (
-                  <div className="mt-2 text-xs text-rose-500">{answerError}</div>
-                ) : null}
-              </div>
-
-              <div>
-                <div className="text-xs text-slate-500 mb-1">生成结果</div>
-                {Array.isArray(answerScripts) && answerScripts.length ? (
-                  <div className="space-y-3">
-                    {answerScripts.slice(0, 3).map((item, idx) => (
-                      <div key={idx} className="rounded-xl bg-white/90 border p-3 text-xs text-slate-600 space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          {item?.question ? (
-                            <span className="text-[11px] text-purple-500">
-                              问：{String(item.question)}
-                            </span>
-                          ) : null}
-                          {item?.style ? (
-                            <span className="rounded-full border border-purple-200 bg-purple-50 px-2 py-[1px] text-[10px] text-purple-600">
-                              {String(item.style)}
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="text-sm text-slate-800 leading-relaxed">
-                          {String(item?.line || '')}
-                        </div>
-                        <div className="flex items-center justify-between">
-                          {item?.notes ? (
-                            <span className="text-[11px] text-slate-400">{String(item.notes)}</span>
-                          ) : <span />}
-                          <button
-                            className="timao-outline-btn text-[11px] px-2 py-0.5"
-                            onClick={() => handleCopyAnswer(String(item?.line || ''))}
-                            title="复制话术"
-                          >
-                            复制
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="timao-outline-card text-xs timao-support-text">
-                    生成后的话术会展示在此，帮助你用主播语气快速回复观众。
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
       </div>
     </div>
   );
