@@ -116,68 +116,107 @@ function startFastAPI() {
             const backendPort = process.env.BACKEND_PORT || '9019';
             const available = await isPortAvailable(backendPort);
             if (!available) {
-                console.log(`[electron] Port ${backendPort} is already in use, checking if it\'s our FastAPI service...`);
+                console.log(`[electron] Port ${backendPort} is already in use, attempting to kill existing process...`);
                 
-                // Try to connect to the health endpoint to verify it's our service
-                // Add retry mechanism for health check as the service might be starting up
-                const maxRetries = 5;
-                const retryDelay = 1000; // 1 second
-                
-                for (let attempt = 1; attempt <= maxRetries; attempt++) {
-                    try {
-                        console.log(`[electron] Health check attempt ${attempt}/${maxRetries}...`);
-                        
-                        // Use a more reliable HTTP request method for Node.js
-                        const http = require('http');
-                        const healthCheckPromise = new Promise((resolveHealth, rejectHealth) => {
-                            const req = http.get(`http://127.0.0.1:${backendPort}/health`, { timeout: 5000 }, (res) => {
-                                let data = '';
-                                res.on('data', chunk => data += chunk);
-                                res.on('end', () => {
-                                    try {
-                                        console.log(`[electron] Health check response: Status ${res.statusCode}, Data: ${data}`);
-                                        const response = JSON.parse(data);
-                                        if (res.statusCode === 200 && response.status === 'healthy') {
-                                            resolveHealth(true);
-                                        } else {
-                                            rejectHealth(new Error(`Service not healthy: ${res.statusCode} - ${data}`));
-                                        }
-                                    } catch (e) {
-                                        console.log(`[electron] Health check parse error: ${e.message}`);
-                                        rejectHealth(e);
-                                    }
-                                });
-                            });
-                            
-                            req.on('error', (err) => {
-                                console.log(`[electron] Health check request error: ${err.message}`);
-                                rejectHealth(err);
-                            });
-                            req.on('timeout', () => {
-                                console.log('[electron] Health check timeout occurred');
-                                req.destroy();
-                                rejectHealth(new Error('Health check timeout'));
-                            });
-                            req.setTimeout(5000);
-                        });
-                        
-                        await healthCheckPromise;
-                        console.log('[electron] FastAPI service is already running and healthy.');
-                        return resolve({ success: true, message: 'FastAPI already running (external)' });
-                        
-                    } catch (error) {
-                        console.log(`[electron] Health check attempt ${attempt} failed: ${error.message}`);
-                        
-                        if (attempt === maxRetries) {
-                            console.log(`[electron] All health check attempts failed. Port ${backendPort} occupied but service not responding, attempting to start anyway...`);
-                            // If all health checks fail, the port might be occupied by a dead process
-                            // We'll try to start anyway and let uvicorn handle the error
-                            break;
-                        } else {
-                            // Wait before next retry
-                            await new Promise(resolve => setTimeout(resolve, retryDelay));
+                // First, try to kill any process occupying the port
+                try {
+                    const { execSync } = require('child_process');
+                    
+                    // Find processes using the port
+                    const netstatOutput = execSync(`netstat -ano | findstr :${backendPort}`, { encoding: 'utf8' });
+                    const lines = netstatOutput.split('\n').filter(line => line.trim());
+                    
+                    for (const line of lines) {
+                        const parts = line.trim().split(/\s+/);
+                        if (parts.length >= 5) {
+                            const pid = parts[parts.length - 1];
+                            if (pid && pid !== '0') {
+                                console.log(`[electron] Found process ${pid} using port ${backendPort}, attempting to kill...`);
+                                try {
+                                    execSync(`taskkill /F /PID ${pid}`, { encoding: 'utf8' });
+                                    console.log(`[electron] Successfully killed process ${pid}`);
+                                } catch (killError) {
+                                    console.log(`[electron] Failed to kill process ${pid}: ${killError.message}`);
+                                }
+                            }
                         }
                     }
+                    
+                    // Wait a moment for the port to be released
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                } catch (error) {
+                    console.log(`[electron] Error while trying to kill port processes: ${error.message}`);
+                }
+                
+                // After attempting to kill processes, check if port is now available
+                const nowAvailable = await isPortAvailable(backendPort);
+                if (!nowAvailable) {
+                    console.log(`[electron] Port ${backendPort} still in use after cleanup, checking if it's our FastAPI service...`);
+                    
+                    // Try to connect to the health endpoint to verify it's our service
+                    // Reduced retry attempts since we already tried to clean up
+                    const maxRetries = 3;
+                    const retryDelay = 2000; // 2 seconds - longer delay for service to stabilize
+                    
+                    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                        try {
+                            console.log(`[electron] Health check attempt ${attempt}/${maxRetries}...`);
+                            
+                            // Use a more reliable HTTP request method for Node.js
+                            const http = require('http');
+                            const healthCheckPromise = new Promise((resolveHealth, rejectHealth) => {
+                                const req = http.get(`http://127.0.0.1:${backendPort}/health`, { timeout: 8000 }, (res) => {
+                                    let data = '';
+                                    res.on('data', chunk => data += chunk);
+                                    res.on('end', () => {
+                                        try {
+                                            console.log(`[electron] Health check response: Status ${res.statusCode}, Data: ${data}`);
+                                            const response = JSON.parse(data);
+                                            if (res.statusCode === 200 && response.status === 'healthy') {
+                                                resolveHealth(true);
+                                            } else {
+                                                rejectHealth(new Error(`Service not healthy: ${res.statusCode} - ${data}`));
+                                            }
+                                        } catch (e) {
+                                            console.log(`[electron] Health check parse error: ${e.message}`);
+                                            rejectHealth(e);
+                                        }
+                                    });
+                                });
+                                
+                                req.on('error', (err) => {
+                                    console.log(`[electron] Health check request error: ${err.message}`);
+                                    rejectHealth(err);
+                                });
+                                req.on('timeout', () => {
+                                    console.log('[electron] Health check timeout occurred');
+                                    req.destroy();
+                                    rejectHealth(new Error('Health check timeout'));
+                                });
+                                req.setTimeout(8000);
+                            });
+                            
+                            await healthCheckPromise;
+                            console.log('[electron] FastAPI service is already running and healthy.');
+                            return resolve({ success: true, message: 'FastAPI already running (external)' });
+                            
+                        } catch (error) {
+                            console.log(`[electron] Health check attempt ${attempt} failed: ${error.message}`);
+                            
+                            if (attempt === maxRetries) {
+                                console.log(`[electron] All health check attempts failed. Port ${backendPort} may be occupied by unresponsive service, proceeding with startup...`);
+                                // If all health checks fail, proceed with starting our own service
+                                break;
+                            } else {
+                                // Wait before next retry
+                                console.log(`[electron] Waiting ${retryDelay}ms before next health check attempt...`);
+                                await new Promise(resolve => setTimeout(resolve, retryDelay));
+                            }
+                        }
+                    }
+                } else {
+                    console.log(`[electron] Port ${backendPort} is now available after cleanup.`);
                 }
             }
             const backendUrl = `http://127.0.0.1:${backendPort}`;

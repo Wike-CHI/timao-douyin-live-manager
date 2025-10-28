@@ -251,13 +251,14 @@ async def root():
 
 
 @app.get("/health")
+@app.head("/health")
 async def health_check():
-    """健康检查"""
+    """健康检查 - 支持GET和HEAD方法"""
     return {
         "status": "healthy",
         "service": "提猫直播助手",
         "version": "1.0.0",
-        "timestamp": "2025-01-20",
+        "timestamp": "2025-10-28",
     }
 
 
