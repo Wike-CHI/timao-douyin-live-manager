@@ -16,8 +16,10 @@ AI 网关现在支持完整的 API Key 和服务商管理：
 ### 1. 访问管理界面
 
 ```
-http://localhost:10090/static/ai_gateway_manager.html
+http://localhost:{PORT}/static/ai_gateway_manager.html
 ```
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 
 ### 2. 主要操作
 
@@ -80,8 +82,10 @@ http://localhost:10090/static/ai_gateway_manager.html
 
 **示例**:
 ```bash
-curl -X DELETE http://localhost:10090/api/ai_gateway/provider/deepseek
+curl -X DELETE http://localhost:{PORT}/api/ai_gateway/provider/deepseek
 ```
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 
 **响应**:
 ```json
@@ -293,7 +297,9 @@ if daily.total_calls > 10000:
 # 打开管理界面，点击切换到 Qwen
 
 # 方式 2: API 调用
-curl -X POST http://localhost:10090/api/ai_gateway/switch \
+curl -X POST http://localhost:{PORT}/api/ai_gateway/switch \
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
   -d '{"provider": "qwen", "model": "qwen-plus"}'
 
 # 方式 3: 代码控制
@@ -308,7 +314,9 @@ gateway.switch_provider("qwen", "qwen-plus")
 
 ```bash
 # 1. 快速更新 API Key
-curl -X PUT http://localhost:10090/api/ai_gateway/provider/api-key \
+curl -X PUT http://localhost:{PORT}/api/ai_gateway/provider/api-key \
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
   -H "Content-Type: application/json" \
   -d '{"provider": "qwen", "api_key": "sk-new-safe-key"}'
 

@@ -13,7 +13,7 @@
 - `pip install -r requirements.all.txt`: set up Python environments (Flask, FastAPI, AST tooling).
 - `npm run dev`: start Electron with the Flask API for end-to-end local work.
 - `npm run electron`: launch the UI against mock data for fast iteration.
-- `uvicorn server.app.main:app --reload --port 10090`: run the AST FastAPI service standalone.
+- `uvicorn server.app.main:app --reload --port {PORT}`: run the AST FastAPI service standalone (默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改).
 - `npm run build` | `npm run lint` | `npm test`: release gate checks; run before pushing.
 - `pytest`: execute Python tests across Flask, FastAPI, and ingestion helpers.
 

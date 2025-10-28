@@ -15,7 +15,7 @@ import { useLiveConsoleStore, getLiveConsoleSocket } from '../../store/useLiveCo
 
 // Note: Do not cap transcript items; persist to disk is handled by backend.
 // We keep full in-memory log for current session (may grow large for long sessions).
-const FASTAPI_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:9019';
+const FASTAPI_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9019';
 
 const LiveConsolePage = () => {
   const [showSaveInfo, setShowSaveInfo] = useState(false);
@@ -332,6 +332,7 @@ const LiveConsolePage = () => {
             console.log('检查实时音频转写服务状态失败，尝试启动:', err);
           }
 
+          // 只有在服务未运行时才尝试启动
           let retries = 0;
           const maxRetries = 5;
           while (retries < maxRetries) {
@@ -351,10 +352,33 @@ const LiveConsolePage = () => {
               console.log('实时音频转写服务启动成功');
               return true;
             } catch (err) {
+              const errorMessage = (err as Error).message;
+              
+              // 如果错误是服务已运行，则直接连接WebSocket并返回成功
+              if (errorMessage.includes('already running') || errorMessage.includes('live audio service already running')) {
+                console.log('实时音频转写服务已在运行，连接WebSocket');
+                connectWebSocket(FASTAPI_BASE_URL);
+                // 更新高级设置
+                try {
+                  await updateLiveAudioAdvanced(
+                    {
+                      persist_enabled: true,
+                      agc: agcEnabled,
+                      diarization: diarizationEnabled,
+                      max_speakers: diarizationEnabled ? maxSpeakers : 1,
+                    },
+                    FASTAPI_BASE_URL
+                  );
+                } catch (updateErr) {
+                  console.warn('更新音频转写高级设置失败:', updateErr);
+                }
+                return true;
+              }
+              
               retries++;
               console.error(`实时音频转写服务启动失败 (尝试 ${retries}/${maxRetries}):`, err);
               if (retries >= maxRetries) {
-                throw new Error(`实时音频转写服务启动失败: ${(err as Error).message}`);
+                throw new Error(`实时音频转写服务启动失败: ${errorMessage}`);
               }
               // 等待一段时间后重试
               await new Promise(resolve => setTimeout(resolve, 2000 * retries));

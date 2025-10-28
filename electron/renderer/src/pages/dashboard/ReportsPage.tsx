@@ -9,7 +9,7 @@ type Metrics = {
   gifts?: Record<string, number>;
 };
 
-const FASTAPI_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:9019';
+const FASTAPI_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9019';
 
 const ReportsPage: React.FC = () => {
   const [liveInput, setLiveInput] = useState('');

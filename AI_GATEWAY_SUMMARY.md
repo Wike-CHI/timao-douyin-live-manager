@@ -129,8 +129,10 @@ content = response.content
 
 ### 1. Web 界面
 ```
-http://localhost:10090/static/ai_gateway_manager.html
+http://localhost:{PORT}/static/ai_gateway_manager.html
 ```
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 - 查看当前配置
 - 切换服务商
 - 注册新服务商
@@ -139,12 +141,14 @@ http://localhost:10090/static/ai_gateway_manager.html
 ### 2. API 接口
 ```bash
 # 切换服务商
-curl -X POST http://localhost:10090/api/ai_gateway/switch \
+curl -X POST http://localhost:{PORT}/api/ai_gateway/switch \
   -d '{"provider": "qwen", "model": "qwen-plus"}'
 
 # 查看状态
-curl http://localhost:10090/api/ai_gateway/status
+curl http://localhost:{PORT}/api/ai_gateway/status
 ```
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 
 ### 3. 代码控制
 ```python
@@ -267,14 +271,18 @@ response = gateway.chat_completion(
 
 ### 立即开始
 1. 启动服务：`npm run dev`
-2. 打开管理界面：`http://localhost:10090/static/ai_gateway_manager.html`
+2. 打开管理界面：`http://localhost:{PORT}/static/ai_gateway_manager.html`
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 3. 查看当前配置
 4. 测试 AI 调用
 
 ### 推荐阅读
 - [快速入门](./AI_GATEWAY_SIMPLE.md) - 5 分钟上手
 - [成本监控](./MONITORING_GUIDE.md) - 控制 AI 成本
-- [API 文档](http://localhost:10090/docs) - 完整接口说明
+- [API 文档](http://localhost:{PORT}/docs) - 完整接口说明
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 
 ---
 

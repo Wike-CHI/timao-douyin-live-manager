@@ -76,7 +76,9 @@ response = gateway.chat_completion(messages=[...])
 
 ## 🎛️ Web 管理界面
 
-访问：`http://localhost:10090/static/ai_gateway_manager.html`
+访问：`http://localhost:{PORT}/static/ai_gateway_manager.html`
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 
 功能：
 - 查看当前使用的服务商和模型
@@ -118,13 +120,15 @@ gateway.register_provider(
 ### 方式 3: API 注册
 
 ```bash
-curl -X POST http://localhost:10090/api/ai_gateway/register \
+curl -X POST http://localhost:{PORT}/api/ai_gateway/register \
   -H "Content-Type: application/json" \
   -d '{
     "provider": "deepseek",
     "api_key": "sk-your-api-key"
   }'
 ```
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 
 ---
 
@@ -250,7 +254,9 @@ print(f"今日费用: ¥{daily.total_cost:.2f}")
 
 - [完整功能文档](./AI_GATEWAY_GUIDE.md)
 - [成本监控文档](./MONITORING_GUIDE.md)
-- [API 文档](http://localhost:10090/docs)
+- [API 文档](http://localhost:{PORT}/docs)
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 
 ---
 

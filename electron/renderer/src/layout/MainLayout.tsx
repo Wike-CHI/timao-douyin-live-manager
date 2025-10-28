@@ -21,8 +21,8 @@ const MainLayout = () => {
   const [bootstrap, setBootstrap] = useState<any>(null);
   const [showBoot, setShowBoot] = useState<boolean>(true);
   const [wsOk, setWsOk] = useState<boolean | null>(null);
-  const defaultApiBase = 'http://127.0.0.1:9019';
-  const injectedApiBase = ((import.meta.env?.VITE_FASTAPI_URL as string | undefined) || '').trim() || defaultApiBase;
+  const defaultApiBase = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9019';
+  const injectedApiBase = ((import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:9019').trim() || defaultApiBase;
   const [apiBase, setApiBase] = useState<string>(injectedApiBase);
 
   const handleLogout = () => {

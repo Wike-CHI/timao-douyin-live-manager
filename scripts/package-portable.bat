@@ -59,7 +59,7 @@ echo @echo off
 echo chcp 65001 ^> nul
 echo echo 启动提猫直播助手...
 echo cd /d "%%~dp0"
-echo start /b python -m uvicorn server.app.main:app --host 127.0.0.1 --port 10090
+echo start /b python -m uvicorn server.app.main:app --host 127.0.0.1 --port {PORT}  # 默认端口为 9019，可通过环境变量 BACKEND_PORT 修改
 echo timeout /t 3 /nobreak ^> nul
 echo start electron\main.js
 ) > "%PORTABLE_DIR%\启动提猫直播助手.bat"

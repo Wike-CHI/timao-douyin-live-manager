@@ -108,5 +108,5 @@ echo "🚀 启动应用："
 echo "   npm run dev"
 echo ""
 echo "📚 管理界面："
-echo "   http://localhost:10090/docs"
+echo "   http://localhost:{PORT}/docs"  # 默认端口为 9019，可通过环境变量 BACKEND_PORT 修改
 echo "=========================================="

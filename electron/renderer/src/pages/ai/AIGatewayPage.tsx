@@ -37,7 +37,7 @@ const AIGatewayPage: React.FC = () => {
   const [updateApiKey, setUpdateApiKey] = useState('');
   const [testMessage, setTestMessage] = useState('你好，请用一句话介绍你自己');
 
-  const API_BASE = 'http://127.0.0.1:9019';
+  const API_BASE = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9019';
 
   useEffect(() => {
     loadStatus();
@@ -175,7 +175,14 @@ const AIGatewayPage: React.FC = () => {
       
       const data = await res.json();
       if (data.success) {
-        setTestResponse(`✓ 调用成功！\n\n响应: ${data.response}\n\n统计:\n- 输入 Token: ${data.usage?.input_tokens || 0}\n- 输出 Token: ${data.usage?.output_tokens || 0}\n- 费用: ¥${data.usage?.cost || 0}`);
+        setTestResponse(`✓ 调用成功！
+
+响应: ${data.response}
+
+统计:
+- 输入 Token: ${data.usage?.input_tokens || 0}
+- 输出 Token: ${data.usage?.output_tokens || 0}
+- 费用: ¥${data.usage?.cost || 0}`);
       } else {
         setTestResponse(`✗ 调用失败: ${data.message}`);
       }

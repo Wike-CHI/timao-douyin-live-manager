@@ -67,14 +67,18 @@ record_ai_usage(
 启动服务后，访问：
 
 ```
-http://localhost:10090/static/ai_usage_monitor.html
+http://localhost:{PORT}/static/ai_usage_monitor.html
 ```
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 
 或通过 API：
 
 ```
-http://localhost:10090/api/ai_usage/dashboard
+http://localhost:{PORT}/api/ai_usage/dashboard
 ```
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 
 ---
 
@@ -416,7 +420,7 @@ for model, stats in today.by_model.items():
 ### 问题 1：监控页面无法访问
 
 **检查清单**：
-1. 确认后端服务已启动（端口 10090）
+1. 确认后端服务已启动（默认端口 9019，可通过环境变量 BACKEND_PORT 修改）
 2. 检查防火墙设置
 3. 查看浏览器控制台错误
 

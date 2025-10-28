@@ -62,7 +62,7 @@ const AIUsagePage: React.FC = () => {
   const [reportDays, setReportDays] = useState(7);
   const [exportLoading, setExportLoading] = useState(false);
 
-  const API_BASE = 'http://127.0.0.1:9019';
+  const API_BASE = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9019';
 
   useEffect(() => {
     loadDashboard();

@@ -8,7 +8,7 @@
  */
 export const isDemoMode = async (): Promise<boolean> => {
   try {
-    const API_BASE_URL = 'http://localhost:9019';
+    const API_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9019';
     const response = await fetch(`${API_BASE_URL}/api/auth/demo-status`, {
       method: 'GET',
       headers: {
@@ -33,7 +33,7 @@ export const isDemoMode = async (): Promise<boolean> => {
  */
 export const getDemoUserInfo = async () => {
   try {
-    const API_BASE_URL = 'http://localhost:9019';
+    const API_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9019';
     const response = await fetch(`${API_BASE_URL}/api/auth/demo-login`, {
       method: 'POST',
       headers: {

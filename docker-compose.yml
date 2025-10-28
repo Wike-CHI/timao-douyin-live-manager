@@ -9,7 +9,7 @@ services:
     image: timao-live-manager:latest
     ports:
       - "30013:30013"  # Vite 前端
-      - "10090:10090"  # FastAPI 后端
+      - "{PORT}:{PORT}"  # FastAPI 后端（默认端口为 9019，可通过环境变量 BACKEND_PORT 修改）
       - "5000:5000"    # Flask 服务
     environment:
       - NODE_ENV=development

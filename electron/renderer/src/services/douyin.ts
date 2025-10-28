@@ -1,8 +1,7 @@
 import useAuthStore from '../store/useAuthStore';
 import authService from './authService';
 
-// Align with FastAPI default port 9019 used by Electron main
-const DEFAULT_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:9019';
+const DEFAULT_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9019';
 
 const resolveBaseUrl = (baseUrl?: string) => {
   const value = baseUrl && baseUrl.trim() ? baseUrl : DEFAULT_BASE_URL;

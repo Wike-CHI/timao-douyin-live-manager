@@ -188,7 +188,7 @@ OPENAI_API_KEY=sk-openai-key
 
 ## 注意事项
 
-- `npm run dev` 会尝试占用 30013（Vite）与 10090（FastAPI）；若端口被占用，会跳过后端启动，请手动校验。
+- `npm run dev` 会尝试占用 30013（Vite）与 9019（FastAPI，默认端口，可通过环境变量 `BACKEND_PORT` 修改）；若端口被占用，会跳过后端启动，请手动校验。
 - SenseVoice/VAD 缺失时，`/api/live_audio/health` 会给出自动修复脚本提示。
 - 若需代理出站流量，请为 `.env` 中的 AI 配置设置合规值。
 - 对于离线部署，可通过 `tools/create_release.py` 打出便携包并在 `.env` 中关闭云端 AI（例如设置 `AI_SERVICE=offline`）。

@@ -24,8 +24,10 @@ npm run dev
 
 浏览器打开：
 ```
-http://localhost:10090/static/ai_gateway_manager.html
+http://localhost:{PORT}/static/ai_gateway_manager.html
 ```
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 
 ### 3. 查看当前配置
 
@@ -137,10 +139,12 @@ response = gateway.chat_completion(messages=[...])
 ### 通过 API 设置
 
 ```bash
-curl -X POST http://localhost:10090/api/ai_gateway/fallback \
+curl -X POST http://localhost:{PORT}/api/ai_gateway/fallback \
   -H "Content-Type: application/json" \
   -d '{"providers": ["qwen", "deepseek", "openai"]}'
 ```
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 
 ---
 

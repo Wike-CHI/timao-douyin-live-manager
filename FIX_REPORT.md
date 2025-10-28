@@ -290,7 +290,9 @@ pytest --cov=app --cov-report=html
 
 ```bash
 # API 健康检查
-curl http://localhost:10090/health
+curl http://localhost:{PORT}/health
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 
 # 数据库连接检查
 python -c "from server.app.database import DatabaseManager; from server.config import config_manager; db = DatabaseManager(config_manager.config.database); db.initialize(); print('✅ 数据库连接成功')"
@@ -322,7 +324,9 @@ python -c "from server.app.database import DatabaseManager; from server.config i
 - **GitHub Issues**: https://github.com/Wike-CHI/timao-douyin-live-manager/issues
 - **部署文档**: [DEPLOYMENT.md](DEPLOYMENT.md)
 - **快速开始**: [QUICK_START.md](QUICK_START.md)
-- **API 文档**: http://localhost:10090/docs
+- **API 文档**: http://localhost:{PORT}/docs
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 
 ---
 

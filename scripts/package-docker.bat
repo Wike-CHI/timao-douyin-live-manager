@@ -55,10 +55,10 @@ echo # 创建数据目录
 echo RUN mkdir -p /app/data /app/logs
 echo.
 echo # 暴露端口
-echo EXPOSE 10090
+echo EXPOSE {PORT}  # 默认端口为 9019，可通过环境变量 BACKEND_PORT 修改
 echo.
 echo # 启动命令
-echo CMD ["python", "-m", "uvicorn", "server.app.main:app", "--host", "0.0.0.0", "--port", "10090"]
+echo CMD ["python", "-m", "uvicorn", "server.app.main:app", "--host", "0.0.0.0", "--port", "{PORT}"]  # 默认端口为 9019，可通过环境变量 BACKEND_PORT 修改
 ) > Dockerfile
 
 :: 2. 创建docker-compose.yml
@@ -69,7 +69,7 @@ echo services:
 echo   talkingcat:
 echo     build: .
 echo     ports:
-echo       - "10090:10090"
+echo       - "{PORT}:{PORT}"  # 默认端口为 9019，可通过环境变量 BACKEND_PORT 修改
 echo     volumes:
 echo       - ./data:/app/data
 echo       - ./logs:/app/logs
@@ -83,7 +83,7 @@ echo       - DATABASE_TYPE=sqlite
 echo       - DATABASE_PATH=/app/data/local.db
 echo     restart: unless-stopped
 echo     healthcheck:
-echo       test: ["CMD", "curl", "-f", "http://localhost:10090/api/health"]
+echo       test: ["CMD", "curl", "-f", "http://localhost:{PORT}/api/health"]  # 默认端口为 9019，可通过环境变量 BACKEND_PORT 修改
 echo       interval: 30s
 echo       timeout: 10s
 echo       retries: 3
@@ -110,7 +110,7 @@ echo }
 echo.
 echo http {
 echo     upstream backend {
-echo         server talkingcat:10090;
+echo         server talkingcat:{PORT};  # 默认端口为 9019，可通过环境变量 BACKEND_PORT 修改
 echo     }
 echo.
 echo     server {

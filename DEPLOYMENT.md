@@ -137,7 +137,9 @@ npm run build
 
 # 启动后端服务
 cd server
-uvicorn app.main:app --host 0.0.0.0 --port 10090 --workers 4
+uvicorn app.main:app --host 0.0.0.0 --port {PORT} --workers 4
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 ```
 
 ---
@@ -167,7 +169,9 @@ docker build -t timao-live-manager .
 docker run -d \
   --name timao-app \
   -p 30013:30013 \
-  -p 10090:10090 \
+  -p {PORT}:{PORT} \
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
   -v $(pwd)/data:/app/data \
   -v $(pwd)/.env:/app/.env \
   timao-live-manager
@@ -221,7 +225,9 @@ REDIS_DB=0
 
 ```bash
 # API 健康检查
-curl http://localhost:10090/health
+curl http://localhost:{PORT}/health
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 
 # 前端服务检查
 curl http://localhost:30013
@@ -282,7 +288,7 @@ server {
 
     # 后端 API
     location /api/ {
-        proxy_pass http://localhost:10090;
+        proxy_pass http://localhost:{PORT};  # 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -291,7 +297,7 @@ server {
 
     # WebSocket 支持
     location /ws/ {
-        proxy_pass http://localhost:10090;
+        proxy_pass http://localhost:{PORT};  # 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -439,9 +445,11 @@ pm2 restart timao-app
 - **GitHub Issues**: https://github.com/Wike-CHI/timao-douyin-live-manager/issues
 - **文档**: 查看项目 [README.md](README.md) 和 [QUICK_START.md](QUICK_START.md)
 - **监控界面**: 
-  - AI 网关: http://localhost:10090/static/ai_gateway_manager.html
-  - 成本监控: http://localhost:10090/static/ai_usage_monitor.html
-  - API 文档: http://localhost:10090/docs
+  - AI 网关: http://localhost:{PORT}/static/ai_gateway_manager.html
+  - 成本监控: http://localhost:{PORT}/static/ai_usage_monitor.html
+  - API 文档: http://localhost:{PORT}/docs
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 
 ---
 
@@ -462,5 +470,7 @@ pm2 restart timao-app
 
 **部署完成后，访问：**
 - 前端界面: http://localhost:30013
-- API 文档: http://localhost:10090/docs
-- 健康检查: http://localhost:10090/health
+- API 文档: http://localhost:{PORT}/docs
+- 健康检查: http://localhost:{PORT}/health
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改

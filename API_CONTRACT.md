@@ -1,6 +1,6 @@
 # 📡 提猫直播助手 - API 接口契约
 
-> **版本**: v1.0.0 | **基础路径**: `http://127.0.0.1:10090` | **更新**: 2025-10-26
+> **版本**: v1.0.0 | **基础路径**: `http://127.0.0.1:{PORT}` (默认端口: 9019) | **更新**: 2025-10-26
 
 ---
 
@@ -234,26 +234,28 @@ WebSocket 实时转写
 ### JavaScript
 ```javascript
 // 获取今日统计
-const stats = await fetch('http://127.0.0.1:10090/api/ai_usage/stats/current')
+const stats = await fetch('http://127.0.0.1:{PORT}/api/ai_usage/stats/current')
   .then(r => r.json());
 
 // 启动转写
-await fetch('http://127.0.0.1:10090/api/live_audio/start', {
+await fetch('http://127.0.0.1:{PORT}/api/live_audio/start', {
   method: 'POST',
   headers: {'Content-Type': 'application/json'},
   body: JSON.stringify({liveUrl: 'https://live.douyin.com/123456'})
 });
 
 // WebSocket
-const ws = new WebSocket('ws://127.0.0.1:10090/api/live_audio/ws');
+const ws = new WebSocket('ws://127.0.0.1:{PORT}/api/live_audio/ws');
 ws.onmessage = e => console.log(JSON.parse(e.data));
 ```
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 
 ### Python
 ```python
 import requests
 
-BASE_URL = 'http://127.0.0.1:10090'
+BASE_URL = 'http://127.0.0.1:{PORT}'  # 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 
 # 获取仪表盘
 dashboard = requests.get(f'{BASE_URL}/api/ai_usage/dashboard').json()
@@ -264,4 +266,6 @@ report = requests.post(f'{BASE_URL}/api/ai_usage/export_report?days=7').json()
 
 ---
 
-**完整文档**: 访问 `http://127.0.0.1:10090/docs`
+**完整文档**: 访问 `http://127.0.0.1:{PORT}/docs`
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改

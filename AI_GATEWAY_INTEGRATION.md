@@ -108,16 +108,20 @@ print(f"当前使用: {config['provider']}/{config['model']}")
 
 **方式 1: Web 界面**
 ```
-http://localhost:10090/static/ai_gateway_manager.html
+http://localhost:{PORT}/static/ai_gateway_manager.html
 点击切换按钮即可
 ```
 
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
+
 **方式 2: API 调用**
 ```bash
-curl -X POST http://localhost:10090/api/ai_gateway/switch \
+curl -X POST http://localhost:{PORT}/api/ai_gateway/switch \
   -H "Content-Type: application/json" \
   -d '{"provider": "deepseek", "model": "deepseek-chat"}'
 ```
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 
 **方式 3: 代码控制**
 ```python
@@ -244,10 +248,14 @@ config = gateway.get_current_config()
 print(config['provider'], config['model'])
 
 # 2. API 查询
-curl http://localhost:10090/api/ai_gateway/status
+curl http://localhost:{PORT}/api/ai_gateway/status
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 
 # 3. Web 界面
-打开 http://localhost:10090/static/ai_gateway_manager.html
+打开 http://localhost:{PORT}/static/ai_gateway_manager.html
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 ```
 
 ### Q4: 降级链如何配置？
@@ -332,7 +340,9 @@ if daily.total_cost > 50:
 
 - [AI 网关使用指南](./AI_GATEWAY_GUIDE.md) - 完整功能说明
 - [AI 成本监控指南](./MONITORING_GUIDE.md) - 成本管理
-- [API 接口文档](http://localhost:10090/docs) - Swagger 文档
+- [API 接口文档](http://localhost:{PORT}/docs) - Swagger 文档
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 
 ---
 

@@ -12,13 +12,13 @@ const AboutPage = () => {
       </div>
 
       <div className="text-sm timao-support-text">
-        - 桌面端：Electron + React + Vite
+        - 桌面端
         <br />
-        - 本地后端：FastAPI（SSE / WebSocket）
+        - 本地后端
         <br />
-        - 语音识别：SenseVoiceSmall（FunASR 生态）
+        - 语音识别
         <br />
-        - 直播互动：DouyinLiveWebFetcher（WebSocket → SSE 桥接）
+        - 直播互动
       </div>
 
       <div className="text-xs text-slate-400">

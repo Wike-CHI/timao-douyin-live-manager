@@ -31,7 +31,7 @@ const DashboardPage: React.FC = () => {
             <li>弹幕自动拉取并保存，方便统计热词</li>
             <li>整场直播分段录制，生成文字稿</li>
             <li>支持一键导出弹幕、转写和视频目录</li>
-            <li>结束后可生成 AI 撰写的复盘报告</li>
+            <li>结束后可生成 AI 撰写的复盘报告(待开发)</li>
           </ul>
           <div className="mt-4 text-xs text-purple-500">入口：「直播控制台」&nbsp;/&nbsp;「直播报告」</div>
         </div>
@@ -41,10 +41,9 @@ const DashboardPage: React.FC = () => {
             <span>🤖</span>AI 助手与话术灵感
           </h2>
           <ul className="mt-3 space-y-2 text-sm timao-support-text">
-            <li>LangGraph Workflow 滚动分析亮点、风险、节奏，结合话者统计提示“对手抢话”风险</li>
+            <li>AI agent分析亮点、风险、节奏，结合话者统计提示“对手抢话”风险</li>
             <li>知识库检索直播运营话术与高情商素材，融合到分析卡片与答疑口播</li>
             <li>弹幕卡片一键生成主播口吻话术，支持暖心 / 直接 / 调侃多种风格</li>
-            <li>复盘报告自动汇总弹幕、转写与 AI 观察，沉淀可复用笔记</li>
           </ul>
           <div className="mt-4 text-xs text-purple-500">入口：「直播控制台」底部 AI 区域</div>
         </div>

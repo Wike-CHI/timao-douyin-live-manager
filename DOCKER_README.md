@@ -28,7 +28,9 @@ docker build -t timao-live-manager:latest .
 docker run -d \
   --name timao-douyin-live-manager \
   -p 30013:30013 \
-  -p 10090:10090 \
+  -p {PORT}:{PORT} \
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
   -p 5000:5000 \
   -v $(pwd):/app \
   -v /app/node_modules \
@@ -50,8 +52,10 @@ docker rm timao-douyin-live-manager
 启动成功后，可以通过以下地址访问：
 
 - **前端界面**: http://localhost:30013
-- **FastAPI 后端**: http://localhost:10090
-- **FastAPI 文档**: http://localhost:10090/docs
+- **FastAPI 后端**: http://localhost:{PORT}
+- **FastAPI 文档**: http://localhost:{PORT}/docs
+
+> 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 - **Flask 服务** (如使用): http://localhost:5000
 
 ## 🔧 环境变量配置
@@ -103,7 +107,7 @@ environment:
 ```yaml
 ports:
   - "8013:30013"  # 将主机端口改为 8013
-  - "8090:10090"
+  - "{PORT}:{PORT}"  # 默认端口为 9019，可通过环境变量 `BACKEND_PORT` 修改
 ```
 
 ### 2. 音频设备访问（Linux）
