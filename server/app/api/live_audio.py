@@ -103,7 +103,24 @@ async def start_live_audio(req: StartReq) -> BaseResp:
             "profile": getattr(svc, "profile", "fast"),
         })
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Live audio start failed: {type(e).__name__}: {str(e)}", exc_info=True)
+        
+        # 提供更具体的错误信息
+        error_msg = str(e)
+        if "already running" in error_msg.lower():
+            raise HTTPException(status_code=409, detail="实时音频转写服务已在运行中")
+        elif "invalid douyin live url" in error_msg.lower() or "invalid" in error_msg.lower():
+            raise HTTPException(status_code=400, detail=f"无效的直播地址或ID: {error_msg}")
+        elif "未开播" in error_msg or "not live" in error_msg.lower():
+            raise HTTPException(status_code=400, detail=f"直播间未开播: {error_msg}")
+        elif "sensevoice" in error_msg.lower() or "initialize failed" in error_msg.lower():
+            raise HTTPException(status_code=500, detail=f"语音识别服务初始化失败: {error_msg}")
+        elif "ffmpeg" in error_msg.lower():
+            raise HTTPException(status_code=500, detail=f"音频流处理失败: {error_msg}")
+        else:
+            raise HTTPException(status_code=400, detail=f"启动实时音频转写服务失败: {error_msg}")
 
 
 @router.post("/stop")
