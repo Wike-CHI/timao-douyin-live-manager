@@ -62,7 +62,7 @@ const AIUsagePage: React.FC = () => {
   const [reportDays, setReportDays] = useState(7);
   const [exportLoading, setExportLoading] = useState(false);
 
-  const API_BASE = 'http://127.0.0.1:10090';
+  const API_BASE = 'http://127.0.0.1:9019';
 
   useEffect(() => {
     loadDashboard();

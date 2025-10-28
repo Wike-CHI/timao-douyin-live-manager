@@ -37,7 +37,7 @@ const AIGatewayPage: React.FC = () => {
   const [updateApiKey, setUpdateApiKey] = useState('');
   const [testMessage, setTestMessage] = useState('你好，请用一句话介绍你自己');
 
-  const API_BASE = 'http://127.0.0.1:10090';
+  const API_BASE = 'http://127.0.0.1:9019';
 
   useEffect(() => {
     loadStatus();

@@ -70,7 +70,7 @@
       <h1>正在跳转到“直播音频转写”控制台…</h1>
       <div class="muted">如果没有自动跳转，请手动点击下面的链接。</div>
       <div class="link-area">
-        <a id="link-dev" href="http://127.0.0.1:30013/#/live" class="btn">打开开发服务器控制台</a>
+        <a id="link-dev" href="http://127.0.0.1:10030/#/live" class="btn">打开开发服务器控制台</a>
       </div>
       <div class="tips">
         备用链接：<a id="link-static" href="http://127.0.0.1:8090/static/live_test.html">/static/live_test.html</a>
@@ -83,8 +83,8 @@
     <script>
       (async function(){
         try {
-          const ok = await fetch('http://127.0.0.1:30013', { method: 'HEAD' }).then(r => r.ok).catch(() => false);
-          if (ok) { location.replace('http://127.0.0.1:30013/#/live'); return; }
+          const ok = await fetch('http://127.0.0.1:10030', { method: 'HEAD' }).then(r => r.ok).catch(() => false);
+          if (ok) { location.replace('http://127.0.0.1:10030/#/live'); return; }
         } catch {}
         try {
           const ok2 = await fetch('http://127.0.0.1:8090/health').then(r => r.ok).catch(() => false);

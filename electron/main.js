@@ -25,7 +25,7 @@ for (const [key, value] of Object.entries(defaultAiEnv)) {
 }
 
 const isDev = !app.isPackaged;
-const rendererDevServerURL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.0.1:30013';
+const rendererDevServerURL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.0.1:10030';
 
 // 保持对窗口对象的全局引用，如果不这样做，窗口会在JavaScript对象被垃圾回收时自动关闭
 let mainWindow;
@@ -104,15 +104,68 @@ function startFastAPI() {
                 return resolve({ success: true, message: 'FastAPI already running' });
             }
 
-            // If port 10090 is already in use (e.g., user started uvicorn manually),
-            // do not spawn another process to avoid EADDRINUSE and noisy logs.
-            const available = await isPortAvailable(10090);
+            // If port 9019 is already in use, check if it's our FastAPI service
+            const available = await isPortAvailable(9019);
             if (!available) {
-                console.log('[electron] Port 10090 is already in use; assuming FastAPI is running.');
-                return resolve({ success: true, message: 'FastAPI already running (external)' });
+                console.log('[electron] Port 9019 is already in use, checking if it\'s our FastAPI service...');
+                
+                // Try to connect to the health endpoint to verify it's our service
+                // Add retry mechanism for health check as the service might be starting up
+                const maxRetries = 5;
+                const retryDelay = 1000; // 1 second
+                
+                for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                    try {
+                        console.log(`[electron] Health check attempt ${attempt}/${maxRetries}...`);
+                        
+                        // Use a more reliable HTTP request method for Node.js
+                        const http = require('http');
+                        const healthCheckPromise = new Promise((resolveHealth, rejectHealth) => {
+                            const req = http.get('http://127.0.0.1:9019/health', { timeout: 2000 }, (res) => {
+                                let data = '';
+                                res.on('data', chunk => data += chunk);
+                                res.on('end', () => {
+                                    try {
+                                        const response = JSON.parse(data);
+                                        if (res.statusCode === 200 && response.status === 'healthy') {
+                                            resolveHealth(true);
+                                        } else {
+                                            rejectHealth(new Error('Service not healthy'));
+                                        }
+                                    } catch (e) {
+                                        rejectHealth(e);
+                                    }
+                                });
+                            });
+                            
+                            req.on('error', rejectHealth);
+                            req.on('timeout', () => {
+                                req.destroy();
+                                rejectHealth(new Error('Health check timeout'));
+                            });
+                        });
+                        
+                        await healthCheckPromise;
+                        console.log('[electron] FastAPI service is already running and healthy.');
+                        return resolve({ success: true, message: 'FastAPI already running (external)' });
+                        
+                    } catch (error) {
+                        console.log(`[electron] Health check attempt ${attempt} failed: ${error.message}`);
+                        
+                        if (attempt === maxRetries) {
+                            console.log(`[electron] All health check attempts failed. Port 9019 occupied but service not responding, attempting to start anyway...`);
+                            // If all health checks fail, the port might be occupied by a dead process
+                            // We'll try to start anyway and let uvicorn handle the error
+                            break;
+                        } else {
+                            // Wait before next retry
+                            await new Promise(resolve => setTimeout(resolve, retryDelay));
+                        }
+                    }
+                }
             }
 
-            // Use uvicorn to run server.app.main:app on 127.0.0.1:10090 (default FastAPI port for Electron)
+            // Use uvicorn to run server.app.main:app on 127.0.0.1:9019 (default FastAPI port for Electron)
             // Spawn with project root as cwd so Python can import local packages
             // 准备后端运行环境变量：默认使用本地SQLite并禁用Redis，确保无外部依赖即可运行
             const userDataDir = app.getPath('userData');
@@ -134,7 +187,7 @@ function startFastAPI() {
 
             fastAPIProcess = spawn(
                 process.platform === 'win32' ? 'python' : 'python3',
-                ['-m', 'uvicorn', 'server.app.main:app', '--host', '127.0.0.1', '--port', '10090'],
+                ['-m', 'uvicorn', 'server.app.main:app', '--host', '127.0.0.1', '--port', '9019'],
                 {
                     cwd: path.join(__dirname, '..'),
                     env: envForApi,
@@ -228,7 +281,7 @@ ipcMain.handle('stop-service', async () => {
 // IPC处理程序 - 检查服务健康状态
 ipcMain.handle('check-service-health', async () => {
     try {
-        const response = await fetch('http://127.0.0.1:10090/health');
+        const response = await fetch('http://127.0.0.1:9019/health');
         const data = await response.json();
         return { success: true, data };
     } catch (error) {
@@ -238,7 +291,7 @@ ipcMain.handle('check-service-health', async () => {
 
 // IPC处理程序 - 获取服务URL
 ipcMain.handle('get-service-url', async () => {
-    return 'http://127.0.0.1:10090';
+    return 'http://127.0.0.1:9019';
 });
 
 // IPC处理程序 - 检查服务状态

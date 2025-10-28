@@ -46,7 +46,7 @@ def start_web_server(port=None):
     class CustomHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         def end_headers(self):
             # 添加CORS头 - 限制为本地开发环境
-            self.send_header('Access-Control-Allow-Origin', 'http://127.0.0.1:30013')
+            self.send_header('Access-Control-Allow-Origin', 'http://127.0.0.1:10030')
             self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
             self.send_header('Access-Control-Allow-Headers', 'Content-Type')
             super().end_headers()

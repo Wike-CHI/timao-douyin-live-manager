@@ -113,3 +113,6 @@ audios/**
 videos/**
 # third-party model dirs (e.g., VOSK)
 vosk-api/**
+server/records/** 
+server/records/live_logs/** 
+server/records/live_logs/233013462762/2025-10-28/danmu_1761623564.jsonl

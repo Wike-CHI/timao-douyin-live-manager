@@ -19,6 +19,7 @@ from server.app.models.subscription import (
 )
 from server.app.models.permission import AuditLog
 from server.app.models.user import User
+from server.config import get_config
 
 
 class SubscriptionService:
@@ -310,6 +311,12 @@ class SubscriptionService:
     @staticmethod
     def record_ai_usage(user_id: int, tokens: int = 0, requests: int = 1) -> None:
         """记录用户的AI使用量"""
+        # 检查是否启用演示模式
+        config = get_config()
+        if config.demo.enabled:
+            # 演示模式下不记录使用量
+            return
+        
         tokens = max(0, int(tokens or 0))
         requests = max(0, int(requests or 0))
         if tokens == 0 and requests == 0:
@@ -355,6 +362,30 @@ class SubscriptionService:
     @staticmethod
     def get_usage_stats(user_id: int) -> Dict[str, Any]:
         """获取使用统计"""
+        # 检查是否启用演示模式
+        config = get_config()
+        if config.demo.enabled:
+            return {
+                "has_subscription": True,
+                "plan_name": "演示套餐",
+                "plan_type": "premium",
+                "status": "active",
+                "start_date": datetime.now().isoformat(),
+                "end_date": (datetime.now() + timedelta(days=365)).isoformat(),
+                "auto_renew": False,
+                "usage_stats": {},
+                "limits": {},
+                "features": {"unlimited": True},
+                "ai_usage": {
+                    "tokens_used": 0,
+                    "token_quota": 1000000,
+                    "token_limit": 1000000,
+                    "requests_used": 0,
+                    "request_limit": 10000,
+                    "first_free_used": False,
+                },
+            }
+        
         with db_session() as session:
             user = session.query(User).filter(User.id == user_id).first()
             if not user:

@@ -9,13 +9,13 @@
     "fastapi": {
       "enabled": true,
       "host": "127.0.0.1",
-      "port": 10090,
+      "port": 9019,
       "auto_start": true
     },
     "flask": {
       "enabled": true,
       "host": "127.0.0.1", 
-      "port": 10090,
+      "port": 9019,
       "fallback_mode": true
     },
     "websocket": {

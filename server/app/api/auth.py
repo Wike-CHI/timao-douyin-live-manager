@@ -16,6 +16,7 @@ from server.app.database import get_db_session
 from server.app.services.user_service import UserService
 from server.app.services.subscription_service import SubscriptionService
 from server.app.models.user import UserRoleEnum, UserStatusEnum
+from server.config import get_config
 
 
 # 创建路由器
@@ -129,6 +130,20 @@ async def get_current_user(
     db: Session = Depends(get_db_session)
 ) -> Optional[dict]:
     """获取当前认证用户"""
+    # 检查是否启用演示模式
+    config = get_config()
+    if config.demo.enabled:
+        print("[DEBUG] 演示模式已启用，返回演示用户")
+        return {
+            "id": 999999,
+            "user_id": 999999,
+            "username": config.demo.user_name,
+            "email": config.demo.user_email,
+            "nickname": config.demo.user_nickname,
+            "role": "admin",
+            "status": "active"
+        }
+    
     try:
         token = credentials.credentials
         print(f"[DEBUG] 收到token: {token[:50]}...")
@@ -260,6 +275,49 @@ async def login_user(
     logger = logging.getLogger(__name__)
     
     try:
+        # 检查是否启用演示模式
+        config = get_config()
+        if config.demo.enabled:
+            logger.info("🎭 演示模式已启用，返回演示用户登录信息")
+            
+            # 创建演示用户的JWT token
+            from server.app.core.security import JWTManager
+            access_token = JWTManager.create_access_token(data={"sub": "999999"})
+            refresh_token = JWTManager.create_refresh_token(data={"sub": "999999"})
+            
+            # 返回演示用户信息
+            demo_user = UserResponse(
+                id=999999,
+                username=config.demo.user_name,
+                email=config.demo.user_email,
+                nickname=config.demo.user_nickname,
+                avatar_url=None,
+                role="admin",
+                status="active",
+                email_verified=True,
+                phone_verified=True,
+                created_at=datetime.now()
+            )
+            
+            return LoginResponse(
+                success=True,
+                token=access_token,
+                access_token=access_token,
+                refresh_token=refresh_token,
+                token_type="bearer",
+                expires_in=86400,
+                user=demo_user,
+                isPaid=True,
+                firstFreeUsed=False,
+                aiUsage={
+                    'requests_used': 0,
+                    'requests_limit': 10000,
+                    'tokens_used': 0,
+                    'tokens_limit': 1000000,
+                    'first_free_used': False
+                }
+            )
+        
         logger.info(f"🔍 开始登录流程，用户名/邮箱: {request.username_or_email}")
         
         # 获取客户端IP
@@ -355,6 +413,65 @@ async def login_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="登录失败，请稍后重试"
         )
+
+
+@router.get("/demo-status")
+async def demo_status():
+    """检查演示模式状态"""
+    config = get_config()
+    return {
+        "demo_enabled": config.demo.enabled,
+        "demo_user_name": config.demo.user_name if config.demo.enabled else None,
+        "demo_user_email": config.demo.user_email if config.demo.enabled else None,
+        "demo_user_nickname": config.demo.user_nickname if config.demo.enabled else None
+    }
+
+
+@router.post("/demo-login", response_model=LoginResponse)
+async def demo_login():
+    """演示模式登录"""
+    config = get_config()
+    
+    if not config.demo.enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="演示模式未启用"
+        )
+    
+    # 生成演示用户的JWT token
+    from server.app.core.security import JWTManager
+    access_token = JWTManager.create_access_token(data={"sub": "999999"})
+    refresh_token = JWTManager.create_refresh_token(data={"sub": "999999"})
+    
+    # 返回演示用户登录信息
+    return LoginResponse(
+        success=True,
+        token=access_token,
+        access_token=access_token,
+        refresh_token=refresh_token,
+        expires_in=86400,
+        isPaid=True,
+        firstFreeUsed=False,
+        aiUsage={
+            'requests_used': 0,
+            'requests_limit': 10000,
+            'tokens_used': 0,
+            'tokens_limit': 1000000,
+            'first_free_used': False
+        },
+        user=UserResponse(
+            id=999999,
+            username=config.demo.user_name,
+            email=config.demo.user_email,
+            nickname=config.demo.user_nickname,
+            avatar_url=None,
+            role="admin",
+            status="active",
+            email_verified=True,
+            phone_verified=True,
+            created_at=datetime.now()
+        )
+    )
 
 
 @router.post("/refresh", response_model=LoginResponse)

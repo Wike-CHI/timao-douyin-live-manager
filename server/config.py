@@ -171,7 +171,7 @@ class DatabaseConfig:
 @dataclass
 class SecurityConfig:
     """安全配置"""
-    # API安全
+    # API限制
     api_rate_limit: int = 100  # 每分钟请求数
     api_key_required: bool = False
     api_key: str = ""
@@ -186,10 +186,19 @@ class SecurityConfig:
     encryption_enabled: bool = False
     encryption_key: str = ""
 
-    # 认证与权限开关（用于开发/调试阶段）
+    # 认证与权限开关
     auth_required: bool = True           # 是否强制要求认证
     permission_required: bool = True     # 是否强制检查权限
     role_required: bool = True           # 是否强制检查角色
+
+
+@dataclass
+class DemoConfig:
+    """演示模式配置"""
+    enabled: bool = False                # 是否启用演示模式
+    user_name: str = "demo_user"         # 演示用户名
+    user_email: str = "demo@example.com" # 演示用户邮箱
+    user_nickname: str = "演示用户"      # 演示用户昵称
 
 
 @dataclass
@@ -228,6 +237,7 @@ class AppConfig:
     log: LogConfig = field(default_factory=LogConfig)
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     security: SecurityConfig = field(default_factory=SecurityConfig)
+    demo: DemoConfig = field(default_factory=DemoConfig)
     redis: RedisConfig = field(default_factory=RedisConfig)
     
     # 应用信息
@@ -360,6 +370,12 @@ class ConfigManager:
                 'LOGIN_REQUIRED': ('security', 'auth_required', bool),  # 别名，兼容UI设置
                 'PERMISSION_REQUIRED': ('security', 'permission_required', bool),
                 'ROLE_REQUIRED': ('security', 'role_required', bool),
+                
+                # 演示模式配置
+                'DEMO_MODE': ('demo', 'enabled', bool),
+                'DEMO_USER_NAME': ('demo', 'user_name'),
+                'DEMO_USER_EMAIL': ('demo', 'user_email'),
+                'DEMO_USER_NICKNAME': ('demo', 'user_nickname'),
                 
                 # 应用配置
                 'ENVIRONMENT': ('environment',),

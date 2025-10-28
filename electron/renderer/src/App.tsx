@@ -1,4 +1,5 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import AuthLayout from './layout/AuthLayout';
 import PaymentLayout from './layout/PaymentLayout';
 import MainLayout from './layout/MainLayout';
@@ -14,13 +15,65 @@ import AIGatewayPage from './pages/ai/AIGatewayPage';
 import AIUsagePage from './pages/ai/AIUsagePage';
 import useAuthGuard from './hooks/useAuthGuard';
 import useAuthInterceptor from './hooks/useAuthInterceptor';
+import useAuthStore from './store/useAuthStore';
+import { isDemoMode, getDemoUserInfo } from './utils/demoMode';
 
 // 内部路由组件，在Router上下文中使用hooks
 const AppRoutes = () => {
   const { requireAuth, requirePayment, isAuthenticated } = useAuthGuard();
+  const { setAuth } = useAuthStore();
+  const [demoModeChecked, setDemoModeChecked] = useState(false);
   
   // 使用认证拦截器（必须在Router上下文中）
   useAuthInterceptor();
+
+  // 检查演示模式并自动登录
+  useEffect(() => {
+    const checkDemoMode = async () => {
+      try {
+        const isDemoEnabled = await isDemoMode();
+        
+        if (isDemoEnabled && !isAuthenticated) {
+          console.log('演示模式已启用，自动登录演示用户');
+          const demoUserInfo = await getDemoUserInfo();
+          
+          if (demoUserInfo) {
+            setAuth({
+              user: demoUserInfo.user,
+              token: demoUserInfo.token,
+              refreshToken: demoUserInfo.refresh_token,
+              isPaid: demoUserInfo.isPaid
+            });
+            console.log('演示用户自动登录成功');
+          }
+        }
+      } catch (error) {
+        console.log('检查演示模式失败:', error);
+      } finally {
+        setDemoModeChecked(true);
+      }
+    };
+
+    if (!demoModeChecked) {
+      checkDemoMode();
+    }
+  }, [isAuthenticated, setAuth, demoModeChecked]);
+
+  // 在演示模式检查完成前显示加载状态
+  if (!demoModeChecked) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        fontSize: '18px',
+        color: '#666'
+      }}>
+        正在初始化...
+      </div>
+    );
+  }
 
   return (
     <Routes>

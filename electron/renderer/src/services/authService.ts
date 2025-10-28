@@ -1,6 +1,6 @@
 import useAuthStore from '../store/useAuthStore';
 
-const API_BASE_URL = 'http://localhost:10090';
+const API_BASE_URL = 'http://localhost:9019';
 
 class AuthService {
   private refreshPromise: Promise<boolean> | null = null;

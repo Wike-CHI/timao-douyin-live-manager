@@ -18,7 +18,7 @@ export default defineConfig({
   base: './',
   server: {
     host: '127.0.0.1',
-    port: 30013,
+    port: 10030,
     headers: {
       'Content-Security-Policy': devCsp.join('; '),
     },

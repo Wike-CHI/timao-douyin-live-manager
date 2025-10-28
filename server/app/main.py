@@ -115,10 +115,10 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://127.0.0.1:30013",
-        "http://localhost:30013",
-        "http://127.0.0.1:10090",  # 允许后端静态文件访问 API
-        "http://localhost:10090",   # 允许后端静态文件访问 API
+        "http://127.0.0.1:10030",
+        "http://localhost:10030",
+        "http://127.0.0.1:9019",  # 允许后端静态文件访问 API
+        "http://localhost:9019",   # 允许后端静态文件访问 API
         "http://127.0.0.1:8090",    # 兼容旧端口
         "http://localhost:8090",     # 兼容旧端口
         "http://localhost:8001",
@@ -350,5 +350,5 @@ async def shutdown_event():
 if __name__ == "__main__":
     import uvicorn
 
-    # 使用默认端口 10090，与 Electron 启动配置保持一致
-    uvicorn.run("main:app", host="0.0.0.0", port=10090, reload=True, log_level="info")
+    # 使用默认端口 9019，与 Electron 启动配置保持一致
+    uvicorn.run("main:app", host="0.0.0.0", port=9019, reload=True, log_level="info")
