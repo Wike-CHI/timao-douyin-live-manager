@@ -243,7 +243,15 @@ class LiveReportService:
 
         # Capture existing segments (best effort)
         await self._scan_segments()
-        return self._session
+        
+        # Store the session for return, then clear it to allow restart
+        session_result = self._session
+        self._session = None
+        self._relay_client_queue = None
+        self._comment_task = None
+        self._ffmpeg_proc = None
+        
+        return session_result
 
     async def generate_report(self) -> Dict[str, Any]:
         """Offline pipeline after stop(): transcribe segments, integrate comments, compose HTML.

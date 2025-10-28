@@ -271,7 +271,7 @@ async def startup_event():
     # 后台引导：FFmpeg 与模型（首次启动自动准备）
     async def _bootstrap():
         try:
-            from ..utils import bootstrap  # type: ignore
+            from server.utils import bootstrap  # type: ignore
             bootstrap.start_bootstrap_async()
             logging.info("🔧 资源自检已开始（后台）")
         except Exception as e:  # pragma: no cover

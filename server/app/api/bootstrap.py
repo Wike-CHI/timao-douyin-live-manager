@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from ...utils import bootstrap  # type: ignore
+from server.utils import bootstrap  # type: ignore
 
 router = APIRouter(prefix="/api/bootstrap", tags=["bootstrap"])
 

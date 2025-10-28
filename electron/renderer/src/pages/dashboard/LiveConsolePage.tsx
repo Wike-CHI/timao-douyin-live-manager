@@ -62,6 +62,7 @@ const LiveConsolePage = () => {
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
   // 引擎已固定：Small
   const [engine] = useState<'small'>('small');
   const [reportBusy, setReportBusy] = useState(false);
@@ -232,6 +233,12 @@ const LiveConsolePage = () => {
   }, [setReportStatus]);
 
   const handleStart = async () => {
+    if (isStarting) {
+      console.log('服务正在启动中，请稍候...');
+      return;
+    }
+
+    setIsStarting(true);
     setLoading(true);
     setError(null);
     try {
@@ -247,6 +254,22 @@ const LiveConsolePage = () => {
       const idMatch = input.match(/live\.douyin\.com\/([A-Za-z0-9_\-]+)/);
       const liveId = idMatch ? idMatch[1] : input;
       const liveUrl = idMatch ? input : `https://live.douyin.com/${liveId}`;
+
+      // 先停止所有服务，确保状态清理
+      console.log('正在停止现有服务...');
+      try {
+        await Promise.allSettled([
+          stopDouyinRelay(FASTAPI_BASE_URL).catch(() => {}),
+          stopLiveAudio(FASTAPI_BASE_URL).catch(() => {}),
+          stopLiveReport(FASTAPI_BASE_URL).catch(() => {}),
+          stopAILiveAnalysis(FASTAPI_BASE_URL).catch(() => {})
+        ]);
+        console.log('现有服务已停止');
+        // 等待一小段时间确保服务完全停止
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (err) {
+        console.warn('停止现有服务时出现错误:', err);
+      }
 
       // 异步启动所有服务，不阻塞彼此
       const services = [
@@ -378,6 +401,7 @@ const LiveConsolePage = () => {
       setError((err as Error).message ?? '启动直播服务失败');
     } finally {
       setLoading(false);
+      setIsStarting(false);
     }
   };
 

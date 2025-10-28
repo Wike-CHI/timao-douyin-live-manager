@@ -399,7 +399,9 @@ class ConfigManager:
                 setattr(section, path[1], value)
                 
         except Exception as e:
-            print(f"设置配置值失败 {path}: {e}")
+            # 只显示路径的字符串部分，避免显示类型对象
+            path_str = '.'.join(str(p) for p in path if isinstance(p, str))
+            print(f"设置配置值失败 ({path_str}): {e}")
     
     def save_config(self, config: AppConfig = None):
         """保存配置"""
