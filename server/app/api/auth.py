@@ -482,6 +482,7 @@ async def refresh_token(
     """刷新访问令牌"""
     try:
         from server.app.core.security import JWTManager
+        config = get_config()
         
         # 验证refresh token
         try:
@@ -496,6 +497,41 @@ async def refresh_token(
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="无效的刷新令牌"
+            )
+        
+        # 检查是否为演示模式用户
+        if config.demo.enabled and user_id == "999999":
+            # 演示模式用户的特殊处理
+            new_access_token = JWTManager.create_access_token(data={"sub": "999999"})
+            new_refresh_token = JWTManager.create_refresh_token(data={"sub": "999999"})
+            
+            return LoginResponse(
+                success=True,
+                token=new_access_token,
+                access_token=new_access_token,
+                refresh_token=new_refresh_token,
+                expires_in=86400,
+                isPaid=True,
+                firstFreeUsed=False,
+                aiUsage={
+                    'requests_used': 0,
+                    'requests_limit': 10000,
+                    'tokens_used': 0,
+                    'tokens_limit': 1000000,
+                    'first_free_used': False
+                },
+                user=UserResponse(
+                    id=999999,
+                    username=config.demo.user_name,
+                    email=config.demo.user_email,
+                    nickname=config.demo.user_nickname,
+                    avatar_url=None,
+                    role="admin",
+                    status="active",
+                    email_verified=True,
+                    phone_verified=True,
+                    created_at=datetime.now()
+                )
             )
         
         # 获取用户信息

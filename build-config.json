@@ -1,51 +1,105 @@
 {
   "appId": "com.xingjuai.talkingcat",
   "productName": "提猫直播助手",
-  "artifactName": "TalkingCat-Setup-${version}-${arch}.exe",
+  "artifactName": "TalkingCat-${version}-${os}-${arch}.${ext}",
   "directories": {
     "output": "dist",
     "buildResources": "assets"
   },
   "files": [
     "electron/**/*",
-    "AST_module/**/*",
-    "DouyinLiveWebFetcher/**/*",
-    "server/**/*",
-    "frontend/**/*",
+    "backend_dist/**/*",
+    "service_launcher.py",
+    "config.json",
     "package.json",
-    "!node_modules",
-    "!.git",
-    "!.vscode",
-    "!test",
-    "!tests",
-    "!docs",
-    "!*.md",
-    "!.env*",
-    "!.tmp*"
+    "!AST_module/**/*",
+    "!DouyinLiveWebFetcher/**/*",
+    "!server/**/*",
+    "!StreamCap/**/*",
+    "!test-frontend/**/*",
+    "!**/__pycache__/**",
+    "!**/*.pyc",
+    "!**/*.pyo",
+    "!**/*.log",
+    "!**/.git/**",
+    "!**/node_modules/**",
+    "!**/.env*",
+    "!**/logs/**"
+  ],
+  "extraResources": [
+    {
+      "from": "backend_dist",
+      "to": "backend_dist",
+      "filter": ["**/*"]
+    },
+    {
+      "from": "service_launcher.py",
+      "to": "service_launcher.py"
+    },
+    {
+      "from": "config.json",
+      "to": "config.json"
+    }
   ],
   "win": {
     "target": [
       {
+        "target": "portable",
+        "arch": ["x64"]
+      },
+      {
         "target": "nsis",
-        "arch": ["x64", "ia32"]
+        "arch": ["x64"]
       }
     ],
     "icon": "assets/icon.ico",
-    "artifactName": "TalkingCat-Setup-${version}-${arch}.exe",
-    "requestedExecutionLevel": "asInvoker",
-    "verifyUpdateCodeSignature": false
+    "artifactName": "TalkingCat-Portable-${version}-${arch}.exe",
+    "requestedExecutionLevel": "asInvoker"
+  },
+  "portable": {
+    "artifactName": "TalkingCat-Portable-${version}-${arch}.exe"
   },
   "nsis": {
     "oneClick": false,
-    "allowElevation": true,
     "allowToChangeInstallationDirectory": true,
-    "installerIcon": "assets/icon.ico",
-    "uninstallerIcon": "assets/icon.ico",
-    "installerHeaderIcon": "assets/icon.ico",
+    "artifactName": "TalkingCat-Setup-${version}-${arch}.exe",
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "提猫直播助手",
-    "include": "installer.nsh"
+    "shortcutName": "提猫直播助手"
   },
-  "publish": null
+  "mac": {
+    "target": [
+      {
+        "target": "dmg",
+        "arch": ["x64", "arm64"]
+      }
+    ],
+    "icon": "assets/icon.icns",
+    "artifactName": "TalkingCat-${version}-${arch}.dmg",
+    "category": "public.app-category.productivity"
+  },
+  "linux": {
+    "target": [
+      {
+        "target": "AppImage",
+        "arch": ["x64"]
+      },
+      {
+        "target": "deb",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "assets/icon.png",
+    "artifactName": "TalkingCat-${version}-${arch}.${ext}",
+    "category": "Office"
+  },
+  "publish": {
+    "provider": "generic",
+    "url": "https://releases.example.com/"
+  },
+  "compression": "maximum",
+  "removePackageScripts": true,
+  "buildDependenciesFromSource": false,
+  "nodeGypRebuild": false,
+  "npmRebuild": false
 }

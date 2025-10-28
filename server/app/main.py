@@ -40,6 +40,12 @@ from server.app.models import Base
 from server.utils.ai_defaults import ensure_default_ai_env
 from server.config import config_manager
 
+if os.name == "nt":
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    except Exception:
+        pass
+
 def _disable_ssl_verify_if_requested() -> None:
     """Opt-in dev helper to skip SSL certificate verification."""
     if os.getenv("DISABLE_SSL_VERIFY", "1") != "1":

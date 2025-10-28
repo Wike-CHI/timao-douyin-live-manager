@@ -79,7 +79,8 @@ async def stop_live_report() -> BaseResp:
         # 提供更具体的错误信息
         error_msg = str(e)
         if "no active session" in error_msg.lower() or "not started" in error_msg.lower():
-            raise HTTPException(status_code=404, detail="没有正在运行的录制会话")
+            # 没有活跃会话时返回成功响应，而不是404错误
+            return BaseResp(success=True, message="没有正在运行的录制会话", data=None)
         else:
             raise HTTPException(status_code=400, detail=f"停止直播录制服务失败: {error_msg}")
 

@@ -19,10 +19,10 @@ import sys
 import time
 import shutil
 from collections import deque
+from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Deque, Dict, List, Optional
-from contextlib import suppress
 
 
 # Workspace root on sys.path so we can import StreamCap and AST_module
@@ -58,6 +58,7 @@ from AST_module.postprocess import (  # type: ignore
     SentenceAssembler,
     pcm16_rms,
 )
+from ...utils.async_process import AsyncProcess, create_subprocess_exec
 try:
     from server.nlp.hotwords import HotwordReplacer  # type: ignore
 except Exception:
@@ -171,7 +172,7 @@ class LiveAudioStreamService:
     def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
         self._status = LiveAudioStatus()
-        self._ffmpeg: Optional[asyncio.subprocess.Process] = None
+        self._ffmpeg: Optional[AsyncProcess] = None
         self._reader_task: Optional[asyncio.Task] = None
         self._stop_evt = asyncio.Event()
         self._ffmpeg_stderr_task: Optional[asyncio.Task] = None
@@ -323,144 +324,149 @@ class LiveAudioStreamService:
     # ---------- Public API ----------
     async def start(self, live_url_or_id: str, session_id: Optional[str] = None) -> LiveAudioStatus:
         if self._status.is_running:
-            raise RuntimeError("live audio service already running")
+            raise RuntimeError("实时音频转写服务已在运行中")
 
-        live_id = _parse_live_id(live_url_or_id)
-        if not live_id:
-            raise RuntimeError("invalid Douyin live URL or ID")
+        try:
+            live_id = _parse_live_id(live_url_or_id)
+            if not live_id:
+                raise RuntimeError("invalid Douyin live URL or ID")
 
-        # Resolve stream using StreamCap handler
-        handler = get_platform_handler(live_url=f"https://live.douyin.com/{live_id}")
-        if handler is None:
-            raise RuntimeError("unsupported live URL")
-        info = await handler.get_stream_info(f"https://live.douyin.com/{live_id}")
-        # StreamCap returns a StreamData object (attrs) but defensive fallback supports dict
-        if isinstance(info, dict):
-            is_live = info.get("is_live")
-            record_url = info.get("record_url") or info.get("flv_url") or info.get("m3u8_url")
-            anchor_name = info.get("anchor_name")
-            resolved_live_url = info.get("live_url")
-        else:
-            is_live = getattr(info, "is_live", None)
-            record_url = (
-                getattr(info, "record_url", None)
-                or getattr(info, "flv_url", None)
-                or getattr(info, "m3u8_url", None)
+            # Resolve stream using StreamCap handler
+            handler = get_platform_handler(live_url=f"https://live.douyin.com/{live_id}")
+            if handler is None:
+                raise RuntimeError("unsupported live URL")
+            info = await handler.get_stream_info(f"https://live.douyin.com/{live_id}")
+            # StreamCap returns a StreamData object (attrs) but defensive fallback supports dict
+            if isinstance(info, dict):
+                is_live = info.get("is_live")
+                record_url = info.get("record_url") or info.get("flv_url") or info.get("m3u8_url")
+                anchor_name = info.get("anchor_name")
+                resolved_live_url = info.get("live_url")
+            else:
+                is_live = getattr(info, "is_live", None)
+                record_url = (
+                    getattr(info, "record_url", None)
+                    or getattr(info, "flv_url", None)
+                    or getattr(info, "m3u8_url", None)
+                )
+                anchor_name = getattr(info, "anchor_name", None)
+                resolved_live_url = getattr(info, "live_url", None)
+
+            if is_live is False:
+                raise RuntimeError(
+                    f"直播间未开播，无法拉流（{anchor_name or live_id}）。请确认直播已开始后再试。"
+                )
+
+            if not record_url:
+                raise RuntimeError("failed to resolve record URL (streams unavailable)")
+
+            # Init SenseVoice on demand
+            await self._ensure_sv()
+            if self._sv is None:
+                raise RuntimeError("SenseVoice initialize failed")
+
+            self._status = LiveAudioStatus(
+                is_running=True,
+                live_url=str(resolved_live_url or f"https://live.douyin.com/{live_id}"),
+                live_id=live_id,
+                session_id=session_id or f"live_{int(time.time())}",
+                started_at=_now(),
             )
-            anchor_name = getattr(info, "anchor_name", None)
-            resolved_live_url = getattr(info, "live_url", None)
-
-        if is_live is False:
-            raise RuntimeError(
-                f"直播间未开播，无法拉流（{anchor_name or live_id}）。请确认直播已开始后再试。"
-            )
-
-        if not record_url:
-            raise RuntimeError("failed to resolve record URL (streams unavailable)")
-
-        # Init SenseVoice on demand
-        await self._ensure_sv()
-        if self._sv is None:
-            raise RuntimeError("SenseVoice initialize failed")
-
-        self._status = LiveAudioStatus(
-            is_running=True,
-            live_url=str(resolved_live_url or f"https://live.douyin.com/{live_id}"),
-            live_id=live_id,
-            session_id=session_id or f"live_{int(time.time())}",
-            started_at=_now(),
-        )
-        self._agc_gain = 1.0
-        self._init_diarizer()
-        if self._sv is not None:
-            seed_terms: List[str] = []
-            if anchor_name:
-                seed_terms.append(str(anchor_name))
-            seed_terms.append(live_id)
-            try:
-                self._sv.update_hotwords(self._status.session_id, seed_terms)  # type: ignore[attr-defined]
-            except Exception:
-                pass
-        self._music_ema = 0.0
-        self._music_flag = False
-        self._music_release_counter = 0
-        self._status.music_guard_active = False
-        self._status.music_guard_score = 0.0
-        self._status.music_last_title = None
-        self._status.music_last_score = 0.0
-        self._status.music_last_detected_at = 0.0
-        if self._acr_enabled:
-            self._acr_buffer.clear()
-            self._acr_last_attempt = 0.0
-            self._acr_active_until = 0.0
-            self._acr_last_match = None
-            self._acr_last_title = None
-            self._acr_last_score = 0.0
-            if self._acr_pending_task and not self._acr_pending_task.done():
-                self._acr_pending_task.cancel()
+            self._agc_gain = 1.0
+            self._init_diarizer()
+            if self._sv is not None:
+                seed_terms: List[str] = []
+                if anchor_name:
+                    seed_terms.append(str(anchor_name))
+                seed_terms.append(live_id)
+                try:
+                    self._sv.update_hotwords(self._status.session_id, seed_terms)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+            self._music_ema = 0.0
+            self._music_flag = False
+            self._music_release_counter = 0
+            self._status.music_guard_active = False
+            self._status.music_guard_score = 0.0
+            self._status.music_last_title = None
+            self._status.music_last_score = 0.0
+            self._status.music_last_detected_at = 0.0
+            if self._acr_enabled:
+                self._acr_buffer.clear()
+                self._acr_last_attempt = 0.0
+                self._acr_active_until = 0.0
+                self._acr_last_match = None
+                self._acr_last_title = None
+                self._acr_last_score = 0.0
+                if self._acr_pending_task and not self._acr_pending_task.done():
+                    self._acr_pending_task.cancel()
             self._acr_pending_task = None
-        # reset streaming state
-        self._partial_text = ""
-        self._vad_in_speech = False
-        self._vad_silence_acc = 0.0
-        self._vad_speech_acc = 0.0
-        self._vad_buf = bytearray()
-        # Prepare persistence writer
-        if self.persist_enabled and JSONLWriter is not None:
-            try:
-                root = Path(self.persist_root or (PROJECT_ROOT / "records" / "live_logs")).resolve()
-                day = time.strftime("%Y-%m-%d", time.localtime())
-                out_dir = root / (self._status.live_id or "unknown") / day
-                self._persist_tr = JSONLWriter(out_dir / f"transcripts_{self._status.session_id}.jsonl")
-                self._persist_tr.open()
-            except Exception:
-                self._persist_tr = None
+            # reset streaming state
+            self._partial_text = ""
+            self._vad_in_speech = False
+            self._vad_silence_acc = 0.0
+            self._vad_speech_acc = 0.0
+            self._vad_buf = bytearray()
+            # Prepare persistence writer
+            if self.persist_enabled and JSONLWriter is not None:
+                try:
+                    root = Path(self.persist_root or (PROJECT_ROOT / "records" / "live_logs")).resolve()
+                    day = time.strftime("%Y-%m-%d", time.localtime())
+                    out_dir = root / (self._status.live_id or "unknown") / day
+                    self._persist_tr = JSONLWriter(out_dir / f"transcripts_{self._status.session_id}.jsonl")
+                    self._persist_tr.open()
+                except Exception:
+                    self._persist_tr = None
 
-        # Start ffmpeg to pipe raw PCM s16le 16k mono to stdout
-        headers = []
-        if "douyin" in record_url:
-            # Add compatible headers for Douyin CDN, especially HLS
-            ua = (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/127 Safari/537.36"
+            # Start ffmpeg to pipe raw PCM s16le 16k mono to stdout
+            headers = []
+            if "douyin" in record_url:
+                # Add compatible headers for Douyin CDN, especially HLS
+                ua = (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/127 Safari/537.36"
+                )
+                headers.extend(["-headers", f"referer:https://live.douyin.com"])
+                headers.extend(["-headers", f"user-agent:{ua}"])
+                if ".m3u8" in (record_url or ""):
+                    headers.extend(["-headers", "accept:application/vnd.apple.mpegurl"])
+            # Resolve ffmpeg binary: env FFMPEG_BIN > PATH > local tools/ffmpeg/*/bin
+            ffmpeg_bin = os.environ.get("FFMPEG_BIN") or shutil.which("ffmpeg") or str(
+                (PROJECT_ROOT / "tools" / "ffmpeg" / ("win64" if os.name == "nt" else ("mac" if sys.platform == "darwin" else "linux")) / "bin" / ("ffmpeg.exe" if os.name == "nt" else "ffmpeg")).resolve()
             )
-            headers.extend(["-headers", f"referer:https://live.douyin.com"])
-            headers.extend(["-headers", f"user-agent:{ua}"])
-            if ".m3u8" in (record_url or ""):
-                headers.extend(["-headers", "accept:application/vnd.apple.mpegurl"])
-        # Resolve ffmpeg binary: env FFMPEG_BIN > PATH > local tools/ffmpeg/*/bin
-        ffmpeg_bin = os.environ.get("FFMPEG_BIN") or shutil.which("ffmpeg") or str(
-            (PROJECT_ROOT / "tools" / "ffmpeg" / ("win64" if os.name == "nt" else ("mac" if sys.platform == "darwin" else "linux")) / "bin" / ("ffmpeg.exe" if os.name == "nt" else "ffmpeg")).resolve()
-        )
-        self._ffmpeg_exit_reported = False
-        self._log_throttle.clear()
-        cmd = [
-            ffmpeg_bin,
-            "-loglevel",
-            "warning",
-            *headers,
-            "-i",
-            record_url,
-            "-vn",
-            "-ac",
-            "1",
-            "-ar",
-            "16000",
-            "-f",
-            "s16le",
-            "pipe:1",
-        ]
-        self._ffmpeg = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        self._status.ffmpeg_pid = self._ffmpeg.pid
-        if self._ffmpeg.stderr:
-            self._ffmpeg_stderr_task = asyncio.create_task(self._drain_ffmpeg_stderr(self._ffmpeg.stderr))
-        self._stop_evt.clear()
-        self._reader_task = asyncio.create_task(self._read_loop())
-        return self._status
+            self._ffmpeg_exit_reported = False
+            self._log_throttle.clear()
+            cmd = [
+                ffmpeg_bin,
+                "-loglevel",
+                "warning",
+                *headers,
+                "-i",
+                record_url,
+                "-vn",
+                "-ac",
+                "1",
+                "-ar",
+                "16000",
+                "-f",
+                "s16le",
+                "pipe:1",
+            ]
+            self._ffmpeg = await create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            self._status.ffmpeg_pid = self._ffmpeg.pid
+            if self._ffmpeg.stderr:
+                self._ffmpeg_stderr_task = asyncio.create_task(self._drain_ffmpeg_stderr(self._ffmpeg.stderr))
+            self._stop_evt.clear()
+            self._reader_task = asyncio.create_task(self._read_loop())
+            return self._status
+        except Exception as e:
+            # 如果启动失败，重置状态
+            self._status = LiveAudioStatus()
+            raise e
 
     async def stop(self) -> LiveAudioStatus:
         self._stop_evt.set()

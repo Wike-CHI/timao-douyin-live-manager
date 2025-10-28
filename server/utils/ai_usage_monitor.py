@@ -65,9 +65,19 @@ class ModelPricing:
             "display_name": "通义千问-Max"
         },
         "qwen3-max": {
-            "input": 0.02,
+            "input": 0.006,
             "output": 0.06,
-            "display_name": "通义千问3-Max"
+            "display_name": "通义千问3-Max",
+            "input_free_tokens": 32000,
+            "input_tiers": [
+                {
+                    "up_to": 32000,
+                    "price_per_1k": 0.0,
+                },
+                {
+                    "price_per_1k": 0.006,
+                },
+            ],
         },
         "qwen-plus": {
             "input": 0.004,
@@ -229,6 +239,66 @@ class ModelPricing:
         
         return None
     
+    @staticmethod
+    def _calculate_tiered_cost(tokens: int, tiers: List[Dict[str, Any]]) -> Decimal:
+        """根据阶梯配置计算费用，up_to 表示累计 token 上限"""
+        if not tiers:
+            return Decimal("0")
+        
+        remaining = max(0, int(tokens or 0))
+        previous_cap = 0
+        total = Decimal("0")
+        
+        for tier in tiers:
+            if remaining <= 0:
+                break
+            
+            unit_price = Decimal(str(tier.get("price_per_1k", 0)))
+            cap = tier.get("up_to")
+            
+            if cap is not None:
+                try:
+                    cap_value = int(cap)
+                except (TypeError, ValueError):
+                    continue
+                if cap_value <= previous_cap:
+                    continue
+                capacity = cap_value - previous_cap
+                tier_tokens = min(remaining, capacity)
+                previous_cap = cap_value
+            else:
+                tier_tokens = remaining
+            
+            if tier_tokens > 0:
+                total += Decimal(tier_tokens) * unit_price / Decimal(1000)
+                remaining -= tier_tokens
+        
+        return total
+    
+    @classmethod
+    def _calculate_input_cost(cls, pricing: Dict[str, Any], tokens: int) -> Decimal:
+        """计算输入 token 成本，支持免费额度与阶梯定价"""
+        tiers = pricing.get("input_tiers")
+        if tiers:
+            return cls._calculate_tiered_cost(tokens, tiers)
+        
+        free_tokens = int(pricing.get("input_free_tokens") or 0)
+        billable_tokens = max(0, int(tokens or 0) - free_tokens)
+        rate = Decimal(str(pricing.get("input", 0)))
+        return Decimal(billable_tokens) * rate / Decimal(1000)
+    
+    @classmethod
+    def _calculate_output_cost(cls, pricing: Dict[str, Any], tokens: int) -> Decimal:
+        """计算输出 token 成本，预留阶梯扩展点"""
+        tiers = pricing.get("output_tiers")
+        if tiers:
+            return cls._calculate_tiered_cost(tokens, tiers)
+        
+        free_tokens = int(pricing.get("output_free_tokens") or 0)
+        billable_tokens = max(0, int(tokens or 0) - free_tokens)
+        rate = Decimal(str(pricing.get("output", 0)))
+        return Decimal(billable_tokens) * rate / Decimal(1000)
+    
     @classmethod
     def calculate_cost(
         cls,
@@ -237,8 +307,6 @@ class ModelPricing:
         output_tokens: int
     ) -> float:
         """计算单次调用费用。如果没有匹配定价则返回 0."""
-        from decimal import Decimal, ROUND_HALF_UP
-        
         pricing = cls._resolve_pricing(model)
         if not pricing:
             logger.debug("未找到模型 %s 对应的定价，费用按 0 计入", model)
@@ -247,8 +315,8 @@ class ModelPricing:
         input_tokens = max(0, int(input_tokens or 0))
         output_tokens = max(0, int(output_tokens or 0))
         
-        input_cost = Decimal(input_tokens) * Decimal(str(pricing["input"])) / Decimal(1000)
-        output_cost = Decimal(output_tokens) * Decimal(str(pricing["output"])) / Decimal(1000)
+        input_cost = cls._calculate_input_cost(pricing, input_tokens)
+        output_cost = cls._calculate_output_cost(pricing, output_tokens)
         total = (input_cost + output_cost).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
         return float(total)
     

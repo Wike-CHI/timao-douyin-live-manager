@@ -51,6 +51,7 @@ from AST_module.sensevoice_service import (  # type: ignore
     SenseVoiceConfig,
     SenseVoiceService,
 )
+from ...utils.async_process import AsyncProcess, create_subprocess_exec
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,7 @@ class LiveReportService:
         self.records_root = Path(records_root or os.getenv("RECORDS_ROOT", "records")).resolve()
         self.records_root.mkdir(parents=True, exist_ok=True)
         self._session: Optional[LiveReportStatus] = None
-        self._ffmpeg_proc: Optional[asyncio.subprocess.Process] = None
+        self._ffmpeg_proc: Optional[AsyncProcess] = None
         self._comment_queue: Optional[asyncio.Queue] = None
         self._comments: List[Dict[str, Any]] = []
         self._comment_task: Optional[asyncio.Task] = None
@@ -146,73 +147,120 @@ class LiveReportService:
         if self._session is not None:
             raise RuntimeError("Live report session already started")
 
-        live_id = _parse_douyin_live_id(live_url)
-        handler = get_platform_handler(live_url=live_url)
-        if handler is None:
-            raise RuntimeError("Unsupported live URL")
-        info = await handler.get_stream_info(live_url)
-        if isinstance(info, dict):
-            is_live = info.get("is_live")
-            record_url = info.get("record_url") or info.get("flv_url") or info.get("m3u8_url")
-            anchor_raw = info.get("anchor_name", "")
-            platform = info.get("platform", "douyin") or "douyin"
-        else:
-            is_live = getattr(info, "is_live", None)
-            record_url = (
-                getattr(info, "record_url", None)
-                or getattr(info, "flv_url", None)
-                or getattr(info, "m3u8_url", None)
+        try:
+            live_id = _parse_douyin_live_id(live_url)
+            handler = get_platform_handler(live_url=live_url)
+            if handler is None:
+                raise RuntimeError("Unsupported live URL")
+            info = await handler.get_stream_info(live_url)
+            if isinstance(info, dict):
+                is_live = info.get("is_live")
+                record_url = info.get("record_url") or info.get("flv_url") or info.get("m3u8_url")
+                anchor_raw = info.get("anchor_name", "")
+                platform = info.get("platform", "douyin") or "douyin"
+            else:
+                is_live = getattr(info, "is_live", None)
+                record_url = (
+                    getattr(info, "record_url", None)
+                    or getattr(info, "flv_url", None)
+                    or getattr(info, "m3u8_url", None)
+                )
+                anchor_raw = getattr(info, "anchor_name", "")
+                platform = getattr(info, "platform", "douyin") or "douyin"
+
+            if is_live is False:
+                raise RuntimeError(f"直播间当前未开播，无法开始录制：{anchor_raw or live_id}")
+
+            if not record_url:
+                raise RuntimeError("Failed to resolve record URL (streams unavailable)")
+
+            anchor = _safe_name(anchor_raw)
+            day = time.strftime("%Y-%m-%d", time.localtime())
+            session_id = f"live_{platform}_{anchor}_{int(time.time())}"
+            day_dir = self.records_root / platform / anchor / day
+            existing_sessions = [p for p in day_dir.glob("live_*") if p.is_dir()]
+            session_index = len(existing_sessions) + 1
+            out_dir = day_dir / session_id
+            out_dir.mkdir(parents=True, exist_ok=True)
+
+            seg_secs = max(300, int(segment_minutes) * 60)
+            pattern = str(out_dir / f"{anchor}_%Y%m%d_%H%M%S_%03d.mp4")
+
+            self._session = LiveReportStatus(
+                session_id=session_id,
+                live_url=live_url,
+                room_id=live_id,
+                anchor_name=anchor,
+                platform_key=platform,
+                recording_dir=str(out_dir),
+                session_date=day,
+                session_index=session_index,
+                segment_seconds=seg_secs,
             )
-            anchor_raw = getattr(info, "anchor_name", "")
-            platform = getattr(info, "platform", "douyin") or "douyin"
 
-        if is_live is False:
-            raise RuntimeError(f"直播间当前未开播，无法开始录制：{anchor_raw or live_id}")
+            # Start ffmpeg segment recording
+            self._ffmpeg_proc = await self._start_ffmpeg(record_url, seg_secs, pattern)
+            self._session.recording_pid = self._ffmpeg_proc.pid
 
+            # Start Douyin relay and consume events into in-memory buffer
+            relay = get_douyin_web_relay()
+            if live_id:
+                await relay.start(live_id)
+            self._relay_client_queue = await relay.register_client()
+            self._comment_task = asyncio.create_task(self._consume_danmu())
 
-        if not record_url:
-            raise RuntimeError("Failed to resolve record URL (streams unavailable)")
-
-        anchor = _safe_name(anchor_raw)
-        day = time.strftime("%Y-%m-%d", time.localtime())
-        session_id = f"live_{platform}_{anchor}_{int(time.time())}"
-        day_dir = self.records_root / platform / anchor / day
-        existing_sessions = [p for p in day_dir.glob("live_*") if p.is_dir()]
-        session_index = len(existing_sessions) + 1
-        out_dir = day_dir / session_id
-        out_dir.mkdir(parents=True, exist_ok=True)
-
-        seg_secs = max(300, int(segment_minutes) * 60)
-        pattern = str(out_dir / f"{anchor}_%Y%m%d_%H%M%S_%03d.mp4")
-
-        self._session = LiveReportStatus(
-            session_id=session_id,
-            live_url=live_url,
-            room_id=live_id,
-            anchor_name=anchor,
-            platform_key=platform,
-            recording_dir=str(out_dir),
-            session_date=day,
-            session_index=session_index,
-            segment_seconds=seg_secs,
-        )
-
-        # Start ffmpeg segment recording
-        self._ffmpeg_proc = await self._start_ffmpeg(record_url, seg_secs, pattern)
-        self._session.recording_pid = self._ffmpeg_proc.pid
-
-        # Start Douyin relay and consume events into in-memory buffer
-        relay = get_douyin_web_relay()
-        if live_id:
-            await relay.start(live_id)
-        self._relay_client_queue = await relay.register_client()
-        self._comment_task = asyncio.create_task(self._consume_danmu())
-
-        return self._session
+            return self._session
+        
+        except Exception as e:
+            # 清理已创建的session状态，确保下次可以重新启动
+            if self._session is not None:
+                # 尝试清理已启动的资源
+                if self._ffmpeg_proc:
+                    try:
+                        await self._graceful_stop_ffmpeg(self._ffmpeg_proc)
+                    except Exception:
+                        pass
+                    self._ffmpeg_proc = None
+                
+                if self._comment_task:
+                    self._comment_task.cancel()
+                    try:
+                        await self._comment_task
+                    except asyncio.CancelledError:
+                        pass
+                    self._comment_task = None
+                
+                if self._relay_client_queue:
+                    try:
+                        relay = get_douyin_web_relay()
+                        await relay.unregister_client(self._relay_client_queue)
+                        await relay.stop()
+                    except Exception:
+                        pass
+                    self._relay_client_queue = None
+                
+                # 清空session状态
+                self._session = None
+            
+            # 重新抛出原始异常
+            raise e
 
     async def stop(self) -> LiveReportStatus:
         if not self._session:
-            raise RuntimeError("No active session")
+            # 返回一个默认的停止状态，而不是抛出异常
+            return LiveReportStatus(
+                session_id="no-session",
+                live_url="",
+                room_id=None,
+                anchor_name="",
+                recording_dir=None,
+                started_at=_now_ts(),
+                stopped_at=_now_ts(),
+                segments=[],
+                comments_count=0,
+                transcript_chars=0,
+                metrics={}
+            )
 
         # Stop ffmpeg
         if self._ffmpeg_proc:
@@ -386,7 +434,7 @@ class LiveReportService:
         except Exception as exc:  # pragma: no cover - fail gracefully
             logger.warning("Failed to update style memory: %s", exc)
 
-    async def _start_ffmpeg(self, record_url: str, seg_secs: int, pattern: str) -> asyncio.subprocess.Process:
+    async def _start_ffmpeg(self, record_url: str, seg_secs: int, pattern: str) -> AsyncProcess:
         headers = None
         if "douyin" in record_url:
             headers = "referer:https://live.douyin.com"
@@ -404,7 +452,7 @@ class LiveReportService:
             output_idx = len(cmd) - 1
             cmd.insert(output_idx, "1")
             cmd.insert(output_idx, "-strftime")
-        proc = await asyncio.create_subprocess_exec(
+        proc = await create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -412,7 +460,7 @@ class LiveReportService:
         asyncio.create_task(self._watch_segments_tail(pattern))
         return proc
 
-    async def _graceful_stop_ffmpeg(self, proc: asyncio.subprocess.Process) -> None:
+    async def _graceful_stop_ffmpeg(self, proc: AsyncProcess) -> None:
         try:
             if os.name == "nt":
                 if proc.stdin:
@@ -620,7 +668,7 @@ class LiveReportService:
             "s16le",
             str(out_pcm),
         ]
-        proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        proc = await create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         await proc.communicate()
         if proc.returncode != 0:
             raise RuntimeError(f"ffmpeg extract pcm failed: {proc.returncode}")

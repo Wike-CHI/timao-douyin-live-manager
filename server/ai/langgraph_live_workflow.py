@@ -32,6 +32,7 @@ except Exception:  # pragma: no cover
 from .live_analysis_generator import LiveAnalysisGenerator
 from .live_question_responder import LiveQuestionResponder
 from .knowledge_service import get_knowledge_base
+from .ai_gateway import get_gateway
 
 try:  # pragma: no cover - optional reuse of helpers
     from .style_memory import _sanitize_anchor_id  # type: ignore
@@ -91,6 +92,116 @@ class LiveWorkflowConfig:
 
     anchor_id: Optional[str] = None
     memory_root: Path = Path("records") / "memory"
+    enable_chat_focus_ai: bool = True
+    chat_focus_model: str = "qwen3-max"
+
+
+class ChatFocusSummarizer:
+    """Use LLM to describe what the audience is mainly discussing."""
+
+    def __init__(self, model: str = "qwen3-max", temperature: float = 0.2, max_tokens: int = 80) -> None:
+        self.model = model
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        try:
+            self.gateway = get_gateway()
+        except Exception as exc:  # pragma: no cover - defensive, gateway always available in prod
+            logger.warning("Chat focus summarizer unavailable: %s", exc)
+            self.gateway = None
+
+    @staticmethod
+    def _looks_like_noise(text: str) -> bool:
+        cleaned = re.sub(r"[^\w\u4e00-\u9fff]+", "", str(text or "").lower())
+        if not cleaned:
+            return True
+        if re.search(r"[\u4e00-\u9fff]", cleaned):
+            return False
+        if len(cleaned) <= 3:
+            return True
+        if re.fullmatch(r"[a-z]{1,5}", cleaned):
+            return True
+        return False
+
+    def summarize(
+        self,
+        *,
+        chat_signals: List[ChatSignal],
+        transcript: str = "",
+        fallback: str,
+        vibe: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        if not self.gateway:
+            return fallback
+
+        samples: List[str] = []
+        for signal in (chat_signals or [])[-12:]:
+            if not isinstance(signal, dict):
+                continue
+            text = str(signal.get("text") or "").strip()
+            if not text or self._looks_like_noise(text):
+                continue
+            samples.append(text)
+
+        # 保持最近顺序去重
+        deduped: Dict[str, None] = {}
+        for item in reversed(samples):
+            deduped[item] = None
+        samples = list(reversed(list(deduped.keys())))
+
+        transcript = str(transcript or "").strip()
+        if not samples and not transcript:
+            return fallback
+
+        vibe_note = ""
+        if vibe and isinstance(vibe, dict):
+            level = vibe.get("level")
+            if level:
+                vibe_note = f"\n直播氛围：{level}"
+
+        sample_lines = "\n".join(f"{idx}. {line}" for idx, line in enumerate(samples[:10], start=1))
+        user_prompt_parts = [
+            "以下是最近直播间的观众弹幕，请你帮主播概括大家此刻主要在聊什么：",
+            sample_lines or "（暂无弹幕样本）",
+        ]
+        if transcript:
+            user_prompt_parts.append(f"主播刚刚的口播提到了：{transcript[-120:]}")
+        if vibe_note:
+            user_prompt_parts.append(vibe_note.strip())
+        user_prompt_parts.append(f"如果无法判断，请输出：{fallback}")
+        user_prompt = "\n".join(part for part in user_prompt_parts if part)
+
+        system_prompt = (
+            "你是直播间数据分析助手。阅读给出的弹幕和口播内容，用简体中文输出一条 4-12 字以内的短语，"
+            "概括观众此刻最关注的主题。必须是自然语言，不含序号、标点符号或乱码，"
+            "例如“宿舍八卦”或“夏季穿搭分享”。若信息不足，请原样输出提供的备用短语。"
+        )
+
+        response = self.gateway.chat_completion(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            model=self.model,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+        )
+        if not response.success:
+            logger.debug("Chat focus summarizer failed: %s", response.error)
+            return fallback
+
+        text = str(response.content or "").strip()
+        if not text:
+            return fallback
+        first_line = text.splitlines()[0].strip(" \"“”'。！？!?")
+        if not first_line:
+            return fallback
+        # 截断到 12 字以内
+        first_line = re.split(r"[。！？!?]", first_line)[0].strip()
+        if len(first_line) > 12:
+            first_line = first_line[:12]
+        if not re.search(r"[\u4e00-\u9fff]", first_line):
+            return fallback
+        return first_line
 
 
 def _read_json(path: Path) -> Dict[str, Any]:
@@ -131,12 +242,20 @@ class LangGraphLiveWorkflow:
         analysis_generator: LiveAnalysisGenerator,
         question_responder: Optional[LiveQuestionResponder] = None,
         config: Optional[LiveWorkflowConfig] = None,
+        chat_focus_summarizer: Optional[ChatFocusSummarizer] = None,
     ) -> None:
         self.analysis_generator = analysis_generator
         self.question_responder = question_responder
         self.config = config or LiveWorkflowConfig()
         self._graph = None
         self._workflow = None
+        self.chat_focus_summarizer = chat_focus_summarizer
+        if self.chat_focus_summarizer is None and self.config.enable_chat_focus_ai:
+            try:
+                self.chat_focus_summarizer = ChatFocusSummarizer(model=self.config.chat_focus_model)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning("Chat focus summarizer init failed, fallback to keywords: %s", exc)
+                self.chat_focus_summarizer = None
         if _LANGGRAPH_AVAILABLE:
             self._graph = self._build_graph()
             checkpointer = MemorySaver() if MemorySaver else None
@@ -792,6 +911,69 @@ class LangGraphLiveWorkflow:
             scripts = []
         return {"answer_scripts": scripts}
 
+    @staticmethod
+    def _is_topic_noise(text: Optional[str]) -> bool:
+        candidate = str(text or "").strip()
+        if not candidate:
+            return True
+        cleaned = re.sub(r"[^\w\u4e00-\u9fff]+", "", candidate)
+        if not cleaned:
+            return True
+        if len(cleaned) <= 1:
+            return True
+        if re.search(r"[\u4e00-\u9fff]", cleaned):
+            return False
+        if re.search(r"\d", cleaned):
+            return True
+        if len(cleaned) <= 4:
+            return True
+        if re.fullmatch(r"[a-z]{1,5}", cleaned, flags=re.IGNORECASE):
+            return True
+        if re.fullmatch(r"[a-z0-9]{1,6}", cleaned, flags=re.IGNORECASE):
+            return True
+        return False
+
+    @staticmethod
+    def _sanitize_focus_text(text: Optional[str], fallback: str) -> str:
+        cleaned = str(text or "").strip()
+        if not cleaned:
+            return fallback
+        cleaned = cleaned.splitlines()[0].strip(" \"“”'。！？!?")
+        if not cleaned:
+            return fallback
+        cleaned = re.split(r"[。！？!?]", cleaned)[0].strip()
+        if len(cleaned) > 12:
+            cleaned = cleaned[:12]
+        if LangGraphLiveWorkflow._is_topic_noise(cleaned):
+            return fallback
+        return cleaned
+
+    def _resolve_chat_focus(self, state: GraphState, topic: Dict[str, Any]) -> str:
+        raw_topic = str(topic.get("topic") if isinstance(topic, dict) else topic or "").strip()
+        fallback = raw_topic
+        if self._is_topic_noise(fallback):
+            fallback = "互动"
+        fallback = fallback[:12] or "互动"
+
+        focus_text = fallback
+        summarizer = self.chat_focus_summarizer
+        if summarizer:
+            try:
+                ai_focus = summarizer.summarize(
+                    chat_signals=state.get("chat_signals") or [],
+                    transcript=str(state.get("transcript_snippet") or ""),
+                    fallback=fallback,
+                    vibe=state.get("vibe") or {},
+                )
+            except Exception as exc:  # pragma: no cover - robust fallback
+                logger.debug("Chat focus summarizer exception: %s", exc)
+                ai_focus = fallback
+            focus_text = self._sanitize_focus_text(ai_focus, fallback)
+        else:
+            focus_text = self._sanitize_focus_text(fallback, "互动")
+
+        return focus_text
+
     def _summary_node(self, state: GraphState) -> Dict[str, Any]:
         card = state.get("analysis_card") or {}
         overview = str(card.get("analysis_overview") or "").strip()
@@ -829,7 +1011,7 @@ class LangGraphLiveWorkflow:
         else:
             speech_hint = f"这段你说了 {sentence_count} 句"
 
-        topic_text = topic.get("topic") or "互动"
+        topic_text = self._resolve_chat_focus(state, topic)
         topic_direction = str(card.get("next_topic_direction") or "").strip()
         level_raw = (vibe.get("level") or "").lower()
         level_map = {"cold": "偏冷", "neutral": "平稳", "hot": "火热"}
@@ -922,6 +1104,7 @@ class LangGraphLiveWorkflow:
             "knowledge_snippets": knowledge_snippets,
             "knowledge_refs": knowledge_refs,
             "lead_candidates": lead_candidates,
+            "chat_focus": topic_text,
         }
 
     # ------------------------------------------------------------------ fallback

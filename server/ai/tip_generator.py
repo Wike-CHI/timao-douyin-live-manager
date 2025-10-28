@@ -213,8 +213,61 @@ class TipGenerator(LoggerMixin):
     
     def _call_openai_api(self, prompt: str) -> str:
         """调用OpenAI API"""
-        # TODO: 实现OpenAI API调用
-        raise NotImplementedError("OpenAI API调用待实现")
+        try:
+            from openai import OpenAI
+            
+            # 使用配置的API参数或默认值
+            api_key = self.api_key
+            base_url = self.base_url
+            model = self.model
+            
+            # 如果没有配置，尝试从qwen_openai_compatible获取默认配置
+            if not api_key or not base_url or not model:
+                try:
+                    from .qwen_openai_compatible import (
+                        DEFAULT_OPENAI_API_KEY,
+                        DEFAULT_OPENAI_BASE_URL,
+                        DEFAULT_OPENAI_MODEL,
+                    )
+                    api_key = api_key or DEFAULT_OPENAI_API_KEY
+                    base_url = base_url or DEFAULT_OPENAI_BASE_URL
+                    model = model or DEFAULT_OPENAI_MODEL
+                except ImportError:
+                    self.logger.error("无法导入qwen_openai_compatible配置")
+                    return "[]"  # 返回空的JSON数组作为降级处理
+            
+            if not api_key:
+                self.logger.warning("OpenAI API密钥未配置，返回空结果")
+                return "[]"
+            
+            # 创建OpenAI客户端
+            client = OpenAI(
+                api_key=api_key,
+                base_url=base_url or None,
+            )
+            
+            # 调用API
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": "你是一个专业的直播话术生成助手，请根据用户提供的信息生成合适的话术建议。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=1000,
+                response_format={"type": "json_object"}
+            )
+            
+            result = response.choices[0].message.content or "[]"
+            self.logger.debug(f"OpenAI API调用成功，返回内容长度: {len(result)}")
+            return result
+            
+        except ImportError:
+            self.logger.error("openai包未安装，无法调用OpenAI API")
+            return "[]"
+        except Exception as e:
+            self.logger.error(f"OpenAI API调用失败: {str(e)}")
+            return "[]"  # 返回空的JSON数组作为降级处理
     
     def _parse_ai_response(self, response: str) -> List[Dict[str, Any]]:
         """解析AI响应"""

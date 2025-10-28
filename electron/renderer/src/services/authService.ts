@@ -1,6 +1,7 @@
 import useAuthStore from '../store/useAuthStore';
+import { apiConfig } from './apiConfig';
 
-const API_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9019';
+const API_BASE_URL = apiConfig.getServiceUrl('main');
 
 class AuthService {
   private refreshPromise: Promise<boolean> | null = null;

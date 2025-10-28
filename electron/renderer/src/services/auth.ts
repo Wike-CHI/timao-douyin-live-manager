@@ -1,16 +1,21 @@
 import useAuthStore from '../store/useAuthStore';
 import authService from './authService';
+import { apiConfig, buildApiUrl, requestWithRetry } from './apiConfig';
 
-const RAW_AUTH_BASE_URL = (import.meta.env?.VITE_AUTH_BASE_URL as string | undefined)?.trim();
-const FASTAPI_BASE_URL = (import.meta.env?.VITE_FASTAPI_URL as string | undefined)?.trim();
-const AUTH_BASE_URL = (RAW_AUTH_BASE_URL || FASTAPI_BASE_URL || '').replace(/\s+$/, '');
-
-if (!AUTH_BASE_URL) {
-  throw new Error('请配置后端服务地址 VITE_AUTH_BASE_URL 或 VITE_FASTAPI_URL');
-}
+// 使用统一的API配置管理
+const getAuthBaseUrl = () => {
+  // 优先使用环境变量配置的认证服务地址
+  const authUrl = import.meta.env?.VITE_AUTH_BASE_URL?.trim();
+  if (authUrl) {
+    return authUrl;
+  }
+  
+  // 回退到主服务地址
+  return apiConfig.getServiceUrl('main');
+};
 
 const joinUrl = (path: string) => {
-  const base = AUTH_BASE_URL.replace(/\/$/, '');
+  const base = getAuthBaseUrl().replace(/\/$/, '');
   const p = path.startsWith('/') ? path : `/${path}`;
   return `${base}${p}`;
 };

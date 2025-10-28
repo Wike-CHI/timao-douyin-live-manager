@@ -56,3 +56,18 @@ def test_record_usage_accepts_explicit_cost(tmp_path: Path):
 
     anchor_stats = summary.by_anchor["anchor-1"]
     assert anchor_stats["total_tokens"] == 200
+
+
+def test_qwen3_max_pricing_respects_free_allowance():
+    """qwen3-max 输入前 32K token 免费，超出部分按 0.006 元/1K 计费。"""
+    free_cost = ModelPricing.calculate_cost("qwen3-max", 32000, 0)
+    assert math.isclose(free_cost, 0.0, abs_tol=1e-9)
+
+    input_tokens = 42000  # 10K token 需要计费
+    expected_input_cost = ((input_tokens - 32000) / 1000) * 0.006
+    overage_cost = ModelPricing.calculate_cost("qwen3-max", input_tokens, 0)
+    assert math.isclose(overage_cost, expected_input_cost, rel_tol=0, abs_tol=1e-9)
+
+    expected_total = expected_input_cost + 0.06  # 输出 1K token
+    total_cost = ModelPricing.calculate_cost("qwen3-max", input_tokens, 1000)
+    assert math.isclose(total_cost, expected_total, rel_tol=0, abs_tol=1e-9)

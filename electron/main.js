@@ -30,11 +30,31 @@ const rendererDevServerURL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.
 // 保持对窗口对象的全局引用，如果不这样做，窗口会在JavaScript对象被垃圾回收时自动关闭
 let mainWindow;
 
-// Child process for backend API (FastAPI via uvicorn)
-let fastAPIProcess = null;
+// 统一后端服务管理
+let backendServiceProcess = null;
+let serviceManager = null;
 const logsDir = path.join(__dirname, '..', 'logs');
 try { if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true }); } catch {}
 const uvicornLogPath = path.join(logsDir, 'uvicorn.log');
+
+// 服务配置
+const serviceConfig = {
+    main: {
+        name: 'FastAPI',
+        port: process.env.BACKEND_PORT || '9019',
+        healthPath: '/health'
+    },
+    streamcap: {
+        name: 'StreamCap',
+        port: process.env.STREAMCAP_PORT || '9020',
+        healthPath: '/health'
+    },
+    douyin: {
+        name: 'DouyinLive',
+        port: process.env.DOUYIN_PORT || '9021',
+        healthPath: '/health'
+    }
+};
 
 function resolveProductionIndex() {
     const distIndex = path.join(__dirname, 'renderer', 'dist', 'index.html');
@@ -97,190 +117,186 @@ function createWindow() {
 // -------------------------------
 // Backend API (FastAPI) launcher
 // -------------------------------
-function startFastAPI() {
+// 启动统一后端服务
+function startBackendServices() {
     return new Promise(async (resolve, reject) => {
         try {
-            if (fastAPIProcess) {
-                return resolve({ success: true, message: 'FastAPI already running' });
+            if (backendServiceProcess) {
+                console.log('[electron] Backend services are already running.');
+                return resolve({ success: true, message: 'Backend services already running' });
             }
 
-            // Use uvicorn to run server.app.main:app on 127.0.0.1 with dynamic port (default FastAPI port for Electron is 9019)
-            // Spawn with project root as cwd so Python can import local packages
             // 准备后端运行环境变量：默认使用本地SQLite并禁用Redis，确保无外部依赖即可运行
             const userDataDir = app.getPath('userData');
             const sqliteDir = path.join(userDataDir, 'data');
             try { fs.mkdirSync(sqliteDir, { recursive: true }); } catch {}
             const sqlitePath = path.join(sqliteDir, 'app.db');
 
-            // 获取后端端口，优先使用环境变量，否则使用默认值9019
-            const backendPort = process.env.BACKEND_PORT || '9019';
-            const available = await isPortAvailable(backendPort);
-            if (!available) {
-                console.log(`[electron] Port ${backendPort} is already in use, attempting to kill existing process...`);
-                
-                // First, try to kill any process occupying the port
-                try {
-                    const { execSync } = require('child_process');
-                    
-                    // Find processes using the port
-                    const netstatOutput = execSync(`netstat -ano | findstr :${backendPort}`, { encoding: 'utf8' });
-                    const lines = netstatOutput.split('\n').filter(line => line.trim());
-                    
-                    for (const line of lines) {
-                        const parts = line.trim().split(/\s+/);
-                        if (parts.length >= 5) {
-                            const pid = parts[parts.length - 1];
-                            if (pid && pid !== '0') {
-                                console.log(`[electron] Found process ${pid} using port ${backendPort}, attempting to kill...`);
-                                try {
-                                    execSync(`taskkill /F /PID ${pid}`, { encoding: 'utf8' });
-                                    console.log(`[electron] Successfully killed process ${pid}`);
-                                } catch (killError) {
-                                    console.log(`[electron] Failed to kill process ${pid}: ${killError.message}`);
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Wait a moment for the port to be released
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                    
-                } catch (error) {
-                    console.log(`[electron] Error while trying to kill port processes: ${error.message}`);
-                }
-                
-                // After attempting to kill processes, check if port is now available
-                const nowAvailable = await isPortAvailable(backendPort);
-                if (!nowAvailable) {
-                    console.log(`[electron] Port ${backendPort} still in use after cleanup, checking if it's our FastAPI service...`);
-                    
-                    // Try to connect to the health endpoint to verify it's our service
-                    // Reduced retry attempts since we already tried to clean up
-                    const maxRetries = 3;
-                    const retryDelay = 2000; // 2 seconds - longer delay for service to stabilize
-                    
-                    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-                        try {
-                            console.log(`[electron] Health check attempt ${attempt}/${maxRetries}...`);
-                            
-                            // Use a more reliable HTTP request method for Node.js
-                            const http = require('http');
-                            const healthCheckPromise = new Promise((resolveHealth, rejectHealth) => {
-                                const req = http.get(`http://127.0.0.1:${backendPort}/health`, { timeout: 8000 }, (res) => {
-                                    let data = '';
-                                    res.on('data', chunk => data += chunk);
-                                    res.on('end', () => {
-                                        try {
-                                            console.log(`[electron] Health check response: Status ${res.statusCode}, Data: ${data}`);
-                                            const response = JSON.parse(data);
-                                            if (res.statusCode === 200 && response.status === 'healthy') {
-                                                resolveHealth(true);
-                                            } else {
-                                                rejectHealth(new Error(`Service not healthy: ${res.statusCode} - ${data}`));
-                                            }
-                                        } catch (e) {
-                                            console.log(`[electron] Health check parse error: ${e.message}`);
-                                            rejectHealth(e);
-                                        }
-                                    });
-                                });
-                                
-                                req.on('error', (err) => {
-                                    console.log(`[electron] Health check request error: ${err.message}`);
-                                    rejectHealth(err);
-                                });
-                                req.on('timeout', () => {
-                                    console.log('[electron] Health check timeout occurred');
-                                    req.destroy();
-                                    rejectHealth(new Error('Health check timeout'));
-                                });
-                                req.setTimeout(8000);
-                            });
-                            
-                            await healthCheckPromise;
-                            console.log('[electron] FastAPI service is already running and healthy.');
-                            return resolve({ success: true, message: 'FastAPI already running (external)' });
-                            
-                        } catch (error) {
-                            console.log(`[electron] Health check attempt ${attempt} failed: ${error.message}`);
-                            
-                            if (attempt === maxRetries) {
-                                console.log(`[electron] All health check attempts failed. Port ${backendPort} may be occupied by unresponsive service, proceeding with startup...`);
-                                // If all health checks fail, proceed with starting our own service
-                                break;
-                            } else {
-                                // Wait before next retry
-                                console.log(`[electron] Waiting ${retryDelay}ms before next health check attempt...`);
-                                await new Promise(resolve => setTimeout(resolve, retryDelay));
-                            }
-                        }
-                    }
-                } else {
-                    console.log(`[electron] Port ${backendPort} is now available after cleanup.`);
-                }
+            // 检查是否有服务已在运行
+            const runningServices = await checkExistingServices();
+            if (runningServices.length > 0) {
+                console.log(`[electron] Found running services: ${runningServices.join(', ')}`);
+                return resolve({ success: true, message: 'Services already running externally' });
             }
-            const backendUrl = `http://127.0.0.1:${backendPort}`;
+
+            console.log('[electron] Starting unified backend services...');
             
-            const envForApi = {
+            const envForServices = {
                 ...process.env,
-                // 强制优先走SQLite，若外部已设置DB_TYPE/DATABASE_PATH则保留外部配置
+                // 数据库配置
                 DB_TYPE: process.env.DB_TYPE || 'sqlite',
                 DATABASE_PATH: process.env.DATABASE_PATH || sqlitePath,
-                // 没有Redis服务的本地演示默认关闭Redis
                 REDIS_ENABLED: process.env.REDIS_ENABLED || 'false',
-                // Force UTF-8 so emojis/Chinese don't garble in Windows pipes
+                // 编码配置
                 PYTHONIOENCODING: 'utf-8',
                 PYTHONUTF8: '1',
-                // 将后端URL传递给前端
-                VITE_FASTAPI_URL: backendUrl
+                // 服务端口配置
+                BACKEND_PORT: serviceConfig.main.port,
+                STREAMCAP_PORT: serviceConfig.streamcap.port,
+                DOUYIN_PORT: serviceConfig.douyin.port,
+                // 前端环境变量
+                VITE_FASTAPI_URL: `http://127.0.0.1:${serviceConfig.main.port}`,
+                VITE_STREAMCAP_URL: `http://127.0.0.1:${serviceConfig.streamcap.port}`,
+                VITE_DOUYIN_URL: `http://127.0.0.1:${serviceConfig.douyin.port}`
             };
-            
-            fastAPIProcess = spawn(
+
+            // 启动统一服务启动器
+            backendServiceProcess = spawn(
                 process.platform === 'win32' ? 'python' : 'python3',
-                ['-m', 'uvicorn', 'server.app.main:app', '--host', '127.0.0.1', '--port', backendPort],
+                ['service_launcher.py'],
                 {
                     cwd: path.join(__dirname, '..'),
-                    env: envForApi,
+                    env: envForServices,
                 }
             );
 
-            fastAPIProcess.stdout.on('data', (data) => {
+            backendServiceProcess.stdout.on('data', (data) => {
                 const text = data.toString();
-                console.log(`[uvicorn] ${text}`.trim());
+                console.log(`[service-manager] ${text}`.trim());
                 if (mainWindow) mainWindow.webContents.send('service-log', text);
                 try { fs.appendFileSync(uvicornLogPath, text); } catch {}
             });
 
-            fastAPIProcess.stderr.on('data', (data) => {
+            backendServiceProcess.stderr.on('data', (data) => {
                 const text = data.toString();
-                console.error(`[uvicorn] ${text}`.trim());
+                console.error(`[service-manager] ${text}`.trim());
                 if (mainWindow) mainWindow.webContents.send('service-error', text);
                 try { fs.appendFileSync(uvicornLogPath, text); } catch {}
             });
 
-            fastAPIProcess.on('close', (code) => {
-                console.log(`FastAPI process exited: ${code}`);
+            backendServiceProcess.on('close', (code) => {
+                console.log(`Backend services process exited: ${code}`);
                 if (mainWindow) mainWindow.webContents.send('service-stopped', code);
-                fastAPIProcess = null;
+                backendServiceProcess = null;
             });
 
-            // Give uvicorn a brief moment to boot
-            setTimeout(() => resolve({ success: true, message: 'FastAPI started' }), 1500);
+            // 等待服务启动并进行健康检查
+            await waitForServicesReady();
+            resolve({ success: true, message: 'Backend services started' });
+            
         } catch (err) {
-            console.error('Failed to start FastAPI:', err);
+            console.error('Failed to start backend services:', err);
             reject(err);
         }
     });
 }
 
-async function stopFastAPI() {
-    if (!apiProcess) return { success: true, message: 'FastAPI not running' };
+// 检查现有服务
+async function checkExistingServices() {
+    const runningServices = [];
+    
+    for (const [key, config] of Object.entries(serviceConfig)) {
+        try {
+            const response = await fetch(`http://127.0.0.1:${config.port}${config.healthPath}`, {
+                method: 'GET',
+                timeout: 2000
+            });
+            
+            if (response.ok) {
+                runningServices.push(config.name);
+                console.log(`[electron] ${config.name} service is already running on port ${config.port}`);
+            }
+        } catch (error) {
+            // 服务未运行，继续检查其他服务
+        }
+    }
+    
+    return runningServices;
+}
+
+// 等待服务就绪
+async function waitForServicesReady() {
+    const maxRetries = 30;
+    const retryDelay = 1000;
+    
+    console.log('[electron] Waiting for services to be ready...');
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            // 检查主服务（FastAPI）
+            const response = await fetch(`http://127.0.0.1:${serviceConfig.main.port}/health`, {
+                method: 'GET',
+                timeout: 3000
+            });
+            
+            if (response.ok) {
+                console.log('[electron] Main service is ready!');
+                return true;
+            }
+        } catch (error) {
+            if (attempt === maxRetries) {
+                throw new Error(`Services failed to start after ${maxRetries} attempts`);
+            }
+            
+            console.log(`[electron] Waiting for services... attempt ${attempt}/${maxRetries}`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
+    }
+}
+
+// 停止后端服务
+async function stopBackendServices() {
+    if (!backendServiceProcess) {
+        return { success: true, message: 'Backend services not running' };
+    }
+    
     try {
-        apiProcess.kill();
-        apiProcess = null;
-        return { success: true, message: 'FastAPI stopped' };
+        console.log('[electron] Stopping backend services...');
+        
+        // 发送终止信号
+        if (process.platform === 'win32') {
+            // Windows下使用taskkill强制终止
+            spawn('taskkill', ['/pid', backendServiceProcess.pid, '/f', '/t']);
+        } else {
+            // Unix系统使用SIGTERM
+            backendServiceProcess.kill('SIGTERM');
+        }
+        
+        // 等待进程结束
+        await new Promise((resolve) => {
+            const timeout = setTimeout(() => {
+                if (backendServiceProcess) {
+                    backendServiceProcess.kill('SIGKILL');
+                }
+                resolve();
+            }, 5000);
+            
+            if (backendServiceProcess) {
+                backendServiceProcess.on('close', () => {
+                    clearTimeout(timeout);
+                    resolve();
+                });
+            } else {
+                clearTimeout(timeout);
+                resolve();
+            }
+        });
+        
+        backendServiceProcess = null;
+        return { success: true, message: 'Backend services stopped' };
+        
     } catch (err) {
-        console.error('Failed to stop FastAPI:', err);
+        console.error('Failed to stop backend services:', err);
         return { success: false, message: String(err) };
     }
 }
@@ -291,9 +307,9 @@ const shouldStartApi = (process.env.ELECTRON_START_API || 'true') !== 'false';
 async function ensureBackendReady() {
     if (!shouldStartApi) return;
     try {
-        await startFastAPI();
+        await startBackendServices();
     } catch (e) {
-        console.error('Failed to auto start FastAPI:', e);
+        console.error('Failed to auto start backend services:', e);
     }
 }
 
@@ -307,7 +323,7 @@ app.on('ready', async () => {
 app.on('window-all-closed', async function () {
     if (process.platform !== 'darwin') {
         // Stop backends
-        try { await stopFastAPI(); } catch (e) {}
+        try { await stopBackendServices(); } catch (e) {}
         app.quit();
     }
 });
@@ -318,41 +334,109 @@ app.on('activate', function () {
     }
 });
 
-// IPC处理程序 - 启动FastAPI服务（提供给渲染端按需调用）
+// IPC处理程序 - 启动后端服务（提供给渲染端按需调用）
 ipcMain.handle('start-service', async () => {
-    return startFastAPI();
+    return startBackendServices();
 });
 
-// IPC处理程序 - 停止FastAPI服务
+// IPC处理程序 - 停止后端服务
 ipcMain.handle('stop-service', async () => {
-    return stopFastAPI();
+    return stopBackendServices();
 });
 
 // IPC处理程序 - 检查服务健康状态
-ipcMain.handle('check-service-health', async () => {
+ipcMain.handle('check-service-health', async (event, serviceName = 'main') => {
     try {
-        // 使用动态端口而不是硬编码的9019
-        const backendPort = process.env.BACKEND_PORT || '9019';
-        const response = await fetch(`http://127.0.0.1:${backendPort}/health`);
+        const config = serviceConfig[serviceName];
+        if (!config) {
+            return { success: false, error: `Unknown service: ${serviceName}` };
+        }
+        
+        const response = await fetch(`http://127.0.0.1:${config.port}${config.healthPath}`, {
+            method: 'GET',
+            timeout: 3000
+        });
+        
         const data = await response.json();
-        return { success: true, data };
+        return { success: true, data, service: serviceName };
     } catch (error) {
-        return { success: false, error: error.message };
+        return { success: false, error: error.message, service: serviceName };
     }
 });
 
+// IPC处理程序 - 检查所有服务健康状态
+ipcMain.handle('check-all-services-health', async () => {
+    const results = {};
+    
+    for (const [serviceName, config] of Object.entries(serviceConfig)) {
+        try {
+            const response = await fetch(`http://127.0.0.1:${config.port}${config.healthPath}`, {
+                method: 'GET',
+                timeout: 2000
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                results[serviceName] = { 
+                    status: 'healthy', 
+                    data, 
+                    url: `http://127.0.0.1:${config.port}` 
+                };
+            } else {
+                results[serviceName] = { 
+                    status: 'unhealthy', 
+                    error: `HTTP ${response.status}`,
+                    url: `http://127.0.0.1:${config.port}` 
+                };
+            }
+        } catch (error) {
+            results[serviceName] = { 
+                status: 'offline', 
+                error: error.message,
+                url: `http://127.0.0.1:${config.port}` 
+            };
+        }
+    }
+    
+    return { success: true, services: results };
+});
+
 // IPC处理程序 - 获取服务URL
-ipcMain.handle('get-service-url', async () => {
-    // 使用动态端口而不是硬编码的9019
-    const backendPort = process.env.BACKEND_PORT || '9019';
-    return `http://127.0.0.1:${backendPort}`;
+ipcMain.handle('get-service-url', async (event, serviceName = 'main') => {
+    const config = serviceConfig[serviceName];
+    if (!config) {
+        return { success: false, error: `Unknown service: ${serviceName}` };
+    }
+    
+    return { 
+        success: true, 
+        url: `http://127.0.0.1:${config.port}`,
+        service: serviceName 
+    };
+});
+
+// IPC处理程序 - 获取所有服务配置
+ipcMain.handle('get-services-config', async () => {
+    const services = {};
+    
+    for (const [serviceName, config] of Object.entries(serviceConfig)) {
+        services[serviceName] = {
+            name: config.name,
+            url: `http://127.0.0.1:${config.port}`,
+            port: config.port,
+            healthPath: config.healthPath
+        };
+    }
+    
+    return { success: true, services };
 });
 
 // IPC处理程序 - 检查服务状态
 ipcMain.handle('check-service-status', async () => {
     return {
-        running: apiProcess !== null,
-        pid: apiProcess ? apiProcess.pid : null
+        running: backendServiceProcess !== null,
+        pid: backendServiceProcess ? backendServiceProcess.pid : null,
+        services: Object.keys(serviceConfig)
     };
 });
 
