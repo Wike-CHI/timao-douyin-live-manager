@@ -64,7 +64,16 @@
     "start:dev": "scripts\\start-dev.bat",
     "start:dev:ps": "powershell -ExecutionPolicy Bypass -File scripts\\start-dev.ps1",
     "start:dev:sequential": "powershell -ExecutionPolicy Bypass -File scripts\\start-dev.ps1 -Sequential",
-    "start:dev:check": "powershell -ExecutionPolicy Bypass -File scripts\\start-dev.ps1 -Check"
+    "start:dev:check": "powershell -ExecutionPolicy Bypass -File scripts\\start-dev.ps1 -Check",
+    "start:integrated": "node scripts/integrated-launcher.js start",
+    "start:all": "node scripts/integrated-launcher.js start",
+    "start:bat": "scripts\\start-integrated.bat",
+    "start:ps": "powershell -ExecutionPolicy Bypass -File scripts\\start-integrated.ps1",
+    "port:check": "node scripts/port-manager.js check",
+    "port:clean": "node scripts/port-manager.js clean",
+    "port:kill": "node scripts/port-manager.js kill",
+    "env:check": "node scripts/integrated-launcher.js check",
+    "launcher:help": "node scripts/integrated-launcher.js help"
   },
   "postinstall": "npm --prefix electron/renderer install",
   "keywords": [

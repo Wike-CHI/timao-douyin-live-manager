@@ -1,7 +1,10 @@
 @echo off
-chcp 65001 >nul
+:: 设置中文代码页，确保中文显示正常
+chcp 936 >nul 2>&1
 setlocal enabledelayedexpansion
 
+:: 设置控制台属性以优化中文显示
+mode con cols=100 lines=40
 :: 设置脚本标题和颜色
 title 提猫直播助手 - 自动化安装与启动脚本
 color 0A

@@ -33,12 +33,22 @@ class ServiceManager:
         log_dir = self.base_dir / "logs"
         log_dir.mkdir(exist_ok=True)
         
+        # 创建自定义的StreamHandler，支持UTF-8编码
+        class UTF8StreamHandler(logging.StreamHandler):
+            def __init__(self, stream=None):
+                super().__init__(stream)
+                if hasattr(self.stream, 'reconfigure'):
+                    try:
+                        self.stream.reconfigure(encoding='utf-8')
+                    except:
+                        pass
+        
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
             handlers=[
-                logging.FileHandler(log_dir / "service_manager.log"),
-                logging.StreamHandler(sys.stdout)
+                logging.FileHandler(log_dir / "service_manager.log", encoding='utf-8'),
+                UTF8StreamHandler(sys.stdout)
             ]
         )
         self.logger = logging.getLogger("ServiceManager")
@@ -90,7 +100,7 @@ class ServiceManager:
             )
             
             self.services[name] = process
-            self.logger.info(f"✅ 服务 {name} 已启动 (PID: {process.pid})")
+            self.logger.info(f"[OK] 服务 {name} 已启动 (PID: {process.pid})")
             
             # 启动输出监控线程
             self.start_output_monitor(name, process)
@@ -98,7 +108,7 @@ class ServiceManager:
             return True
             
         except Exception as e:
-            self.logger.error(f"❌ 启动服务 {name} 失败: {e}")
+            self.logger.error(f"[ERROR] 启动服务 {name} 失败: {e}")
             return False
     
     def start_output_monitor(self, name: str, process: subprocess.Popen):
@@ -119,7 +129,7 @@ class ServiceManager:
     def start_all_services(self):
         """启动所有服务"""
         self.running = True
-        self.logger.info("🚀 开始启动所有后端服务...")
+        self.logger.info("[START] 开始启动所有后端服务...")
         
         # 1. 启动主FastAPI服务
         fastapi_success = self.start_service(
@@ -154,7 +164,7 @@ class ServiceManager:
         # 3. 启动健康检查
         self.start_health_monitor()
         
-        self.logger.info("✅ 所有服务启动完成")
+        self.logger.info("[OK] 所有服务启动完成")
         
     def start_health_monitor(self):
         """启动健康检查监控"""
@@ -181,11 +191,11 @@ class ServiceManager:
             try:
                 response = requests.get(url, timeout=5)
                 if response.status_code == 200:
-                    self.logger.debug(f"✅ {name} 健康检查通过")
+                    self.logger.debug(f"[OK] {name} 健康检查通过")
                 else:
-                    self.logger.warning(f"⚠️ {name} 健康检查异常: {response.status_code}")
+                    self.logger.warning(f"[WARN] {name} 健康检查异常: {response.status_code}")
             except requests.exceptions.RequestException as e:
-                self.logger.warning(f"❌ {name} 健康检查失败: {e}")
+                self.logger.warning(f"[ERROR] {name} 健康检查失败: {e}")
                 # 尝试重启服务
                 self.restart_service_by_url(name, url)
     
@@ -237,12 +247,12 @@ class ServiceManager:
                     process.terminate()
                 
                 process.wait(timeout=10)
-                self.logger.info(f"✅ 服务 {name} 已停止")
+                self.logger.info(f"[OK] 服务 {name} 已停止")
             except subprocess.TimeoutExpired:
                 process.kill()
-                self.logger.warning(f"⚠️ 强制终止服务 {name}")
+                self.logger.warning(f"[WARN] 强制终止服务 {name}")
             except Exception as e:
-                self.logger.error(f"❌ 停止服务 {name} 失败: {e}")
+                self.logger.error(f"[ERROR] 停止服务 {name} 失败: {e}")
             finally:
                 del self.services[name]
     
@@ -259,7 +269,7 @@ class ServiceManager:
         for name in list(self.services.keys()):
             self.stop_service(name)
         
-        self.logger.info("✅ 所有服务已停止")
+        self.logger.info("[OK] 所有服务已停止")
     
     def get_service_status(self) -> Dict[str, Dict]:
         """获取服务状态"""
