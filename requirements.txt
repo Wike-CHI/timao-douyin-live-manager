@@ -1,103 +1,77 @@
-# 提猫直播助手 - Python依赖包
-
-# Web框架 - 已迁移到FastAPI
-# Flask==2.3.3  # 已废弃，迁移到FastAPI
-# Flask-CORS==4.0.0  # 已废弃，迁移到FastAPI
-# Flask-SocketIO==5.3.6  # 已废弃，迁移到FastAPI
-
-# WebSocket支持 - 保留用于其他用途
-# python-socketio==5.9.0  # 已废弃，Flask相关
-# python-engineio==4.7.1  # 已废弃，Flask相关
-websockets>=11.0.0
-websocket-client>=1.6.0
-
-# HTTP客户端
-requests==2.31.0
-urllib3==2.0.7
-
-# 流媒体处理
-streamget>=0.1.0
-
-# 数据处理
-pandas==2.1.4
-numpy==1.24.4
-
-# 自然语言处理
-jieba==0.42.1
-snownlp==0.12.3
-
-# 语音识别和转录
-funasr>=1.2.0  # SenseVoice 语音识别核心依赖
-
-# AI服务客户端
-openai>=1.43.0
-dashscope==1.14.1  # 阿里云通义千问
-baidu-aip==4.16.13  # 百度AI
-# ./acrcloud_sdk_python  # ACRCloud 音频识别（使用仓库内子模块）- 暂时注释掉
-
-# 数据库
-SQLAlchemy==2.0.23
-pymysql==1.1.0  # MySQL 驱动
-cryptography>=41.0.7  # PyMySQL 密码加密支持
-
-# 缓存
-redis>=4.5.0  # Redis 缓存
-redis-py-cluster>=2.1.3  # Redis 集群支持（可选）
-
-# 异步支持
-aiohttp==3.9.1
-aiofiles==23.2.1
-
-# 工具库
-python-dotenv==1.0.0
-pydantic==2.5.2
-marshmallow==3.20.1
-
-# 日期时间
-python-dateutil==2.8.2
-
-# 日志
-loguru>=0.7.3
-
-# 配置管理
-PyYAML==6.0.1
-
-# 加密
-cryptography==41.0.7
-
-# 测试
-pytest==7.4.3
-pytest-asyncio==0.21.1
-pytest-cov==4.1.0
-
-# 开发工具
-black==23.11.0
-flake8==6.1.0
-mypy==1.7.1
-
-# 系统监控
-psutil==5.9.6
-
-# UI框架
-flet>=0.24.0
-
-# JavaScript执行
-PyExecJS>=1.5.1
-py-mini-racer>=0.6.0
-
-# protobuf支持（用于DouyinLiveWebFetcher）
+aiofiles>=23.0.0
+aiohttp>=3.8.0
+aiosqlite>=0.19.0
+baidu-aip==4.16.13
 betterproto==2.0.0b6
-
-# langchain生态
+black>=23.0.0
+cryptography>=41.0.0
+dashscope==1.14.1
+docarray>=0.32.2
+editdistance-s>=1.0.0
+fastapi>=0.100.0
+flake8>=6.0.0
+flet[desktop,cli]==0.27.6
+flet-video==0.1.1
+funasr>=1.2.0
+httpx>=0.28.1
+hydra-core>=1.3.0
+jaconv>=0.3.0
+jamo>=0.4.1
+jieba>=0.42.1
 langchain>=0.3.0
 langchain-community>=0.3.0
-langchain-text-splitters>=0.3.0
-langchain-openai>=0.2.0
 langchain-core>=0.3.0
 langchain-huggingface>=0.1.1
+langchain-openai>=0.2.0
+langchain-text-splitters>=0.3.0
+librosa>=0.10.0
+loguru>=0.7.0
+marshmallow==3.20.1
+mini_racer==0.12.4
+mypy==1.7.1
+numpy>=1.24.0,<2.0.0
+omegaconf>=2.3.0
+openai>=1.43.0
+oss2>=2.18.0
+pandas==2.1.4
+passlib[bcrypt]>=1.7.4
+plyer>=2.1.0
+prometheus-client>=0.17.0
+psutil==5.9.6
+pyaudio>=0.2.11
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+PyExecJS>=1.5.1
+pymysql>=1.1.0
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov==4.1.0
+python-dateutil==2.8.2
+python-dotenv>=1.0.0
+python-jose[cryptography]>=3.3.0
+python-multipart>=0.0.6
+pytorch-wpe>=0.0.1
+pystray>=0.19.5
+PyYAML==6.0.1
+redis>=4.5.0
+redis-py-cluster>=2.1.3
+requests==2.31.0
+scipy>=1.10.0
+screeninfo>=0.8.1
 sentence-transformers>=3.3.0
-
-# PyTorch及相关库 (兼容版本组合)
-torch==2.2.1
-torchvision==0.17.1
-torchaudio==2.2.1
+sentencepiece>=0.1.99
+snownlp>=0.12.3
+soundfile>=0.12.0
+sqlalchemy>=2.0.0
+srt>=3.5.0
+streamget>=4.0.8
+tensorboardX>=2.6.0
+torch>=2.0.0
+torchaudio>=2.0.0
+torchvision>=0.17.1
+tqdm>=4.65.0
+umap-learn>=0.5.0
+urllib3==2.0.7
+uvicorn[standard]>=0.23.0
+websocket-client>=1.6.1
+websockets>=11.0.2
