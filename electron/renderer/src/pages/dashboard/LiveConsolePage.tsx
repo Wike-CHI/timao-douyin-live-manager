@@ -275,6 +275,19 @@ const LiveConsolePage = () => {
       const services = [
         // 1) 弹幕服务启动函数
         async () => {
+          // 先检查服务状态
+          try {
+            const status = await getDouyinRelayStatus(FASTAPI_BASE_URL);
+            if (status.is_running) {
+              console.log('抖音直播互动服务已在运行，跳过启动');
+              // 仍然更新持久化设置
+              await updateDouyinPersist({ persist_enabled: true }, FASTAPI_BASE_URL);
+              return true;
+            }
+          } catch (err) {
+            console.log('检查抖音直播互动服务状态失败，尝试启动:', err);
+          }
+
           let retries = 0;
           const maxRetries = 5;
           while (retries < maxRetries) {
@@ -297,6 +310,28 @@ const LiveConsolePage = () => {
         },
         // 2) 音频服务启动函数
         async () => {
+          // 先检查服务状态
+          try {
+            const status = await getLiveAudioStatus(FASTAPI_BASE_URL);
+            if (status.is_running) {
+              console.log('实时音频转写服务已在运行，跳过启动');
+              connectWebSocket(FASTAPI_BASE_URL);
+              // 仍然更新高级设置
+              await updateLiveAudioAdvanced(
+                {
+                  persist_enabled: true,
+                  agc: agcEnabled,
+                  diarization: diarizationEnabled,
+                  max_speakers: diarizationEnabled ? maxSpeakers : 1,
+                },
+                FASTAPI_BASE_URL
+              );
+              return true;
+            }
+          } catch (err) {
+            console.log('检查实时音频转写服务状态失败，尝试启动:', err);
+          }
+
           let retries = 0;
           const maxRetries = 5;
           while (retries < maxRetries) {
@@ -328,6 +363,17 @@ const LiveConsolePage = () => {
         },
         // 3) 录制服务启动函数
         async () => {
+          // 先检查服务状态
+          try {
+            const status = await getLiveReportStatus(FASTAPI_BASE_URL);
+            if (status.active) {
+              console.log('直播录制服务已在运行，跳过启动');
+              return true;
+            }
+          } catch (err) {
+            console.log('检查直播录制服务状态失败，尝试启动:', err);
+          }
+
           let retries = 0;
           const maxRetries = 3;
           while (retries < maxRetries) {
@@ -1350,3 +1396,4 @@ const LiveConsolePage = () => {
 };
 
 export default LiveConsolePage;
+

@@ -57,13 +57,49 @@ _disable_ssl_verify_if_requested()
 
 # 配置日志 - 支持UTF-8编码以正确显示中文
 import os
+import sys
 if os.name == 'nt':  # Windows系统
     os.environ['PYTHONIOENCODING'] = 'utf-8'
+    # 设置控制台编码为UTF-8
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+    if hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(encoding='utf-8')
 
+# 配置日志处理器，确保中文正确显示
+import logging
+from logging import StreamHandler
+
+class UTF8StreamHandler(StreamHandler):
+    """UTF-8编码的流处理器"""
+    def __init__(self, stream=None):
+        super().__init__(stream)
+        self.setStream(stream)
+    
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            stream = self.stream
+            # 确保消息以UTF-8编码输出
+            if hasattr(stream, 'buffer'):
+                stream.buffer.write(msg.encode('utf-8') + b'\n')
+                stream.buffer.flush()
+            else:
+                stream.write(msg + '\n')
+                if hasattr(stream, 'flush'):
+                    stream.flush()
+        except Exception:
+            self.handleError(record)
+
+# 清除现有的处理器
+for handler in logging.root.handlers[:]:
+    logging.root.removeHandler(handler)
+
+# 配置新的日志系统
 logging.basicConfig(
     level=logging.INFO, 
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    encoding='utf-8'
+    handlers=[UTF8StreamHandler(sys.stdout)]
 )
 # Reduce noisy httpx logs (e.g., HEAD 405 from CDN probes)
 logging.getLogger("httpx").setLevel(logging.WARNING)

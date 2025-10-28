@@ -1,0 +1,467 @@
+{"type": "room_stats", "payload": {"display_long": "20在线观众", "display_short": "20", "like_count": null, "total_user": null}, "timestamp": 1761623569.6757982}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623569.6757982}
+{"type": "room_user_stats", "payload": {"current": 23, "total": "5388", "display_short": null, "display_long": null}, "timestamp": 1761623570.0421925}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "行***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623570.0558932}
+{"type": "room_user_stats", "payload": {"current": 21, "total": "5392", "display_short": null, "display_long": null}, "timestamp": 1761623570.0673077}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "阿***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623570.0734253}
+{"type": "room_user_stats", "payload": {"current": 21, "total": "5392", "display_short": null, "display_long": null}, "timestamp": 1761623570.0834308}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "陈***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623570.6401477}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "无***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623571.2445989}
+{"type": "room_stats", "payload": {"display_long": "21在线观众", "display_short": "21", "like_count": null, "total_user": null}, "timestamp": 1761623572.0473075}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "****", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623572.0648322}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "妈***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623572.6398213}
+{"type": "room_user_stats", "payload": {"current": 21, "total": "5392", "display_short": null, "display_long": null}, "timestamp": 1761623572.6461997}
+{"type": "room_stats", "payload": {"display_long": "22在线观众", "display_short": "22", "like_count": null, "total_user": null}, "timestamp": 1761623573.2393723}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "明***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623573.246788}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "T***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623573.2516832}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "$***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623574.6881518}
+{"type": "room_user_stats", "payload": {"current": 18, "total": "5397", "display_short": null, "display_long": null}, "timestamp": 1761623574.6952043}
+{"type": "room_stats", "payload": {"display_long": "21在线观众", "display_short": "21", "like_count": null, "total_user": null}, "timestamp": 1761623575.8479068}
+{"type": "room_user_stats", "payload": {"current": 19, "total": "5395", "display_short": null, "display_long": null}, "timestamp": 1761623576.650219}
+{"type": "room_stats", "payload": {"display_long": "20在线观众", "display_short": "20", "like_count": null, "total_user": null}, "timestamp": 1761623579.8615012}
+{"type": "room_user_stats", "payload": {"current": 20, "total": "5397", "display_short": null, "display_long": null}, "timestamp": 1761623580.4537227}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623581.2573507}
+{"type": "room_stats", "payload": {"display_long": "18在线观众", "display_short": "18", "like_count": null, "total_user": null}, "timestamp": 1761623581.860814}
+{"type": "room_user_stats", "payload": {"current": 18, "total": "5397", "display_short": null, "display_long": null}, "timestamp": 1761623582.4646416}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "就***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623585.079044}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "😝***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623586.4786196}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "E***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623586.4867375}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "Y***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623586.4902353}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "听***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623587.080934}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "爱***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623587.883247}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623588.4814804}
+{"type": "room_stats", "payload": {"display_long": "20在线观众", "display_short": "20", "like_count": null, "total_user": null}, "timestamp": 1761623589.076349}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "阿***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623589.6821043}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "肥***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623590.5270936}
+{"type": "room_user_stats", "payload": {"current": 20, "total": "5397", "display_short": null, "display_long": null}, "timestamp": 1761623590.5342813}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "全***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623591.148728}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "鲆***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623592.4901507}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "༤***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623593.71382}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "T***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623594.3118823}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623597.7146807}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "ヾ***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623598.3187299}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "呵***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623598.917508}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "心***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623598.923762}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "嘎***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623604.3397188}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "钦***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623604.3444054}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "孙***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623606.348691}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "悲***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623607.5523238}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "机***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623607.557401}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "茶***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623607.5614011}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623608.1465774}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "往***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623610.159236}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "9***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623610.9550653}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "月***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623612.1588542}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "可***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623613.5670953}
+{"type": "room_stats", "payload": {"display_long": "18在线观众", "display_short": "18", "like_count": null, "total_user": null}, "timestamp": 1761623614.760345}
+{"type": "room_user_stats", "payload": {"current": 20, "total": "5419", "display_short": null, "display_long": null}, "timestamp": 1761623614.769163}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "无***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623614.7741024}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "「***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623616.1667376}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "君***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623616.171457}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623618.764145}
+{"type": "room_stats", "payload": {"display_long": "16在线观众", "display_short": "16", "like_count": null, "total_user": null}, "timestamp": 1761623621.3717978}
+{"type": "room_stats", "payload": {"display_long": "17在线观众", "display_short": "17", "like_count": null, "total_user": null}, "timestamp": 1761623622.17431}
+{"type": "room_stats", "payload": {"display_long": "18在线观众", "display_short": "18", "like_count": null, "total_user": null}, "timestamp": 1761623622.782721}
+{"type": "room_user_stats", "payload": {"current": 20, "total": "5419", "display_short": null, "display_long": null}, "timestamp": 1761623622.790587}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "米***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623624.1842568}
+{"type": "room_user_stats", "payload": {"current": 20, "total": "5419", "display_short": null, "display_long": null}, "timestamp": 1761623624.7921581}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "吉***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623625.988551}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "杰***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623626.7943947}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623628.7933207}
+{"type": "room_stats", "payload": {"display_long": "16在线观众", "display_short": "16", "like_count": null, "total_user": null}, "timestamp": 1761623628.7943754}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "Z***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623629.9996521}
+{"type": "room_user_stats", "payload": {"current": 19, "total": "5432", "display_short": null, "display_long": null}, "timestamp": 1761623630.6086156}
+{"type": "chat", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "N***", "content": "来了"}, "timestamp": 1761623630.6169815}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "野***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623633.4180954}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "D***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623634.024601}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "呵***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623637.2289507}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623639.232308}
+{"type": "room_stats", "payload": {"display_long": "17在线观众", "display_short": "17", "like_count": null, "total_user": null}, "timestamp": 1761623639.8315153}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "刺***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623639.853142}
+{"type": "room_user_stats", "payload": {"current": 16, "total": "5440", "display_short": null, "display_long": null}, "timestamp": 1761623640.6492918}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "我***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623641.2517316}
+{"type": "room_stats", "payload": {"display_long": "19在线观众", "display_short": "19", "like_count": null, "total_user": null}, "timestamp": 1761623641.859039}
+{"type": "room_user_stats", "payload": {"current": 18, "total": "5440", "display_short": null, "display_long": null}, "timestamp": 1761623642.6554728}
+{"type": "room_stats", "payload": {"display_long": "20在线观众", "display_short": "20", "like_count": null, "total_user": null}, "timestamp": 1761623643.2421072}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "，***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623643.2537289}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "(***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623643.8730142}
+{"type": "room_user_stats", "payload": {"current": 19, "total": "5432", "display_short": null, "display_long": null}, "timestamp": 1761623644.6528344}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "V***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623645.2503924}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "小***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623645.8618894}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "蒲***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623646.462403}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623648.456714}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "衣***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623651.0846155}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "明***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623651.1010854}
+{"type": "room_stats", "payload": {"display_long": "21在线观众", "display_short": "21", "like_count": null, "total_user": null}, "timestamp": 1761623653.079541}
+{"type": "room_user_stats", "payload": {"current": 16, "total": "5452", "display_short": null, "display_long": null}, "timestamp": 1761623654.4887877}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "B***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623655.0869455}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "粉***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623655.0921562}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "远***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623655.6847966}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "T***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623657.087864}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "邪***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623657.0924592}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "小***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623657.6887174}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "S***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623657.6931264}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623658.4865122}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": ".***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623659.0926003}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "段***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623659.0967047}
+{"type": "chat", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "明***", "content": "妮妮"}, "timestamp": 1761623660.3027234}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "D***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623661.1084714}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "怂***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623661.1154537}
+{"type": "room_stats", "payload": {"display_long": "24在线观众", "display_short": "24", "like_count": null, "total_user": null}, "timestamp": 1761623663.1163487}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "魏***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623663.1241221}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "T***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623663.7173705}
+{"type": "room_user_stats", "payload": {"current": 16, "total": "5452", "display_short": null, "display_long": null}, "timestamp": 1761623664.932263}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "与***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623664.9366174}
+{"type": "chat", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "明***", "content": "生日点搞"}, "timestamp": 1761623666.945933}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "-***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623668.3615878}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623668.9565942}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "V***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623671.5780613}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "一***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623674.8219476}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623678.2353506}
+{"type": "room_stats", "payload": {"display_long": "20在线观众", "display_short": "20", "like_count": null, "total_user": null}, "timestamp": 1761623678.8356752}
+{"type": "room_user_stats", "payload": {"current": 25, "total": "5475", "display_short": null, "display_long": null}, "timestamp": 1761623678.8508286}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "J***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623680.2395637}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "漂***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623681.4476726}
+{"type": "room_stats", "payload": {"display_long": "21在线观众", "display_short": "21", "like_count": null, "total_user": null}, "timestamp": 1761623684.852211}
+{"type": "room_user_stats", "payload": {"current": 24, "total": "5481", "display_short": null, "display_long": null}, "timestamp": 1761623686.8720121}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "冷***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623686.876342}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623688.672647}
+{"type": "chat", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "一***", "content": "牙齿真白"}, "timestamp": 1761623692.681387}
+{"type": "room_stats", "payload": {"display_long": "20在线观众", "display_short": "20", "like_count": null, "total_user": null}, "timestamp": 1761623693.482026}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "七***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623694.088724}
+{"type": "room_user_stats", "payload": {"current": 24, "total": "5483", "display_short": null, "display_long": null}, "timestamp": 1761623694.6927934}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "小***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623697.2974417}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623698.0936756}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "你***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623698.1070833}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "紫***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623699.300845}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "Y***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623701.3063633}
+{"type": "room_stats", "payload": {"display_long": "19在线观众", "display_short": "19", "like_count": null, "total_user": null}, "timestamp": 1761623702.7041395}
+{"type": "room_user_stats", "payload": {"current": 21, "total": "5488", "display_short": null, "display_long": null}, "timestamp": 1761623702.7135017}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "练***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623704.5155852}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "大***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623704.5198665}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "牛***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623704.5245275}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "小***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623706.5189476}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "咋***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623707.9141586}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623708.5216079}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "过***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623708.5297847}
+{"type": "room_stats", "payload": {"display_long": "20在线观众", "display_short": "20", "like_count": null, "total_user": null}, "timestamp": 1761623709.9149683}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "醉***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623709.9253578}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "雞***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623709.929431}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623710.5221376}
+{"type": "room_user_stats", "payload": {"current": 20, "total": "5485", "display_short": null, "display_long": null}, "timestamp": 1761623710.531077}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "小***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623713.948042}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "疾***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623715.1514084}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623718.5660887}
+{"type": "room_stats", "payload": {"display_long": "16在线观众", "display_short": "16", "like_count": null, "total_user": null}, "timestamp": 1761623720.3877945}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "哲***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623721.8019648}
+{"type": "room_user_stats", "payload": {"current": 21, "total": "5488", "display_short": null, "display_long": null}, "timestamp": 1761623722.4042299}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "旋***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623723.8089595}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "鏈***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623724.4143572}
+{"type": "room_stats", "payload": {"display_long": "18在线观众", "display_short": "18", "like_count": null, "total_user": null}, "timestamp": 1761623725.0189533}
+{"type": "room_user_stats", "payload": {"current": 19, "total": "5493", "display_short": null, "display_long": null}, "timestamp": 1761623726.4247696}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623730.43009}
+{"type": "room_stats", "payload": {"display_long": "16在线观众", "display_short": "16", "like_count": null, "total_user": null}, "timestamp": 1761623731.0399222}
+{"type": "room_user_stats", "payload": {"current": 20, "total": "5503", "display_short": null, "display_long": null}, "timestamp": 1761623732.2487855}
+{"type": "gift", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "一***", "gift_name": "亲吻", "count": 1, "diamond_count": 99, "fan_ticket_count": 0, "gift_value": 99}, "timestamp": 1761623735.6819854}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "h***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623736.2812836}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "简***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623736.2862782}
+{"type": "room_user_stats", "payload": {"current": 17, "total": "5509", "display_short": null, "display_long": null}, "timestamp": 1761623736.8791733}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "十***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623736.8865032}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623737.6718981}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "寸***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623738.283069}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "悠***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623738.884869}
+{"type": "room_stats", "payload": {"display_long": "19在线观众", "display_short": "19", "like_count": null, "total_user": null}, "timestamp": 1761623740.9039357}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "@***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623741.5142167}
+{"type": "room_user_stats", "payload": {"current": 18, "total": "5514", "display_short": null, "display_long": null}, "timestamp": 1761623742.9551625}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "目***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623744.9459016}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "O***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623746.1501982}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "N***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623746.1552582}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623747.5504804}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623749.554677}
+{"type": "room_stats", "payload": {"display_long": "16在线观众", "display_short": "16", "like_count": null, "total_user": null}, "timestamp": 1761623750.7606761}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "壮***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623751.3713677}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "🌍***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623752.1775143}
+{"type": "room_user_stats", "payload": {"current": 18, "total": "5514", "display_short": null, "display_long": null}, "timestamp": 1761623752.7813811}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "C***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623754.1867106}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "总***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623755.4157474}
+{"type": "room_stats", "payload": {"display_long": "14在线观众", "display_short": "14", "like_count": null, "total_user": null}, "timestamp": 1761623756.8070602}
+{"type": "room_user_stats", "payload": {"current": 18, "total": "5514", "display_short": null, "display_long": null}, "timestamp": 1761623756.8161654}
+{"type": "room_user_stats", "payload": {"current": 20, "total": "5516", "display_short": null, "display_long": null}, "timestamp": 1761623758.814306}
+{"type": "follow", "payload": {"user_id": 111111, "user_id_str": "", "nickname": "y***", "action": "follow"}, "timestamp": 1761623760.6241057}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "N***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623760.6306458}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623761.427376}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "三***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623762.0396142}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "薏***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623763.2545176}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "y***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623763.2592387}
+{"type": "room_stats", "payload": {"display_long": "15在线观众", "display_short": "15", "like_count": null, "total_user": null}, "timestamp": 1761623764.0549936}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "時***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623764.0608418}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "最***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623764.6527205}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "月***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623764.657244}
+{"type": "room_user_stats", "payload": {"current": 16, "total": "5524", "display_short": null, "display_long": null}, "timestamp": 1761623764.6643434}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623768.6914458}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "少***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623769.9066052}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "你***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623771.2976}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "🏀***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623771.9042704}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "北***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623773.924078}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "想***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623776.5338068}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "星***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623778.5685022}
+{"type": "room_stats", "payload": {"display_long": "16在线观众", "display_short": "16", "like_count": null, "total_user": null}, "timestamp": 1761623779.769499}
+{"type": "room_user_stats", "payload": {"current": 15, "total": "5529", "display_short": null, "display_long": null}, "timestamp": 1761623780.5818908}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "谁***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623780.5862613}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "L***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623781.1866455}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "成***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623781.1909544}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "换***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623781.7907608}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "h***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623782.4047918}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "Z***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623783.8151357}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "心***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623784.4158494}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "途***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623784.422466}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "吃***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623785.221747}
+{"type": "room_stats", "payload": {"display_long": "19在线观众", "display_short": "19", "like_count": null, "total_user": null}, "timestamp": 1761623785.8175683}
+{"type": "room_user_stats", "payload": {"current": 16, "total": "5542", "display_short": null, "display_long": null}, "timestamp": 1761623786.4312344}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "A***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623787.048265}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "蒲***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623787.055503}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623788.4333599}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "背***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623789.0397785}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "这***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623789.043993}
+{"type": "room_stats", "payload": {"display_long": "17在线观众", "display_short": "17", "like_count": null, "total_user": null}, "timestamp": 1761623791.6562498}
+{"type": "room_user_stats", "payload": {"current": 16, "total": "5542", "display_short": null, "display_long": null}, "timestamp": 1761623792.465476}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "m***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623793.6708126}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "K***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623796.2939343}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "菠***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623797.086849}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "2***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623797.091251}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "a***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623800.3197238}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "。***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623800.9173946}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "橘***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623804.1753285}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "橙***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623805.5867867}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "M***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623805.590798}
+{"type": "room_stats", "payload": {"display_long": "18在线观众", "display_short": "18", "like_count": null, "total_user": null}, "timestamp": 1761623806.9921558}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "黄***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623806.9993749}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623808.7893395}
+{"type": "room_user_stats", "payload": {"current": 18, "total": "5548", "display_short": null, "display_long": null}, "timestamp": 1761623808.7985582}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "随***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623808.8027003}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "t***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623810.802663}
+{"type": "chat", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "一***", "content": "二次元美女，有趣的灵魂"}, "timestamp": 1761623812.2043474}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "。***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623813.6091247}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "喵***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623813.613918}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "🌈***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623814.8160486}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "-***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623814.8212354}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "9***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623816.2156298}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "放***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623816.8194225}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "z***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623816.8241765}
+{"type": "room_stats", "payload": {"display_long": "15在线观众", "display_short": "15", "like_count": null, "total_user": null}, "timestamp": 1761623818.8177092}
+{"type": "room_user_stats", "payload": {"current": 17, "total": "5568", "display_short": null, "display_long": null}, "timestamp": 1761623818.8300881}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623819.4158144}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "卡***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623820.0212288}
+{"type": "room_stats", "payload": {"display_long": "14在线观众", "display_short": "14", "like_count": null, "total_user": null}, "timestamp": 1761623822.8662686}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "吕***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623822.8740282}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "A***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623824.6513734}
+{"type": "room_user_stats", "payload": {"current": 16, "total": "5563", "display_short": null, "display_long": null}, "timestamp": 1761623824.6579437}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "🪩***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623825.4564438}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623827.481111}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "哎***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623827.493461}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "君***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623828.0663354}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "小***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623828.0703897}
+{"type": "room_stats", "payload": {"display_long": "15在线观众", "display_short": "15", "like_count": null, "total_user": null}, "timestamp": 1761623829.2671244}
+{"type": "room_user_stats", "payload": {"current": 19, "total": "5572", "display_short": null, "display_long": null}, "timestamp": 1761623830.677353}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "小***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623830.682592}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "🃏***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623831.2851236}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "D***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623832.0761356}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "一***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623833.8816218}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "开***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623835.8898199}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "丢***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623837.2986069}
+{"type": "room_stats", "payload": {"display_long": "16在线观众", "display_short": "16", "like_count": null, "total_user": null}, "timestamp": 1761623837.9117973}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623837.912535}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "好***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623837.919178}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "p***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623837.924754}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "大***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623838.5054195}
+{"type": "room_user_stats", "payload": {"current": 15, "total": "5588", "display_short": null, "display_long": null}, "timestamp": 1761623838.51182}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "瑞***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623838.5170002}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "1***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623839.3058386}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623839.9017677}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "天***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623839.9099648}
+{"type": "follow", "payload": {"user_id": 111111, "user_id_str": "", "nickname": "天***", "action": "follow"}, "timestamp": 1761623839.9140825}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "温***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623841.9094296}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "3***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623843.9200299}
+{"type": "room_stats", "payload": {"display_long": "17在线观众", "display_short": "17", "like_count": null, "total_user": null}, "timestamp": 1761623844.5137453}
+{"type": "room_user_stats", "payload": {"current": 16, "total": "5584", "display_short": null, "display_long": null}, "timestamp": 1761623844.5239384}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "春***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623844.5321422}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "蜡***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623845.11877}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623848.5301292}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "游***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623848.5365014}
+{"type": "room_stats", "payload": {"display_long": "18在线观众", "display_short": "18", "like_count": null, "total_user": null}, "timestamp": 1761623849.1316}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "a***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623849.1428938}
+{"type": "room_user_stats", "payload": {"current": 16, "total": "5590", "display_short": null, "display_long": null}, "timestamp": 1761623850.5375006}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623851.1318245}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "2***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623851.7358453}
+{"type": "room_stats", "payload": {"display_long": "17在线观众", "display_short": "17", "like_count": null, "total_user": null}, "timestamp": 1761623854.3381774}
+{"type": "room_user_stats", "payload": {"current": 15, "total": "5596", "display_short": null, "display_long": null}, "timestamp": 1761623854.3462799}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623858.350125}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "做***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623858.3566937}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "📷***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623859.7618613}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "渡***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623859.7670434}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "就***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623860.3646302}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "偶***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623862.3662016}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "王***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623863.7663534}
+{"type": "room_stats", "payload": {"display_long": "20在线观众", "display_short": "20", "like_count": null, "total_user": null}, "timestamp": 1761623864.3627267}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "小***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623864.3700132}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "T***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623864.3746943}
+{"type": "room_user_stats", "payload": {"current": 19, "total": "5608", "display_short": null, "display_long": null}, "timestamp": 1761623864.3818836}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "Y***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623864.9672437}
+{"type": "follow", "payload": {"user_id": 111111, "user_id_str": "", "nickname": "小***", "action": "follow"}, "timestamp": 1761623865.5701418}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "啊***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623865.5743394}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623868.3696535}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "z***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623870.988527}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "$***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623870.9926853}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "D***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623871.5891075}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "嘴***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623872.991627}
+{"type": "room_stats", "payload": {"display_long": "18在线观众", "display_short": "18", "like_count": null, "total_user": null}, "timestamp": 1761623874.1893063}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "乐***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623874.1965826}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "看***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623874.2000656}
+{"type": "room_user_stats", "payload": {"current": 16, "total": "5614", "display_short": null, "display_long": null}, "timestamp": 1761623874.7986102}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "忘***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623875.5945444}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "菜***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623876.198005}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623876.7939346}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "过***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623878.822282}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "小***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623878.827463}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "X***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623878.8322337}
+{"type": "room_stats", "payload": {"display_long": "20在线观众", "display_short": "20", "like_count": null, "total_user": null}, "timestamp": 1761623880.8248215}
+{"type": "room_user_stats", "payload": {"current": 19, "total": "5621", "display_short": null, "display_long": null}, "timestamp": 1761623880.8356938}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "超***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623880.8425229}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "2***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623881.4325557}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "z***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623882.7176251}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "温***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623883.5197365}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "0***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623884.1221197}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "《***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623885.5277736}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "夙***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623886.130393}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "y***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623886.730747}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "好***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623887.3328564}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "野***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623889.353159}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "³***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623890.1498356}
+{"type": "room_stats", "payload": {"display_long": "19在线观众", "display_short": "19", "like_count": null, "total_user": null}, "timestamp": 1761623890.7441528}
+{"type": "room_user_stats", "payload": {"current": 19, "total": "5633", "display_short": null, "display_long": null}, "timestamp": 1761623890.759019}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "ㅤ***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623893.3720956}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "🌈***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623895.384283}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "鄂***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623896.585922}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "暮***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623896.5894287}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "小***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623897.3890042}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623898.5897114}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "z***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623898.5965304}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "皮***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623899.3902607}
+{"type": "room_stats", "payload": {"display_long": "15在线观众", "display_short": "15", "like_count": null, "total_user": null}, "timestamp": 1761623899.9951003}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "哎***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623900.010814}
+{"type": "room_user_stats", "payload": {"current": 19, "total": "5633", "display_short": null, "display_long": null}, "timestamp": 1761623900.599809}
+{"type": "room_stats", "payload": {"display_long": "16在线观众", "display_short": "16", "like_count": null, "total_user": null}, "timestamp": 1761623901.1979032}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "小***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623902.0038157}
+{"type": "room_user_stats", "payload": {"current": 19, "total": "5633", "display_short": null, "display_long": null}, "timestamp": 1761623902.6070042}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "周***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623905.8354855}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "用***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623905.8413148}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "T***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623905.8450682}
+{"type": "room_stats", "payload": {"display_long": "18在线观众", "display_short": "18", "like_count": null, "total_user": null}, "timestamp": 1761623907.2276266}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623907.8375618}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "用***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623907.8451912}
+{"type": "room_user_stats", "payload": {"current": 21, "total": "5645", "display_short": null, "display_long": null}, "timestamp": 1761623908.6374972}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "橦***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623909.8372254}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "月***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623913.24391}
+{"type": "room_stats", "payload": {"display_long": "15在线观众", "display_short": "15", "like_count": null, "total_user": null}, "timestamp": 1761623915.0440252}
+{"type": "room_stats", "payload": {"display_long": "16在线观众", "display_short": "16", "like_count": null, "total_user": null}, "timestamp": 1761623915.8444207}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "瑞***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623916.4491725}
+{"type": "room_user_stats", "payload": {"current": 17, "total": "5654", "display_short": null, "display_long": null}, "timestamp": 1761623916.456277}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "颜***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623917.0586555}
+{"type": "room_stats", "payload": {"display_long": "15在线观众", "display_short": "15", "like_count": null, "total_user": null}, "timestamp": 1761623922.4775348}
+{"type": "room_user_stats", "payload": {"current": 19, "total": "5658", "display_short": null, "display_long": null}, "timestamp": 1761623922.4885585}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "👾***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623923.074812}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "贝***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623925.075251}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623928.2891326}
+{"type": "room_stats", "payload": {"display_long": "14在线观众", "display_short": "14", "like_count": null, "total_user": null}, "timestamp": 1761623928.2906566}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "阳***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623928.296994}
+{"type": "room_user_stats", "payload": {"current": 17, "total": "5664", "display_short": null, "display_long": null}, "timestamp": 1761623928.30392}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "一***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623929.6982641}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "老***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623931.6996257}
+{"type": "like", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "老***", "count": 1, "total": 4439}, "timestamp": 1761623932.32158}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "m***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623933.7003236}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "🌈***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623934.3029537}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "e***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623934.903719}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "用***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623935.7090104}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "睡***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623935.7130253}
+{"type": "room_stats", "payload": {"display_long": "15在线观众", "display_short": "15", "like_count": null, "total_user": null}, "timestamp": 1761623938.32046}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623938.3211617}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "心***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623938.3279142}
+{"type": "room_user_stats", "payload": {"current": 14, "total": "5668", "display_short": null, "display_long": null}, "timestamp": 1761623938.9277036}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "L***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623940.938362}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "随***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623941.5390003}
+{"type": "room_stats", "payload": {"display_long": "16在线观众", "display_short": "16", "like_count": null, "total_user": null}, "timestamp": 1761623942.967564}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "瞎***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623942.9756272}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "嘿***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623943.564828}
+{"type": "room_user_stats", "payload": {"current": 14, "total": "5668", "display_short": null, "display_long": null}, "timestamp": 1761623944.774128}
+{"type": "gift", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "一***", "gift_name": "热气球", "count": 1, "diamond_count": 520, "fan_ticket_count": 0, "gift_value": 520}, "timestamp": 1761623944.781281}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "🈳***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623945.579114}
+{"type": "room_user_stats", "payload": {"current": 14, "total": "5675", "display_short": null, "display_long": null}, "timestamp": 1761623946.76842}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "氶***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623947.5728781}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "我***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623947.5778286}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623948.1671464}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "翻***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623948.1783662}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "你***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623949.3766403}
+{"type": "room_stats", "payload": {"display_long": "18在线观众", "display_short": "18", "like_count": null, "total_user": null}, "timestamp": 1761623952.7748032}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "肖***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623952.7822597}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "C***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623952.786586}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "哆***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623952.790625}
+{"type": "room_user_stats", "payload": {"current": 17, "total": "5681", "display_short": null, "display_long": null}, "timestamp": 1761623954.792849}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "油***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623954.798215}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "M***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623956.0048468}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "龙***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623956.808034}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "祥***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623956.811841}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623958.0390735}
+{"type": "room_stats", "payload": {"display_long": "16在线观众", "display_short": "16", "like_count": null, "total_user": null}, "timestamp": 1761623959.4155366}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "阿***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623959.4228086}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "冲***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623960.0511513}
+{"type": "room_user_stats", "payload": {"current": 15, "total": "5678", "display_short": null, "display_long": null}, "timestamp": 1761623960.657366}
+{"type": "chat", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "一***", "content": "去吃饭得路上"}, "timestamp": 1761623963.2910326}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "万***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623964.6763353}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623968.6930013}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "🌈***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623969.289435}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "替***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623969.8883078}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "苏***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623970.491971}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "白***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623972.4935155}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "L***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623972.4982228}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "超***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623973.2945166}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "Z***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623973.2992885}
+{"type": "room_stats", "payload": {"display_long": "17在线观众", "display_short": "17", "like_count": null, "total_user": null}, "timestamp": 1761623973.8931777}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "豆***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623973.8999748}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "E***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623973.9046628}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "栀***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623973.9096766}
+{"type": "room_user_stats", "payload": {"current": 15, "total": "5697", "display_short": null, "display_long": null}, "timestamp": 1761623974.5002046}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623977.899322}
+{"type": "room_stats", "payload": {"display_long": "16在线观众", "display_short": "16", "like_count": null, "total_user": null}, "timestamp": 1761623979.1071548}
+{"type": "room_stats", "payload": {"display_long": "16在线观众", "display_short": "16", "like_count": null, "total_user": null}, "timestamp": 1761623979.901397}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "有***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623979.9084742}
+{"type": "room_user_stats", "payload": {"current": 16, "total": "5687", "display_short": null, "display_long": null}, "timestamp": 1761623980.5132258}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "宠***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623980.517814}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "海***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623982.5268376}
+{"type": "room_stats", "payload": {"display_long": "18在线观众", "display_short": "18", "like_count": null, "total_user": null}, "timestamp": 1761623985.1307113}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "宝***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623985.1376324}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "小***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623985.7334595}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "小***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623986.3476098}
+{"type": "room_user_stats", "payload": {"current": 16, "total": "5709", "display_short": null, "display_long": null}, "timestamp": 1761623986.3541462}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "哈***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623989.1575732}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "。***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623989.1631117}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623990.34413}
+{"type": "room_stats", "payload": {"display_long": "19在线观众", "display_short": "19", "like_count": null, "total_user": null}, "timestamp": 1761623990.9488773}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "如***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623992.354959}
+{"type": "room_user_stats", "payload": {"current": 16, "total": "5709", "display_short": null, "display_long": null}, "timestamp": 1761623992.3614278}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "Q***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623993.762912}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "江***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623993.7714186}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "艾***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623996.9796193}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "坤***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761623996.9844217}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "他***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761623996.9887218}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761623997.5739572}
+{"type": "follow", "payload": {"user_id": 111111, "user_id_str": "", "nickname": "坤***", "action": "follow"}, "timestamp": 1761623998.979362}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "用***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761624002.2101352}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "Q***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761624002.9812503}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "😄***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761624002.9849184}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "铁***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761624005.5850542}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "🌈***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761624007.6152048}
+{"type": "stream_adaptation", "payload": {"adaptation_type": 1, "enable_low_quality": null}, "timestamp": 1761624008.2124877}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "什***", "gender": "female", "level": 1, "action": "enter"}, "timestamp": 1761624009.6286552}
+{"type": "member", "payload": {"user_id": 111111, "user_id_str": "111111", "nickname": "当***", "gender": "female", "level": 0, "action": "enter"}, "timestamp": 1761624009.6353712}
+{"type": "room_stats", "payload": {"display_long": "20在线观众", "display_short": "20", "like_count": null, "total_user": null}, "timestamp": 1761624010.8318913}
+{"type": "room_user_stats", "payload": {"current": 18, "total": "5722", "display_short": null, "display_long": null}, "timestamp": 1761624010.8510947}

@@ -363,7 +363,7 @@ class ConfigManager:
                 
                 # 应用配置
                 'ENVIRONMENT': ('environment',),
-                'DEBUG': ('debug', bool),
+                'DEBUG': ('debug',),
             }
             
             for env_key, config_path in env_mappings.items():
@@ -400,7 +400,7 @@ class ConfigManager:
                 
         except Exception as e:
             # 只显示路径的字符串部分，避免显示类型对象
-            path_str = '.'.join(str(p) for p in path if isinstance(p, str))
+            path_str = '.'.join(str(p) for p in path[:2] if isinstance(p, (str, int)))
             print(f"设置配置值失败 ({path_str}): {e}")
     
     def save_config(self, config: AppConfig = None):

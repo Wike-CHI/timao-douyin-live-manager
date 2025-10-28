@@ -573,6 +573,8 @@ class LiveAudioStreamService:
             pass
         self._persist_tr = None
         self._ffmpeg_exit_reported = False
+        # 重置停止事件，确保下次启动时状态正确
+        self._stop_evt.clear()
 
     def _log_event(self, key: str, level: int, msg: str, *args, min_interval: float = 0.0) -> None:
         if not self.logger.isEnabledFor(level):

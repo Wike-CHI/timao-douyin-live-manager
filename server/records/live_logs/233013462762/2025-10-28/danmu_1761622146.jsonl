@@ -1,0 +1,1 @@
+{"type": "error", "payload": {"message": "'gbk' codec can't encode character '\\U0001f382' in position 9: illegal multibyte sequence"}, "timestamp": 1761622152.8656938}
