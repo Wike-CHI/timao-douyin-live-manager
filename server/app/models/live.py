@@ -77,6 +77,7 @@ class LiveSession(BaseModel):
     
     # 关联关系
     user = relationship("User", back_populates="live_sessions")
+    review_report = relationship("LiveReviewReport", back_populates="session", uselist=False, cascade="all, delete-orphan")
     
     # 索引
     __table_args__ = (
