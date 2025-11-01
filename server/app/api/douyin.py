@@ -85,6 +85,24 @@ async def stop_monitoring():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/health")
+async def health_check():
+    """
+    抖音服务健康检查
+    """
+    try:
+        service = get_douyin_service()
+        status = service.get_status()
+        return {
+            "status": "ok",
+            "is_monitoring": status.get("is_monitoring", False),
+            "current_live_id": status.get("current_live_id"),
+        }
+    except Exception as e:
+        logging.exception("健康检查失败")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/status", response_model=StatusResponse)
 async def get_status():
     """

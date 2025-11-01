@@ -269,6 +269,27 @@ async def health_check():
     }
 
 
+@app.get("/api/streamcap/health")
+async def streamcap_health_check():
+    """StreamCap 模块健康检查（已集成到主服务）"""
+    try:
+        # 检查 StreamCap 模块是否可用
+        from server.modules.streamcap.platforms import get_platform_handler
+        return {
+            "status": "ok",
+            "service": "StreamCap",
+            "integrated": True,
+            "message": "StreamCap 已集成到主服务中",
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "service": "StreamCap",
+            "integrated": True,
+            "message": f"StreamCap 模块加载失败: {str(e)}",
+        }
+
+
 # 应用启动事件
 @app.on_event("startup")
 async def startup_event():

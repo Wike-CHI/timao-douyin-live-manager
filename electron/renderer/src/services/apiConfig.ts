@@ -36,8 +36,8 @@ const DEFAULT_CONFIG: ApiConfig = {
     },
     streamcap: {
       name: 'StreamCap服务',
-      baseUrl: 'http://127.0.0.1:6006',
-      healthEndpoint: '/health',
+      baseUrl: 'http://127.0.0.1:9019',
+      healthEndpoint: '/api/streamcap/health',
       timeout: 5000,
       retryCount: 3
     },

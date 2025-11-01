@@ -337,7 +337,7 @@ const LiveConsolePage = () => {
           const maxRetries = 5;
           while (retries < maxRetries) {
             try {
-              await startLiveAudio({ liveUrl }, FASTAPI_BASE_URL);
+              await startLiveAudio({ live_url: liveUrl }, FASTAPI_BASE_URL);
               connectWebSocket(FASTAPI_BASE_URL);
               // 默认开启字幕持久化
               await updateLiveAudioAdvanced(
