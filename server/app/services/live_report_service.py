@@ -336,41 +336,54 @@ class LiveReportService:
         transcript_path.write_text(transcript_txt, encoding="utf-8")
         self._update_style_profile(transcript_txt, artifacts_dir)
 
-        # Prefer rolling窗口合并；若无窗口结果，则调用 Qwen3-Max 一次性复盘
+        # 使用 Gemini 2.5 Flash 进行复盘（超低成本，约 $0.000131/次）
         ai_summary: Dict[str, Any] | None = None
         try:
-            windows_dir = artifacts_dir / "windows"
-            if windows_dir.exists() and self._analysis:
-                merged = {
-                    "summary": "\n\n".join([str(w.get("ai", {}).get("summary", "")) for w in self._analysis if isinstance(w, dict)]).strip(),
-                    "highlight_points": [],
-                    "risks": [],
-                    "suggestions": [],
-                    "top_questions": [],
-                    "scripts": [],
+            logger.info("🔄 开始使用 Gemini 生成复盘报告...")
+            from ...ai.gemini_adapter import generate_review_report  # lazy import
+            
+            # 准备复盘数据
+            review_data = {
+                "session_id": self._session.session_id,
+                "transcript": transcript_txt,
+                "comments": self._comments,
+                "anchor_name": self._session.anchor_name,
+                "metrics": dict(self._agg) if hasattr(self, '_agg') else {}
+            }
+            
+            # 调用 Gemini 生成复盘
+            gemini_result = generate_review_report(review_data)
+            
+            # 转换为旧格式以兼容 HTML 报告模板
+            ai_summary = {
+                "summary": gemini_result.get("performance_analysis", {}).get("overall_assessment", ""),
+                "highlight_points": gemini_result.get("key_highlights", []),
+                "risks": gemini_result.get("key_issues", []),
+                "suggestions": gemini_result.get("improvement_suggestions", []),
+                "top_questions": [],  # Gemini 不返回此字段
+                "scripts": [],  # Gemini 不返回此字段
+                "overall_score": gemini_result.get("overall_score"),
+                "performance_analysis": gemini_result.get("performance_analysis"),
+                "gemini_metadata": {
+                    "model": gemini_result.get("ai_model", "gemini-2.5-flash"),
+                    "cost": gemini_result.get("generation_cost", 0),
+                    "tokens": gemini_result.get("generation_tokens", 0),
+                    "duration": gemini_result.get("generation_duration", 0)
                 }
-                for w in self._analysis:
-                    aiw = w.get("ai") or {}
-                    for k in ("highlight_points", "risks", "suggestions", "top_questions", "scripts"):
-                        v = aiw.get(k)
-                        if isinstance(v, list):
-                            merged[k].extend(v)
-                ai_summary = merged
-                (artifacts_dir / "ai_summary.json").write_text(
-                    json.dumps(ai_summary, ensure_ascii=False, indent=2), encoding="utf-8"
-                )
-            else:
-                # 使用 Qwen3-Max（OpenAI 兼容）进行一次性复盘
-                from ...ai.qwen_openai_compatible import analyze_live_session  # lazy import
-                ai_summary = analyze_live_session(
-                    transcript_txt,
-                    self._comments,
-                    anchor_id=self._session.anchor_name,
-                )
-                (artifacts_dir / "ai_summary.json").write_text(
-                    json.dumps(ai_summary, ensure_ascii=False, indent=2), encoding="utf-8"
-                )
+            }
+            
+            (artifacts_dir / "ai_summary.json").write_text(
+                json.dumps(ai_summary, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            
+            logger.info(
+                f"✅ Gemini 复盘完成 - 评分: {ai_summary.get('overall_score')}/100, "
+                f"成本: ${ai_summary['gemini_metadata']['cost']:.6f}, "
+                f"耗时: {ai_summary['gemini_metadata']['duration']:.2f}s"
+            )
+            
         except Exception as e:
+            logger.error(f"❌ Gemini 复盘失败: {type(e).__name__}: {str(e)}", exc_info=True)
             ai_summary = {"error": str(e)}
             (artifacts_dir / "ai_summary.error.txt").write_text(str(e), encoding="utf-8")
 

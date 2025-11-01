@@ -256,6 +256,139 @@ def get_gemini_adapter() -> GeminiAdapter:
     return _gemini_adapter
 
 
+def generate_review_report(review_data: Dict[str, Any]) -> Dict[str, Any]:
+    """生成完整的直播复盘报告
+    
+    Args:
+        review_data: 复盘数据，包含：
+            - session_id: 会话ID
+            - transcript: 完整转写文本
+            - comments: 弹幕列表
+            - anchor_name: 主播名称
+            - metrics: 直播数据指标
+    
+    Returns:
+        复盘报告字典，包含：
+            - overall_score: 综合评分 (0-100)
+            - performance_analysis: 表现分析
+            - key_highlights: 亮点列表
+            - key_issues: 问题列表
+            - improvement_suggestions: 改进建议列表
+            - ai_model: 使用的AI模型
+            - generation_cost: 生成成本（美元）
+            - generation_tokens: 消耗的token数
+            - generation_duration: 生成耗时（秒）
+    """
+    adapter = get_gemini_adapter()
+    
+    if not adapter.is_available():
+        raise RuntimeError("Gemini 服务不可用，请检查 AIHUBMIX_API_KEY 配置")
+    
+    # 准备数据
+    transcript = review_data.get("transcript", "")
+    comments = review_data.get("comments", [])
+    anchor_name = review_data.get("anchor_name", "主播")
+    metrics = review_data.get("metrics", {})
+    
+    # 限制数据量以控制成本
+    transcript_preview = transcript[:10000] if len(transcript) > 10000 else transcript
+    comments_preview = comments[:200] if isinstance(comments, list) else []
+    
+    # 构建提示词
+    prompt = f"""你是一位资深的直播运营分析师，请基于以下数据生成一份详细的直播复盘报告。
+
+【主播信息】
+主播昵称: {anchor_name}
+
+【直播数据】
+{json.dumps(metrics, ensure_ascii=False, indent=2)}
+
+【口播转写（节选前10000字）】
+{transcript_preview}
+
+【弹幕样本（最多200条）】
+{json.dumps(comments_preview[:50], ensure_ascii=False, indent=2)}
+...（共 {len(comments_preview)} 条弹幕）
+
+【任务要求】
+请以专业的运营分析师视角，生成一份结构化的复盘报告，严格按照以下 JSON 格式输出：
+
+{{
+  "overall_score": 85,  // 综合评分，0-100，综合考虑内容质量、互动效果、转化潜力等
+  "performance_analysis": {{
+    "overall_assessment": "本场直播整体表现...",  // 总体评价，100-200字
+    "content_quality": {{
+      "score": 80,
+      "comments": "内容方面的分析..."
+    }},
+    "engagement": {{
+      "score": 85,
+      "comments": "互动效果分析..."
+    }},
+    "conversion_potential": {{
+      "score": 75,
+      "comments": "转化潜力分析..."
+    }}
+  }},
+  "key_highlights": [
+    "亮点1：具体描述本场直播的优秀表现",
+    "亮点2：...",
+    "亮点3：..."
+  ],
+  "key_issues": [
+    "问题1：需要改进的具体问题",
+    "问题2：...",
+    "问题3：..."
+  ],
+  "improvement_suggestions": [
+    "建议1：具体的、可执行的改进建议",
+    "建议2：...",
+    "建议3：..."
+  ]
+}}
+
+【分析要点】
+1. 客观评分：基于实际数据和转写内容，不要盲目打高分
+2. 具体分析：引用具体的数据或话术片段支撑观点
+3. 可执行建议：给出明确的改进方向和操作步骤
+4. 运营导向：关注转化、留存、互动等关键指标
+
+请只输出 JSON，不要其他解释文字。"""
+    
+    # 调用 Gemini
+    logger.info(f"📊 准备数据 - 转写: {len(transcript)} 字符, 弹幕: {len(comments_preview)} 条")
+    result = adapter.generate_review(
+        prompt=prompt,
+        temperature=0.3,
+        max_tokens=3000,
+        response_format="json"
+    )
+    
+    if not result:
+        raise RuntimeError("Gemini API 调用失败")
+    
+    # 解析 JSON 响应
+    report_data = adapter.parse_json_response(result["text"])
+    if not report_data:
+        logger.error(f"❌ JSON 解析失败，原始响应: {result['text'][:500]}")
+        raise RuntimeError("Gemini 返回的 JSON 格式无效")
+    
+    # 补充元数据
+    report_data["ai_model"] = adapter.model
+    report_data["generation_cost"] = result["cost"]
+    report_data["generation_tokens"] = result["usage"]["total_tokens"]
+    report_data["generation_duration"] = result["duration"]
+    
+    logger.info(
+        f"✅ 复盘报告生成完成 - "
+        f"评分: {report_data.get('overall_score', 0)}/100, "
+        f"成本: ${result['cost']:.6f}, "
+        f"耗时: {result['duration']:.2f}s"
+    )
+    
+    return report_data
+
+
 def test_gemini_api():
     """测试 Gemini API（用于调试）"""
     adapter = get_gemini_adapter()

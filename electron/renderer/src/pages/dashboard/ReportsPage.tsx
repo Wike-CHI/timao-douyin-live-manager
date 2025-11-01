@@ -1,3 +1,4 @@
+
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { startLiveReport, stopLiveReport, getLiveReportStatus, generateLiveReport } from '../../services/liveReport';
 
@@ -167,7 +168,7 @@ const ReportsPage: React.FC = () => {
               ) : null}</div>
             </div>
           ) : null}
-          <div className="text-xs timao-support-text mt-2">说明：录制整场直播音频（分段），离线转写并汇总弹幕；调用 Qwen3-Max 生成 AI 复盘报告。</div>
+          <div className="text-xs timao-support-text mt-2">说明：录制整场直播音频（分段），离线转写并汇总弹幕；调用 Gemini 2.5 Flash 生成 AI 复盘报告（超低成本，约 $0.0001/次）。</div>
         </section>
       </div>
     </div>
