@@ -21,20 +21,20 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
 };
 
 export interface StartLiveAudioPayload {
-  liveUrl: string; // 支持完整 URL 或 直播间 ID
-  sessionId?: string;
-  chunkDuration?: number; // 0.2~2.0s
+  live_url: string; // 支持完整 URL 或 直播间 ID
+  session_id?: string;
+  chunk_duration?: number; // 0.2~2.0s
   profile?: 'fast' | 'stable'; // 预设：快速/稳妥
   // 模式与模型后端已固定为 'vad' + 'small'，以下参数仅保留 VAD 与句子组装的细节调参
-  vadMinSilenceSec?: number;
-  vadMinSpeechSec?: number;
-  vadHangoverSec?: number;
-  vadRms?: number;
+  vad_min_silence_sec?: number;
+  vad_min_speech_sec?: number;
+  vad_hangover_sec?: number;
+  vad_rms?: number;
   // Sentence assembler params
-  maxWait?: number;
-  maxChars?: number;
-  silenceFlush?: number;
-  minSentenceChars?: number;
+  max_wait?: number;
+  max_chars?: number;
+  silence_flush?: number;
+  min_sentence_chars?: number;
 }
 
 export interface LiveAudioStatus {
@@ -75,20 +75,20 @@ export const startLiveAudio = async (
   baseUrl: string = DEFAULT_BASE_URL
 ) => {
   const body: Record<string, unknown> = {
-    live_url: payload.liveUrl,
-    session_id: payload.sessionId,
+    live_url: payload.live_url,
+    session_id: payload.session_id,
   };
   if (typeof payload.profile === 'string') body.profile = payload.profile;
-  if (typeof payload.chunkDuration === 'number') body.chunk_duration = payload.chunkDuration;
+  if (typeof payload.chunk_duration === 'number') body.chunk_duration = payload.chunk_duration;
   // 后端固定 mode='vad' & model='small'，忽略前端传入
-  if (typeof payload.vadMinSilenceSec === 'number') body.vad_min_silence_sec = payload.vadMinSilenceSec;
-  if (typeof payload.vadMinSpeechSec === 'number') body.vad_min_speech_sec = payload.vadMinSpeechSec;
-  if (typeof payload.vadHangoverSec === 'number') body.vad_hangover_sec = payload.vadHangoverSec;
-  if (typeof payload.vadRms === 'number') body.vad_rms = payload.vadRms;
-  if (typeof payload.maxWait === 'number') body.max_wait = payload.maxWait;
-  if (typeof payload.maxChars === 'number') body.max_chars = payload.maxChars;
-  if (typeof payload.silenceFlush === 'number') body.silence_flush = payload.silenceFlush;
-  if (typeof payload.minSentenceChars === 'number') body.min_sentence_chars = payload.minSentenceChars;
+  if (typeof payload.vad_min_silence_sec === 'number') body.vad_min_silence_sec = payload.vad_min_silence_sec;
+  if (typeof payload.vad_min_speech_sec === 'number') body.vad_min_speech_sec = payload.vad_min_speech_sec;
+  if (typeof payload.vad_hangover_sec === 'number') body.vad_hangover_sec = payload.vad_hangover_sec;
+  if (typeof payload.vad_rms === 'number') body.vad_rms = payload.vad_rms;
+  if (typeof payload.max_wait === 'number') body.max_wait = payload.max_wait;
+  if (typeof payload.max_chars === 'number') body.max_chars = payload.max_chars;
+  if (typeof payload.silence_flush === 'number') body.silence_flush = payload.silence_flush;
+  if (typeof payload.min_sentence_chars === 'number') body.min_sentence_chars = payload.min_sentence_chars;
   const response = await fetch(`${baseUrl}/api/live_audio/start`, {
     method: 'POST',
     headers: await buildHeaders(),

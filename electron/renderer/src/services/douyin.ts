@@ -57,7 +57,7 @@ export const startDouyinRelay = async (
   baseUrl?: string
 ): Promise<DouyinRelayResponse> => {
   const headers = await buildHeaders();
-  const response = await fetch(joinUrl(baseUrl, '/api/douyin/web/start'), {
+  const response = await fetch(joinUrl(baseUrl, '/api/douyin/start'), {
     method: 'POST',
     headers,
     body: JSON.stringify({ live_id: liveId }),
@@ -69,7 +69,7 @@ export const stopDouyinRelay = async (
   baseUrl?: string
 ): Promise<DouyinRelayResponse> => {
   const headers = await buildHeaders();
-  const response = await fetch(joinUrl(baseUrl, '/api/douyin/web/stop'), {
+  const response = await fetch(joinUrl(baseUrl, '/api/douyin/stop'), {
     method: 'POST',
     headers,
   });
@@ -80,7 +80,7 @@ export const getDouyinRelayStatus = async (
   baseUrl?: string
 ): Promise<DouyinRelayStatus> => {
   const headers = await buildHeaders();
-  const response = await fetch(joinUrl(baseUrl, '/api/douyin/web/status'), {
+  const response = await fetch(joinUrl(baseUrl, '/api/douyin/status'), {
     method: 'GET',
     headers,
   });
@@ -97,7 +97,7 @@ export const openDouyinStream = (
   handlers: DouyinStreamHandlers,
   baseUrl?: string
 ): EventSource => {
-  const streamUrl = joinUrl(baseUrl, '/api/douyin/web/stream');
+  const streamUrl = joinUrl(baseUrl, '/api/douyin/stream');
   const source = new EventSource(streamUrl);
 
   if (handlers.onOpen) {

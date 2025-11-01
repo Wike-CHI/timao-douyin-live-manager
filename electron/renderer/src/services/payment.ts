@@ -44,7 +44,7 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
 // ========== 类型定义 ==========
 
 export interface Plan {
-  id: string;
+  id: number;
   name: string;
   description?: string;
   plan_type: string;
@@ -62,9 +62,9 @@ export interface Plan {
 }
 
 export interface Subscription {
-  id: string;
-  user_id: string;
-  plan_id: string;
+  id: number;
+  user_id: number;
+  plan_id: number;
   status: 'active' | 'expired' | 'cancelled' | 'pending';
   start_date: string;
   end_date: string;
@@ -83,9 +83,9 @@ export interface Subscription {
 }
 
 export interface Payment {
-  id: string;
-  user_id: string;
-  subscription_id?: string;
+  id: number;
+  user_id: number;
+  subscription_id?: number;
   amount: number;
   method: 'alipay' | 'wechat' | 'bank_transfer' | 'points';
   status: 'pending' | 'completed' | 'failed' | 'cancelled';

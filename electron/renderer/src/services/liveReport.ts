@@ -20,10 +20,33 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
   return data as T;
 };
 
-export interface LiveReportStartReq { live_url: string; segment_minutes?: number }
-export interface LiveReportStartResp { success: boolean; data?: { session_id: string; recording_dir: string; segment_seconds: number } }
-export interface LiveReportStatusResp { active: boolean; status: any }
-export interface LiveReportGenResp { success: boolean; data?: { comments: string; transcript: string; report: string } }
+export interface LiveReportStartReq { 
+  live_url: string; 
+  segment_minutes?: number 
+}
+
+export interface LiveReportStartResp { 
+  success: boolean; 
+  data?: { 
+    session_id: string; 
+    recording_dir: string; 
+    segment_seconds: number 
+  } 
+}
+
+export interface LiveReportStatusResp { 
+  active: boolean; 
+  status: any 
+}
+
+export interface LiveReportGenResp { 
+  success: boolean; 
+  data?: { 
+    comments: string; 
+    transcript: string; 
+    report: string 
+  } 
+}
 
 export const startLiveReport = async (liveUrl: string, segmentMinutes = 30, baseUrl: string = DEFAULT_BASE_URL) => {
   const headers = await buildHeaders();
