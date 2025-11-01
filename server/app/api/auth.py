@@ -230,14 +230,25 @@ async def register_user(
     db: Session = Depends(get_db_session)
 ):
     """用户注册"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
+        logger.info(f"📝 开始注册用户: {request.username}, {request.email}")
+        
         user = UserService.create_user(
             username=request.username,
             email=request.email,
             password=request.password,
             phone=request.phone,
-            nickname=request.nickname
+            nickname=request.nickname,
+            session=db  # 使用传入的数据库会话
         )
+        
+        db.commit()  # 提交事务
+        db.refresh(user)  # 刷新用户对象
+        
+        logger.info(f"✅ 用户注册成功: {user.username} (ID: {user.id})")
         
         return UserResponse(
             id=user.id,
@@ -253,14 +264,18 @@ async def register_user(
         )
         
     except ValueError as e:
+        logger.warning(f"⚠️ 注册失败 - 业务错误: {e}")
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
     except Exception as e:
+        logger.error(f"❌ 注册失败 - 系统错误: {type(e).__name__}: {e}", exc_info=True)
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="注册失败，请稍后重试"
+            detail=f"注册失败: {str(e)}"
         )
 
 

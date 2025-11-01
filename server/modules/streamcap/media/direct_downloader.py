@@ -83,7 +83,7 @@ class DirectStreamDownloader:
                             #     mb_per_sec = mb_downloaded / elapsed if elapsed > 0 else 0
                             #     logger.info(f"Downloaded {mb_downloaded:.2f} MB, Speed: {mb_per_sec:.2f} MB/s")
 
-            logger.success(f"Download Completed: {self.save_path}")
+            logger.info(f"Download Completed: {self.save_path}")
 
         except asyncio.CancelledError:
             logger.info(f"Download Task Canceled: {self.record_url}")
