@@ -80,7 +80,10 @@ class ApiConfigManager {
         },
         streamcap: {
           ...DEFAULT_CONFIG.services.streamcap,
-          baseUrl: import.meta.env?.VITE_STREAMCAP_URL || DEFAULT_CONFIG.services.streamcap.baseUrl
+          // 如果环境变量设置为6006，强制使用主服务端口
+          baseUrl: import.meta.env?.VITE_STREAMCAP_URL === 'http://127.0.0.1:6006' 
+            ? DEFAULT_CONFIG.services.streamcap.baseUrl
+            : (import.meta.env?.VITE_STREAMCAP_URL || DEFAULT_CONFIG.services.streamcap.baseUrl)
         },
         douyin: {
           ...DEFAULT_CONFIG.services.douyin,

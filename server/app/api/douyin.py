@@ -4,13 +4,18 @@
 封装对 DouyinLiveService 的启动/停止/状态查询
 """
 
+import asyncio
+import json
 import logging
-from typing import Optional, Dict, Any
+import time
+from typing import Optional, Dict, Any, AsyncGenerator
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 # 服务导入
 from ..services.douyin_service import get_douyin_service
+from ..services.douyin_web_relay import get_douyin_web_relay
 
 router = APIRouter(prefix="/api/douyin", tags=["douyin"])
 
@@ -120,3 +125,51 @@ async def get_status():
     except Exception as e:
         logging.exception("获取监控状态失败")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/stream")
+async def stream_events():
+    """
+    抖音直播事件流 (Server-Sent Events)
+    推送实时弹幕、礼物、点赞等事件
+    """
+    async def generate() -> AsyncGenerator[str, None]:
+        relay = get_douyin_web_relay()
+        queue = None
+        try:
+            # 注册客户端队列
+            queue = await relay.register_client()
+            
+            # 发送初始连接确认
+            yield f"data: {json.dumps({'type': 'connected', 'message': '连接成功'})}\n\n"
+            
+            # 持续推送事件
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    if event is None:
+                        continue
+                    yield f"data: {json.dumps(event)}\n\n"
+                except asyncio.TimeoutError:
+                    # 发送心跳保持连接
+                    yield f"data: {json.dumps({'type': 'ping', 'timestamp': time.time()})}\n\n"
+                except Exception as e:
+                    logging.error(f"SSE事件推送错误: {e}")
+                    yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        except Exception as e:
+            logging.error(f"SSE连接错误: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        finally:
+            # 清理连接
+            if queue is not None:
+                await relay.unregister_client(queue)
+    
+    return StreamingResponse(
+        generate(),
+        media_type='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no',  # 禁用nginx缓冲
+        }
+    )
