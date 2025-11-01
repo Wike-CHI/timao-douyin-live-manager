@@ -1,6 +1,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { startLiveReport, stopLiveReport, getLiveReportStatus, generateLiveReport } from '../../services/liveReport';
+import ReviewReportPage from './ReviewReportPage';
 
 type Metrics = {
   follows?: number;
@@ -17,7 +18,8 @@ const ReportsPage: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<any>(null);
-  const [artifacts, setArtifacts] = useState<{ comments?: string; transcript?: string; report?: string } | null>(null);
+  const [artifacts, setArtifacts] = useState<{ comments?: string; transcript?: string; report?: string; review_data?: any } | null>(null);
+  const [showReview, setShowReview] = useState(false);
   const pollTimerRef = useRef<any>(null);
 
   const isActive = !!status;
@@ -59,8 +61,40 @@ const ReportsPage: React.FC = () => {
       setBusy(true); setError(null);
       const res = await generateLiveReport(FASTAPI_BASE_URL);
       setArtifacts(res?.data || null);
+      // 如果有复盘数据，自动展示复盘页面
+      if (res?.data?.review_data) {
+        setShowReview(true);
+      }
     } catch (e: any) {
       setError(e?.message || '生成报告失败');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const viewReview = async (reportPath: string) => {
+    try {
+      setBusy(true); setError(null);
+      // 调用新的 API 接口加载历史报告
+      const encodedPath = encodeURIComponent(reportPath);
+      const res = await fetch(`${FASTAPI_BASE_URL}/api/report/live/review/${encodedPath}`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData?.detail || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      if (data?.data?.review_data) {
+        // 更新 artifacts 的 review_data 并展示
+        setArtifacts(prev => ({
+          ...(prev || {}),
+          review_data: data.data.review_data
+        }));
+        setShowReview(true);
+      } else {
+        throw new Error('复盘数据格式错误');
+      }
+    } catch (e: any) {
+      setError(e?.message || '加载复盘数据失败');
     } finally {
       setBusy(false);
     }
@@ -87,6 +121,16 @@ const ReportsPage: React.FC = () => {
     const gifts = metrics?.gifts || {};
     return Object.entries(gifts).sort((a, b) => (b[1] as number) - (a[1] as number));
   }, [metrics]);
+
+  // 如果正在展示复盘报告，渲染复盘页面
+  if (showReview && artifacts?.review_data) {
+    return (
+      <ReviewReportPage
+        reviewData={artifacts.review_data}
+        onClose={() => setShowReview(false)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -163,9 +207,26 @@ const ReportsPage: React.FC = () => {
             <div className="mt-3 timao-soft-card text-xs timao-support-text">
               <div>· 弹幕：{artifacts.comments || '—'}</div>
               <div>· 转写：{artifacts.transcript || '—'}</div>
-              <div className="flex items-center gap-2">· 报告：{artifacts.report || '—'} {artifacts.report ? (
-                <button className="timao-outline-btn text-[10px] px-2 py-0.5" onClick={() => { try { (window as any).electronAPI?.openPath(artifacts.report as string); } catch {} }}>打开</button>
-              ) : null}</div>
+              <div className="flex items-center gap-2">
+                · 报告：{artifacts.report || '—'} 
+                {artifacts.report ? (
+                  <>
+                    <button 
+                      className="timao-outline-btn text-[10px] px-2 py-0.5" 
+                      onClick={() => { try { (window as any).electronAPI?.openPath(artifacts.report as string); } catch {} }}
+                    >
+                      打开文件
+                    </button>
+                    <button 
+                      className="timao-primary-btn text-[10px] px-2 py-0.5" 
+                      onClick={() => viewReview(artifacts.report as string)}
+                      disabled={busy}
+                    >
+                      查看复盘
+                    </button>
+                  </>
+                ) : null}
+              </div>
             </div>
           ) : null}
           <div className="text-xs timao-support-text mt-2">说明：录制整场直播音频（分段），离线转写并汇总弹幕；调用 Gemini 2.5 Flash 生成 AI 复盘报告（超低成本，约 $0.0001/次）。</div>

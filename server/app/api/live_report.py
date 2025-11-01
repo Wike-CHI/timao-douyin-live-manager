@@ -110,3 +110,37 @@ async def generate_live_report() -> BaseResp:
         else:
             raise HTTPException(status_code=400, detail=f"生成直播报告失败: {error_msg}")
 
+
+@router.get("/review/{report_path:path}")
+async def get_review_data(report_path: str) -> BaseResp:
+    """
+    从历史报告的 HTML 路径加载对应的 review_data.json
+    report_path: 例如 "D:/project/.../artifacts/report.html"
+    返回: review_data 结构化数据
+    """
+    try:
+        import json
+        from pathlib import Path
+        
+        # 将 report.html 路径转为 review_data.json 路径
+        report_file = Path(report_path)
+        if not report_file.exists() or report_file.name != "report.html":
+            raise HTTPException(status_code=404, detail=f"报告文件不存在: {report_path}")
+        
+        # artifacts/ 目录下应该有 review_data.json
+        review_data_file = report_file.parent / "review_data.json"
+        if not review_data_file.exists():
+            raise HTTPException(status_code=404, detail=f"复盘数据文件不存在，可能是旧版本报告")
+        
+        # 读取 JSON 文件
+        review_data = json.loads(review_data_file.read_text(encoding="utf-8"))
+        return BaseResp(data={"review_data": review_data})
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Load review data failed: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"加载复盘数据失败: {str(e)}")
+

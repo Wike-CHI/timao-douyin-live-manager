@@ -402,13 +402,41 @@ class LiveReportService:
         report_path.write_text(report_html, encoding="utf-8")
         self._session.report_path = str(report_path)
 
+        # 构建结构化的复盘数据
+        review_data = {
+            "session_id": self._session.session_id,
+            "room_id": self._session.room_id,
+            "anchor_name": self._session.anchor_name,
+            "started_at": self._session.started_at,
+            "stopped_at": self._session.stopped_at,
+            "duration_seconds": (self._session.stopped_at - self._session.started_at) / 1000 if self._session.stopped_at else 0,
+            "metrics": dict(self._agg) if hasattr(self, '_agg') else {},
+            "transcript": transcript_txt,
+            "comments_count": len(self._comments),
+            "ai_summary": ai_summary,
+            "transcript_chars": len(transcript_txt),
+            "segments_count": len(transcripts),
+        }
+        
+        # 保存 review_data 到 JSON 文件，方便后续查看
+        review_data_path = artifacts_dir / "review_data.json"
+        review_data_path.write_text(json.dumps(review_data, ensure_ascii=False, indent=2), encoding="utf-8")
+        
+        # 返回结构化数据，供前端直接展示
         return {
             "comments": str(comments_path),
             "transcript": str(transcript_path),
             "report": str(report_path),
+            "review_data": review_data,
         }
 
     def status(self) -> Optional[LiveReportStatus]:
+        # 实时同步 metrics 到 session，确保前端能获取最新数据
+        if self._session and hasattr(self, '_agg'):
+            try:
+                self._session.metrics = dict(self._agg)
+            except Exception:
+                pass
         return self._session
 
     # ---------- Internals ----------
