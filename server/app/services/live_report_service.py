@@ -199,13 +199,22 @@ class LiveReportService:
             # Start ffmpeg segment recording
             self._ffmpeg_proc = await self._start_ffmpeg(record_url, seg_secs, pattern)
             self._session.recording_pid = self._ffmpeg_proc.pid
+            logger.info(f"✅ FFmpeg 启动成功，PID: {self._ffmpeg_proc.pid}")
 
             # Start Douyin relay and consume events into in-memory buffer
             relay = get_douyin_web_relay()
             if live_id:
+                logger.info(f"🚀 启动抖音弹幕采集，房间ID: {live_id}")
                 await relay.start(live_id)
+                logger.info(f"✅ 弹幕 relay 启动成功")
+            else:
+                logger.warning(f"⚠️ 无法获取房间ID，弹幕采集可能失败")
+            
             self._relay_client_queue = await relay.register_client()
+            logger.info(f"✅ 注册弹幕客户端成功，队列: {self._relay_client_queue}")
+            
             self._comment_task = asyncio.create_task(self._consume_danmu())
+            logger.info(f"✅ 启动弹幕消费任务")
 
             return self._session
         
@@ -650,12 +659,24 @@ class LiveReportService:
     async def _consume_danmu(self) -> None:
         queue = self._relay_client_queue
         if queue is None:
+            logger.warning("❌ 弹幕队列为空，无法采集弹幕")
             return
+        
+        logger.info("✅ 开始采集弹幕数据...")
+        event_count = 0
+        
         try:
             while True:
                 ev = await queue.get()
+                event_count += 1
+                
                 if not isinstance(ev, dict):
                     continue
+                
+                # 每10个事件打印一次日志
+                if event_count % 10 == 1:
+                    logger.info(f"📊 已接收 {event_count} 个弹幕事件，当前聚合数据: follows={self._agg.get('follows', 0)}, entries={self._agg.get('entries', 0)}, likes={self._agg.get('like_total', 0)}")
+                
                 # annotate minimal fields
                 ev.setdefault("ts", int(time.time() * 1000))
                 ev.setdefault("source", "douyin")
@@ -664,11 +685,14 @@ class LiveReportService:
                 try:
                     et = ev.get("type")
                     pl = ev.get("payload") or {}
+                    
                     if et == "follow":
                         self._agg["follows"] = int(self._agg.get("follows", 0)) + 1
+                        logger.debug(f"👤 新增关注: {pl.get('nickname', 'unknown')}")
                     elif et == "member":
                         if pl.get("action") in ("enter", None):
                             self._agg["entries"] = int(self._agg.get("entries", 0)) + 1
+                            logger.debug(f"🚪 用户进场: {pl.get('nickname', 'unknown')}")
                     elif et == "room_user_stats":
                         cur = pl.get("current") or pl.get("total_user") or 0
                         try:
@@ -677,6 +701,7 @@ class LiveReportService:
                             cur = 0
                         if cur > int(self._agg.get("peak_viewers", 0)):
                             self._agg["peak_viewers"] = cur
+                            logger.debug(f"👥 在线人数更新: {cur}")
                     elif et == "like":
                         inc = pl.get("count")
                         try:
@@ -684,6 +709,7 @@ class LiveReportService:
                         except Exception:
                             inc = 0
                         self._agg["like_total"] = int(self._agg.get("like_total", 0)) + inc
+                        logger.debug(f"❤️ 点赞增加: +{inc}")
                     elif et == "gift":
                         name = (pl.get("gift_name") or "?")
                         cnt = pl.get("count")
@@ -693,9 +719,12 @@ class LiveReportService:
                             cnt = 1
                         gifts = self._agg.setdefault("gifts", {})
                         gifts[name] = int(gifts.get(name, 0)) + cnt
-                except Exception:
+                        logger.debug(f"🎁 收到礼物: {name} x{cnt}")
+                except Exception as e:
+                    logger.error(f"处理弹幕事件失败: {e}, event_type={ev.get('type')}")
                     pass
         except asyncio.CancelledError:
+            logger.info(f"✅ 弹幕采集结束，共处理 {event_count} 个事件")
             pass
 
     async def _get_sv(self) -> SenseVoiceService:
