@@ -1,5 +1,9 @@
 import useAuthStore from '../store/useAuthStore';
 import authService from './authService';
+import type { ReviewData, ReportArtifacts } from '../types/report';
+
+// 导出类型供其他模块使用
+export type { ReviewData, ReportArtifacts } from '../types/report';
 
 const DEFAULT_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9019';
 
@@ -41,11 +45,7 @@ export interface LiveReportStatusResp {
 
 export interface LiveReportGenResp { 
   success: boolean; 
-  data?: { 
-    comments: string; 
-    transcript: string; 
-    report: string 
-  } 
+  data?: ReportArtifacts;
 }
 
 export const startLiveReport = async (liveUrl: string, segmentMinutes = 30, baseUrl: string = DEFAULT_BASE_URL) => {

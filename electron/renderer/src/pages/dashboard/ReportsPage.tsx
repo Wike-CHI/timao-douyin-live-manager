@@ -1,6 +1,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { startLiveReport, stopLiveReport, getLiveReportStatus, generateLiveReport } from '../../services/liveReport';
+import type { ReviewData, ReportArtifacts } from '../../services/liveReport';
 import ReviewReportPage from './ReviewReportPage';
 
 type Metrics = {
@@ -18,7 +19,7 @@ const ReportsPage: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<any>(null);
-  const [artifacts, setArtifacts] = useState<{ comments?: string; transcript?: string; report?: string; review_data?: any } | null>(null);
+  const [artifacts, setArtifacts] = useState<ReportArtifacts | null>(null);
   const [showReview, setShowReview] = useState(false);
   const [hasStopped, setHasStopped] = useState(false); // 标记是否已停止录制
   const pollTimerRef = useRef<any>(null);
