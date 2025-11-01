@@ -9,7 +9,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Set
 
-from DouyinLiveWebFetcher.liveMan import (
+from server.modules.douyin.liveMan import (
     ChatMessage,
     ControlMessage,
     DouyinLiveWebFetcher,

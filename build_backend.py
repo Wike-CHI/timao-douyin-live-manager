@@ -37,13 +37,10 @@ class BackendBuilder:
         # 查找所有requirements.txt文件
         req_files = []
         
-        # 明确指定要搜索的目录，避免node_modules
+        # 现在主要使用 server/requirements.txt (已合并所有依赖)
         search_dirs = [
-            self.base_dir / "server",
-            self.base_dir / "AST_module", 
-            self.base_dir / "DouyinLiveWebFetcher",
-            self.base_dir / "StreamCap",
-            self.base_dir  # 根目录的requirements.txt
+            self.base_dir / "server",  # 统一的依赖文件
+            self.base_dir,  # 根目录的requirements.txt（兼容）
         ]
         
         for search_dir in search_dirs:
@@ -134,8 +131,6 @@ hiddenimports = [
     'sqlalchemy',
     'requests',
     'websockets',
-    'flet',
-    'flet_core',
     'numpy',
     'torch',
     'torchaudio',
@@ -143,13 +138,25 @@ hiddenimports = [
     'librosa',
     'soundfile',
     'pyaudio',
-    'opencv-python',
-    'pillow',
-    'matplotlib',
-    'seaborn',
     'pandas',
     'scipy',
     'scikit-learn',
+    # 新整合的模块
+    'server.modules',
+    'server.modules.ast',
+    'server.modules.ast.sensevoice_service',
+    'server.modules.ast.audio_capture',
+    'server.modules.ast.postprocess',
+    'server.modules.ast.acrcloud_client',
+    'server.modules.douyin',
+    'server.modules.douyin.liveMan',
+    'server.modules.douyin.ac_signature',
+    'server.modules.streamcap',
+    'server.modules.streamcap.platforms',
+    'server.modules.streamcap.media',
+    'funasr',
+    'sentencepiece',
+    'jieba',
 ]
 
 # 排除模块

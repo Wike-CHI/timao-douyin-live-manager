@@ -27,16 +27,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 
-# Workspace root on sys.path so we can import StreamCap modules
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
 # Stream URL resolution (StreamCap backend)
-from StreamCap.app.core.platforms.platform_handlers import (  # type: ignore
-    get_platform_handler,
-)
-from StreamCap.app.core.media.ffmpeg_builders import create_builder  # type: ignore
+from server.modules.streamcap.platforms import get_platform_handler  # type: ignore
+from server.modules.streamcap.media import create_builder  # type: ignore
 
 # Douyin web relay (existing service in this repo)
 # NOTE: live_report_service.py lives in server/app/services/, so the sibling
@@ -47,7 +40,7 @@ from StreamCap.app.core.media.ffmpeg_builders import create_builder  # type: ign
 from .douyin_web_relay import get_douyin_web_relay  # type: ignore
 
 # SenseVoice batch API: transcribe PCM16 mono @ 16k
-from AST_module.sensevoice_service import (  # type: ignore
+from server.modules.ast.sensevoice_service import (  # type: ignore
     SenseVoiceConfig,
     SenseVoiceService,
 )

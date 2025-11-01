@@ -25,9 +25,9 @@ if str(PROJECT_ROOT) not in sys.path:
 
 # 导入相关模块
 try:
-    from app.services.live_audio_stream_service import LiveAudioStreamService
-    from AST_module.sensevoice_service import SenseVoiceConfig
-    from AST_module.audio_capture import AudioConfig
+    from server.app.services.live_audio_stream_service import LiveAudioStreamService
+    from server.modules.ast.sensevoice_service import SenseVoiceConfig
+    from server.modules.ast.audio_capture import AudioConfig
     from server.audio_gate import is_speech_like
     import numpy as np
 except ImportError as e:

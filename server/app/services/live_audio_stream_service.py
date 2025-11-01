@@ -25,25 +25,18 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Deque, Dict, List, Optional
 
 
-# Workspace root on sys.path so we can import StreamCap and AST_module
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
 # StreamCap platform handler (resolve real stream URL from live URL)
-from StreamCap.app.core.platforms.platform_handlers import (  # type: ignore
-    get_platform_handler,
-)
+from server.modules.streamcap.platforms import get_platform_handler  # type: ignore
 
 # SenseVoice (batch API)
-from AST_module.sensevoice_service import (  # type: ignore
+from server.modules.ast.sensevoice_service import (  # type: ignore
     SenseVoiceConfig,
     SenseVoiceService,
 )
 
 # ACRCloud (optional music recognition)
 try:
-    from AST_module.acrcloud_client import (  # type: ignore
+    from server.modules.ast.acrcloud_client import (  # type: ignore
         ACRMusicMatch,
         load_acr_client_from_env,
     )
@@ -52,7 +45,7 @@ except Exception:  # pragma: no cover - optional依赖
     load_acr_client_from_env = None  # type: ignore
 
 # Postprocessing & light DSP helpers
-from AST_module.postprocess import (  # type: ignore
+from server.modules.ast.postprocess import (  # type: ignore
     ChineseCleaner,
     HallucinationGuard,
     SentenceAssembler,

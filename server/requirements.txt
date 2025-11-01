@@ -1,62 +1,103 @@
-# FastAPI 后端依赖
+# FastAPI 后端
 fastapi>=0.100.0
-uvicorn[standard]>=0.23.0
 python-multipart>=0.0.6
+websocket-client==1.7.0
 websockets>=11.0.2
-websocket-client>=1.6.1
 
 # 认证和安全
-python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
+cryptography>=41.0.0
+python-dotenv>=1.0.1
 
 # 数据库
 aiosqlite>=0.19.0
-sqlalchemy>=2.0.0
 pymysql>=1.1.0
-cryptography>=41.0.0
+sqlalchemy>=2.0.0
 
-# 语音识别和AST模块依赖
-srt>=3.5.0
-requests>=2.31.0
-tqdm>=4.65.0
-numpy>=1.24.0,<2.0.0
-# sounddevice>=0.4.6  # 使用pyaudio替代
-pyaudio>=0.2.11
+# 语音识别和AST
+aiofiles>=24.1.0
 aiohttp>=3.8.0
+funasr>=1.2.0
+librosa>=0.10.0
+numpy>=1.24.0,<2.0.0
+oss2>=2.18.0
+pyaudio>=0.2.11
+pytorch-wpe>=0.0.1
 scipy>=1.10.0
+soundfile>=0.12.0
+srt>=3.5.0
+tensorboardX>=2.6.0
+torch>=2.0.0
+torchaudio>=2.0.0
+umap-learn>=0.5.0
 
-# 抖音直播数据抓取
-# 使用项目内置的DouyinLiveWebFetcher，无需额外依赖
-
-# 本地AI分析
+# 文本处理
+editdistance-s>=1.0.0
+jaconv>=0.3.0
+jamo>=0.4.1
 jieba>=0.42.1
+sentencepiece>=0.1.99
 snownlp>=0.12.3
 
-# 工具库
-python-dotenv>=1.0.0
-pydantic>=2.0.0
-pydantic-settings>=2.0.0
-httpx>=0.24.0
-aiofiles>=23.0.0
+# 配置和机器学习
+hydra-core>=1.3.0
+omegaconf>=2.3.0
+pandas==2.1.4
+sentence-transformers>=3.3.0
 
-# OpenAI-compatible client (for DashScope compatible-mode)
-openai>=1.3.0
+# 抖音直播抓取
+PyExecJS==1.5.1
+betterproto==2.0.0b6
+mini_racer==0.12.4
+requests==2.31.0
+
+# StreamCap
+httpx>=0.28.1
+plyer>=2.1.0
+pystray>=0.19.5
+screeninfo>=0.8.1
 streamget>=4.0.8
-PyExecJS>=1.5.1
-py-mini-racer>=0.6.0
-betterproto>=2.0.0b6
 
-# LangChain style memory
-langchain>=0.1.16
-langchain-community>=0.0.38
+# AI相关
+baidu-aip==4.16.13
+dashscope==1.14.1
 docarray>=0.32.2
+langchain-community>=0.3.0
+langchain-core>=0.3.0
+langchain-huggingface>=0.1.1
+langchain-openai>=0.2.0
+langchain-text-splitters>=0.3.0
+langchain>=0.3.0
+openai>=1.43.0
+
+# 数据存储
+redis-py-cluster>=2.1.3
+redis==3.5.3
 
 # 开发工具
-pytest>=7.4.0
-pytest-asyncio>=0.21.0
 black>=23.0.0
 flake8>=6.0.0
-
-# 日志和监控
-loguru>=0.7.0
+mypy==1.7.1
 prometheus-client>=0.17.0
+pytest-asyncio>=0.21.0
+pytest>=7.4.0
+tqdm>=4.65.0
+
+# 其他工具
+PyYAML==6.0.1
+loguru>=0.7.0
+psutil==5.9.6
+python-dateutil==2.8.2
+urllib3==2.0.7
+
+# 其他依赖
+flet-video==0.1.1
+flet[desktop,cli]==0.27.6
+marshmallow==3.20.1
+passlib[bcrypt]>=1.7.4
+py-mini-racer>=0.6.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+pytest-cov==4.1.0
+python-jose[cryptography]>=3.3.0
+torchvision>=0.17.1
+uvicorn[standard]>=0.23.0

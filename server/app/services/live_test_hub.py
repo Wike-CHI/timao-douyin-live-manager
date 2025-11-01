@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from contextlib import suppress
 from typing import Any, Dict, Optional, Set
 
-from AST_module.ast_service import TranscriptionResult, get_ast_service
+from server.modules.ast.ast_service import TranscriptionResult, get_ast_service
 
 from .douyin_web_relay import get_douyin_web_relay
 

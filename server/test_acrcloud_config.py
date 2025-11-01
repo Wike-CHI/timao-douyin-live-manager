@@ -97,7 +97,7 @@ def test_acrcloud_config():
     print("-" * 40)
     
     try:
-        from AST_module.acrcloud_client import load_acr_client_from_env
+        from server.modules.ast.acrcloud_client import load_acr_client_from_env
         
         client, error = load_acr_client_from_env()
         
