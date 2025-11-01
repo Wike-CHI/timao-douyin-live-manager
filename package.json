@@ -103,6 +103,7 @@
     "wait-on": "^7.0.1"
   },
   "dependencies": {
+    "antd": "^5.27.6",
     "axios": "^1.5.0",
     "electron-squirrel-startup": "^1.0.1"
   },
