@@ -218,6 +218,26 @@ const LiveConsolePage = () => {
     return () => clearInterval(id);
   }, [isRunning]);
 
+  // 定期刷新抖音状态（即使不在运行状态也刷新，用于显示服务状态）
+  useEffect(() => {
+    const id = setInterval(() => {
+      getDouyinRelayStatus(FASTAPI_BASE_URL)
+        .then((douyinResult) => {
+          // 应用重启后不保留上次直播间信息：当未运行时，清空 live_id/room_id
+          const normalized = douyinResult?.is_running
+            ? douyinResult
+            : { ...douyinResult, live_id: null, room_id: null };
+          setDouyinStatus(normalized);
+          setDouyinConnected(!!normalized.is_running);
+        })
+        .catch(() => {
+          setDouyinStatus(null);
+          setDouyinConnected(false);
+        });
+    }, 3000); // 每3秒刷新一次状态
+    return () => clearInterval(id);
+  }, []);
+
   // 复盘状态轮询
   useEffect(() => {
     let timer: any = null;
@@ -811,7 +831,7 @@ const LiveConsolePage = () => {
               {douyinStatus?.room_id ?? '—'}
             </span>
           </div>
-          {/* 第三行：实时通道状态 */}
+          {/* 第三行：实时通道状态 + 停止按钮 */}
           <div className="flex items-center gap-3">
             <span className="text-gray-600">实时通道状态：</span>
             <span className={`px-2 py-0.5 rounded-full font-medium transition-colors duration-200 ${
@@ -819,6 +839,28 @@ const LiveConsolePage = () => {
             }`}>
               {(douyinConnected && getLiveConsoleSocket()?.readyState === WebSocket.OPEN) ? '已连接' : '未连接'}
             </span>
+            {douyinConnected && (
+              <button
+                className="timao-outline-btn text-xs px-3 py-1"
+                onClick={async () => {
+                  try {
+                    setLoading(true);
+                    setError(null);
+                    await stopDouyinRelay(FASTAPI_BASE_URL);
+                    await refreshStatus();
+                    console.log('抖音直播互动服务已手动停止');
+                  } catch (e) {
+                    console.error('停止抖音直播互动失败:', e);
+                    setError((e as Error).message || '停止失败');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                disabled={loading}
+              >
+                停止连接
+              </button>
+            )}
           </div>
         </div>
       </div>
