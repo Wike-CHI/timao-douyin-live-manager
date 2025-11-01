@@ -294,8 +294,31 @@ class AILiveAnalyzer:
         }
         if speaker_sentences:
             state["speaker_timeline"] = speaker_sentences
+        # 使用 run_in_executor 将同步调用转为异步，避免阻塞事件循环
         result = self._workflow.invoke(state)  # type: ignore[arg-type]
         return self._format_workflow_payload(result)
+    
+    async def _run_workflow_async(
+        self,
+        sentences: List[str],
+        comments: List[Dict[str, Any]],
+        window_start: float,
+        user_scores: Optional[Dict[str, Dict[str, Any]]] = None,
+        speaker_sentences: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        """异步运行 workflow，避免阻塞事件循环"""
+        loop = asyncio.get_event_loop()
+        # 在线程池中执行同步的 workflow 调用
+        result = await loop.run_in_executor(
+            None,
+            self._run_workflow,
+            sentences,
+            comments,
+            window_start,
+            user_scores,
+            speaker_sentences,
+        )
+        return result
 
     async def _attach_hooks(self) -> None:
         # Subscribe to live_audio final sentences
@@ -480,9 +503,9 @@ class AILiveAnalyzer:
         for key in stale_keys:
             s.user_scores.pop(key, None)
 
-        # call AI
+        # call AI (异步执行，避免阻塞事件循环)
         try:
-            payload = self._run_workflow(
+            payload = await self._run_workflow_async(
                 window_sentences,
                 comments_window,
                 window_started_at,
