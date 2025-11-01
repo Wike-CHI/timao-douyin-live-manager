@@ -22,9 +22,9 @@ os.environ['MODELSCOPE_CACHE'] = models_dir
 os.environ['HF_HOME'] = os.path.join(models_dir, "huggingface")
 
 # 导入AST模块
-from AST_module.ast_service import ASTService, TranscriptionResult, ASTConfig
-from AST_module.config import create_ast_config
-from AST_module.audio_capture import AudioCapture, AudioConfig
+from server.modules.ast.ast_service import ASTService, TranscriptionResult, ASTConfig
+from server.modules.ast.config import create_ast_config
+from server.modules.ast.audio_capture import AudioCapture, AudioConfig
 
 # 配置日志
 logging.basicConfig(

@@ -23,7 +23,7 @@ async def test_sensevoice_service():
     
     try:
         # 导入SenseVoice服务
-        from AST_module.sensevoice_service import SenseVoiceService, SenseVoiceConfig
+        from server.modules.ast.sensevoice_service import SenseVoiceService, SenseVoiceConfig
         
         # 创建服务实例
         config = SenseVoiceConfig()

@@ -58,7 +58,7 @@
 ```python
 # server/nlp/douyin_stream.py (示例)
 from queue import Queue
-from DouyinLiveWebFetcher.liveMan import DouyinLiveWebFetcher
+from server.modules.douyin.liveMan import DouyinLiveWebFetcher
 
 class StreamingFetcher(DouyinLiveWebFetcher):
     def __init__(self, live_id, event_queue: Queue):

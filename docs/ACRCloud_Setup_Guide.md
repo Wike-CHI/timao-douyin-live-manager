@@ -84,7 +84,7 @@ LIVE_ACR_MATCH_HOLD_SEC=6   # 匹配保持时间(秒) 1-60
 ```python
 # test_acrcloud.py
 import os
-from AST_module.acrcloud_client import load_acr_client_from_env
+from server.modules.ast.acrcloud_client import load_acr_client_from_env
 
 # 测试 ACRCloud 配置
 client, error = load_acr_client_from_env()
