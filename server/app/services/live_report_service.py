@@ -137,8 +137,13 @@ class LiveReportService:
 
     # ---------- Public API ----------
     async def start(self, live_url: str, segment_minutes: int = 30) -> LiveReportStatus:
-        if self._session is not None:
+        # 检查是否有活跃的录制会话（正在录制中）
+        if self._session is not None and self._ffmpeg_proc is not None:
             raise RuntimeError("Live report session already started")
+        
+        # 如果有已停止但未生成报告的 session，提示用户
+        if self._session is not None and self._ffmpeg_proc is None:
+            raise RuntimeError("请先生成报告，然后才能开始新的录制")
 
         try:
             live_id = _parse_douyin_live_id(live_url)
@@ -285,14 +290,13 @@ class LiveReportService:
         # Capture existing segments (best effort)
         await self._scan_segments()
         
-        # Store the session for return, then clear it to allow restart
-        session_result = self._session
-        self._session = None
+        # 清理录制相关的资源，但保留 session 数据供生成报告使用
         self._relay_client_queue = None
         self._comment_task = None
         self._ffmpeg_proc = None
         
-        return session_result
+        # 标记 session 为已停止状态（用于前端判断）
+        return self._session
 
     async def generate_report(self) -> Dict[str, Any]:
         """Offline pipeline after stop(): transcribe segments, integrate comments, compose HTML.
@@ -422,13 +426,29 @@ class LiveReportService:
         review_data_path = artifacts_dir / "review_data.json"
         review_data_path.write_text(json.dumps(review_data, ensure_ascii=False, indent=2), encoding="utf-8")
         
-        # 返回结构化数据，供前端直接展示
-        return {
+        # 生成报告完成后，清空 session 允许开始新的录制
+        result = {
             "comments": str(comments_path),
             "transcript": str(transcript_path),
             "report": str(report_path),
             "review_data": review_data,
         }
+        
+        # 清空 session 和相关数据，允许开始新的录制
+        self._session = None
+        self._comments = []
+        self._analysis = []
+        self._carry = ""
+        self._agg = {
+            "follows": 0,
+            "entries": 0,
+            "peak_viewers": 0,
+            "like_total": 0,
+            "gifts": {},
+        }
+        
+        # 返回结构化数据，供前端直接展示
+        return result
 
     def status(self) -> Optional[LiveReportStatus]:
         # 实时同步 metrics 到 session，确保前端能获取最新数据

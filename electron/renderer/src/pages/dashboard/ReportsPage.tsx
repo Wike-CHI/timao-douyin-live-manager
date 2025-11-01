@@ -20,9 +20,11 @@ const ReportsPage: React.FC = () => {
   const [status, setStatus] = useState<any>(null);
   const [artifacts, setArtifacts] = useState<{ comments?: string; transcript?: string; report?: string; review_data?: any } | null>(null);
   const [showReview, setShowReview] = useState(false);
+  const [hasStopped, setHasStopped] = useState(false); // 标记是否已停止录制
   const pollTimerRef = useRef<any>(null);
 
   const isActive = !!status;
+  const hasRecordedSession = hasStopped && !artifacts; // 有已停止但未生成报告的会话
   const metrics: Metrics = status?.metrics || {};
 
   const start = async () => {
@@ -36,6 +38,8 @@ const ReportsPage: React.FC = () => {
       await startLiveReport(liveUrl, 30, FASTAPI_BASE_URL);
       await refresh();
       startPolling();
+      setHasStopped(false); // 重置停止状态
+      setArtifacts(null); // 清空之前的报告
     } catch (e: any) {
       setError(e?.message || '启动录制失败');
     } finally {
@@ -49,6 +53,7 @@ const ReportsPage: React.FC = () => {
       await stopLiveReport(FASTAPI_BASE_URL);
       await refresh();
       stopPolling();
+      setHasStopped(true); // 标记已停止
     } catch (e: any) {
       setError(e?.message || '停止录制失败');
     } finally {
@@ -61,6 +66,7 @@ const ReportsPage: React.FC = () => {
       setBusy(true); setError(null);
       const res = await generateLiveReport(FASTAPI_BASE_URL);
       setArtifacts(res?.data || null);
+      setHasStopped(false); // 生成报告后重置状态
       // 如果有复盘数据，自动展示复盘页面
       if (res?.data?.review_data) {
         setShowReview(true);
@@ -148,13 +154,33 @@ const ReportsPage: React.FC = () => {
             onChange={(e) => setLiveInput(e.target.value)}
             className="timao-input w-64 text-sm"
             placeholder="直播地址或ID (https://live.douyin.com/xxxx)"
-            disabled={isActive || busy}
+            disabled={isActive || busy || hasRecordedSession}
             aria-label="直播地址或ID"
             title="直播地址或ID"
           />
-          <button className="timao-primary-btn" onClick={start} disabled={busy || isActive}>开始录制</button>
-          <button className="timao-outline-btn" onClick={stop} disabled={busy || !isActive}>停止</button>
-          <button className="timao-outline-btn" onClick={generate} disabled={busy}>生成报告</button>
+          <button 
+            className="timao-primary-btn" 
+            onClick={start} 
+            disabled={busy || isActive || hasRecordedSession}
+            title={hasRecordedSession ? "请先生成报告" : "开始录制"}
+          >
+            开始录制
+          </button>
+          <button 
+            className="timao-outline-btn" 
+            onClick={stop} 
+            disabled={busy || !isActive}
+          >
+            停止
+          </button>
+          <button 
+            className="timao-outline-btn" 
+            onClick={generate} 
+            disabled={busy || !hasRecordedSession}
+            title={hasRecordedSession ? "点击生成报告" : "请先录制并停止"}
+          >
+            生成报告
+          </button>
         </div>
       </div>
 
