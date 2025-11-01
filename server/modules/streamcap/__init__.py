@@ -5,7 +5,7 @@ server/modules/streamcap - 直播平台处理器模块
 """
 
 # 平台处理器 - 用于解析直播间URL并获取真实推流地址
-from .platforms.platform_handlers import (
+from .platforms import (
     get_platform_handler,
     get_platform_info,
     PlatformHandler,
@@ -13,7 +13,7 @@ from .platforms.platform_handlers import (
 )
 
 # 媒体构建器 - 用于构建 FFmpeg 命令
-from .media.ffmpeg_builders import create_builder
+from .media import create_builder
 
 __all__ = [
     "get_platform_handler",

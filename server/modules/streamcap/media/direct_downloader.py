@@ -4,8 +4,10 @@ import time
 from typing import Optional
 
 import httpx
+import logging
 
-from ...utils.logger import logger
+# 使用标准 logging
+logger = logging.getLogger(__name__)
 
 
 class DirectStreamDownloader:

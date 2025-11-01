@@ -1,5 +1,8 @@
-from ...logger import logger
+import logging
 from .base import PlatformHandler, StreamData
+
+# 使用标准 logging
+logger = logging.getLogger(__name__)
 from .handlers import (
     AcfunHandler,
     BaiduHandler,
