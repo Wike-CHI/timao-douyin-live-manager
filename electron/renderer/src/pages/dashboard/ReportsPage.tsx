@@ -153,34 +153,37 @@ const ReportsPage: React.FC = () => {
           <input
             value={liveInput}
             onChange={(e) => setLiveInput(e.target.value)}
-            className="timao-input w-64 text-sm"
+            className="timao-input w-72 text-sm"
             placeholder="直播地址或ID (https://live.douyin.com/xxxx)"
             disabled={isActive || busy || hasRecordedSession}
             aria-label="直播地址或ID"
             title="直播地址或ID"
           />
           <button 
-            className="timao-primary-btn" 
+            className="timao-primary-btn flex items-center gap-2 px-5 py-2 shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed" 
             onClick={start} 
             disabled={busy || isActive || hasRecordedSession}
             title={hasRecordedSession ? "请先生成报告" : "开始录制"}
           >
-            开始录制
+            {busy ? <span className="animate-spin">⏳</span> : <span>🎬</span>}
+            <span>开始录制</span>
           </button>
           <button 
-            className="timao-outline-btn" 
+            className="timao-outline-btn flex items-center gap-2 px-4 py-2 hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed" 
             onClick={stop} 
             disabled={busy || !isActive}
           >
-            停止
+            {busy ? <span className="animate-spin">⏳</span> : <span>⏹️</span>}
+            <span>停止</span>
           </button>
           <button 
-            className="timao-outline-btn" 
+            className="timao-outline-btn flex items-center gap-2 px-4 py-2 hover:bg-green-50 hover:border-green-400 hover:text-green-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed" 
             onClick={generate} 
             disabled={busy || !hasRecordedSession}
             title={hasRecordedSession ? "点击生成报告" : "请先录制并停止"}
           >
-            生成报告
+            {busy ? <span className="animate-spin">⏳</span> : <span>✨</span>}
+            <span>生成报告</span>
           </button>
         </div>
       </div>
@@ -226,34 +229,46 @@ const ReportsPage: React.FC = () => {
             <div className="text-xs timao-support-text">分段 {status?.segments?.length ?? 0} · 间隔 {Math.round((status?.segment_seconds ?? 0)/60)} 分钟</div>
           </div>
           <div className="timao-soft-card text-xs timao-support-text">
-            <div>录制目录：{status?.recording_dir || '—'} {status?.recording_dir ? (
-              <button className="timao-outline-btn text-[10px] px-2 py-0.5 ml-2" onClick={() => { try { (window as any).electronAPI?.openPath(status.recording_dir as string); } catch {} }}>打开</button>
-            ) : null}</div>
+            <div className="flex items-center justify-between">
+              <span>录制目录：{status?.recording_dir || '—'}</span>
+              {status?.recording_dir && (
+                <button 
+                  className="timao-outline-btn text-xs px-3 py-1 ml-2 flex items-center gap-1 hover:bg-purple-50 transition-colors" 
+                  onClick={() => { try { (window as any).electronAPI?.openPath(status.recording_dir as string); } catch {} }}
+                >
+                  <span>📂</span>
+                  <span>打开</span>
+                </button>
+              )}
+            </div>
           </div>
           {artifacts ? (
-            <div className="mt-3 timao-soft-card text-xs timao-support-text">
-              <div>· 弹幕：{artifacts.comments || '—'}</div>
-              <div>· 转写：{artifacts.transcript || '—'}</div>
-              <div className="flex items-center gap-2">
-                · 报告：{artifacts.report || '—'} 
-                {artifacts.report ? (
-                  <>
-                    <button 
-                      className="timao-outline-btn text-[10px] px-2 py-0.5" 
-                      onClick={() => { try { (window as any).electronAPI?.openPath(artifacts.report as string); } catch {} }}
-                    >
-                      打开文件
-                    </button>
-                    <button 
-                      className="timao-primary-btn text-[10px] px-2 py-0.5" 
-                      onClick={() => viewReview(artifacts.report as string)}
-                      disabled={busy}
-                    >
-                      查看复盘
-                    </button>
-                  </>
-                ) : null}
+            <div className="mt-3 space-y-3">
+              <div className="timao-soft-card text-xs timao-support-text space-y-1">
+                <div>· 弹幕文件：{artifacts.comments || '—'}</div>
+                <div>· 转写文本：{artifacts.transcript || '—'}</div>
+                <div>· 报告文件：{artifacts.report || '—'}</div>
               </div>
+              
+              {artifacts.report && (
+                <div className="flex items-center gap-3 pt-2">
+                  <button 
+                    className="timao-outline-btn text-sm px-4 py-2 flex items-center gap-2 hover:bg-purple-50 transition-colors" 
+                    onClick={() => { try { (window as any).electronAPI?.openPath(artifacts.report as string); } catch {} }}
+                  >
+                    <span>📁</span>
+                    <span>打开文件</span>
+                  </button>
+                  <button 
+                    className="timao-primary-btn text-sm px-6 py-2.5 flex items-center gap-2 shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium" 
+                    onClick={() => viewReview(artifacts.report as string)}
+                    disabled={busy}
+                  >
+                    {busy ? <span className="animate-spin">⏳</span> : <span>🎯</span>}
+                    <span>{busy ? '加载中...' : '查看 AI 复盘报告'}</span>
+                  </button>
+                </div>
+              )}
             </div>
           ) : null}
           <div className="text-xs timao-support-text mt-2">说明：录制整场直播音频（分段），离线转写并汇总弹幕；调用 Gemini 2.5 Flash 生成 AI 复盘报告（超低成本，约 $0.0001/次）。</div>
