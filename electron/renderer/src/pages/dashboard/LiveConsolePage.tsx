@@ -230,8 +230,10 @@ const LiveConsolePage = () => {
           setDouyinStatus(normalized);
           setDouyinConnected(!!normalized.is_running);
         })
-        .catch(() => {
-          setDouyinStatus(null);
+        .catch((err) => {
+          // 如果获取状态失败，可能是服务未启动或网络问题
+          console.warn('获取抖音状态失败:', err);
+          setDouyinStatus({ is_running: false, live_id: null, room_id: null, last_error: null });
           setDouyinConnected(false);
         });
     }, 3000); // 每3秒刷新一次状态

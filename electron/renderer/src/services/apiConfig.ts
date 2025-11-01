@@ -58,7 +58,7 @@ const DEFAULT_CONFIG: ApiConfig = {
 
 class ApiConfigManager {
   private config: ApiConfig;
-  private healthCheckInterval: NodeJS.Timeout | null = null;
+  private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
   private serviceStatus: Map<string, boolean> = new Map();
   private listeners: Set<(status: Map<string, boolean>) => void> = new Set();
 
@@ -160,7 +160,15 @@ class ApiConfigManager {
       }
 
       return isHealthy;
-    } catch (error) {
+    } catch (error: any) {
+      // 如果是超时错误，静默处理（不显示错误日志）
+      if (error?.name === 'AbortError') {
+        // 超时通常意味着服务暂时不可用，但不一定是错误
+        this.serviceStatus.set(serviceName, false);
+        return false;
+      }
+      
+      // 其他错误才显示日志
       console.error(`❌ ${service.name} 健康检查异常:`, error);
       this.serviceStatus.set(serviceName, false);
       return false;

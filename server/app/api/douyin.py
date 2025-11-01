@@ -81,7 +81,14 @@ async def stop_monitoring():
     """
     try:
         service = get_douyin_service()
+        relay = get_douyin_web_relay()
+        
+        # 停止监控服务
         result = await service.stop_monitoring()
+        
+        # 停止中继服务
+        await relay.stop()
+        
         if result.get("success"):
             return BaseResponse(success=True, message="监控已停止", data=result)
         return BaseResponse(success=False, message=result.get("error", "监控停止失败"), data=result)
@@ -97,15 +104,26 @@ async def health_check():
     """
     try:
         service = get_douyin_service()
+        relay = get_douyin_web_relay()
         status = service.get_status()
+        relay_status = relay.get_status()
+        
         return {
             "status": "ok",
-            "is_monitoring": status.get("is_monitoring", False),
-            "current_live_id": status.get("current_live_id"),
+            "is_monitoring": status.get("is_monitoring", False) or relay_status.is_running,
+            "current_live_id": status.get("current_live_id") or relay_status.live_id,
+            "room_id": relay_status.room_id,
         }
     except Exception as e:
         logging.exception("健康检查失败")
-        raise HTTPException(status_code=500, detail=str(e))
+        # 健康检查失败时返回服务不可用状态，而不是抛出异常
+        return {
+            "status": "error",
+            "is_monitoring": False,
+            "current_live_id": None,
+            "room_id": None,
+            "error": str(e),
+        }
 
 
 @router.get("/status", response_model=StatusResponse)

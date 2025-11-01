@@ -252,7 +252,15 @@ const DouyinRelayPanel = ({
             disconnectStream();
             setStatus((prev) =>
               prev
-                ? { ...prev, is_running: false }
+                ? { ...prev, is_running: false, live_id: null, room_id: null }
+                : { is_running: false, live_id: null, room_id: null, last_error: null }
+            );
+          } else if (stage === 'disconnected') {
+            setBanner({ tone: 'warning', message: '连接已断开。' });
+            disconnectStream();
+            setStatus((prev) =>
+              prev
+                ? { ...prev, is_running: false, live_id: null, room_id: null }
                 : { is_running: false, live_id: null, room_id: null, last_error: null }
             );
           }
@@ -394,13 +402,25 @@ const DouyinRelayPanel = ({
         }
       } else {
         disconnectStream();
-      }
-      if (!relayStatus.is_running) {
-        setBanner((prev) => prev ?? { tone: 'info', message: '等待启动直播互动' });
+        // 如果服务已停止，更新banner状态
+        if (relayStatus.live_id === null && relayStatus.room_id === null) {
+          setBanner({ tone: 'info', message: '等待启动直播互动' });
+        } else {
+          setBanner({ tone: 'warning', message: '连接已关闭' });
+        }
       }
       setError(null);
     } catch (err) {
-      setError((err as Error).message || '获取互动状态失败');
+      const errorMsg = (err as Error).message || '获取互动状态失败';
+      setError(errorMsg);
+      // 如果获取状态失败，断开连接
+      disconnectStream();
+      setBanner({ tone: 'warning', message: '连接已关闭' });
+      setStatus((prev) =>
+        prev
+          ? { ...prev, is_running: false, live_id: null, room_id: null }
+          : { is_running: false, live_id: null, room_id: null, last_error: errorMsg }
+      );
     }
   }, [baseUrl, connectStream, disconnectStream]);
 
