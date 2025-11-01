@@ -17,6 +17,7 @@ from .payment import (
 )
 from .permission import Permission, RolePermission, AuditLog
 from .live import LiveSession
+from .live_review import LiveReviewReport
 from .team import Team, TeamMember, TeamRoleEnum
 
 __all__ = [
@@ -42,6 +43,7 @@ __all__ = [
     
     # Live models
     'LiveSession',
+    'LiveReviewReport',
     
     # Team models
     'Team', 'TeamMember', 'TeamRoleEnum',
