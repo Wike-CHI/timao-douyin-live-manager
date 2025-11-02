@@ -72,22 +72,36 @@ async def get_current_user(
                 detail="Invalid token"
             )
         
-        # 从数据库获取用户
-        user = db.query(User).filter(User.id == user_id).first()
+        # 确保 user_id 是整数类型
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            logger.error(f"Invalid user_id type: {type(user_id)}, value: {user_id}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token format"
+            )
+        
+        # 从数据库获取用户（排除已删除的用户）
+        user = db.query(User).filter(
+            User.id == user_id,
+            User.is_deleted == False
+        ).first()
         if user is None:
+            logger.warning(f"User not found or deleted: user_id={user_id}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found"
             )
         
-        # 检查用户状态
-        if not user.is_active:
+        # 检查用户状态（is_active 是方法，需要调用）
+        if not user.is_active():
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User account is disabled"
             )
         
-        if getattr(user, "is_locked", False):
+        if getattr(user, "is_locked", lambda: False)():
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User account is locked"
@@ -120,7 +134,8 @@ async def get_current_active_user(
             return current_user
     except Exception:
         pass
-    if not current_user.is_active:
+    # is_active 是方法，需要调用
+    if not current_user.is_active():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user"
@@ -267,8 +282,16 @@ class OptionalAuth:
             user_id = payload.get("sub")
             
             if user_id:
-                user = db.query(User).filter(User.id == user_id).first()
-                if user and user.is_active and not user.is_locked:
+                try:
+                    user_id = int(user_id)
+                except (ValueError, TypeError):
+                    return None
+                
+                user = db.query(User).filter(
+                    User.id == user_id,
+                    User.is_deleted == False
+                ).first()
+                if user and user.is_active() and not getattr(user, "is_locked", lambda: False)():
                     # 更新会话活动时间
                     session_id = payload.get("session_id")
                     if session_id:
@@ -289,8 +312,16 @@ def get_user_from_token(token: str, db: Session) -> Optional[User]:
         user_id = payload.get("sub")
         
         if user_id:
-            user = db.query(User).filter(User.id == user_id).first()
-            if user and user.is_active and not user.is_locked:
+            try:
+                user_id = int(user_id)
+            except (ValueError, TypeError):
+                return None
+            
+            user = db.query(User).filter(
+                User.id == user_id,
+                User.is_deleted == False
+            ).first()
+            if user and user.is_active() and not getattr(user, "is_locked", lambda: False)():
                 return user
     except:
         pass
@@ -315,9 +346,21 @@ def validate_refresh_token(
                 detail="Invalid refresh token"
             )
         
-        # 检查用户是否存在且活跃
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user or not user.is_active or user.is_locked:
+        # 确保 user_id 是整数类型
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token format"
+            )
+        
+        # 检查用户是否存在且活跃（排除已删除的用户）
+        user = db.query(User).filter(
+            User.id == user_id,
+            User.is_deleted == False
+        ).first()
+        if not user or not user.is_active() or getattr(user, "is_locked", lambda: False)():
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found or inactive"
