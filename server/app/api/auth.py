@@ -318,6 +318,7 @@ async def login_user(
         client_ip = req.client.host if req.client else None
         user_agent = req.headers.get("user-agent")
         logger.info(f"🌐 客户端信息 - IP: {client_ip}, User-Agent: {user_agent}")
+        logger.info(f"📝 登录请求详情 - 用户名/邮箱: {request.username_or_email}, 记住我: {request.remember_me}")
         
         # 认证用户
         logger.info("🔐 开始用户认证...")

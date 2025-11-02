@@ -255,10 +255,10 @@ def setup_cors_middleware(app, origins: list = None):
     """设置CORS中间件"""
     if origins is None:
         origins = [
-            "http://localhost:3000",
+            "http://localhost:10050",  # 管理后台开发端口
             "http://localhost:3001",
             "http://localhost:8080",
-            "http://127.0.0.1:3000",
+            "http://127.0.0.1:10050",  # 管理后台开发端口
             "http://127.0.0.1:3001",
             "http://127.0.0.1:8080",
         ]

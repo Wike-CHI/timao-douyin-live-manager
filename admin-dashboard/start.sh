@@ -17,7 +17,7 @@ if [ ! -d "node_modules" ]; then
 fi
 
 echo "[2/2] 启动开发服务器..."
-echo "访问地址: http://localhost:3000"
+echo "访问地址: http://localhost:10050"
 echo ""
 npm run dev
 

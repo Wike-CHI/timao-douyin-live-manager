@@ -39,7 +39,15 @@ except ImportError as e:
     traceback.print_exc()
     sys.exit(1)
 
-logging.basicConfig(level=logging.INFO)
+# 配置日志，确保输出到控制台
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(levelname)s:%(name)s:%(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ],
+    force=True  # 强制重新配置，覆盖之前的配置
+)
 logger = logging.getLogger(__name__)
 
 
@@ -55,17 +63,7 @@ def create_admin_user(db_manager_instance=None):
     db = manager.get_session_sync()
     
     try:
-        # 检查是否已存在管理员账号
-        existing_admin = db.query(User).filter(
-            User.role.in_([UserRoleEnum.ADMIN, UserRoleEnum.SUPER_ADMIN])
-        ).first()
-        
-        if existing_admin:
-            logger.info(f"已存在管理员账号: {existing_admin.username} (角色: {existing_admin.role.value})")
-            logger.info(f"邮箱: {existing_admin.email}")
-            return True
-        
-        # 硬编码的超级管理员账号
+        # 硬编码的超级管理员账号（优先处理）
         hardcoded_admin = {
             "username": "tc1102Admin",
             "email": "tc1102admin@timao.com",
@@ -138,6 +136,7 @@ if __name__ == "__main__":
     logger.info("🚀 开始创建管理员账号")
     logger.info("=" * 60)
     logger.info("正在初始化数据库...")
+    updated_db_manager = None
     try:
         # 从配置管理器获取数据库配置
         db_config = config_manager.config.database
@@ -146,29 +145,48 @@ if __name__ == "__main__":
         logger.info(f"📊 数据库名: {db_config.mysql_database}")
         logger.info(f"📊 数据库用户: {db_config.mysql_user}")
         
+        # 初始化数据库
         init_database(db_config)
         logger.info("✅ 数据库初始化完成")
         
-        # 重新导入以获取更新后的db_manager
-        import importlib
-        from server.app import database
-        importlib.reload(database)
+        # 初始化后，db_manager应该已经被更新
+        # 但Python的导入机制可能导致我们看到的是旧的None值
+        # 所以我们需要直接访问模块的全局变量
+        import server.app.database as db_module
         
-        # 获取更新后的db_manager实例
-        updated_db_manager = database.db_manager
+        # 再次检查模块级别的db_manager
+        updated_db_manager = db_module.db_manager
         
         if not updated_db_manager:
-            logger.error("❌ 数据库管理器未创建")
-            sys.exit(1)
+            logger.warning("⚠️ 首次导入db_manager为None，尝试重新获取...")
+            # 重新导入模块，这次应该能看到更新后的值
+            import importlib
+            importlib.reload(db_module)
+            updated_db_manager = db_module.db_manager
         
-        # 更新模块级别的db_manager引用
-        # 注意：这里不能直接修改导入的变量，需要在create_admin_user中使用updated_db_manager
+        if not updated_db_manager:
+            logger.error("❌ 数据库管理器仍未创建")
+            logger.error("   尝试直接创建新的数据库管理器实例...")
+            # 最后手段：直接创建新实例
+            from server.app.database import DatabaseManager
+            updated_db_manager = DatabaseManager(db_config)
+            updated_db_manager.initialize()
+            
+            # 验证创建成功
+            if not updated_db_manager or not hasattr(updated_db_manager, '_session_factory'):
+                logger.error("❌ 无法创建数据库管理器")
+                sys.exit(1)
+        
         logger.info("✅ 数据库连接已建立")
             
     except Exception as e:
         logger.error(f"❌ 数据库初始化失败: {str(e)}")
         import traceback
         logger.error(traceback.format_exc())
+        sys.exit(1)
+    
+    if not updated_db_manager:
+        logger.error("❌ 数据库管理器未初始化")
         sys.exit(1)
     
     logger.info("=" * 60)

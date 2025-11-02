@@ -14,6 +14,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp
 from dotenv import load_dotenv
 
 # 确保项目根目录在 Python 路径中，以便正确导入 DouyinLiveWebFetcher 等模块
@@ -127,8 +129,8 @@ allowed_origins = [
     "http://localhost:10030",
     "http://127.0.0.1:9019",  # 允许后端静态文件访问 API
     "http://localhost:9019",   # 允许后端静态文件访问 API
-    "http://127.0.0.1:3000",   # 管理后台开发端口
-    "http://localhost:3000",   # 管理后台开发端口
+    "http://127.0.0.1:10050",  # 管理后台开发端口
+    "http://localhost:10050",  # 管理后台开发端口
     "http://127.0.0.1:8090",    # 兼容旧端口
     "http://localhost:8090",     # 兼容旧端口
     "http://localhost:8001",
@@ -139,6 +141,54 @@ allowed_origins = [
     "http://localhost:5173",     # Vite默认端口
 ]
 
+# 创建OPTIONS请求处理中间件（必须在CORS中间件之前）
+class OPTIONSHandlerMiddleware(BaseHTTPMiddleware):
+    """OPTIONS请求处理中间件 - 优先处理所有OPTIONS预检请求"""
+    def __init__(self, app: ASGIApp, allowed_origins: list):
+        super().__init__(app)
+        self.allowed_origins = allowed_origins
+    
+    async def dispatch(self, request: Request, call_next):
+        # 如果是OPTIONS请求，直接处理，不继续传递
+        if request.method == "OPTIONS":
+            origin = request.headers.get("origin", "")
+            access_control_request_method = request.headers.get("access-control-request-method", "")
+            access_control_request_headers = request.headers.get("access-control-request-headers", "")
+            
+            logging.info(f"🌐 [OPTIONS中间件] 预检请求 - Origin: {origin}, Path: {request.url.path}")
+            logging.info(f"   请求方法: {access_control_request_method}, 请求头: {access_control_request_headers}")
+            
+            # 确定允许的origin
+            if origin and origin in self.allowed_origins:
+                allow_origin = origin
+                logging.info(f"✅ [OPTIONS中间件] Origin在允许列表中: {origin}")
+            elif origin and ("localhost" in origin or "127.0.0.1" in origin):
+                # 开发模式：允许localhost/127.0.0.1
+                allow_origin = origin
+                logging.info(f"✅ [OPTIONS中间件] 开发模式：已允许 {origin}")
+            else:
+                allow_origin = origin if origin else "*"
+                if origin:
+                    logging.warning(f"⚠️ [OPTIONS中间件] Origin不在允许列表中: {origin}，但已允许")
+            
+            response_headers = {
+                "Access-Control-Allow-Origin": allow_origin,
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, Origin, X-Requested-With, Access-Control-Request-Method, Access-Control-Request-Headers",
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Max-Age": "3600",
+            }
+            
+            logging.info(f"📤 [OPTIONS中间件] 返回200响应 - Allow-Origin: {allow_origin}")
+            return Response(status_code=200, headers=response_headers)
+        
+        # 非OPTIONS请求，继续传递
+        return await call_next(request)
+
+# 先添加OPTIONS处理中间件（优先级最高）
+app.add_middleware(OPTIONSHandlerMiddleware, allowed_origins=allowed_origins)
+
+# 然后添加CORS中间件
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
@@ -163,6 +213,33 @@ logging.info(f"   允许的来源: {len(allowed_origins)} 个")
 for origin in allowed_origins:
     logging.info(f"   - {origin}")
 logging.info("=" * 60)
+
+# 备用OPTIONS路由处理器（如果中间件没有捕获到）
+@app.options("/{full_path:path}")
+async def options_handler_fallback(request: Request, full_path: str):
+    """OPTIONS请求备用处理器（正常情况下应该由中间件处理）"""
+    origin = request.headers.get("origin", "")
+    logging.warning(f"⚠️ [备用处理器] OPTIONS请求 - Origin: {origin}, Path: /{full_path}")
+    logging.warning(f"   注意：此请求应该被OPTIONSHandlerMiddleware中间件拦截")
+    
+    # 确定允许的origin
+    if origin and origin in allowed_origins:
+        allow_origin = origin
+    elif origin and ("localhost" in origin or "127.0.0.1" in origin):
+        allow_origin = origin
+    else:
+        allow_origin = origin if origin else "*"
+    
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": allow_origin,
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, Origin, X-Requested-With, Access-Control-Request-Method, Access-Control-Request-Headers",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "3600",
+        }
+    )
 
 # 添加CORS测试端点（用于验证CORS配置）
 @app.get("/api/cors-test")

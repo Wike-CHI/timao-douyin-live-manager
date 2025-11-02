@@ -6,11 +6,14 @@ export const authProvider: AuthProvider = {
   // 登录
   login: async ({ username, password }) => {
     try {
+      console.log('🔐 开始登录请求...', { username, apiBase: API_BASE });
+      
       const response = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // 允许发送cookies
         body: JSON.stringify({
           username_or_email: username,
           password: password,
@@ -18,12 +21,35 @@ export const authProvider: AuthProvider = {
         }),
       });
 
+      console.log('📡 登录响应状态:', response.status, response.statusText);
+      console.log('📡 响应头:', Object.fromEntries(response.headers.entries()));
+
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: '登录失败' }));
-        throw new Error(error.detail || '登录失败');
+        let errorDetail = '登录失败';
+        try {
+          const errorData = await response.json();
+          errorDetail = errorData.detail || errorData.message || `HTTP ${response.status}: ${response.statusText}`;
+          console.error('❌ 登录失败:', errorData);
+        } catch (e) {
+          errorDetail = `HTTP ${response.status}: ${response.statusText}`;
+          const errorText = await response.text();
+          console.error('❌ 登录失败（无法解析JSON）:', errorText);
+        }
+        
+        // 如果是CORS错误，提供更详细的错误信息
+        if (response.status === 0 || response.type === 'opaque') {
+          errorDetail = 'CORS错误：无法连接到后端服务。请检查后端服务是否运行，以及CORS配置是否正确。';
+          console.error('❌ CORS错误:', {
+            origin: window.location.origin,
+            target: `${API_BASE}/api/auth/login`,
+          });
+        }
+        
+        throw new Error(errorDetail);
       }
 
       const data = await response.json();
+      console.log('✅ 登录成功，响应数据:', { hasToken: !!(data.access_token || data.token), hasRefreshToken: !!(data.refresh_token) });
       
       // 保存token - 支持多种字段名
       const token = data.access_token || data.token || data.accessToken;
@@ -33,12 +59,19 @@ export const authProvider: AuthProvider = {
         if (refreshToken) {
           localStorage.setItem('refresh_token', refreshToken);
         }
+        console.log('✅ Token已保存到localStorage');
       } else {
+        console.error('❌ 登录响应中未找到token:', data);
         throw new Error('登录响应中未找到token');
       }
 
       return Promise.resolve();
-    } catch (error) {
+    } catch (error: any) {
+      console.error('❌ 登录异常:', error);
+      // 提供更详细的错误信息
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        return Promise.reject(new Error(`网络错误：无法连接到后端服务 ${API_BASE}。请检查后端服务是否运行。`));
+      }
       return Promise.reject(error);
     }
   },

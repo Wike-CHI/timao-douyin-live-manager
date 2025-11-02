@@ -49,7 +49,7 @@ cp .env.example .env
 npm run dev
 ```
 
-访问：http://localhost:3000
+访问：http://localhost:10050
 
 ### 4. 登录
 
