@@ -97,6 +97,13 @@ class LiveReportService:
         self._comment_task: Optional[asyncio.Task] = None
         self._relay_client_queue: Optional[asyncio.Queue] = None
 
+        # 🆕 URL 自动刷新机制
+        self._url_refresh_task: Optional[asyncio.Task] = None
+        self._url_refresh_interval: int = 20 * 60  # 20 分钟刷新一次
+        self._health_monitor_task: Optional[asyncio.Task] = None
+        self._current_record_url: Optional[str] = None
+        self._output_pattern: Optional[str] = None
+
         # Shared ASR (lazy)
         self._sv: Optional[SenseVoiceService] = None
         # Rolling analysis state
@@ -184,6 +191,10 @@ class LiveReportService:
             seg_secs = max(300, int(segment_minutes) * 60)
             pattern = str(out_dir / f"{anchor}_%Y%m%d_%H%M%S_%03d.mp4")
 
+            # 🆕 保存流 URL 和输出模式
+            self._current_record_url = record_url
+            self._output_pattern = pattern
+
             self._session = LiveReportStatus(
                 session_id=session_id,
                 live_url=live_url,
@@ -201,6 +212,14 @@ class LiveReportService:
             self._session.recording_pid = self._ffmpeg_proc.pid
             logger.info(f"✅ FFmpeg 启动成功，PID: {self._ffmpeg_proc.pid}")
 
+            # 🆕 启动 URL 自动刷新任务
+            self._url_refresh_task = asyncio.create_task(self._auto_refresh_stream_url())
+            logger.info(f"🔄 启动 URL 自动刷新任务，间隔: {self._url_refresh_interval // 60} 分钟")
+
+            # 🆕 启动健康监控任务
+            self._health_monitor_task = asyncio.create_task(self._monitor_ffmpeg_health())
+            logger.info(f"💓 启动 ffmpeg 健康监控任务")
+
             # Start Douyin relay and consume events into in-memory buffer
             relay = get_douyin_web_relay()
             if live_id:
@@ -215,6 +234,13 @@ class LiveReportService:
             
             self._comment_task = asyncio.create_task(self._consume_danmu())
             logger.info(f"✅ 启动弹幕消费任务")
+
+            logger.info("=" * 60)
+            logger.info("✅ 录制已启动，后台任务运行中:")
+            logger.info(f"  📺 URL 刷新: 每 {self._url_refresh_interval // 60} 分钟")
+            logger.info(f"  💓 健康检查: 每 30 秒")
+            logger.info(f"  💬 弹幕收集: 实时")
+            logger.info("=" * 60)
 
             return self._session
         
@@ -268,6 +294,28 @@ class LiveReportService:
                 transcript_chars=0,
                 metrics={}
             )
+
+        logger.info("🛑 停止录制...")
+
+        # 🆕 停止 URL 刷新任务
+        if self._url_refresh_task:
+            self._url_refresh_task.cancel()
+            try:
+                await self._url_refresh_task
+            except asyncio.CancelledError:
+                pass
+            self._url_refresh_task = None
+            logger.info("✅ URL 刷新任务已停止")
+
+        # 🆕 停止健康监控任务
+        if self._health_monitor_task:
+            self._health_monitor_task.cancel()
+            try:
+                await self._health_monitor_task
+            except asyncio.CancelledError:
+                pass
+            self._health_monitor_task = None
+            logger.info("✅ 健康监控任务已停止")
 
         # Stop ffmpeg
         if self._ffmpeg_proc:
@@ -499,9 +547,21 @@ class LiveReportService:
             logger.warning("Failed to update style memory: %s", exc)
 
     async def _start_ffmpeg(self, record_url: str, seg_secs: int, pattern: str) -> AsyncProcess:
+        """
+        启动 ffmpeg 进程录制直播流
+        
+        Args:
+            record_url: 直播流 URL
+            seg_secs: 分段时长(秒)
+            pattern: 输出文件名模式
+        
+        Returns:
+            AsyncProcess: ffmpeg 进程对象
+        """
         headers = None
         if "douyin" in record_url:
             headers = "referer:https://live.douyin.com"
+        
         builder = create_builder(
             "mp4",
             record_url=record_url,
@@ -511,11 +571,28 @@ class LiveReportService:
             headers=headers,
         )
         cmd = builder.build_command()
+        
+        # 🆕 添加容错参数（在 -i 参数之前插入）
+        input_idx = cmd.index("-i") if "-i" in cmd else -1
+        if input_idx > 0:
+            # 插入容错参数
+            reconnect_options = [
+                "-reconnect", "1",              # 自动重连
+                "-reconnect_streamed", "1",     # 流式重连
+                "-reconnect_delay_max", "5",    # 最大重连延迟 5 秒
+                "-rw_timeout", "10000000",      # 读写超时 10 秒（10 秒）
+            ]
+            for i, opt in enumerate(reconnect_options):
+                cmd.insert(input_idx + i, opt)
+        
         if ("%Y" in pattern or "%H" in pattern or "%M" in pattern or "%S" in pattern) and "-strftime" not in cmd:
             # Insert strftime flag right before the output pattern so rotated files carry wall-clock timestamps.
             output_idx = len(cmd) - 1
             cmd.insert(output_idx, "1")
             cmd.insert(output_idx, "-strftime")
+        
+        logger.info(f"🎬 启动 ffmpeg 命令: {' '.join(cmd[:15])}...")
+        
         proc = await create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -538,6 +615,206 @@ class LiveReportService:
                 proc.kill()
         except ProcessLookupError:
             pass
+
+    def _extract_record_url(self, info) -> Optional[str]:
+        """
+        🆕 提取录制 URL（兼容 dict 和对象）
+        
+        Args:
+            info: streamget 返回的流信息
+        
+        Returns:
+            录制 URL 或 None
+        """
+        if isinstance(info, dict):
+            return info.get("record_url") or info.get("flv_url") or info.get("m3u8_url")
+        else:
+            return (
+                getattr(info, "record_url", None)
+                or getattr(info, "flv_url", None)
+                or getattr(info, "m3u8_url", None)
+            )
+
+    async def _auto_refresh_stream_url(self):
+        """
+        🆕 自动刷新流 URL 的后台任务
+        
+        工作流程:
+        1. 每 20 分钟触发一次
+        2. 重新获取流 URL
+        3. 无缝切换 ffmpeg 进程
+        4. 保存当前分段
+        """
+        try:
+            while self._session and self._ffmpeg_proc:
+                # 等待刷新间隔
+                await asyncio.sleep(self._url_refresh_interval)
+                
+                logger.info("🔄 开始刷新直播流 URL...")
+                
+                try:
+                    # 1. 重新获取流地址
+                    handler = get_platform_handler(live_url=self._session.live_url)
+                    if handler is None:
+                        logger.warning("⚠️ 无法获取平台处理器，跳过本次刷新")
+                        continue
+                    
+                    info = await handler.get_stream_info(self._session.live_url)
+                    new_record_url = self._extract_record_url(info)
+                    
+                    if not new_record_url:
+                        logger.warning("⚠️ 无法获取新的流地址，保持当前流")
+                        continue
+                    
+                    # 2. 检查直播是否仍在进行
+                    is_live = info.get("is_live") if isinstance(info, dict) else getattr(info, "is_live", True)
+                    if not is_live:
+                        logger.info("📴 检测到直播已结束，停止录制")
+                        await self.stop()
+                        break
+                    
+                    # 3. 检查 URL 是否发生变化
+                    if new_record_url == self._current_record_url:
+                        logger.info("ℹ️ 流地址未变化，无需切换")
+                        continue
+                    
+                    # 4. 切换到新的流 URL
+                    logger.info(f"🔄 切换流地址: {new_record_url[:80]}...")
+                    
+                    # 4.1 优雅停止旧的 ffmpeg 进程
+                    old_proc = self._ffmpeg_proc
+                    if old_proc:
+                        try:
+                            await self._graceful_stop_ffmpeg(old_proc)
+                            logger.info("✅ 旧 ffmpeg 进程已停止")
+                        except Exception as e:
+                            logger.warning(f"⚠️ 停止旧进程失败: {e}")
+                    
+                    # 4.2 启动新的 ffmpeg 进程
+                    seg_secs = self._session.segment_seconds
+                    pattern = self._output_pattern
+                    
+                    self._ffmpeg_proc = await self._start_ffmpeg(new_record_url, seg_secs, pattern)
+                    self._current_record_url = new_record_url
+                    self._session.recording_pid = self._ffmpeg_proc.pid
+                    
+                    logger.info(f"✅ 流地址刷新成功，新 PID: {self._ffmpeg_proc.pid}")
+                    
+                except Exception as e:
+                    logger.error(f"❌ 刷新流地址失败: {e}")
+                    # 继续使用旧的流，等待下次刷新
+                    continue
+        
+        except asyncio.CancelledError:
+            logger.info("URL 刷新任务已取消")
+        except Exception as e:
+            logger.error(f"URL 刷新任务异常: {e}")
+
+    async def _monitor_ffmpeg_health(self):
+        """
+        🆕 监控 ffmpeg 进程健康状态
+        
+        检测:
+        1. 进程是否异常退出
+        2. 输出文件是否在增长
+        3. 网络是否断连
+        """
+        try:
+            last_file_size = 0
+            no_growth_count = 0
+            
+            while self._session and self._ffmpeg_proc:
+                await asyncio.sleep(30)  # 每 30 秒检查一次
+                
+                # 1. 检查进程是否存活
+                if self._ffmpeg_proc.returncode is not None:
+                    logger.error(f"❌ ffmpeg 进程异常退出，返回码: {self._ffmpeg_proc.returncode}")
+                    # 尝试重启
+                    try:
+                        await self._restart_ffmpeg()
+                    except Exception as e:
+                        logger.error(f"❌ 重启 ffmpeg 失败: {e}")
+                        await self.stop()
+                        break
+                    continue
+                
+                # 2. 检查文件是否在增长
+                try:
+                    out_dir = Path(self._session.recording_dir)
+                    files = list(out_dir.glob("*.mp4"))
+                    if files:
+                        latest_file = max(files, key=lambda f: f.stat().st_mtime)
+                        current_size = latest_file.stat().st_size
+                        
+                        if current_size == last_file_size:
+                            no_growth_count += 1
+                            logger.warning(f"⚠️ 文件大小未增长 ({no_growth_count}/3): {latest_file.name}")
+                            
+                            if no_growth_count >= 3:
+                                logger.error("❌ 文件长时间无增长，可能网络断连，尝试刷新流")
+                                try:
+                                    await self._restart_ffmpeg()
+                                    no_growth_count = 0
+                                except Exception as e:
+                                    logger.error(f"❌ 重启失败: {e}")
+                                    await self.stop()
+                                    break
+                        else:
+                            if no_growth_count > 0:
+                                logger.info("✅ 文件正常增长，恢复健康")
+                            no_growth_count = 0
+                            last_file_size = current_size
+                except Exception as e:
+                    logger.warning(f"健康检查失败: {e}")
+        
+        except asyncio.CancelledError:
+            logger.info("健康监控任务已取消")
+        except Exception as e:
+            logger.error(f"健康监控任务异常: {e}")
+
+    async def _restart_ffmpeg(self):
+        """🆕 重启 ffmpeg 进程"""
+        logger.info("🔄 重启 ffmpeg 进程...")
+        
+        try:
+            # 1. 停止旧进程
+            if self._ffmpeg_proc:
+                try:
+                    await self._graceful_stop_ffmpeg(self._ffmpeg_proc)
+                except Exception as e:
+                    logger.warning(f"停止旧进程时出错: {e}")
+            
+            # 2. 重新获取流 URL
+            handler = get_platform_handler(live_url=self._session.live_url)
+            if handler is None:
+                raise RuntimeError("无法获取平台处理器")
+            
+            info = await handler.get_stream_info(self._session.live_url)
+            new_record_url = self._extract_record_url(info)
+            
+            if not new_record_url:
+                raise RuntimeError("无法获取新的流地址")
+            
+            # 检查直播是否还在进行
+            is_live = info.get("is_live") if isinstance(info, dict) else getattr(info, "is_live", True)
+            if not is_live:
+                logger.info("📴 直播已结束")
+                await self.stop()
+                return
+            
+            # 3. 启动新进程
+            seg_secs = self._session.segment_seconds
+            pattern = self._output_pattern
+            
+            self._ffmpeg_proc = await self._start_ffmpeg(new_record_url, seg_secs, pattern)
+            self._current_record_url = new_record_url
+            self._session.recording_pid = self._ffmpeg_proc.pid
+            
+            logger.info(f"✅ ffmpeg 重启成功，新 PID: {self._ffmpeg_proc.pid}")
+        
+        except Exception as e:
+            logger.error(f"❌ ffmpeg 重启失败: {e}")
+            raise
 
     async def _watch_segments_tail(self, pattern: str) -> None:
         # After ffmpeg starts, periodically rescan output dir for new files
