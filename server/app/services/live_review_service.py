@@ -11,6 +11,7 @@
 import json
 import logging
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List
@@ -20,6 +21,7 @@ from sqlalchemy.orm import Session
 from ...ai.ai_gateway import get_gateway
 from ..models.live_review import LiveReviewReport
 from ..models.live import LiveSession
+from server.utils.service_logger import log_generation_start, log_generation_complete, log_generation_error
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +76,8 @@ class LiveReviewService:
             db.delete(existing_report)
             db.flush()
         
+        start_time = time.time()
+        log_generation_start("复盘报告", f"session_id={session_id}", room_id=session.room_id)
         logger.info(f"🚀 开始生成复盘报告: session_id={session_id}, room_id={session.room_id}")
         
         # 1. 加载直播数据
@@ -105,6 +109,8 @@ class LiveReviewService:
             )
             
             if not ai_response.success:
+                duration = time.time() - start_time
+                log_generation_error("复盘报告", f"session_id={session_id}", f"Gemini API 调用失败: {ai_response.error}", duration=f"{duration:.2f}秒")
                 logger.error(f"❌ Gemini 调用失败: {ai_response.error}")
                 report = LiveReviewReport(
                     session_id=session_id,
@@ -122,6 +128,8 @@ class LiveReviewService:
             response_duration = ai_response.duration_ms / 1000.0  # 转换为秒
             
         except Exception as e:
+            duration = time.time() - start_time
+            log_generation_error("复盘报告", f"session_id={session_id}", str(e), duration=f"{duration:.2f}秒")
             logger.error(f"❌ Gemini 调用异常: {e}", exc_info=True)
             report = LiveReviewReport(
                 session_id=session_id,
@@ -178,6 +186,16 @@ class LiveReviewService:
         
         db.commit()
         
+        duration = time.time() - start_time
+        log_generation_complete(
+            "复盘报告",
+            f"session_id={session_id}",
+            duration=duration,
+            report_id=report.id,
+            score=report.overall_score,
+            cost=f"${report.generation_cost:.6f}",
+            tokens=report.generation_tokens
+        )
         logger.info(
             f"✅ 复盘报告生成成功: report_id={report.id}, "
             f"score={report.overall_score}, "

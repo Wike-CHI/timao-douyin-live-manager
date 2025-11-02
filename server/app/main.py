@@ -39,6 +39,7 @@ from server.app.database import init_database, close_database
 from server.app.models import Base
 from server.utils.ai_defaults import ensure_default_ai_env
 from server.config import config_manager
+from server.utils.service_logger import log_service_start, log_service_stop
 
 if os.name == "nt":
     try:
@@ -143,10 +144,18 @@ def _include_router_safe(desc: str, import_path: str):
     try:
         import importlib
         mod = importlib.import_module(import_path)
-        app.include_router(getattr(mod, "router"))
-        logging.info(f"✅ 路由已加载: {desc}")
+        router = getattr(mod, "router", None)
+        if router is None:
+            logging.error(f"❌ 路由加载失败[{desc}]: 模块 {import_path} 中没有找到 'router' 对象")
+            return
+        app.include_router(router)
+        logging.info(f"✅ 路由已加载: {desc} (路径: {import_path})")
+    except ImportError as e:
+        logging.error(f"❌ 路由导入失败[{desc}]: {e}", exc_info=True)
+    except AttributeError as e:
+        logging.error(f"❌ 路由属性错误[{desc}]: {e}", exc_info=True)
     except Exception as e:
-        logging.error(f"❌ 路由加载失败[{desc}]: {e}")
+        logging.error(f"❌ 路由加载失败[{desc}]: {e}", exc_info=True)
 
 
 # 分段加载（避免单个模块失败影响全局）
@@ -295,6 +304,7 @@ async def streamcap_health_check():
 async def startup_event():
     """应用启动"""
     logging.info("🐱 提猫直播助手启动中...")
+    log_service_start("FastAPI主服务")
     
     # 初始化 Redis
     try:
@@ -312,6 +322,7 @@ async def startup_event():
         else:
             redis_client = init_redis(redis_config)
             if redis_client.is_enabled():
+                log_service_start("Redis缓存服务")
                 logging.info("✅ Redis 缓存已启用")
             else:
                 logging.warning("⚠️ Redis 连接失败，已回退到内存缓存")
@@ -322,15 +333,19 @@ async def startup_event():
     try:
         db_config = config_manager.config.database
         init_database(db_config)
+        log_service_start("数据库服务")
         logging.info("✅ 数据库已初始化")
     except Exception as e:
         logging.error(f"❌ 数据库初始化失败: {e}")
     
     try:
         start_websocket_services()
+        log_service_start("WebSocket服务")
         logging.info("✅ WebSocket 服务已启动")
     except Exception as e:
         logging.error(f"❌ WebSocket 服务启动失败: {e}")
+    
+    log_service_start("FastAPI主服务", status="启动完成")
     logging.info("✅ FastAPI服务已启动")
 
     # 后台引导：FFmpeg 与模型（首次启动自动准备）
@@ -353,23 +368,27 @@ async def startup_event():
 async def shutdown_event():
     """应用关闭"""
     logging.info("🐱 提猫直播助手正在关闭...")
+    log_service_stop("FastAPI主服务")
     
     # 关闭 Redis 连接
     try:
         from server.utils.redis_manager import close_redis
         close_redis()
+        log_service_stop("Redis缓存服务")
         logging.info("✅ Redis 连接已关闭")
     except Exception as e:
         logging.error(f"❌ Redis 关闭失败: {e}")
     
     try:
         stop_websocket_services()
+        log_service_stop("WebSocket服务")
         logging.info("✅ WebSocket 服务已停止")
     except Exception as e:
         logging.error(f"❌ WebSocket 服务停止失败: {e}")
     
     try:
         close_database()
+        log_service_stop("数据库服务")
         logging.info("✅ 数据库连接已关闭")
     except Exception as e:
         logging.error(f"❌ 数据库关闭失败: {e}")

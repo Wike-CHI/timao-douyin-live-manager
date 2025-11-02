@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
+import logging
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Set
 
@@ -25,6 +26,7 @@ from server.modules.douyin.liveMan import (
     RoomUserSeqMessage,
     SocialMessage,
 )
+from server.utils.service_logger import log_service_start, log_service_stop
 
 
 @dataclass
@@ -307,6 +309,7 @@ class DouyinWebRelay:
             self._status = RelayStatus(is_running=True, live_id=live_id)
             self._status.last_error = None
             self._status.room_id = None
+            log_service_start("抖音直播互动服务", live_id=live_id)
             self._emit_status("starting", {"live_id": live_id})
 
             def emitter(event: Dict[str, Any]) -> None:
@@ -495,8 +498,12 @@ class DouyinWebRelay:
 
             fetcher = self._fetcher
             thread = self._thread
+            live_id = self._status.live_id
+            room_id = self._status.room_id
             self._status.is_running = False
             self._status.live_id = None
+
+            log_service_stop("抖音直播互动服务", live_id=live_id, room_id=room_id)
 
             if fetcher:
                 await asyncio.to_thread(fetcher.stop)

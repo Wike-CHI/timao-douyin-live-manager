@@ -19,6 +19,7 @@ from ..database import get_db_session
 from ..services.live_review_service import get_live_review_service
 from ..models.live_review import LiveReviewReport
 from ..models.live import LiveSession
+from server.utils.service_logger import log_generation_start, log_generation_complete, log_generation_error
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,7 @@ async def end_session(
     # 如果需要生成复盘，加入后台任务
     if req.generate_review:
         review_service = get_live_review_service()
+        log_generation_start("复盘报告", f"session_id={req.session_id}", room_id=session.room_id)
         background_tasks.add_task(review_service.generate_review, req.session_id, db)
         message = "直播已结束，复盘报告生成中（预计 30-60 秒）..."
     else:
@@ -125,6 +127,7 @@ async def generate_review(
     
     # 异步生成报告
     review_service = get_live_review_service()
+    log_generation_start("复盘报告", f"session_id={req.session_id}", force_regenerate=req.force_regenerate)
     background_tasks.add_task(review_service.generate_review, req.session_id, db)
     
     return {

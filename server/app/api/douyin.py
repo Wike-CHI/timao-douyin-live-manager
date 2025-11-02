@@ -16,6 +16,7 @@ from pydantic import BaseModel
 # 服务导入
 from ..services.douyin_service import get_douyin_service
 from ..services.douyin_web_relay import get_douyin_web_relay
+from server.utils.service_logger import log_service_start, log_service_stop, log_service_error
 
 router = APIRouter(prefix="/api/douyin", tags=["douyin"])
 
@@ -64,12 +65,19 @@ async def start_monitoring(request: StartMonitoringRequest):
         live_id = _parse_live_id(request.live_id) or _parse_live_id(request.live_url)
         if not live_id:
             raise HTTPException(status_code=400, detail="live_id 或 live_url 无效")
+        
+        log_service_start("抖音直播监控服务", live_id=live_id, live_url=request.live_url)
+        
         # 传递可选 cookie 到服务层
         result = await service.start_monitoring(live_id, cookie=request.cookie)
         if result.get("success"):
+            log_service_start("抖音直播监控服务", live_id=live_id, status="已启动")
             return BaseResponse(success=True, message="监控已启动", data=result)
+        
+        log_service_error("抖音直播监控服务", result.get("error", "监控启动失败"), live_id=live_id)
         return BaseResponse(success=False, message=result.get("error", "监控启动失败"), data=result)
     except Exception as e:
+        log_service_error("抖音直播监控服务", str(e), live_id=request.live_id, live_url=request.live_url)
         logging.exception("启动监控失败")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -83,6 +91,11 @@ async def stop_monitoring():
         service = get_douyin_service()
         relay = get_douyin_web_relay()
         
+        # 获取当前状态以便记录
+        relay_status = relay.get_status()
+        
+        log_service_stop("抖音直播监控服务", live_id=relay_status.live_id, room_id=relay_status.room_id)
+        
         # 停止监控服务
         result = await service.stop_monitoring()
         
@@ -90,9 +103,13 @@ async def stop_monitoring():
         await relay.stop()
         
         if result.get("success"):
+            log_service_stop("抖音直播监控服务", status="已停止")
             return BaseResponse(success=True, message="监控已停止", data=result)
+        
+        log_service_error("抖音直播监控服务", result.get("error", "监控停止失败"))
         return BaseResponse(success=False, message=result.get("error", "监控停止失败"), data=result)
     except Exception as e:
+        log_service_error("抖音直播监控服务", str(e))
         logging.exception("停止监控失败")
         raise HTTPException(status_code=500, detail=str(e))
 

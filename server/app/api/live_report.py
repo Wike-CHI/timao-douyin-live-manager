@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from ..services.live_report_service import get_live_report_service
-
+from server.utils.service_logger import log_service_start, log_service_stop, log_generation_start, log_generation_complete, log_generation_error
 
 router = APIRouter(prefix="/api/report/live", tags=["live-report"])
 
@@ -32,7 +32,9 @@ class BaseResp(BaseModel):
 async def start_live_report(req: StartReq) -> BaseResp:
     try:
         svc = get_live_report_service()
+        log_service_start("直播录制服务", live_url=req.live_url, segment_minutes=req.segment_minutes)
         status = await svc.start(req.live_url, req.segment_minutes)
+        log_service_start("直播录制服务", session_id=status.session_id, recording_pid=status.recording_pid, status="已启动")
         return BaseResp(data={
             "session_id": status.session_id,
             "recording_pid": status.recording_pid,
@@ -42,6 +44,8 @@ async def start_live_report(req: StartReq) -> BaseResp:
     except Exception as e:
         import logging
         logger = logging.getLogger(__name__)
+        from server.utils.service_logger import log_service_error
+        log_service_error("直播录制服务", str(e), live_url=req.live_url)
         logger.error(f"Live report start failed: {type(e).__name__}: {str(e)}", exc_info=True)
         
         # 提供更具体的错误信息
@@ -65,6 +69,7 @@ async def stop_live_report() -> BaseResp:
     try:
         svc = get_live_report_service()
         status = await svc.stop()
+        log_service_stop("直播录制服务", session_id=status.session_id, segments=status.segments, comments_count=status.comments_count)
         return BaseResp(data={
             "session_id": status.session_id,
             "stopped_at": status.stopped_at,
@@ -96,11 +101,17 @@ async def live_report_status() -> dict:
 async def generate_live_report() -> BaseResp:
     try:
         svc = get_live_report_service()
+        import time
+        start_time = time.time()
+        log_generation_start("直播报告", "当前会话")
         artifacts = await svc.generate_report()
+        duration = time.time() - start_time
+        log_generation_complete("直播报告", "当前会话", duration=duration)
         return BaseResp(data=artifacts)
     except Exception as e:
         import logging
         logger = logging.getLogger(__name__)
+        log_generation_error("直播报告", "当前会话", str(e))
         logger.error(f"Live report generate failed: {type(e).__name__}: {str(e)}", exc_info=True)
         
         # 提供更具体的错误信息

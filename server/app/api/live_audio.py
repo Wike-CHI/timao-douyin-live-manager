@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from pathlib import Path
 
 from ..services.live_audio_stream_service import get_live_audio_service
+from server.utils.service_logger import log_service_start, log_service_stop, log_service_error
 
 
 router = APIRouter(prefix="/api/live_audio", tags=["live-audio"])
@@ -63,6 +64,7 @@ class BaseResp(BaseModel):
 async def start_live_audio(req: StartReq) -> BaseResp:
     svc = get_live_audio_service()
     try:
+        log_service_start("实时音频转写服务", live_url=req.live_url, session_id=req.session_id)
         # Apply profile first; subsequent explicit params override the preset
         if req.profile:
             svc.apply_profile(req.profile)
@@ -93,6 +95,7 @@ async def start_live_audio(req: StartReq) -> BaseResp:
         if req.min_sentence_chars is not None:
             svc.min_sentence_chars = int(req.min_sentence_chars)
         st = await svc.start(req.live_url, req.session_id)
+        log_service_start("实时音频转写服务", live_id=st.live_id, session_id=st.session_id, ffmpeg_pid=st.ffmpeg_pid)
         return BaseResp(data={
             "session_id": st.session_id,
             "live_id": st.live_id,
@@ -105,6 +108,7 @@ async def start_live_audio(req: StartReq) -> BaseResp:
     except Exception as e:
         import logging
         logger = logging.getLogger(__name__)
+        log_service_error("实时音频转写服务", str(e), live_url=req.live_url, session_id=req.session_id)
         logger.error(f"Live audio start failed: {type(e).__name__}: {str(e)}", exc_info=True)
         
         # 提供更具体的错误信息
@@ -127,6 +131,7 @@ async def start_live_audio(req: StartReq) -> BaseResp:
 async def stop_live_audio() -> BaseResp:
     svc = get_live_audio_service()
     st = await svc.stop()
+    log_service_stop("实时音频转写服务", session_id=st.session_id, live_id=st.live_id)
     return BaseResp(data={
         "is_running": st.is_running,
         "session_id": st.session_id,

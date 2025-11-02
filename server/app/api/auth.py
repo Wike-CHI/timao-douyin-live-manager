@@ -17,6 +17,7 @@ from server.app.services.user_service import UserService
 from server.app.services.subscription_service import SubscriptionService
 from server.app.models.user import UserRoleEnum, UserStatusEnum
 from server.config import get_config
+from server.utils.service_logger import log_user_action
 
 
 # 创建路由器
@@ -249,6 +250,7 @@ async def register_user(
         db.refresh(user)  # 刷新用户对象
         
         logger.info(f"✅ 用户注册成功: {user.username} (ID: {user.id})")
+        log_user_action("注册", user_id=user.id, username=user.username, email=user.email)
         
         return UserResponse(
             id=user.id,
@@ -393,6 +395,7 @@ async def login_user(
         first_free_used = False  # 临时设置为False，允许使用AI服务
         
         logger.info("📦 构建登录响应...")
+        log_user_action("登录", user_id=user.id, username=user.username, is_paid=is_paid)
         return LoginResponse(
             success=True,
             token=access_token,  # 前端期望的字段名

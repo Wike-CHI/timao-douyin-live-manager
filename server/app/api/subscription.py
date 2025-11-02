@@ -13,6 +13,7 @@ from server.app.database import get_db_session
 from server.app.api.auth import get_current_user
 from server.app.services.subscription_service import SubscriptionService
 from server.app.models.subscription import SubscriptionPlanTypeEnum, PaymentMethodEnum
+from server.utils.service_logger import log_subscription_event
 
 
 # 创建路由器
@@ -181,6 +182,9 @@ async def create_payment(
             client_ip=client_ip
         )
         
+        log_subscription_event("创建支付订单", user_id=current_user["id"], plan_id=request.plan_id, 
+                               payment_id=payment.id, amount=payment.amount, payment_method=request.payment_method.value)
+        
         return {
             "payment_id": payment.id,
             "amount": payment.amount,
@@ -218,6 +222,12 @@ async def confirm_payment(
         )
         
         if success:
+            # 获取支付信息以便记录
+            from server.app.models.payment import Payment
+            payment = db.query(Payment).filter(Payment.id == request.payment_id).first()
+            if payment:
+                log_subscription_event("支付确认成功", user_id=payment.user_id, payment_id=payment.id, 
+                                       transaction_id=request.transaction_id, amount=payment.amount)
             return {"message": "支付确认成功"}
         else:
             raise HTTPException(
@@ -294,6 +304,8 @@ async def update_subscription(
                 subscription_id=subscription.id,
                 auto_renew=request.auto_renew
             )
+            log_subscription_event("更新订阅设置", user_id=current_user["id"], subscription_id=subscription.id, 
+                                   auto_renew=request.auto_renew)
         
         return {"message": "订阅设置更新成功"}
         
@@ -324,6 +336,8 @@ async def cancel_subscription(
         success = SubscriptionService.cancel_subscription(subscription.id)
         
         if success:
+            log_subscription_event("取消订阅", user_id=current_user["id"], subscription_id=subscription.id, 
+                                   plan_name=subscription.plan.name)
             return {"message": "订阅取消成功"}
         else:
             raise HTTPException(
