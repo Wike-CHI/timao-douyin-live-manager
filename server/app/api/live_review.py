@@ -170,6 +170,7 @@ async def get_review(
             "key_highlights": report.key_highlights,
             "key_issues": report.key_issues,
             "improvement_suggestions": report.improvement_suggestions,
+            "trend_charts": report.trend_charts,  # 添加趋势图数据
             "full_report_markdown": report.full_report_text,
             "generated_at": report.generated_at.isoformat() if report.generated_at else None,
             "ai_model": report.ai_model,
@@ -210,6 +211,59 @@ async def list_recent_reviews(
             }
             for r in reports
         ]
+    }
+
+
+@router.get("/report/{report_id}")
+async def get_review_by_id(
+    report_id: int,
+    db: Session = Depends(get_db_session)
+):
+    """通过报告ID获取完整的复盘报告数据
+    
+    - **report_id**: 报告 ID
+    
+    返回：
+    - 完整的复盘报告数据，包含趋势图
+    """
+    report = db.query(LiveReviewReport).filter(LiveReviewReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="报告不存在")
+    
+    # 获取关联的会话数据
+    session = db.query(LiveSession).filter(LiveSession.id == report.session_id).first()
+    
+    return {
+        "success": True,
+        "data": {
+            "id": report.id,
+            "session_id": report.session_id,
+            "status": report.status,
+            "overall_score": report.overall_score,
+            "performance_analysis": report.performance_analysis,
+            "key_highlights": report.key_highlights,
+            "key_issues": report.key_issues,
+            "improvement_suggestions": report.improvement_suggestions,
+            "trend_charts": report.trend_charts,  # 趋势图数据
+            "full_report_markdown": report.full_report_text,
+            "generated_at": report.generated_at.isoformat() if report.generated_at else None,
+            "ai_model": report.ai_model,
+            "generation_cost": float(report.generation_cost) if report.generation_cost else 0,
+            "generation_tokens": report.generation_tokens,
+            "generation_duration": report.generation_duration,
+            "error_message": report.error_message,
+            # 添加会话相关数据
+            "session": {
+                "room_id": session.room_id if session else None,
+                "title": session.title if session else None,
+                "started_at": session.start_time.isoformat() if session and session.start_time else None,
+                "ended_at": session.end_time.isoformat() if session and session.end_time else None,
+                "duration": session.duration if session else None,
+                "total_viewers": session.total_viewers if session else 0,
+                "peak_viewers": session.peak_viewers if session else 0,
+                "comment_count": session.comment_count if session else 0
+            } if session else None
+        }
     }
 
 

@@ -377,6 +377,7 @@ class LiveReportService:
                 "scripts": [],  # Gemini 不返回此字段
                 "overall_score": gemini_result.get("overall_score"),
                 "performance_analysis": gemini_result.get("performance_analysis"),
+                "trend_charts": gemini_result.get("trend_charts", {}),  # 🆕 保留趋势图数据
                 "gemini_metadata": {
                     "model": gemini_result.get("ai_model", "gemini-2.5-flash"),
                     "cost": gemini_result.get("generation_cost", 0),

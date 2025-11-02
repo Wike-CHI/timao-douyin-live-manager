@@ -7,13 +7,17 @@ SenseVoice transcription per 30-min segment and compose a recap report.
 
 from __future__ import annotations
 
-from typing import Optional
-from fastapi import APIRouter, HTTPException
+import logging
+from typing import Optional, Dict, Any
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
+from ..database import get_db_session
 from ..services.live_report_service import get_live_report_service
 from server.utils.service_logger import log_service_start, log_service_stop, log_generation_start, log_generation_complete, log_generation_error
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/report/live", tags=["live-report"])
 
 
@@ -98,7 +102,7 @@ async def live_report_status() -> dict:
 
 
 @router.post("/generate")
-async def generate_live_report() -> BaseResp:
+async def generate_live_report(db: Session = Depends(get_db_session)) -> BaseResp:
     try:
         svc = get_live_report_service()
         import time
@@ -107,10 +111,17 @@ async def generate_live_report() -> BaseResp:
         artifacts = await svc.generate_report()
         duration = time.time() - start_time
         log_generation_complete("直播报告", "当前会话", duration=duration)
+        
+        # 🆕 自动保存到数据库
+        try:
+            await _save_report_to_database(artifacts, db)
+            logger.info("✅ 复盘报告已保存到数据库")
+        except Exception as e:
+            logger.error(f"⚠️ 保存报告到数据库失败: {e}", exc_info=True)
+            # 不影响主流程，继续返回
+        
         return BaseResp(data=artifacts)
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
         log_generation_error("直播报告", "当前会话", str(e))
         logger.error(f"Live report generate failed: {type(e).__name__}: {str(e)}", exc_info=True)
         
@@ -120,6 +131,123 @@ async def generate_live_report() -> BaseResp:
             raise HTTPException(status_code=404, detail="没有正在运行的录制会话，无法生成报告")
         else:
             raise HTTPException(status_code=400, detail=f"生成直播报告失败: {error_msg}")
+
+
+async def _save_report_to_database(artifacts: Dict[str, Any], db: Session):
+    """将生成的报告保存到数据库"""
+    from ..models.live import LiveSession
+    from ..models.live_review import LiveReviewReport
+    from ..models.user import User
+    
+    review_data = artifacts.get("review_data")
+    if not review_data:
+        logger.warning("⚠️ artifacts 中没有 review_data，跳过数据库保存")
+        return
+    
+    session_id_str = review_data.get("session_id")
+    room_id = review_data.get("room_id")
+    
+    # 1. 查找或创建 LiveSession
+    # 注意：旧的 live_report_service 使用字符串 session_id，但数据库需要整数 ID
+    # 我们需要创建或查找一个 LiveSession 记录
+    
+    # 尝试通过 room_id 和时间范围查找现有会话
+    from datetime import datetime, timedelta
+    
+    # 获取第一个用户（或创建默认用户）
+    user = db.query(User).first()
+    if not user:
+        logger.warning("⚠️ 数据库中没有用户，无法关联会话")
+        return
+    
+    # 查找最近的相同房间号的会话
+    recent_session = db.query(LiveSession).filter(
+        LiveSession.room_id == room_id,
+        LiveSession.user_id == user.id
+    ).order_by(LiveSession.start_time.desc()).first()
+    
+    # 如果没有找到，或者找到的会话太旧，创建新会话
+    started_at_ms = review_data.get("started_at", 0)
+    stopped_at_ms = review_data.get("stopped_at", 0)
+    duration_seconds = review_data.get("duration_seconds", 0)
+    
+    if not recent_session or (datetime.now() - recent_session.start_time).total_seconds() > 7200:
+        # 创建新会话
+        session = LiveSession(
+            user_id=user.id,
+            room_id=room_id or "unknown",
+            platform="douyin",
+            title=review_data.get("anchor_name") or room_id,
+            start_time=datetime.fromtimestamp(started_at_ms / 1000) if started_at_ms else datetime.now(),
+            end_time=datetime.fromtimestamp(stopped_at_ms / 1000) if stopped_at_ms else datetime.now(),
+            duration=int(duration_seconds),
+            status="ended",
+            comment_count=review_data.get("comments_count", 0),
+            transcribe_enabled=True,
+            transcribe_char_count=review_data.get("transcript_chars", 0),
+            transcript_file=artifacts.get("transcript"),
+            comment_file=artifacts.get("comments"),
+            report_file=artifacts.get("report")
+        )
+        
+        # 填充 metrics 数据
+        metrics = review_data.get("metrics", {})
+        session.total_viewers = metrics.get("entries", 0)
+        session.peak_viewers = metrics.get("peak_viewers", 0)
+        session.new_followers = metrics.get("follows", 0)
+        session.like_count = metrics.get("like_total", 0)
+        
+        db.add(session)
+        db.flush()
+        logger.info(f"✅ 创建新的 LiveSession: id={session.id}, room_id={room_id}")
+    else:
+        session = recent_session
+        logger.info(f"✅ 使用现有 LiveSession: id={session.id}, room_id={room_id}")
+    
+    # 2. 创建或更新 LiveReviewReport
+    existing_report = db.query(LiveReviewReport).filter(
+        LiveReviewReport.session_id == session.id
+    ).first()
+    
+    ai_summary = review_data.get("ai_summary", {})
+    gemini_metadata = ai_summary.get("gemini_metadata", {})
+    
+    if existing_report:
+        # 更新现有报告
+        existing_report.overall_score = ai_summary.get("overall_score")
+        existing_report.performance_analysis = ai_summary.get("performance_analysis")
+        existing_report.key_highlights = ai_summary.get("highlight_points", [])
+        existing_report.key_issues = ai_summary.get("risks", [])
+        existing_report.improvement_suggestions = ai_summary.get("suggestions", [])
+        existing_report.trend_charts = ai_summary.get("trend_charts", {})
+        existing_report.status = "completed"
+        existing_report.ai_model = gemini_metadata.get("model", "gemini-2.5-flash")
+        existing_report.generation_cost = gemini_metadata.get("cost", 0)
+        existing_report.generation_tokens = gemini_metadata.get("tokens", 0)
+        existing_report.generation_duration = gemini_metadata.get("duration", 0)
+        logger.info(f"✅ 更新 LiveReviewReport: id={existing_report.id}")
+    else:
+        # 创建新报告
+        report = LiveReviewReport(
+            session_id=session.id,
+            overall_score=ai_summary.get("overall_score"),
+            performance_analysis=ai_summary.get("performance_analysis"),
+            key_highlights=ai_summary.get("highlight_points", []),
+            key_issues=ai_summary.get("risks", []),
+            improvement_suggestions=ai_summary.get("suggestions", []),
+            trend_charts=ai_summary.get("trend_charts", {}),
+            full_report_text=ai_summary.get("summary", ""),
+            status="completed",
+            ai_model=gemini_metadata.get("model", "gemini-2.5-flash"),
+            generation_cost=gemini_metadata.get("cost", 0),
+            generation_tokens=gemini_metadata.get("tokens", 0),
+            generation_duration=gemini_metadata.get("duration", 0)
+        )
+        db.add(report)
+        db.flush()
+        logger.info(f"✅ 创建新的 LiveReviewReport: id={report.id}")
+    
+    db.commit()
 
 
 @router.get("/review/{report_path:path}")

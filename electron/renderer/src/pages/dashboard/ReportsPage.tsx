@@ -22,6 +22,8 @@ const ReportsPage: React.FC = () => {
   const [artifacts, setArtifacts] = useState<ReportArtifacts | null>(null);
   const [showReview, setShowReview] = useState(false);
   const [hasStopped, setHasStopped] = useState(false); // 标记是否已停止录制
+  const [historyReports, setHistoryReports] = useState<any[]>([]); // 历史报告列表
+  const [showHistory, setShowHistory] = useState(false); // 是否显示历史记录
   const pollTimerRef = useRef<any>(null);
 
   const isActive = !!status;
@@ -68,6 +70,10 @@ const ReportsPage: React.FC = () => {
       const res = await generateLiveReport(FASTAPI_BASE_URL);
       setArtifacts(res?.data || null);
       setHasStopped(false); // 生成报告后重置状态
+      
+      // 🆕 刷新历史报告列表
+      await loadHistory();
+      
       // 如果有复盘数据，自动展示复盘页面
       if (res?.data?.review_data) {
         setShowReview(true);
@@ -107,6 +113,80 @@ const ReportsPage: React.FC = () => {
     }
   };
 
+  // 加载历史报告列表
+  const loadHistory = async () => {
+    try {
+      const res = await fetch(`${FASTAPI_BASE_URL}/api/live/review/list/recent?limit=20`);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      if (data?.success && data?.data) {
+        setHistoryReports(data.data);
+      }
+    } catch (e: any) {
+      console.error('加载历史报告失败:', e);
+    }
+  };
+
+  // 根据报告ID查看历史报告
+  const viewHistoryReport = async (reportId: number) => {
+    try {
+      setBusy(true); setError(null);
+      // 获取报告详情（使用新的 API）
+      const res = await fetch(`${FASTAPI_BASE_URL}/api/live/review/report/${reportId}`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData?.detail || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      if (data?.success && data?.data) {
+        // 构造 ReviewData 格式
+        const reportData = data.data;
+        const reviewData: ReviewData = {
+          session_id: reportData.session_id,
+          room_id: reportData.session?.room_id,
+          anchor_name: reportData.session?.title || reportData.session?.room_id, // 使用 title 或 room_id
+          started_at: reportData.session?.started_at ? new Date(reportData.session.started_at).getTime() : undefined,
+          ended_at: reportData.session?.ended_at ? new Date(reportData.session.ended_at).getTime() : undefined,
+          duration_seconds: reportData.session?.duration,
+          comments_count: reportData.session?.comment_count || 0,
+          transcript: '', // 历史报告没有原始转写文本
+          ai_summary: {
+            overall_score: reportData.overall_score,
+            performance_analysis: reportData.performance_analysis,
+            key_highlights: reportData.key_highlights,
+            key_issues: reportData.key_issues,
+            improvement_suggestions: reportData.improvement_suggestions,
+            gemini_metadata: {
+              model: reportData.ai_model,
+              cost: reportData.generation_cost,
+              tokens: reportData.generation_tokens,
+              duration: reportData.generation_duration
+            }
+          },
+          metrics: {
+            total_viewers: reportData.session?.total_viewers,
+            peak_viewers: reportData.session?.peak_viewers,
+            comment_count: reportData.session?.comment_count
+          },
+          // 重要：添加 trend_charts 数据
+          trend_charts: reportData.trend_charts
+        };
+        
+        setArtifacts({ review_data: reviewData });
+        setShowReview(true);
+        setShowHistory(false); // 关闭历史列表
+      } else {
+        throw new Error('报告数据格式错误');
+      }
+    } catch (e: any) {
+      setError(e?.message || '加载历史报告失败');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const refresh = useCallback(async () => {
     try {
       const r = await getLiveReportStatus(FASTAPI_BASE_URL);
@@ -122,12 +202,102 @@ const ReportsPage: React.FC = () => {
     if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
   };
 
-  useEffect(() => { refresh(); return () => stopPolling(); }, [refresh]);
+  useEffect(() => { 
+    refresh(); 
+    loadHistory(); // 加载历史记录
+    return () => stopPolling(); 
+  }, [refresh]);
 
   const giftList = useMemo(() => {
     const gifts = metrics?.gifts || {};
     return Object.entries(gifts).sort((a, b) => (b[1] as number) - (a[1] as number));
   }, [metrics]);
+
+  // 如果正在展示历史记录列表
+  if (showHistory) {
+    return (
+      <div className="space-y-6">
+        <div className="timao-soft-card flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="text-4xl">📚</div>
+            <div>
+              <div className="text-lg font-semibold text-purple-600">历史复盘报告</div>
+              <div className="text-sm timao-support-text">最近 {historyReports.length} 条记录</div>
+            </div>
+          </div>
+          <button
+            className="timao-outline-btn px-4 py-2"
+            onClick={() => setShowHistory(false)}
+          >
+            ← 返回
+          </button>
+        </div>
+
+        {historyReports.length === 0 ? (
+          <div className="timao-card text-center py-12">
+            <div className="text-4xl mb-4">📭</div>
+            <div className="text-gray-500">暂无历史报告</div>
+            <div className="text-sm text-gray-400 mt-2">开始录制并生成报告后会显示在这里</div>
+          </div>
+        ) : (
+          <div className="grid gap-4">
+            {historyReports.map((report) => (
+              <div key={report.id} className="timao-card hover:shadow-lg transition-shadow">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-2xl">📊</span>
+                      <div>
+                        <div className="font-semibold text-purple-600">
+                          会话 ID: {report.session_id}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          生成时间: {new Date(report.generated_at).toLocaleString('zh-CN')}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm">
+                      {report.overall_score !== undefined && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-600">评分:</span>
+                          <span className="font-bold text-purple-600 text-lg">
+                            {report.overall_score}/100
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-600">状态:</span>
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          report.status === 'completed' 
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {report.status === 'completed' ? '已完成' : report.status}
+                        </span>
+                      </div>
+                      {report.ai_model && (
+                        <div className="text-xs text-gray-500">
+                          🤖 {report.ai_model}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    className="timao-primary-btn px-6 py-2.5 flex items-center gap-2 disabled:opacity-50"
+                    onClick={() => viewHistoryReport(report.id)}
+                    disabled={busy}
+                  >
+                    {busy ? <span className="animate-spin">⏳</span> : <span>👁️</span>}
+                    <span>查看报告</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // 如果正在展示复盘报告，渲染复盘页面
   if (showReview && artifacts?.review_data) {
@@ -150,6 +320,22 @@ const ReportsPage: React.FC = () => {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <button
+            className="timao-outline-btn px-4 py-2 flex items-center gap-2 hover:bg-purple-50 transition-colors"
+            onClick={() => {
+              loadHistory();
+              setShowHistory(true);
+            }}
+            title="查看历史报告"
+          >
+            <span>📚</span>
+            <span>历史记录</span>
+            {historyReports.length > 0 && (
+              <span className="ml-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold">
+                {historyReports.length}
+              </span>
+            )}
+          </button>
           <input
             value={liveInput}
             onChange={(e) => setLiveInput(e.target.value)}

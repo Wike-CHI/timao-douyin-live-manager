@@ -54,6 +54,21 @@ class LiveReviewReport(BaseModel):
     #     }
     # ]
     
+    # 趋势图数据（JSON对象）
+    trend_charts = Column(JSON, nullable=True, comment="趋势图数据")
+    # 示例结构：
+    # {
+    #     "follows": {
+    #         "title": "新增关注趋势",
+    #         "description": "...",
+    #         "chart_data": [{"time": "0分", "value": 0}, ...],
+    #         "insights": "..."
+    #     },
+    #     "entries": {...},
+    #     "peak_viewers": {...},
+    #     "like_total": {...}
+    # }
+    
     # AI 生成的完整文本报告（Markdown格式）
     full_report_text = Column(Text, nullable=True, comment="完整报告文本（Markdown）")
     
@@ -86,4 +101,5 @@ class LiveReviewReport(BaseModel):
         data['key_highlights'] = self.key_highlights or []
         data['key_issues'] = self.key_issues or []
         data['improvement_suggestions'] = self.improvement_suggestions or []
+        data['trend_charts'] = self.trend_charts or {}
         return data

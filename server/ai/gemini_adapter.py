@@ -100,7 +100,7 @@ class GeminiAdapter:
             messages = [
                 {
                     "role": "system",
-                    "content": "你是一位资深的直播运营分析师，擅长数据分析和运营策略建议。请基于实际数据给出客观、可执行的建议。"
+                    "content": "你是一位资深的直播运营分析师，擅长数据分析和运营策略建议。请基于实际数据给出客观、可执行的建议。你必须严格返回JSON格式，不要添加任何markdown标记或其他文字说明。"
                 },
                 {
                     "role": "user",
@@ -191,33 +191,56 @@ class GeminiAdapter:
         # 方式 1: 直接解析
         try:
             return json.loads(text)
-        except json.JSONDecodeError:
-            pass
+        except json.JSONDecodeError as e:
+            logger.debug(f"方式1失败: {e}")
         
         # 方式 2: 提取 Markdown 代码块中的 JSON
         if "```json" in text:
             try:
                 json_text = text.split("```json")[1].split("```")[0].strip()
                 return json.loads(json_text)
-            except (IndexError, json.JSONDecodeError):
-                pass
+            except (IndexError, json.JSONDecodeError) as e:
+                logger.debug(f"方式2失败: {e}")
         
         # 方式 3: 提取普通代码块中的 JSON
         if "```" in text:
             try:
-                json_text = text.split("```")[1].strip()
-                return json.loads(json_text)
-            except (IndexError, json.JSONDecodeError):
-                pass
+                parts = text.split("```")
+                for i in range(1, len(parts), 2):  # 代码块在奇数索引
+                    json_text = parts[i].strip()
+                    # 移除可能的语言标识符
+                    if json_text.startswith('json\n'):
+                        json_text = json_text[5:]
+                    try:
+                        return json.loads(json_text)
+                    except json.JSONDecodeError:
+                        continue
+            except Exception as e:
+                logger.debug(f"方式3失败: {e}")
         
-        # 方式 4: 尝试清理后解析
+        # 方式 4: 尝试清理后解析（移除BOM、空格、换行）
         try:
-            cleaned_text = text.strip().lstrip('\ufeff')  # 移除 BOM
+            cleaned_text = text.strip().lstrip('\ufeff').lstrip('\n').rstrip('\n')
             return json.loads(cleaned_text)
-        except json.JSONDecodeError:
-            pass
+        except json.JSONDecodeError as e:
+            logger.debug(f"方式4失败: {e}")
         
-        logger.error(f"❌ 无法解析 JSON 响应，前 200 字符: {text[:200]}")
+        # 方式 5: 查找第一个 { 和最后一个 }，尝试提取JSON对象
+        try:
+            first_brace = text.find('{')
+            last_brace = text.rfind('}')
+            if first_brace != -1 and last_brace != -1 and first_brace < last_brace:
+                json_text = text[first_brace:last_brace + 1]
+                return json.loads(json_text)
+        except json.JSONDecodeError as e:
+            logger.debug(f"方式5失败: {e}")
+        
+        # 全部失败，记录详细错误
+        logger.error(f"❌ 无法解析 JSON 响应")
+        logger.error(f"原始响应长度: {len(text)} 字符")
+        logger.error(f"前 500 字符:\n{text[:500]}")
+        if len(text) > 500:
+            logger.error(f"后 500 字符:\n{text[-500:]}")
         return None
     
     def test_connection(self) -> bool:
@@ -344,34 +367,153 @@ def generate_review_report(review_data: Dict[str, Any]) -> Dict[str, Any]:
     "建议1：具体的、可执行的改进建议",
     "建议2：...",
     "建议3：..."
-  ]
+  ],
+  "trend_charts": {{
+    "follows": {{
+      "title": "新增关注趋势",
+      "description": "根据实际数据分析新增关注的变化趋势（每分钟采样）",
+      "chart_data": [
+        {{"time": "0分", "value": 0}},
+        {{"time": "1分", "value": 5}},
+        {{"time": "2分", "value": 12}},
+        {{"time": "3分", "value": 25}},
+        {{"time": "4分", "value": 45}},
+        {{"time": "5分", "value": 68}},
+        {{"time": "...更多分钟", "value": "..."}},
+        {{"time": "结束", "value": 200}}
+      ],
+      "insights": "在第X-Y分钟出现增长高峰，可能与某个爆点话题相关"
+    }},
+    "entries": {{
+      "title": "进场人数趋势",
+      "description": "直播间进场人数随时间的变化（每分钟采样）",
+      "chart_data": [
+        {{"time": "0分", "value": 0}},
+        {{"time": "1分", "value": 15}},
+        {{"time": "2分", "value": 35}},
+        {{"time": "3分", "value": 60}},
+        {{"time": "4分", "value": 90}},
+        {{"time": "5分", "value": 125}},
+        {{"time": "...更多分钟", "value": "..."}},
+        {{"time": "结束", "value": 350}}
+      ],
+      "insights": "进场人数持续增长，直播初期引流效果良好"
+    }},
+    "peak_viewers": {{
+      "title": "在线人数趋势",
+      "description": "实时在线人数的波动情况（每分钟采样）",
+      "chart_data": [
+        {{"time": "0分", "value": 0}},
+        {{"time": "1分", "value": 12}},
+        {{"time": "2分", "value": 28}},
+        {{"time": "3分", "value": 45}},
+        {{"time": "4分", "value": 67}},
+        {{"time": "5分", "value": 85}},
+        {{"time": "...更多分钟", "value": "..."}},
+        {{"time": "结束", "value": 90}}
+      ],
+      "insights": "第X分钟达到峰值XXX人，后期有所回落，需优化留人策略"
+    }},
+    "like_total": {{
+      "title": "点赞数趋势",
+      "description": "直播间点赞数累计变化（每分钟采样）",
+      "chart_data": [
+        {{"time": "0分", "value": 0}},
+        {{"time": "1分", "value": 50}},
+        {{"time": "2分", "value": 120}},
+        {{"time": "3分", "value": 210}},
+        {{"time": "4分", "value": 350}},
+        {{"time": "5分", "value": 520}},
+        {{"time": "...更多分钟", "value": "..."}},
+        {{"time": "结束", "value": 2000}}
+      ],
+      "insights": "点赞增长稳定，互动氛围良好"
+    }}
+  }}
 }}
+
+【重要说明 - 图表数据生成规则】
+1. **采样频率**: 每1分钟采集一次数据点（不是5分钟！）
+2. **数据点数量**: 根据直播时长生成相应数量的数据点
+   - 例如：10分钟直播 = 10个数据点（0分、1分、2分...9分、结束）
+   - 例如：30分钟直播 = 30个数据点（0分、1分、2分...29分、结束）
+3. **时间格式**: 使用 "X分" 格式，最后一个点用 "结束"
+4. **数值合理性**:
+   - 最后一个时间点的 value 必须等于【直播数据】中的实际最终值
+   - 中间数据点要符合真实增长规律（不要线性增长，要有波动）
+   - 新增类指标（关注、点赞）：应该是累加的，持续增长
+   - 瞬时类指标（在线人数）：可以有起伏波动
+5. **数据真实性**: 
+   - 如果某个指标实际值为0，图表所有数据点都应该是0
+   - 不要虚构数据，基于实际最终值进行合理推算
+6. **洞察价值**: insights 必须指出关键转折点、峰值、异常波动等
+
+【示例说明】
+假设直播时长15分钟，新增关注200人：
+- 应该生成15个数据点：0分(0) → 1分(8) → 2分(18) → ... → 14分(185) → 结束(200)
+- 数值增长要有快慢变化，不要平均分配
+- 找出增长最快的时间段并在 insights 中说明
 
 【分析要点】
 1. 客观评分：基于实际数据和转写内容，不要盲目打高分
 2. 具体分析：引用具体的数据或话术片段支撑观点
 3. 可执行建议：给出明确的改进方向和操作步骤
 4. 运营导向：关注转化、留存、互动等关键指标
+5. 数据真实：图表数据必须基于实际指标推算，不要虚构
 
-请只输出 JSON，不要其他解释文字。"""
+【输出格式要求】
+1. 只输出纯JSON对象，不要包含任何markdown代码块标记（如 ```json）
+2. 不要在JSON前后添加任何说明文字
+3. 确保JSON格式完全正确，可以直接被解析
+4. 所有字符串字段使用双引号
+5. 数字字段不要加引号
+
+示例输出格式（注意：不要包含这个提示，直接输出JSON）：
+{{"overall_score": 85, "performance_analysis": {{...}}, ...}}
+
+现在开始输出JSON："""
     
     # 调用 Gemini
     logger.info(f"📊 准备数据 - 转写: {len(transcript)} 字符, 弹幕: {len(comments_preview)} 条")
+    logger.info(f"🚀 开始调用 Gemini 生成复盘报告...")
+    
     result = adapter.generate_review(
         prompt=prompt,
         temperature=0.3,
-        max_tokens=3000,
+        max_tokens=4096,  # 增加token限制，确保完整输出
         response_format="json"
     )
     
     if not result:
-        raise RuntimeError("Gemini API 调用失败")
+        logger.error("❌ Gemini API 调用返回 None")
+        raise RuntimeError("Gemini API 调用失败，请检查网络连接和API密钥")
+    
+    logger.info(f"✅ Gemini 响应接收成功，长度: {len(result['text'])} 字符")
     
     # 解析 JSON 响应
     report_data = adapter.parse_json_response(result["text"])
     if not report_data:
-        logger.error(f"❌ JSON 解析失败，原始响应: {result['text'][:500]}")
-        raise RuntimeError("Gemini 返回的 JSON 格式无效")
+        # 保存原始响应用于调试
+        error_msg = f"Gemini 返回的 JSON 格式无效。响应长度: {len(result['text'])} 字符"
+        logger.error(f"❌ {error_msg}")
+        logger.error(f"完整响应内容:\n{result['text']}")
+        
+        # 提供降级方案：返回基本结构
+        logger.warning("⚠️ 使用降级方案：返回基本报告结构")
+        report_data = {
+            "overall_score": 0,
+            "performance_analysis": {
+                "overall_assessment": "AI分析失败，无法生成完整报告。原因：JSON解析错误。",
+                "content_quality": {"score": 0, "comments": "解析失败"},
+                "engagement": {"score": 0, "comments": "解析失败"},
+                "conversion_potential": {"score": 0, "comments": "解析失败"}
+            },
+            "key_highlights": ["AI分析遇到问题，请重试或联系技术支持"],
+            "key_issues": ["JSON解析失败"],
+            "improvement_suggestions": ["请检查网络连接和API配置"],
+            "error": error_msg,
+            "raw_response_preview": result["text"][:1000]  # 保存前1000字符用于调试
+        }
     
     # 补充元数据
     report_data["ai_model"] = adapter.model

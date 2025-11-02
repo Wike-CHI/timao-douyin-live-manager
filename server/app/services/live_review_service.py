@@ -168,6 +168,7 @@ class LiveReviewService:
             key_highlights=result.get("key_highlights", []),
             key_issues=result.get("key_issues", []),
             improvement_suggestions=result.get("improvement_suggestions", []),
+            trend_charts=result.get("trend_charts", {}),  # 保存趋势图数据
             full_report_text=self._format_markdown_report(result),
             status="completed",
             ai_model=ai_response.model,
