@@ -198,19 +198,24 @@ async def list_recent_reviews(
         LiveReviewReport.generated_at.desc()
     ).limit(limit).all()
     
+    result = []
+    for r in reports:
+        # 获取关联的会话信息
+        session = db.query(LiveSession).filter(LiveSession.id == r.session_id).first()
+        result.append({
+            "id": r.id,
+            "session_id": r.session_id,
+            "overall_score": r.overall_score,
+            "status": r.status,
+            "generated_at": r.generated_at.isoformat() if r.generated_at else None,
+            "ai_model": r.ai_model,
+            "room_id": session.room_id if session else None,  # 🆕 添加 room_id 用于过滤
+            "title": session.title if session else None  # 🆕 添加 title 显示
+        })
+    
     return {
         "success": True,
-        "data": [
-            {
-                "id": r.id,
-                "session_id": r.session_id,
-                "overall_score": r.overall_score,
-                "status": r.status,
-                "generated_at": r.generated_at.isoformat() if r.generated_at else None,
-                "ai_model": r.ai_model
-            }
-            for r in reports
-        ]
+        "data": result
     }
 
 

@@ -122,10 +122,41 @@ const ReportsPage: React.FC = () => {
       }
       const data = await res.json();
       if (data?.success && data?.data) {
-        setHistoryReports(data.data);
+        // 🆕 过滤掉测试报告（room_id 包含 test 的）
+        const filteredReports = data.data.filter((report: any) => {
+          const isTestModel = report.ai_model === 'test-model';
+          const isTestRoom = report.room_id && report.room_id.toLowerCase().includes('test');
+          return !isTestModel && !isTestRoom;
+        });
+        setHistoryReports(filteredReports);
       }
     } catch (e: any) {
       console.error('加载历史报告失败:', e);
+    }
+  };
+
+  // 删除历史报告
+  const deleteHistoryReport = async (reportId: number) => {
+    if (!confirm('确定要删除这个报告吗？删除后无法恢复。')) {
+      return;
+    }
+    
+    try {
+      setBusy(true); setError(null);
+      const res = await fetch(`${FASTAPI_BASE_URL}/api/live/review/${reportId}`, {
+        method: 'DELETE'
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData?.detail || `HTTP ${res.status}`);
+      }
+      // 删除成功后刷新列表
+      await loadHistory();
+      setError(null);
+    } catch (e: any) {
+      setError(e?.message || '删除报告失败');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -249,10 +280,18 @@ const ReportsPage: React.FC = () => {
                       <span className="text-2xl">📊</span>
                       <div>
                         <div className="font-semibold text-purple-600">
-                          会话 ID: {report.session_id}
+                          {report.title || `房间 ${report.room_id}`}
                         </div>
                         <div className="text-sm text-gray-500">
-                          生成时间: {new Date(report.generated_at).toLocaleString('zh-CN')}
+                          {new Date(report.generated_at).toLocaleString('zh-CN', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false
+                          })}
                         </div>
                       </div>
                     </div>
@@ -282,14 +321,27 @@ const ReportsPage: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <button
-                    className="timao-primary-btn px-6 py-2.5 flex items-center gap-2 disabled:opacity-50"
-                    onClick={() => viewHistoryReport(report.id)}
-                    disabled={busy}
-                  >
-                    {busy ? <span className="animate-spin">⏳</span> : <span>👁️</span>}
-                    <span>查看报告</span>
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      className="timao-primary-btn px-6 py-2.5 flex items-center gap-2 disabled:opacity-50"
+                      onClick={() => viewHistoryReport(report.id)}
+                      disabled={busy}
+                    >
+                      {busy ? <span className="animate-spin">⏳</span> : <span>👁️</span>}
+                      <span>查看报告</span>
+                    </button>
+                    <button
+                      className="timao-outline-btn px-4 py-2.5 text-red-600 hover:bg-red-50 hover:border-red-300 flex items-center gap-2 disabled:opacity-50"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteHistoryReport(report.id);
+                      }}
+                      disabled={busy}
+                      title="删除报告"
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
