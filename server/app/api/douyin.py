@@ -126,23 +126,39 @@ async def health_check():
         }
 
 
-@router.get("/status", response_model=StatusResponse)
+@router.get("/status")
 async def get_status():
     """
     获取抖音直播监控状态
+    返回格式与 DouyinRelayStatus 接口匹配
     """
     try:
-        service = get_douyin_service()
-        status = service.get_status()
-        return StatusResponse(
-            is_monitoring=status.get("is_monitoring", False),
-            current_room_id=status.get("current_room_id"),
-            current_live_id=status.get("current_live_id"),
-            fetcher_status=status.get("fetcher_status", {}),
-        )
+        relay = get_douyin_web_relay()
+        relay_status = relay.get_status()
+        
+        # 确保 room_id 和 live_id 是字符串或 null
+        room_id = relay_status.room_id
+        if room_id is not None:
+            room_id = str(room_id)
+        
+        live_id = relay_status.live_id
+        if live_id is not None:
+            live_id = str(live_id)
+        
+        return {
+            "is_running": relay_status.is_running,
+            "live_id": live_id,
+            "room_id": room_id,
+            "last_error": relay_status.last_error,
+        }
     except Exception as e:
         logging.exception("获取监控状态失败")
-        raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "is_running": False,
+            "live_id": None,
+            "room_id": None,
+            "last_error": str(e),
+        }
 
 
 @router.get("/stream")

@@ -5,13 +5,35 @@ AI 使用量监控 API
 
 from fastapi import APIRouter, Query, HTTPException
 from fastapi.responses import JSONResponse, FileResponse
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from pathlib import Path
 
 from ...utils.ai_usage_monitor import get_usage_monitor, ModelPricing
 
 router = APIRouter(prefix="/api/ai_usage", tags=["AI使用监控"])
+
+
+def _translate_function_names(data: Dict[str, Any]) -> Dict[str, Any]:
+    """将功能名称翻译为中文"""
+    if isinstance(data, dict):
+        result = {}
+        for key, value in data.items():
+            if key == "by_function" and isinstance(value, dict):
+                # 翻译功能名称
+                translated = {}
+                for func_name, stats in value.items():
+                    cn_name = ModelPricing.get_function_name_cn(func_name)
+                    translated[cn_name] = stats
+                result[key] = translated
+            elif isinstance(value, (dict, list)):
+                result[key] = _translate_function_names(value)
+            else:
+                result[key] = value
+        return result
+    elif isinstance(data, list):
+        return [_translate_function_names(item) for item in data]
+    return data
 
 
 @router.get("/stats/current")
@@ -61,7 +83,7 @@ async def get_hourly_stats(
         "output_tokens": summary.total_output_tokens,
         "total_cost": summary.total_cost,
         "by_model": summary.by_model,
-        "by_function": summary.by_function
+        "by_function": _translate_function_names({"by_function": summary.by_function}).get("by_function", {})
     }
 
 
@@ -84,7 +106,7 @@ async def get_daily_stats(
         "output_tokens": summary.total_output_tokens,
         "total_cost": summary.total_cost,
         "by_model": summary.by_model,
-        "by_function": summary.by_function,
+        "by_function": _translate_function_names({"by_function": summary.by_function}).get("by_function", {}),
         "by_user": summary.by_user,
         "by_anchor": summary.by_anchor
     }
@@ -110,7 +132,7 @@ async def get_monthly_stats(
         "output_tokens": summary.total_output_tokens,
         "total_cost": summary.total_cost,
         "by_model": summary.by_model,
-        "by_function": summary.by_function,
+        "by_function": _translate_function_names({"by_function": summary.by_function}).get("by_function", {}),
         "by_user": summary.by_user,
         "by_anchor": summary.by_anchor
     }
@@ -257,5 +279,5 @@ async def get_dashboard_data():
         "top_users": top_users,
         "cost_trend_7days": cost_trend,
         "model_distribution": today.by_model,
-        "function_distribution": today.by_function
+        "function_distribution": _translate_function_names({"by_function": today.by_function}).get("by_function", {})
     }

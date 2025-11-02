@@ -391,6 +391,7 @@ const AIGatewayPage: React.FC = () => {
                   <option value="deepseek">DeepSeek</option>
                   <option value="doubao">字节豆包</option>
                   <option value="glm">智谱 ChatGLM</option>
+                  <option value="gemini">Google Gemini (通过 AiHubMix)</option>
                 </select>
               </div>
               <div>

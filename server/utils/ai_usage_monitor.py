@@ -57,6 +57,28 @@ class UsageSummary:
 class ModelPricing:
     """AI 模型定价配置"""
     
+    # 功能名称中文映射
+    FUNCTION_NAME_CN = {
+        "live_review": "直播复盘",
+        "gateway_qwen": "实时分析（通义千问）",
+        "gateway_openai": "实时分析（OpenAI）",
+        "gateway_deepseek": "实时分析（DeepSeek）",
+        "gateway_doubao": "实时分析（豆包）",
+        "gateway_glm": "实时分析（ChatGLM）",
+        "gateway_gemini": "直播复盘（Gemini）",
+        "实时分析": "实时分析",
+        "话术生成": "话术生成",
+        "问答": "问答",
+        "live_analysis": "实时分析",
+        "script_generation": "话术生成",
+        "qa": "问答",
+    }
+    
+    @classmethod
+    def get_function_name_cn(cls, function_name: str) -> str:
+        """获取功能名称的中文显示"""
+        return cls.FUNCTION_NAME_CN.get(function_name, function_name)
+    
     # Qwen 系列定价（元/1K tokens）
     QWEN_PRICING = {
         "qwen-max": {
@@ -167,6 +189,19 @@ class ModelPricing:
         },
     }
     
+    # Gemini 系列定价（美元/1K tokens，仅适用于 gemini-2.5-flash-preview-09-2025）
+    GEMINI_PRICING = {
+        "gemini-2.5-flash-preview-09-2025": {
+            "input": 0.000075,  # $0.075 / 1M tokens = $0.000075 / 1K tokens
+            "output": 0.0003,   # $0.30 / 1M tokens = $0.0003 / 1K tokens
+            "cache_read": 0.000999,  # $0.999 / 1M tokens = $0.000999 / 1K tokens
+            "web_search": 0.000249,  # $0.249 / 1M tokens = $0.000249 / 1K tokens
+            "cache_storage": 0.001,  # $1 / hour / 1M tokens，需要单独计算
+            "display_name": "Gemini 2.5 Flash Preview",
+            "currency": "USD",  # 标识为美元计价
+        },
+    }
+    
     # 兼容别名（带后缀的版本号、长上下文等）
     ALIAS_MAP = {
         "qwen-max-longcontext": "qwen-max",
@@ -191,6 +226,7 @@ class ModelPricing:
         **DEEPSEEK_PRICING,
         **DOUBAO_PRICING,
         **GLM_PRICING,
+        **GEMINI_PRICING,
     }
     
     @classmethod

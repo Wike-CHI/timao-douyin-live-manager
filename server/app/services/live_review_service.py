@@ -17,7 +17,7 @@ from typing import Dict, Any, Optional, List
 
 from sqlalchemy.orm import Session
 
-from ...ai.gemini_adapter import get_gemini_adapter
+from ...ai.ai_gateway import get_gateway
 from ..models.live_review import LiveReviewReport
 from ..models.live import LiveSession
 
@@ -28,8 +28,17 @@ class LiveReviewService:
     """直播复盘服务"""
     
     def __init__(self):
-        self.gemini = get_gemini_adapter()
+        self.gateway = get_gateway()
         self.persist_root = os.getenv("PERSIST_ROOT", "records/live_logs")
+        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-preview-09-2025")
+    
+    def _is_gemini_available(self) -> bool:
+        """检查 Gemini 服务是否可用"""
+        try:
+            providers = self.gateway.list_providers()
+            return "gemini" in providers and providers["gemini"].get("enabled", False)
+        except Exception:
+            return False
     
     def generate_review(self, session_id: int, db: Session) -> Optional[LiveReviewReport]:
         """生成直播复盘报告
@@ -41,7 +50,7 @@ class LiveReviewService:
         Returns:
             LiveReviewReport 对象或 None
         """
-        if not self.gemini.is_available():
+        if not self._is_gemini_available():
             logger.error("❌ Gemini 服务不可用，无法生成复盘报告")
             logger.info("请在 .env 文件中配置 AIHUBMIX_API_KEY")
             return None
@@ -73,40 +82,70 @@ class LiveReviewService:
         # 2. 构建 Prompt
         prompt = self._build_review_prompt(session, context_data)
         
-        # 3. 调用 Gemini
-        response = self.gemini.generate_review(
-            prompt=prompt, 
-            temperature=0.3, 
-            max_tokens=4096,
-            response_format="json"
-        )
+        # 3. 通过 AIGateway 调用 Gemini
+        messages = [
+            {
+                "role": "system",
+                "content": "你是一位资深的直播运营分析师，擅长数据分析和运营策略建议。请基于实际数据给出客观、可执行的建议。"
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
         
-        if not response:
-            logger.error("❌ Gemini 调用失败")
-            # 创建失败记录
+        try:
+            ai_response = self.gateway.chat_completion(
+                messages=messages,
+                provider="gemini",
+                model=self.gemini_model,
+                temperature=0.3,
+                max_tokens=4096,
+                response_format={"type": "json_object"},
+            )
+            
+            if not ai_response.success:
+                logger.error(f"❌ Gemini 调用失败: {ai_response.error}")
+                report = LiveReviewReport(
+                    session_id=session_id,
+                    status="failed",
+                    error_message=f"Gemini API 调用失败: {ai_response.error}",
+                    ai_model=self.gemini_model
+                )
+                db.add(report)
+                db.commit()
+                return None
+            
+            response_text = ai_response.content
+            response_usage = ai_response.usage
+            response_cost = ai_response.cost
+            response_duration = ai_response.duration_ms / 1000.0  # 转换为秒
+            
+        except Exception as e:
+            logger.error(f"❌ Gemini 调用异常: {e}", exc_info=True)
             report = LiveReviewReport(
                 session_id=session_id,
                 status="failed",
-                error_message="Gemini API 调用失败",
-                ai_model=self.gemini.model
+                error_message=f"Gemini API 调用异常: {str(e)}",
+                ai_model=self.gemini_model
             )
             db.add(report)
             db.commit()
             return None
         
         # 4. 解析响应
-        result = self.gemini.parse_json_response(response["text"])
+        result = self._parse_json_response(response_text)
         if not result:
             logger.error("❌ 无法解析 Gemini 响应为 JSON")
             # 保存原始文本作为降级方案
             report = LiveReviewReport(
                 session_id=session_id,
-                full_report_text=response["text"],
+                full_report_text=response_text,
                 status="completed",
-                ai_model=self.gemini.model,
-                generation_cost=response["cost"],
-                generation_tokens=response["usage"]["total_tokens"],
-                generation_duration=response["duration"]
+                ai_model=self.gemini_model,
+                generation_cost=response_cost,
+                generation_tokens=response_usage.get("total_tokens", 0),
+                generation_duration=response_duration
             )
             db.add(report)
             db.commit()
@@ -123,10 +162,10 @@ class LiveReviewService:
             improvement_suggestions=result.get("improvement_suggestions", []),
             full_report_text=self._format_markdown_report(result),
             status="completed",
-            ai_model=self.gemini.model,
-            generation_cost=response["cost"],
-            generation_tokens=response["usage"]["total_tokens"],
-            generation_duration=response["duration"]
+            ai_model=self.gemini_model,
+            generation_cost=response_cost,
+            generation_tokens=response_usage.get("total_tokens", 0),
+            generation_duration=response_duration
         )
         
         db.add(report)
@@ -134,8 +173,8 @@ class LiveReviewService:
         
         # 6. 更新 session 的 AI 使用记录
         session.ai_usage_count += 1
-        session.ai_usage_tokens += response["usage"]["total_tokens"]
-        session.ai_usage_cost += float(response["cost"])
+        session.ai_usage_tokens += response_usage.get("total_tokens", 0)
+        session.ai_usage_cost += float(response_cost)
         
         db.commit()
         
@@ -283,6 +322,53 @@ class LiveReviewService:
             "opening": transcript[:500] if len(transcript) > 500 else transcript,
             "closing": transcript[-500:] if len(transcript) > 500 else ""
         }
+    
+    def _parse_json_response(self, text: str) -> Optional[Dict[str, Any]]:
+        """解析 JSON 响应（从 GeminiAdapter 移植）
+        
+        尝试多种方式解析 Gemini 返回的 JSON 内容。
+        
+        Args:
+            text: Gemini 返回的文本
+        
+        Returns:
+            解析成功返回字典，失败返回 None
+        """
+        if not text or not text.strip():
+            logger.error("❌ Gemini 返回内容为空")
+            return None
+        
+        # 方式 1: 直接解析
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass
+        
+        # 方式 2: 提取 Markdown 代码块中的 JSON
+        if "```json" in text:
+            try:
+                json_text = text.split("```json")[1].split("```")[0].strip()
+                return json.loads(json_text)
+            except (IndexError, json.JSONDecodeError):
+                pass
+        
+        # 方式 3: 提取普通代码块中的 JSON
+        if "```" in text:
+            try:
+                json_text = text.split("```")[1].strip()
+                return json.loads(json_text)
+            except (IndexError, json.JSONDecodeError):
+                pass
+        
+        # 方式 4: 尝试清理后解析
+        try:
+            cleaned_text = text.strip().lstrip('\ufeff')  # 移除 BOM
+            return json.loads(cleaned_text)
+        except json.JSONDecodeError:
+            pass
+        
+        logger.error(f"❌ 无法解析 JSON 响应，前 200 字符: {text[:200]}")
+        return None
     
     def _build_review_prompt(self, session: LiveSession, data: Dict[str, Any]) -> str:
         """构建 Gemini 分析 Prompt

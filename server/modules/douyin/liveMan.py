@@ -302,10 +302,16 @@ class DouyinLiveWebFetcher:
         )
         query = parse_url(url).query
         params = {i[0]: i[1] for i in [j.split("=") for j in query.split("&")]}
-        a_bogus = self.get_a_bogus(
-            params
-        )  # 计算a_bogus,成功率不是100%，出现失败时重试即可
-        url += f"&a_bogus={a_bogus}"
+        
+        # 尝试生成 a_bogus，失败时抛出异常以便重试
+        try:
+            a_bogus = self.get_a_bogus(params)  # 计算a_bogus,成功率不是100%，出现失败时重试即可
+            if not a_bogus or not isinstance(a_bogus, str):
+                raise ValueError("a_bogus 生成失败或类型错误")
+            url += f"&a_bogus={a_bogus}"
+        except Exception as e:
+            raise ValueError(f"a_bogus 生成失败: {str(e)}")
+        
         headers = self.headers.copy()
         headers.update(
             {
@@ -313,16 +319,64 @@ class DouyinLiveWebFetcher:
                 "Cookie": f"ttwid={self.ttwid};__ac_nonce={nonce}; __ac_signature={signature}",
             }
         )
-        resp = self.session.get(url, headers=headers)
-        data = resp.json().get("data")
-        if data:
+        
+        try:
+            resp = self.session.get(url, headers=headers, timeout=10)
+            resp.raise_for_status()
+            
+            # 检查响应状态码
+            if resp.status_code != 200:
+                raise ValueError(f"请求失败，状态码: {resp.status_code}")
+            
+            # 解析 JSON 响应，确保数据类型正确
+            try:
+                json_data = resp.json()
+            except Exception as e:
+                raise ValueError(f"响应不是有效的JSON: {str(e)}")
+            
+            # 确保 data 字段存在且类型正确
+            if not isinstance(json_data, dict):
+                raise ValueError("响应不是字典类型")
+                
+            data = json_data.get("data")
+            if not isinstance(data, dict):
+                raise ValueError("响应中缺少 data 字段或类型错误")
+                
             room_status = data.get("room_status")
+            if room_status is None:
+                raise ValueError("响应中缺少 room_status 字段")
+            
+            # 确保 room_status 是数字类型
+            try:
+                room_status = int(room_status)
+            except (ValueError, TypeError):
+                raise ValueError(f"room_status 类型错误: {type(room_status)}")
+                
             user = data.get("user")
-            user_id = user.get("id_str")
-            nickname = user.get("nickname")
-            print(
-                f"【{nickname}】[{user_id}]直播间：{['正在直播', '已结束'][bool(room_status)]}."
-            )
+            if isinstance(user, dict):
+                user_id = user.get("id_str")
+                nickname = user.get("nickname")
+                print(
+                    f"【{nickname}】[{user_id}]直播间：{['正在直播', '已结束'][bool(room_status)]}."
+                )
+            
+            return room_status
+        except requests.exceptions.Timeout:
+            raise ConnectionError("请求超时，请检查网络连接")
+        except requests.exceptions.ConnectionError as e:
+            raise ConnectionError(f"网络连接失败: {str(e)}")
+        except requests.exceptions.HTTPError as e:
+            status_code = e.response.status_code if hasattr(e, 'response') else None
+            if status_code == 403:
+                raise ValueError("请求被拒绝（403），可能是 a_bogus 无效，请重试")
+            elif status_code == 400:
+                raise ValueError("请求参数错误（400），可能是签名验证失败，请重试")
+            else:
+                raise ValueError(f"HTTP错误: {status_code} - {str(e)}")
+        except ValueError as e:
+            raise ValueError(str(e))
+        except Exception as e:
+            raise RuntimeError(f"获取房间状态失败: {str(e)}")
 
     def _connectWebSocket(self):
         """

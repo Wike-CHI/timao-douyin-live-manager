@@ -807,39 +807,44 @@ const LiveConsolePage = () => {
           <div className="flex items-center gap-3">
             <span className="text-gray-600">连接状态：</span>
             <span className={`px-2 py-0.5 rounded-full font-medium transition-colors duration-200 ${
-              douyinConnected ? 'text-emerald-700' : 'text-rose-700'
+              douyinConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
             }`}>
-              {douyinConnected ? '运行中' : '已断开'}
+              {douyinConnected ? '🟢 运行中' : '🔴 已断开'}
             </span>
             <span className="text-gray-600">当前直播间ID：</span>
             <span className={`text-gray-800 font-mono text-xs px-2 py-1 rounded ${
-              douyinStatus?.live_id ? 'text-blue-700' : 'text-gray-700'
+              douyinStatus?.live_id ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-500'
             }`}>
               {douyinStatus?.live_id ?? '—'}
             </span>
           </div>
-          {/* 第二行：当前直播间ID + Room ID */}
+          {/* 第二行：Room ID + 错误信息 */}
           <div className="flex items-center gap-3">
-            <span className="text-gray-600">当前直播间ID：</span>
-            <span className={`text-gray-800 font-mono text-xs px-2 py-1 rounded ${
-              douyinStatus?.live_id ? 'text-blue-700' : 'text-gray-700'
-            }`}>
-              {douyinStatus?.live_id ?? '—'}
-            </span>
             <span className="text-gray-600">Room ID：</span>
             <span className={`text-gray-800 font-mono text-xs px-2 py-1 rounded ${
-              douyinStatus?.room_id ? 'text-purple-700' : 'text-gray-700'
+              douyinStatus?.room_id ? 'bg-purple-50 text-purple-700' : 'bg-gray-50 text-gray-500'
             }`}>
               {douyinStatus?.room_id ?? '—'}
             </span>
+            {douyinStatus?.last_error && (
+              <span className="text-xs text-rose-600 max-w-xs truncate" title={douyinStatus.last_error}>
+                ⚠️ {douyinStatus.last_error}
+              </span>
+            )}
           </div>
           {/* 第三行：实时通道状态 + 停止按钮 */}
           <div className="flex items-center gap-3">
             <span className="text-gray-600">实时通道状态：</span>
             <span className={`px-2 py-0.5 rounded-full font-medium transition-colors duration-200 ${
-              (douyinConnected && getLiveConsoleSocket()?.readyState === WebSocket.OPEN) ? 'text-emerald-700' : 'text-amber-700'
+              (douyinConnected && getLiveConsoleSocket()?.readyState === WebSocket.OPEN) 
+                ? 'bg-emerald-100 text-emerald-700' 
+                : 'bg-amber-100 text-amber-700'
             }`}>
-              {(douyinConnected && getLiveConsoleSocket()?.readyState === WebSocket.OPEN) ? '已连接' : '未连接'}
+              {(douyinConnected && getLiveConsoleSocket()?.readyState === WebSocket.OPEN) 
+                ? '🟢 已连接' 
+                : douyinConnected 
+                  ? '🟡 连接中' 
+                  : '🔴 未连接'}
             </span>
             {douyinConnected && (
               <button

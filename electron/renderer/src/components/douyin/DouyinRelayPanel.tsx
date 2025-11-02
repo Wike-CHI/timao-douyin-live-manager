@@ -220,11 +220,37 @@ const DouyinRelayPanel = ({
         case 'status': {
           const stage = payload.stage as string | undefined;
           if (stage === 'starting') {
-            setBanner({ tone: 'info', message: '正在准备直播互动…' });
+            setBanner({ tone: 'info', message: '正在启动直播互动服务…' });
           } else if (stage === 'resolving_room') {
-            setBanner({ tone: 'info', message: '正在解析直播间信息…' });
+            const attempt = payload.attempt as number | undefined;
+            const maxRetries = payload.max_retries as number | undefined;
+            if (attempt && maxRetries) {
+              setBanner({ 
+                tone: 'info', 
+                message: `正在解析直播间信息 (${attempt}/${maxRetries})…` 
+              });
+            } else {
+              setBanner({ tone: 'info', message: '正在解析直播间信息…' });
+            }
+          } else if (stage === 'retrying') {
+            const attempt = payload.attempt as number | undefined;
+            const maxRetries = payload.max_retries as number | undefined;
+            const error = payload.error as string | undefined;
+            const nextRetryIn = payload.next_retry_in as number | undefined;
+            const delayText = nextRetryIn ? ` (${Math.round(nextRetryIn)}秒后重试)` : '';
+            setBanner({ 
+              tone: 'warning', 
+              message: `连接失败，正在重试 (${attempt}/${maxRetries})${delayText}${error ? `: ${error}` : ''}` 
+            });
           } else if (stage === 'room_ready') {
             const roomId = (payload.room_id as string | number | undefined) ?? null;
+            const attempt = payload.attempt as number | undefined;
+            const roomIdText = roomId ? String(roomId) : '未知';
+            const attemptText = attempt ? ` (尝试 ${attempt} 次成功)` : '';
+            setBanner({ 
+              tone: 'success', 
+              message: `已解析直播间，room_id=${roomIdText}${attemptText}，等待弹幕…` 
+            });
             setStatus((prev) =>
               prev
                 ? { ...prev, room_id: roomId ? String(roomId) : null, is_running: true }
@@ -235,7 +261,8 @@ const DouyinRelayPanel = ({
                     last_error: null,
                   }
             );
-            setBanner({ tone: 'success', message: `已解析直播间，room_id=${roomId ?? '未知'}，等待弹幕…` });
+          } else if (stage === 'connecting_websocket') {
+            setBanner({ tone: 'info', message: '正在连接 WebSocket…' });
           } else if (stage === 'connected') {
             setBanner({ tone: 'success', message: '已连接，开始接收弹幕。' });
             setStreamConnected(true);

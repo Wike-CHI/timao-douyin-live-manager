@@ -325,31 +325,134 @@ class DouyinWebRelay:
                             "timestamp": time.time(),
                         }
                     )
-                    try:
-                        self._fetcher.get_room_status()
-                        room_id = getattr(self._fetcher, "room_id", None)
-                        if room_id:
+                    
+                    # 重试机制：由于 a_bogus 不是100%有效，需要多次重试
+                    max_retries = 10
+                    retry_delay = 2.0  # 初始延迟2秒
+                    room_id = None
+                    last_error = None
+                    
+                    for attempt in range(1, max_retries + 1):
+                        try:
                             emitter(
                                 {
                                     "type": "status",
                                     "payload": {
-                                        "stage": "room_ready",
-                                        "room_id": room_id,
+                                        "stage": "resolving_room",
+                                        "attempt": attempt,
+                                        "max_retries": max_retries,
                                     },
                                     "timestamp": time.time(),
                                 }
                             )
-                    except Exception as exc:
+                            
+                            # 尝试获取房间状态（可能因为 a_bogus 失败）
+                            self._fetcher.get_room_status()
+                            room_id = getattr(self._fetcher, "room_id", None)
+                            
+                            # 确保 room_id 是字符串类型
+                            if room_id is not None:
+                                room_id = str(room_id)
+                            
+                            if room_id:
+                                emitter(
+                                    {
+                                        "type": "status",
+                                        "payload": {
+                                            "stage": "room_ready",
+                                            "room_id": room_id,
+                                            "attempt": attempt,
+                                        },
+                                        "timestamp": time.time(),
+                                    }
+                                )
+                                break
+                            else:
+                                last_error = "未能获取到 room_id"
+                                if attempt < max_retries:
+                                    # 指数退避：每次重试延迟时间增加
+                                    delay = retry_delay * (1.5 ** (attempt - 1))
+                                    time.sleep(min(delay, 10.0))  # 最大延迟10秒
+                                    
+                        except Exception as exc:
+                            last_error = str(exc)
+                            error_msg = str(exc).lower()
+                            
+                            # 判断是否是可重试的错误
+                            is_retryable = any(keyword in error_msg for keyword in [
+                                "a_bogus", "bogus", "signature", "签名", 
+                                "status_code", "403", "400", "timeout",
+                                "connection", "网络", "请求失败"
+                            ])
+                            
+                            if not is_retryable and attempt >= 3:
+                                # 非重试性错误，且已尝试3次，直接失败
+                                emitter(
+                                    {
+                                        "type": "error",
+                                        "payload": {
+                                            "message": f"不可重试的错误: {last_error}",
+                                            "attempt": attempt,
+                                        },
+                                        "timestamp": time.time(),
+                                    }
+                                )
+                                return
+                            
+                            if attempt < max_retries:
+                                # 指数退避重试
+                                delay = retry_delay * (1.5 ** (attempt - 1))
+                                emitter(
+                                    {
+                                        "type": "status",
+                                        "payload": {
+                                            "stage": "retrying",
+                                            "attempt": attempt,
+                                            "max_retries": max_retries,
+                                            "error": last_error,
+                                            "next_retry_in": delay,
+                                        },
+                                        "timestamp": time.time(),
+                                    }
+                                )
+                                time.sleep(min(delay, 10.0))
+                            else:
+                                # 达到最大重试次数
+                                emitter(
+                                    {
+                                        "type": "error",
+                                        "payload": {
+                                            "message": f"重试{max_retries}次后仍失败: {last_error}",
+                                            "attempt": attempt,
+                                        },
+                                        "timestamp": time.time(),
+                                    }
+                                )
+                                return
+                    
+                    if not room_id:
+                        # 所有重试都失败
                         emitter(
                             {
                                 "type": "error",
-                                "payload": {"message": str(exc)},
+                                "payload": {
+                                    "message": f"无法获取房间ID: {last_error}",
+                                },
                                 "timestamp": time.time(),
                             }
                         )
                         return
-
+                    
+                    # 成功获取 room_id，开始 WebSocket 连接
+                    emitter(
+                        {
+                            "type": "status",
+                            "payload": {"stage": "connecting_websocket"},
+                            "timestamp": time.time(),
+                        }
+                    )
                     self._fetcher.start()
+                    
                 except Exception as exc:
                     emitter(
                         {
@@ -425,7 +528,12 @@ class DouyinWebRelay:
         if event_type == "status":
             stage = (event.get("payload") or {}).get("stage")
             if stage == "room_ready":
-                self._status.room_id = (event.get("payload") or {}).get("room_id")
+                room_id = (event.get("payload") or {}).get("room_id")
+                # 确保 room_id 是字符串类型
+                if room_id is not None:
+                    self._status.room_id = str(room_id)
+                else:
+                    self._status.room_id = None
             elif stage == "stopped":
                 self._status.room_id = None
             self._last_status_event = event

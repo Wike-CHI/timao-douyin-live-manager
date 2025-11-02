@@ -48,6 +48,7 @@ class AIProvider(str, Enum):
     DEEPSEEK = "deepseek"   # DeepSeek
     DOUBAO = "doubao"       # 字节豆包
     GLM = "glm"             # 智谱 ChatGLM
+    GEMINI = "gemini"       # Google Gemini (通过 AiHubMix)
 
 
 @dataclass
@@ -111,6 +112,11 @@ class AIGateway:
             "base_url": "https://open.bigmodel.cn/api/paas/v4",
             "default_model": "glm-4",
             "models": ["glm-4", "glm-3-turbo"],
+        },
+        AIProvider.GEMINI: {
+            "base_url": "https://aihubmix.com/v1",
+            "default_model": "gemini-2.5-flash-preview-09-2025",
+            "models": ["gemini-2.5-flash-preview-09-2025"],
         },
     }
     
@@ -179,6 +185,16 @@ class AIGateway:
                 provider="glm",
                 api_key=glm_key,
                 base_url=os.getenv("GLM_BASE_URL"),
+            )
+        
+        # Gemini (通过 AiHubMix)
+        gemini_key = os.getenv("AIHUBMIX_API_KEY") or os.getenv("GEMINI_API_KEY")
+        if gemini_key:
+            self.register_provider(
+                provider="gemini",
+                api_key=gemini_key,
+                base_url=os.getenv("AIHUBMIX_BASE_URL"),
+                default_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash-preview-09-2025"),
             )
     
     def register_provider(
@@ -425,7 +441,10 @@ class AIGateway:
         model: str,
         usage: Dict[str, int],
     ) -> float:
-        """计算调用成本"""
+        """计算调用成本
+        
+        支持 Gemini 的缓存和搜索定价
+        """
         # 导入定价模块
         try:
             from server.utils.ai_usage_monitor import ModelPricing
@@ -433,7 +452,18 @@ class AIGateway:
             if pricing:
                 input_cost = (usage["prompt_tokens"] / 1000) * pricing["input"]
                 output_cost = (usage["completion_tokens"] / 1000) * pricing["output"]
-                return input_cost + output_cost
+                total_cost = input_cost + output_cost
+                
+                # Gemini 模型支持缓存和搜索定价（如果API响应中包含这些信息）
+                if "cache_read" in pricing and "cache_read_tokens" in usage:
+                    cache_cost = (usage["cache_read_tokens"] / 1000) * pricing["cache_read"]
+                    total_cost += cache_cost
+                
+                if "web_search" in pricing and "web_search_tokens" in usage:
+                    search_cost = (usage["web_search_tokens"] / 1000) * pricing["web_search"]
+                    total_cost += search_cost
+                
+                return total_cost
         except Exception as e:
             logger.debug(f"成本计算失败: {e}")
         
@@ -450,9 +480,15 @@ class AIGateway:
         """记录使用情况到监控系统"""
         try:
             from server.utils.ai_usage_monitor import record_ai_usage
+            
+            # 确定功能名称
+            function_name = f"gateway_{provider}"
+            if provider == "gemini":
+                function_name = "live_review"  # Gemini主要用于复盘
+            
             record_ai_usage(
                 model=model,
-                function=f"gateway_{provider}",
+                function=function_name,
                 input_tokens=usage["prompt_tokens"],
                 output_tokens=usage["completion_tokens"],
                 total_tokens=usage.get("total_tokens"),
