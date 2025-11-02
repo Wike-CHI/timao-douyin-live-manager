@@ -273,8 +273,8 @@ async def create_plan(
         resource_type="plan",
         resource_id=plan.id,
         details={"plan_name": plan.name, "plan_type": plan.plan_type},
-        ip_address=request_info["ip"],
-        user_agent=request_info["user_agent"]
+        ip_address=request_info.get("ip_address") or request_info.get("ip"),
+        user_agent=request_info.get("user_agent", "")
     )
     
     return plan
@@ -288,15 +288,23 @@ async def get_plans(
     limit: int = Query(100, ge=1, le=1000),
     db: Session = Depends(get_db)
 ):
-    """获取套餐列表"""
-    payment_service = PaymentService(db)
-    plans = payment_service.get_plans(
-        plan_type=plan_type,
-        is_active=is_active,
-        skip=skip,
-        limit=limit
-    )
-    return plans
+    """获取套餐列表（公开端点，无需认证）"""
+    try:
+        payment_service = PaymentService(db)
+        plans = payment_service.get_plans(
+            plan_type=plan_type,
+            is_active=is_active,
+            skip=skip,
+            limit=limit
+        )
+        return plans
+    except Exception as e:
+        import logging
+        logging.error(f"获取套餐列表失败: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取套餐列表失败: {str(e)}"
+        )
 
 
 @router.get("/plans/{plan_id}", response_model=PlanResponse)
@@ -344,8 +352,8 @@ async def update_plan(
         resource_type="plan",
         resource_id=plan.id,
         details={"plan_name": plan.name, "changes": plan_data.dict(exclude_unset=True)},
-        ip_address=request_info["ip"],
-        user_agent=request_info["user_agent"]
+        ip_address=request_info.get("ip_address") or request_info.get("ip"),
+        user_agent=request_info.get("user_agent", "")
     )
     
     return plan
@@ -375,8 +383,8 @@ async def delete_plan(
         action="delete_plan",
         resource_type="plan",
         resource_id=plan_id,
-        ip_address=request_info["ip"],
-        user_agent=request_info["user_agent"]
+        ip_address=request_info.get("ip_address") or request_info.get("ip"),
+        user_agent=request_info.get("user_agent", "")
     )
     
     return {"message": "套餐已删除"}
@@ -423,8 +431,8 @@ async def create_subscription(
         resource_type="subscription",
         resource_id=subscription.id,
         details={"plan_id": subscription_data.plan_id, "trial_days": subscription_data.trial_days},
-        ip_address=request_info["ip"],
-        user_agent=request_info["user_agent"]
+        ip_address=request_info.get("ip_address") or request_info.get("ip"),
+        user_agent=request_info.get("user_agent", "")
     )
     
     return subscription
@@ -504,8 +512,8 @@ async def cancel_subscription(
         resource_type="subscription",
         resource_id=subscription_id,
         details={"reason": reason, "immediate": immediate},
-        ip_address=request_info["ip"],
-        user_agent=request_info["user_agent"]
+        ip_address=request_info.get("ip_address") or request_info.get("ip"),
+        user_agent=request_info.get("user_agent", "")
     )
     
     return {"message": "订阅已取消"}
@@ -544,8 +552,8 @@ async def renew_subscription(
         resource_type="subscription",
         resource_id=subscription_id,
         details={"new_plan_id": plan_id},
-        ip_address=request_info["ip"],
-        user_agent=request_info["user_agent"]
+        ip_address=request_info.get("ip_address") or request_info.get("ip"),
+        user_agent=request_info.get("user_agent", "")
     )
     
     return {"message": "订阅已续费"}
@@ -613,8 +621,8 @@ async def create_payment(
             "payment_method": payment_data.payment_method,
             "coupon_code": payment_data.coupon_code
         },
-        ip_address=request_info["ip"],
-        user_agent=request_info["user_agent"]
+        ip_address=request_info.get("ip_address") or request_info.get("ip"),
+        user_agent=request_info.get("user_agent", "")
     )
     
     return payment
@@ -691,8 +699,8 @@ async def create_coupon(
         resource_type="coupon",
         resource_id=coupon.id,
         details={"code": coupon.code, "discount_value": float(coupon.discount_value)},
-        ip_address=request_info["ip"],
-        user_agent=request_info["user_agent"]
+        ip_address=request_info.get("ip_address") or request_info.get("ip"),
+        user_agent=request_info.get("user_agent", "")
     )
     
     return coupon
@@ -863,8 +871,8 @@ async def admin_refund_payment(
         resource_type="payment",
         resource_id=payment_id,
         details={"amount": float(amount) if amount else None, "reason": reason},
-        ip_address=request_info["ip"],
-        user_agent=request_info["user_agent"]
+        ip_address=request_info.get("ip_address") or request_info.get("ip"),
+        user_agent=request_info.get("user_agent", "")
     )
     
     return {"message": "退款成功"}

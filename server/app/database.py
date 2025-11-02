@@ -47,8 +47,10 @@ class DatabaseManager:
                 logger.error("❌ 初始化 MySQL 失败：%s", exc)
                 raise
         else:
-            self._init_sqlite_engine()
-            backend_name = "SQLITE"
+            # 强制使用MySQL，不允许SQLite
+            logger.error("❌ 数据库配置错误：当前配置要求使用MySQL，但db_type不是'mysql'")
+            logger.error("   请检查配置文件 server/app/config/app.json 中的 database.db_type 设置")
+            raise ValueError("数据库类型必须是 'mysql'，SQLite 已禁用")
 
         # 创建会话工厂
         self._session_factory = sessionmaker(

@@ -29,12 +29,13 @@ const LoginPage = () => {
           isPaid: response.isPaid
         });
 
-        // 登录成功后检查订阅状态
-        // 如果未订阅，跳转到订阅页面；否则跳转到dashboard
-        if (!response.isPaid) {
-          navigate('/pay/subscription');
+        // 登录成功后强制检查订阅状态
+        // 如果未订阅，强制跳转到订阅页面；否则跳转到dashboard
+        if (!response.isPaid && response.user?.role !== 'super_admin') {
+          // 强制跳转到订阅页面，不允许访问其他页面
+          navigate('/pay/subscription', { replace: true });
         } else {
-          navigate('/dashboard');
+          navigate('/dashboard', { replace: true });
         }
       }
     } catch (err) {

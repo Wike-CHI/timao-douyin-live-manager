@@ -14,7 +14,6 @@ from ..models.payment import (
     SubscriptionStatus, InvoiceStatus
 )
 from ..models.user import User
-from ..database import get_db
 from ..core.security import encryptor
 import logging
 

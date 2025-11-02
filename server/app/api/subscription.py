@@ -121,6 +121,7 @@ async def get_subscription_plans(
 
 
 @router.get("/my-subscription", response_model=Optional[UserSubscriptionResponse])
+@router.get("/current", response_model=Optional[UserSubscriptionResponse])  # 别名端点
 async def get_my_subscription(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db_session)

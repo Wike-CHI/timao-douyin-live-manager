@@ -129,8 +129,23 @@ export interface SubscriptionStatistics {
  * 获取所有可用套餐
  */
 export const getPlans = async (baseUrl: string = DEFAULT_BASE_URL): Promise<Plan[]> => {
-  const response = await authFetch(`${baseUrl}/api/payment/plans`);
-  return handleResponse(response);
+  // 优先尝试 /api/payment/plans，如果失败则尝试 /api/subscription/plans
+  try {
+    const response = await authFetch(`${baseUrl}/api/payment/plans`);
+    return handleResponse(response);
+  } catch (error) {
+    // 如果 /api/payment/plans 失败，尝试使用 /api/subscription/plans
+    console.warn('尝试使用备用端点 /api/subscription/plans');
+    const response = await authFetch(`${baseUrl}/api/subscription/plans`);
+    const data = await handleResponse<any[]>(response);
+    // 转换数据格式以匹配 Plan 接口
+    return data.map(plan => ({
+      ...plan,
+      duration: plan.duration_days ? `${plan.duration_days}天` : 'monthly',
+      is_popular: false,
+      original_price: plan.price
+    }));
+  }
 };
 
 /**
@@ -168,14 +183,29 @@ export const createSubscription = async (
  */
 export const getCurrentSubscription = async (baseUrl: string = DEFAULT_BASE_URL): Promise<Subscription | null> => {
   try {
+    // 优先尝试 /api/payment/subscriptions/current
     const response = await authFetch(`${baseUrl}/api/payment/subscriptions/current`);
     return handleResponse(response);
   } catch (error) {
-    // 如果没有订阅，返回 null
-    if ((error as any)?.message?.includes('404')) {
-      return null;
+    // 如果失败，尝试使用 /api/subscription/current
+    try {
+      console.warn('尝试使用备用端点 /api/subscription/current');
+      const response = await authFetch(`${baseUrl}/api/subscription/current`);
+      const data = await handleResponse<any>(response);
+      // 转换数据格式以匹配 Subscription 接口
+      if (!data) return null;
+      return {
+        ...data,
+        plan_name: data.plan?.name,
+        expires_at: data.end_date
+      };
+    } catch (fallbackError) {
+      // 如果没有订阅，返回 null
+      if ((fallbackError as any)?.message?.includes('404')) {
+        return null;
+      }
+      throw fallbackError;
     }
-    throw error;
   }
 };
 

@@ -21,9 +21,15 @@ const useAuthGuard = () => {
       return component;
     }
     
-    // 检查是否已付费
+    // 强制检查是否已付费，未付费用户必须停留在订阅页面
     if (!isPaid) {
-      return <Navigate to="/pay/subscription" replace />;
+      // 如果当前不在订阅页面，强制跳转
+      const currentPath = window.location.hash.replace('#', '');
+      if (currentPath !== '/pay/subscription') {
+        return <Navigate to="/pay/subscription" replace />;
+      }
+      // 如果在订阅页面，仍然允许访问（避免无限重定向）
+      return component;
     }
     return component;
   };
