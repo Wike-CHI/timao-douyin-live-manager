@@ -482,7 +482,13 @@ class DouyinLiveWebFetcher:
             ws.send(ack, websocket.ABNF.OPCODE_BINARY)
 
         # 根据消息类别解析消息体
-        for msg in response.messages_list:
+        # 修复：检查 messages_list 是否为 None，避免 'NoneType' object is not iterable 错误
+        messages_list = getattr(response, 'messages_list', None)
+        if messages_list is None:
+            print(f"【警告】messages_list 为 None，跳过消息处理")
+            return
+        
+        for msg in messages_list:
             method = msg.method
             try:
                 {

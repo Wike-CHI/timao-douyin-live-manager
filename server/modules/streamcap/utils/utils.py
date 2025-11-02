@@ -44,13 +44,27 @@ def trace_error_decorator(func: callable) -> callable:
     async def wrapper(*args: list, **kwargs: dict) -> Any:
         try:
             return await func(*args, **kwargs)
-        except execjs.ProgramError:
-            logger.warning("Failed to execute JS code. Please check if the Node.js environment")
+        except execjs.ProgramError as e:
+            logger.warning(f"Failed to execute JS code. Please check if the Node.js environment is installed: {e}")
+            raise RuntimeError(f"JS execution failed: {e}")
         except Exception as e:
             error_line = traceback.extract_tb(e.__traceback__)[-1].lineno
             error_info = f"Type: {type(e).__name__}, {e} in function {func.__name__} at line: {error_line}"
             logger.error(error_info)
-            return []
+            
+            # 修复：提供更清晰的错误信息并抛出异常，而不是返回空列表
+            if "'NoneType' object has no attribute 'group'" in str(e):
+                error_msg = (
+                    "无法解析直播流地址，可能原因：\n"
+                    "1. 直播间已关闭或未开播\n"
+                    "2. 抖音网页结构已更新，请更新 streamget 包: pip install -U streamget\n"
+                    "3. 网络连接问题或需要配置代理\n"
+                    f"详细错误: {e}"
+                )
+                raise RuntimeError(error_msg)
+            
+            # 其他错误也应该抛出，而不是返回空列表
+            raise RuntimeError(f"Fetch failed: {args[1] if len(args) > 1 else 'unknown URL'}, {e}")
 
     return wrapper
 

@@ -441,6 +441,9 @@ async def refresh_token(
     db: Session = Depends(get_db_session)
 ):
     """刷新访问令牌"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         from server.app.core.security import JWTManager
         config = get_config()
@@ -511,10 +514,15 @@ async def refresh_token(
             )
         )
         
+    except HTTPException:
+        # HTTPException 应该直接传播
+        raise
     except Exception as e:
+        # 添加详细的日志记录
+        logger.error(f"❌ 刷新令牌失败: {type(e).__name__}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="刷新令牌失败"
+            detail=f"刷新令牌失败: {str(e)}"
         )
 
 
