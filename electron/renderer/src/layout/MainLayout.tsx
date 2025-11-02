@@ -186,7 +186,12 @@ const MainLayout = () => {
             <div className="text-sm timao-support-text">祝你今晚直播顺利喵～</div>
           </div>
           <div className="flex items-center gap-4">
-            {/* 订阅服务按钮已隐藏 */}
+            <NavLink
+              to="/pay/subscription"
+              className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm font-medium"
+            >
+              订阅服务
+            </NavLink>
             <ThemeToggle />
           </div>
         </header>

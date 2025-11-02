@@ -64,8 +64,13 @@
     }
   },
   "database": {
-    "type": "sqlite",
-    "path": "data/local.db",
+    "type": "mysql",
+    "host": "localhost",
+    "port": 3306,
+    "user": "timao",
+    "password": "timao-20251030",
+    "database": "timao_live",
+    "charset": "utf8mb4",
     "auto_create": true,
     "backup_enabled": true
   },

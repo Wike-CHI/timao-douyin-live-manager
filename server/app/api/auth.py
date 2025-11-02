@@ -370,29 +370,21 @@ async def login_user(
         
         # 获取用户订阅信息
         logger.info("📊 获取用户订阅信息...")
-        # subscription_info = SubscriptionService.get_usage_stats(user.id)
-        # logger.info(f"✅ 订阅信息获取成功: {subscription_info}")
-        
-        # 临时跳过订阅系统检查，直接设置为已付费状态
-        subscription_info = {
-            'has_subscription': True,
-            'subscription_type': 'premium',
-            'subscription_status': 'active',
-            'ai_usage': {
-                'requests_used': 0,
-                'requests_limit': 10000,
-                'tokens_used': 0,
-                'tokens_limit': 1000000,
-                'first_free_used': False
-            }
-        }
-        logger.info("✅ 临时跳过订阅检查，设置为已付费状态")
+        subscription_info = SubscriptionService.get_usage_stats(user.id)
+        logger.info(f"✅ 订阅信息获取成功: {subscription_info}")
         
         # 计算用户支付状态
-        has_subscription = True  # 临时设置为True
-        is_paid = True  # 临时设置为True
-        ai_usage = subscription_info.get("ai_usage")
-        first_free_used = False  # 临时设置为False，允许使用AI服务
+        has_subscription = subscription_info.get('has_subscription', False)
+        subscription_status = subscription_info.get('status') or subscription_info.get('subscription_status')
+        is_paid = has_subscription or subscription_status == 'active'
+        ai_usage = subscription_info.get("ai_usage", {
+            'requests_used': 0,
+            'requests_limit': 0,
+            'tokens_used': 0,
+            'tokens_limit': 0,
+            'first_free_used': False
+        })
+        first_free_used = ai_usage.get('first_free_used', False)
         
         logger.info("📦 构建登录响应...")
         log_user_action("登录", user_id=user.id, username=user.username, is_paid=is_paid)
@@ -564,22 +556,19 @@ async def refresh_token(
         new_access_token = JWTManager.create_access_token(data={"sub": str(user.id)})
         new_refresh_token = JWTManager.create_refresh_token(data={"sub": str(user.id)})
         
-        # 临时跳过订阅系统检查，直接设置为已付费状态
-        subscription_info = {
-            'has_subscription': True,
-            'subscription_type': 'premium',
-            'subscription_status': 'active',
-            'ai_usage': {
-                'requests_used': 0,
-                'requests_limit': 10000,
-                'tokens_used': 0,
-                'tokens_limit': 1000000,
-                'first_free_used': False
-            }
-        }
-        has_subscription = True
-        ai_usage = subscription_info.get("ai_usage")
-        first_free_used = False
+        # 获取用户订阅信息
+        subscription_info = SubscriptionService.get_usage_stats(user.id)
+        has_subscription = subscription_info.get('has_subscription', False)
+        subscription_status = subscription_info.get('status') or subscription_info.get('subscription_status')
+        is_paid = has_subscription or subscription_status == 'active'
+        ai_usage = subscription_info.get("ai_usage", {
+            'requests_used': 0,
+            'requests_limit': 0,
+            'tokens_used': 0,
+            'tokens_limit': 0,
+            'first_free_used': False
+        })
+        first_free_used = ai_usage.get('first_free_used', False)
         
         return LoginResponse(
             success=True,
@@ -587,7 +576,7 @@ async def refresh_token(
             access_token=new_access_token,
             refresh_token=new_refresh_token,
             expires_in=86400,
-            isPaid=has_subscription,
+            isPaid=is_paid,
             firstFreeUsed=first_free_used,
             aiUsage=ai_usage,
             user=UserResponse(
@@ -738,17 +727,16 @@ async def use_first_free(
     """使用首次免费额度"""
     try:
         user_id = current_user["id"]
-        # 临时跳过首次免费检查，直接返回成功
+        # 检查用户订阅信息
+        subscription_info = SubscriptionService.get_usage_stats(user_id)
+        ai_usage = subscription_info.get("ai_usage", {})
+        first_free_used = ai_usage.get('first_free_used', False)
+        
         return {
             "success": True,
-            "firstFreeUsed": False,  # 临时设置为False，允许继续使用
-            "aiUsage": {
-                'requests_used': 0,
-                'requests_limit': 10000,
-                'tokens_used': 0,
-                'tokens_limit': 1000000,
-                'first_free_used': False
-            }
+            "firstFreeUsed": first_free_used,
+            "message": "首次免费额度已使用" if first_free_used else "首次免费额度可用",
+            "aiUsage": ai_usage
         }
         
     except HTTPException:
