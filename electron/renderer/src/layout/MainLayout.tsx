@@ -151,12 +151,16 @@ const MainLayout = () => {
 
   return (
     <div className="min-h-screen timao-surface flex">
-      <aside className="w-64 timao-card flex flex-col p-6 mr-4">
-        <div className="text-2xl font-semibold text-purple-500 mb-8 flex items-center gap-3">
+      {/* 侧边栏 - 固定高度，退出登录按钮始终可见 */}
+      <aside className="w-64 timao-card flex flex-col p-6 mr-4 h-screen sticky top-0">
+        {/* Logo 区域 */}
+        <div className="text-2xl font-semibold text-purple-500 mb-8 flex items-center gap-3 flex-shrink-0">
           <img src={logoUrl} alt="TalkingCat" className="h-8 w-8 rounded-lg ring-2 ring-purple-300 shadow" />
           <span className="leading-none">提猫直播助手 · TalkingCat</span>
         </div>
-        <nav className="flex-1 space-y-2">
+        
+        {/* 导航菜单 - 可滚动区域 */}
+        <nav className="flex-1 space-y-2 overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin' }}>
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -174,9 +178,19 @@ const MainLayout = () => {
             </NavLink>
           ))}
         </nav>
-        <button onClick={handleLogout} className="mt-6 text-sm timao-support-text hover:text-purple-500">
-          退出登录
-        </button>
+        
+        {/* 退出登录按钮 - 固定在底部，始终可见 */}
+        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+          <button 
+            onClick={handleLogout} 
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            退出登录
+          </button>
+        </div>
       </aside>
       <main className="flex-1 flex flex-col pr-4">
         <header className="flex justify-between items-center px-8 py-6">

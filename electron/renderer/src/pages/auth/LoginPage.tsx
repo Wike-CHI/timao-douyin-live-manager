@@ -1,18 +1,47 @@
-import React, { FormEvent, useState } from 'react';
+import React, { FormEvent, useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { login, type LoginResponse } from '../../services/auth';
 import useAuthStore from '../../store/useAuthStore';
+import useAccountStore from '../../store/useAccountStore';
 import TermsModal from '../../components/TermsModal';
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const { setAuth, rememberMe, setRememberMe } = useAuthStore();
+  const { saveAccount, getSortedAccounts, removeAccount } = useAccountStore();
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'terms' | 'privacy'>('terms');
+  const [showAccountDropdown, setShowAccountDropdown] = useState(false);
+  const [savePassword, setSavePassword] = useState(true);  // 是否保存密码
+  
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const savedAccounts = getSortedAccounts();
+
+  // 初始化：自动填充最近使用的账号
+  useEffect(() => {
+    const recentAccount = useAccountStore.getState().getRecentAccount();
+    if (recentAccount && savePassword) {
+      setEmail(recentAccount.email);
+      setPassword(recentAccount.password);
+    }
+  }, []);
+
+  // 点击外部关闭下拉框
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowAccountDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -25,6 +54,11 @@ const LoginPage = () => {
         remember_me: rememberMe  // 传递"记住我"状态
       });
       if (response.success) {
+        // 登录成功后保存账号密码
+        if (savePassword) {
+          saveAccount(email, password, response.user.nickname || response.user.username);
+        }
+        
         // 写入认证状态
         setAuth({
           user: response.user,
@@ -43,6 +77,19 @@ const LoginPage = () => {
     }
   };
 
+  // 选择已保存的账号
+  const handleSelectAccount = (account: typeof savedAccounts[0]) => {
+    setEmail(account.email);
+    setPassword(account.password);
+    setShowAccountDropdown(false);
+  };
+
+  // 删除已保存的账号
+  const handleDeleteAccount = (email: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    removeAccount(email);
+  };
+
   const openTermsModal = (type: 'terms' | 'privacy') => {
     setModalType(type);
     setModalOpen(true);
@@ -56,20 +103,79 @@ const LoginPage = () => {
       </h2>
       <p className="text-sm timao-support-text mb-6">使用已注册账号登录，体验 AI 直播助手。</p>
       <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-        <div>
+        <div className="relative" ref={dropdownRef}>
           <label htmlFor="login-email" className="block text-sm font-medium timao-support-text mb-2">
             邮箱
+            {savedAccounts.length > 0 && (
+              <span className="text-xs text-gray-400 ml-2">
+                ({savedAccounts.length} 个已保存账号)
+              </span>
+            )}
           </label>
-          <input
-            id="login-email"
-            type="email"
-            className="timao-input"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="name@example.com"
-            required
-            autoComplete="email"
-          />
+          <div className="relative">
+            <input
+              id="login-email"
+              type="email"
+              className="timao-input pr-10"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onFocus={() => savedAccounts.length > 0 && setShowAccountDropdown(true)}
+              placeholder="name@example.com"
+              required
+              autoComplete="email"
+            />
+            {savedAccounts.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowAccountDropdown(!showAccountDropdown)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-purple-500 transition-colors"
+                title="选择已保存的账号"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            )}
+          </div>
+          
+          {/* 账号下拉列表 */}
+          {showAccountDropdown && savedAccounts.length > 0 && (
+            <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+              {savedAccounts.map((account) => (
+                <div
+                  key={account.email}
+                  onClick={() => handleSelectAccount(account)}
+                  className="flex items-center justify-between px-4 py-3 hover:bg-purple-50 dark:hover:bg-purple-900/20 cursor-pointer transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400 text-sm font-medium">
+                        {(account.nickname || account.email)[0].toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                          {account.nickname || account.email.split('@')[0]}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {account.email}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDeleteAccount(account.email, e)}
+                    className="ml-2 p-1 text-gray-400 hover:text-red-500 transition-colors"
+                    title="删除此账号"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <div>
           <label htmlFor="login-password" className="block text-sm font-medium timao-support-text mb-2">
@@ -86,17 +192,31 @@ const LoginPage = () => {
             autoComplete="current-password"
           />
         </div>
-        <div className="flex items-center">
-          <input
-            id="remember-me"
-            type="checkbox"
-            checked={rememberMe}
-            onChange={(e) => setRememberMe(e.target.checked)}
-            className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-          />
-          <label htmlFor="remember-me" className="ml-2 block text-sm timao-support-text">
-            记住我
-          </label>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <input
+              id="save-password"
+              type="checkbox"
+              checked={savePassword}
+              onChange={(e) => setSavePassword(e.target.checked)}
+              className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+            />
+            <label htmlFor="save-password" className="ml-2 block text-sm timao-support-text">
+              保存密码
+            </label>
+          </div>
+          <div className="flex items-center">
+            <input
+              id="remember-me"
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+            />
+            <label htmlFor="remember-me" className="ml-2 block text-sm timao-support-text">
+              记住登录
+            </label>
+          </div>
         </div>
         {error && (
           <div className="text-sm text-red-500 bg-red-50 rounded-xl px-3 py-2" role="alert">
