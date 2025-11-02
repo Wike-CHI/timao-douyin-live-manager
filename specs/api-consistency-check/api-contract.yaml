@@ -1,0 +1,779 @@
+openapi: 3.0.0
+info:
+  title: 提猫直播助手 API
+  version: 1.0.0
+  description: |
+    提猫直播助手后端 API 接口文档
+    
+    ## 认证方式
+    使用 Bearer Token 认证，在请求头中添加：
+    ```
+    Authorization: Bearer <access_token>
+    ```
+    
+    ## 数据格式
+    - 请求体：application/json
+    - 响应体：application/json
+    - 日期时间：ISO 8601 格式字符串（如 "2025-11-02T15:30:00Z"）
+    - 金额：字符串格式（避免精度丢失）
+
+servers:
+  - url: http://127.0.0.1:9019
+    description: 本地开发环境
+  - url: http://localhost:9019
+    description: 本地开发环境（localhost）
+
+tags:
+  - name: 认证
+    description: 用户认证相关接口
+  - name: 订阅
+    description: 订阅管理相关接口
+  - name: 支付
+    description: 支付相关接口
+  - name: 抖音
+    description: 抖音直播监控接口
+  - name: 音频转写
+    description: 实时音频转写接口
+  - name: 直播复盘
+    description: 直播复盘分析接口
+
+paths:
+  # ==================== 认证接口 ====================
+  /api/auth/login:
+    post:
+      tags: [认证]
+      summary: 用户登录
+      description: 使用用户名/邮箱和密码登录系统
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username_or_email
+                - password
+              properties:
+                username_or_email:
+                  type: string
+                  description: 用户名或邮箱
+                  example: "admin@example.com"
+                password:
+                  type: string
+                  format: password
+                  description: 密码（至少6个字符）
+                  example: "password123"
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: 认证失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/register:
+    post:
+      tags: [认证]
+      summary: 用户注册
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '400':
+          description: 注册失败（参数错误）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/refresh:
+    post:
+      tags: [认证]
+      summary: 刷新访问令牌
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+                  description: 刷新令牌
+      responses:
+        '200':
+          description: 刷新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
+                  token_type:
+                    type: string
+                    example: "bearer"
+                  expires_in:
+                    type: integer
+                    example: 86400
+
+  # ==================== 支付接口 ====================
+  /api/payment/plans:
+    get:
+      tags: [支付]
+      summary: 获取支付套餐列表
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Plan'
+
+  /api/payment/subscriptions/current:
+    get:
+      tags: [支付]
+      summary: 获取当前用户订阅
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '404':
+          description: 没有活跃订阅
+
+  /api/payment/subscriptions:
+    post:
+      tags: [支付]
+      summary: 创建订阅
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - plan_id
+              properties:
+                plan_id:
+                  type: integer
+                trial_days:
+                  type: integer
+                  minimum: 0
+                  maximum: 30
+                  default: 0
+                auto_renew:
+                  type: boolean
+                  default: true
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+
+  /api/payment/payments:
+    post:
+      tags: [支付]
+      summary: 创建支付
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentCreate'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+
+  # ==================== 抖音接口 ====================
+  /api/douyin/start:
+    post:
+      tags: [抖音]
+      summary: 启动抖音直播监控
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                live_id:
+                  type: string
+                  description: 直播间 ID
+                live_url:
+                  type: string
+                  description: 直播间 URL
+                cookie:
+                  type: string
+                  description: 可选的 Cookie 字符串
+      responses:
+        '200':
+          description: 启动成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+
+  /api/douyin/stop:
+    post:
+      tags: [抖音]
+      summary: 停止抖音直播监控
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 停止成功
+
+  /api/douyin/status:
+    get:
+      tags: [抖音]
+      summary: 获取监控状态
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DouyinStatus'
+
+  # ==================== 音频转写接口 ====================
+  /api/live_audio/start:
+    post:
+      tags: [音频转写]
+      summary: 启动实时音频转写
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartLiveAudioRequest'
+      responses:
+        '200':
+          description: 启动成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  session_id:
+                    type: string
+
+  /api/live_audio/stop:
+    post:
+      tags: [音频转写]
+      summary: 停止音频转写
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 停止成功
+
+  /api/live_audio/status:
+    get:
+      tags: [音频转写]
+      summary: 获取转写状态
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveAudioStatus'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ==================== 认证相关 ====================
+    LoginResponse:
+      type: object
+      required:
+        - success
+        - token
+        - access_token
+        - refresh_token
+        - token_type
+        - expires_in
+        - user
+        - isPaid
+      properties:
+        success:
+          type: boolean
+          example: true
+        token:
+          type: string
+          description: 访问令牌（与 access_token 相同，兼容字段）
+        access_token:
+          type: string
+          description: 访问令牌
+        refresh_token:
+          type: string
+          description: 刷新令牌
+        token_type:
+          type: string
+          example: "bearer"
+        expires_in:
+          type: integer
+          description: 令牌过期时间（秒）
+          example: 86400
+        user:
+          $ref: '#/components/schemas/UserInfo'
+        isPaid:
+          type: boolean
+          description: 是否为付费用户
+        firstFreeUsed:
+          type: boolean
+          description: 首次免费额度是否已使用
+        aiUsage:
+          $ref: '#/components/schemas/AIUsage'
+
+    UserInfo:
+      type: object
+      required:
+        - id
+        - username
+        - email
+        - role
+        - status
+        - email_verified
+        - phone_verified
+        - created_at
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        nickname:
+          type: string
+          nullable: true
+        avatar_url:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [user, admin, super_admin]
+        status:
+          type: string
+          enum: [active, inactive, suspended, banned]
+        email_verified:
+          type: boolean
+        phone_verified:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          description: ISO 8601 格式的日期时间字符串
+
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - nickname
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 6
+        nickname:
+          type: string
+        username:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{3,50}$'
+          description: 3-50字符，仅支持字母、数字、下划线和连字符
+        phone:
+          type: string
+          nullable: true
+
+    RegisterResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        user:
+          $ref: '#/components/schemas/UserInfo'
+
+    AIUsage:
+      type: object
+      properties:
+        requests_used:
+          type: integer
+        requests_limit:
+          type: integer
+        tokens_used:
+          type: integer
+        tokens_limit:
+          type: integer
+        first_free_used:
+          type: boolean
+
+    # ==================== 支付相关 ====================
+    Plan:
+      type: object
+      required:
+        - id
+        - name
+        - plan_type
+        - duration
+        - price
+        - original_price
+        - currency
+        - features
+        - limits
+        - is_active
+        - sort_order
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        plan_type:
+          type: string
+          enum: [free, basic, professional, enterprise]
+        duration:
+          type: string
+          description: 套餐时长（如 "monthly", "yearly"）
+        price:
+          type: string
+          description: 价格（字符串格式，避免精度丢失）
+          example: "99.00"
+        original_price:
+          type: string
+          description: 原价
+          example: "199.00"
+        currency:
+          type: string
+          example: "CNY"
+        features:
+          type: object
+          additionalProperties: true
+        limits:
+          type: object
+          additionalProperties: true
+        is_active:
+          type: boolean
+        sort_order:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Subscription:
+      type: object
+      required:
+        - id
+        - user_id
+        - plan_id
+        - status
+        - start_date
+        - end_date
+        - auto_renew
+        - is_active
+        - is_trial
+        - days_remaining
+        - plan
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        plan_id:
+          type: integer
+        status:
+          type: string
+          enum: [active, expired, cancelled, pending]
+        start_date:
+          type: string
+          format: date-time
+        end_date:
+          type: string
+          format: date-time
+        auto_renew:
+          type: boolean
+        trial_end_date:
+          type: string
+          format: date-time
+          nullable: true
+        cancelled_at:
+          type: string
+          format: date-time
+          nullable: true
+        cancel_reason:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+        is_trial:
+          type: boolean
+        days_remaining:
+          type: integer
+        plan:
+          $ref: '#/components/schemas/Plan'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PaymentCreate:
+      type: object
+      required:
+        - amount
+        - payment_method
+      properties:
+        subscription_id:
+          type: integer
+          nullable: true
+        amount:
+          type: string
+          description: 支付金额（字符串格式）
+          example: "99.00"
+        payment_method:
+          type: string
+          enum: [alipay, wechat, bank_transfer, stripe]
+        currency:
+          type: string
+          default: "CNY"
+        coupon_code:
+          type: string
+          nullable: true
+        return_url:
+          type: string
+          nullable: true
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        subscription_id:
+          type: integer
+          nullable: true
+        amount:
+          type: string
+        currency:
+          type: string
+        payment_method:
+          type: string
+        status:
+          type: string
+          enum: [pending, completed, failed, cancelled]
+        transaction_id:
+          type: string
+        external_id:
+          type: string
+          nullable: true
+        payment_url:
+          type: string
+          nullable: true
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+        failed_at:
+          type: string
+          format: date-time
+          nullable: true
+        failure_reason:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # ==================== 抖音相关 ====================
+    DouyinStatus:
+      type: object
+      properties:
+        is_running:
+          type: boolean
+        live_id:
+          type: string
+          nullable: true
+        room_id:
+          type: string
+          nullable: true
+        last_error:
+          type: string
+          nullable: true
+        persist_enabled:
+          type: boolean
+        persist_root:
+          type: string
+          nullable: true
+
+    # ==================== 音频转写相关 ====================
+    StartLiveAudioRequest:
+      type: object
+      required:
+        - live_url
+      properties:
+        live_url:
+          type: string
+          description: 直播间 URL 或 ID
+        session_id:
+          type: string
+          nullable: true
+        chunk_duration:
+          type: number
+          minimum: 0.2
+          maximum: 2.0
+        profile:
+          type: string
+          enum: [fast, stable]
+        vad_min_silence_sec:
+          type: number
+        vad_min_speech_sec:
+          type: number
+        vad_hangover_sec:
+          type: number
+        vad_rms:
+          type: number
+        max_wait:
+          type: number
+        max_chars:
+          type: number
+        silence_flush:
+          type: number
+        min_sentence_chars:
+          type: number
+
+    LiveAudioStatus:
+      type: object
+      properties:
+        is_running:
+          type: boolean
+        live_id:
+          type: string
+          nullable: true
+        live_url:
+          type: string
+          nullable: true
+        session_id:
+          type: string
+          nullable: true
+        mode:
+          type: string
+        profile:
+          type: string
+        advanced:
+          type: object
+          properties:
+            music_filter:
+              type: boolean
+            persist_enabled:
+              type: boolean
+            persist_root:
+              type: string
+              nullable: true
+            agc_enabled:
+              type: boolean
+            agc_gain:
+              type: number
+            diarizer_active:
+              type: boolean
+            max_speakers:
+              type: integer
+            last_speaker:
+              type: string
+              nullable: true
+        stats:
+          type: object
+          properties:
+            total_audio_chunks:
+              type: integer
+            successful_transcriptions:
+              type: integer
+            failed_transcriptions:
+              type: integer
+            average_confidence:
+              type: number
+
+    # ==================== 错误响应 ====================
+    ErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+          description: 错误详情
+

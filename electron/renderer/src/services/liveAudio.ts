@@ -44,6 +44,7 @@ export interface LiveAudioStatus {
   session_id: string | null;
   mode?: 'delta' | 'sentence' | 'vad' | string;
   profile?: 'fast' | 'stable' | string;
+  model?: string;  // 修复 AUDIO-002: 添加模型字段
   advanced?: {
     music_filter?: boolean;
     music_detection_enabled?: boolean;
@@ -132,21 +133,43 @@ export const openLiveAudioWebSocket = (
   return socket;
 };
 
+/**
+ * 音频高级设置接口（修复 AUDIO-003）
+ */
+export interface LiveAudioAdvancedSettings {
+  // 持久化设置
+  persist_enabled?: boolean;
+  persist_root?: string;
+  // 自动增益控制
+  agc?: boolean;
+  agc_target_level?: number;
+  // 说话人分离
+  diarization?: boolean;
+  max_speakers?: number;
+  // 音乐检测
+  music_detection_enabled?: boolean;
+  music_filter?: boolean;
+  // VAD 参数
+  vad_min_silence_sec?: number;
+  vad_min_speech_sec?: number;
+  vad_hangover_sec?: number;
+  vad_rms?: number;
+  // 句子组装参数
+  max_wait?: number;
+  max_chars?: number;
+  silence_flush?: number;
+  min_sentence_chars?: number;
+}
+
 export const updateLiveAudioAdvanced = async (
-  payload: {
-    agc?: boolean;
-    diarization?: boolean;
-    max_speakers?: number;
-    persist_enabled?: boolean;
-    persist_root?: string;
-  },
+  settings: LiveAudioAdvancedSettings,  // 修复 AUDIO-003: 使用具体类型
   baseUrl: string = DEFAULT_BASE_URL
 ) => {
   const headers = await buildHeaders();
   const response = await fetch(`${baseUrl}/api/live_audio/advanced`, {
     method: 'POST',
     headers,
-    body: JSON.stringify(payload),
+    body: JSON.stringify(settings),
   });
   return handleResponse(response);
 };

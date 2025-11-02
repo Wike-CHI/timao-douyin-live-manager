@@ -20,7 +20,13 @@ const joinUrl = (path: string) => {
   return `${base}${p}`;
 };
 
-// 定义与后端UserResponse模型一致的接口
+/**
+ * 用户信息（修复 PAY-004）
+ * 对应后端: UserResponse (server/app/api/auth.py:76-90)
+ * 
+ * 注意: created_at 是 ISO 8601 格式的日期时间字符串
+ * 示例: "2025-11-02T15:30:00Z"
+ */
 export interface UserInfo {
   id: number;
   username: string;
@@ -31,7 +37,7 @@ export interface UserInfo {
   status: string;
   email_verified: boolean;
   phone_verified: boolean;
-  created_at: string; // 日期时间在JSON中会转换为字符串
+  created_at: string;  // ISO 8601 日期时间字符串
 }
 
 // 定义与后端LoginResponse模型一致的接口
@@ -85,11 +91,42 @@ export const login = async (payload: LoginPayload): Promise<LoginResponse> => {
 };
 
 export const register = async (payload: RegisterPayload): Promise<RegisterResponse> => {
+  // 导入验证器（修复 AUTH-004）
+  const { UserValidator } = await import('../utils/validators');
+  
   const body: RegisterPayload = { ...payload };
+  
+  // 生成或验证用户名
   if (!body.username) {
-    const fallback = body.nickname?.trim() || body.email.split('@')[0];
-    body.username = fallback.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 50) || `user_${Date.now()}`;
+    body.username = UserValidator.generateUsername(body.nickname || '', body.email);
+  } else {
+    // 验证用户提供的用户名
+    const validation = UserValidator.validateUsername(body.username);
+    if (!validation.valid) {
+      throw new Error(validation.message);
+    }
   }
+  
+  // 验证密码
+  const passwordValidation = UserValidator.validatePassword(body.password);
+  if (!passwordValidation.valid) {
+    throw new Error(passwordValidation.message);
+  }
+  
+  // 验证邮箱
+  const emailValidation = UserValidator.validateEmail(body.email);
+  if (!emailValidation.valid) {
+    throw new Error(emailValidation.message);
+  }
+  
+  // 验证手机号（如果提供）
+  if (body.phone) {
+    const phoneValidation = UserValidator.validatePhone(body.phone);
+    if (!phoneValidation.valid) {
+      throw new Error(phoneValidation.message);
+    }
+  }
+  
   const resp = await fetch(joinUrl('/api/auth/register'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

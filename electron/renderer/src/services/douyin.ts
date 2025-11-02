@@ -38,6 +38,7 @@ export interface DouyinRelayStatus {
   last_error: string | null;
   persist_enabled?: boolean;
   persist_root?: string | null;
+  fetcher_status?: Record<string, any>;  // 修复 DY-003: 添加抓取器详细状态
 }
 
 export interface DouyinRelayResponse {
@@ -54,13 +55,21 @@ export interface DouyinStreamEvent {
 
 export const startDouyinRelay = async (
   liveId: string,
+  cookie?: string,  // 修复 DY-001: 添加 Cookie 参数
   baseUrl?: string
 ): Promise<DouyinRelayResponse> => {
   const headers = await buildHeaders();
+  const body: any = { live_id: liveId };
+  
+  // 修复 DY-001: 支持可选的 Cookie
+  if (cookie) {
+    body.cookie = cookie;
+  }
+  
   const response = await fetch(joinUrl(baseUrl, '/api/douyin/start'), {
     method: 'POST',
     headers,
-    body: JSON.stringify({ live_id: liveId }),
+    body: JSON.stringify(body),
   });
   return handleResponse<DouyinRelayResponse>(response);
 };

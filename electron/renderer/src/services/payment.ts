@@ -43,14 +43,22 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
 
 // ========== 类型定义 ==========
 
+/**
+ * 套餐信息（修复 PAY-001, PAY-004）
+ * 对应后端: PlanResponse (server/app/api/payment.py:56-74)
+ * 
+ * 注意:
+ * - price/original_price 使用字符串避免精度丢失
+ * - created_at/updated_at 是 ISO 8601 格式的日期时间字符串
+ */
 export interface Plan {
   id: number;
   name: string;
   description?: string;
   plan_type: string;
   duration: string;
-  price: number;
-  original_price?: number;
+  price: string; // 修改为 string 避免精度丢失（PAY-001）
+  original_price?: string; // 修改为 string 避免精度丢失（PAY-001）
   currency: string;
   features: Record<string, any>;
   limits: Record<string, any>;
@@ -61,16 +69,28 @@ export interface Plan {
   updated_at: string;
 }
 
+/**
+ * 订阅信息（修复 PAY-004）
+ * 对应后端: SubscriptionResponse (server/app/api/payment.py:84-104)
+ * 
+ * 注意: 所有日期时间字段都是 ISO 8601 格式的字符串
+ * - start_date: 订阅开始时间
+ * - end_date: 订阅结束时间
+ * - trial_end_date: 试用结束时间（可选）
+ * - cancelled_at: 取消时间（可选）
+ * - created_at: 创建时间
+ * - updated_at: 更新时间
+ */
 export interface Subscription {
   id: number;
   user_id: number;
   plan_id: number;
   status: 'active' | 'expired' | 'cancelled' | 'pending';
-  start_date: string;
-  end_date: string;
+  start_date: string;  // ISO 8601 日期时间字符串
+  end_date: string;  // ISO 8601 日期时间字符串
   auto_renew: boolean;
-  trial_end_date?: string;
-  cancelled_at?: string;
+  trial_end_date?: string;  // ISO 8601 日期时间字符串
+  cancelled_at?: string;  // ISO 8601 日期时间字符串
   cancel_reason?: string;
   is_active: boolean;
   is_trial: boolean;
@@ -78,15 +98,15 @@ export interface Subscription {
   plan?: Plan;
   plan_name?: string; // 添加 plan_name 属性
   expires_at?: string; // 添加 expires_at 属性
-  created_at: string;
-  updated_at: string;
+  created_at: string;  // ISO 8601 日期时间字符串
+  updated_at: string;  // ISO 8601 日期时间字符串
 }
 
 export interface Payment {
   id: number;
   user_id: number;
   subscription_id?: number;
-  amount: number;
+  amount: string; // 修改为 string 避免精度丢失（PAY-001）
   method: 'alipay' | 'wechat' | 'bank_transfer' | 'points';
   status: 'pending' | 'completed' | 'failed' | 'cancelled';
   transaction_id?: string;
@@ -98,8 +118,8 @@ export interface Coupon {
   id: string;
   code: string;
   discount_type: 'percentage' | 'fixed';
-  discount_value: number;
-  min_amount?: number;
+  discount_value: string; // 修改为 string 避免精度丢失（PAY-001）
+  min_amount?: string; // 修改为 string 避免精度丢失（PAY-001）
   max_uses?: number;
   used_count: number;
   expires_at?: string;
@@ -107,11 +127,11 @@ export interface Coupon {
 }
 
 export interface PaymentStatistics {
-  total_revenue: number;
+  total_revenue: string; // 修改为 string 避免精度丢失（PAY-001）
   total_payments: number;
   successful_payments: number;
   failed_payments: number;
-  average_payment: number;
+  average_payment: string; // 修改为 string 避免精度丢失（PAY-001）
 }
 
 export interface SubscriptionStatistics {
@@ -258,18 +278,33 @@ export const renewSubscription = async (
 // ========== 支付管理 API ==========
 
 /**
- * 创建支付
+ * 创建支付请求参数（修复 PAY-005）
+ */
+export interface CreatePaymentRequest {
+  subscription_id?: number;  // 可选，如果是订阅支付
+  amount: string;  // 必填，支付金额（使用字符串避免精度丢失）
+  payment_method: 'alipay' | 'wechat' | 'bank_transfer' | 'points';
+  currency?: string;  // 可选，默认 CNY
+  coupon_code?: string;  // 可选，优惠券代码
+  return_url?: string;  // 可选，支付成功返回 URL
+}
+
+/**
+ * 创建支付（修复 PAY-005）
  */
 export const createPayment = async (
-  subscriptionId: string,
-  method: 'alipay' | 'wechat' | 'bank_transfer',
+  request: CreatePaymentRequest,
   baseUrl: string = DEFAULT_BASE_URL
 ): Promise<Payment> => {
   const response = await authFetch(`${baseUrl}/api/payment/payments`, {
     method: 'POST',
     body: JSON.stringify({
-      subscription_id: subscriptionId,
-      method: method,
+      subscription_id: request.subscription_id,
+      amount: request.amount,
+      payment_method: request.payment_method,
+      currency: request.currency || 'CNY',
+      coupon_code: request.coupon_code,
+      return_url: request.return_url,
     }),
   });
   return handleResponse(response);
@@ -302,13 +337,13 @@ export const getPaymentHistory = async (
  */
 export const validateCoupon = async (
   code: string,
-  amount: number,
+  amount: string,  // 修改为 string（PAY-001）
   baseUrl: string = DEFAULT_BASE_URL
 ): Promise<{
   valid: boolean;
   coupon?: Coupon;
-  discount_amount?: number;
-  final_amount?: number;
+  discount_amount?: string;  // 修改为 string（PAY-001）
+  final_amount?: string;  // 修改为 string（PAY-001）
   message?: string;
 }> => {
   const response = await authFetch(`${baseUrl}/api/payment/coupons/validate`, {
