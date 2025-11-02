@@ -77,9 +77,10 @@ const LiveConsolePage = () => {
   const [douyinStatus, setDouyinStatus] = useState<any>(null);
   const [douyinConnected, setDouyinConnected] = useState<boolean>(false);
   const navigate = useNavigate();
-  const { isPaid } = useAuthStore();
+  const { isPaid, user } = useAuthStore();
 
   const isRunning = status?.is_running ?? false;
+  const isSuperAdmin = user?.role === 'super_admin';
   const generatingRef = useRef(false);
 
   const speakerLabelShort = useCallback((value?: string | null) => {
@@ -264,10 +265,11 @@ const LiveConsolePage = () => {
     setLoading(true);
     setError(null);
     try {
-      // 检查付费状态
-      if (!isPaid) {
-        setError('功能暂时不可用');
+      // 检查付费状态（超级管理员不受限制）
+      if (!isPaid && !isSuperAdmin) {
+        setError('功能暂时不可用，请订阅套餐后使用');
         setLoading(false);
+        setIsStarting(false);
         return;
       }
 
