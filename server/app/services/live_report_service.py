@@ -84,6 +84,11 @@ class LiveReportStatus:
     transcript_chars: int = 0
     report_path: Optional[str] = None
     metrics: Dict[str, Any] = field(default_factory=dict)
+    # 🆕 暂停/继续支持
+    status: str = "recording"  # recording / paused / stopped
+    paused_at: Optional[int] = None
+    resumed_at: Optional[int] = None
+    pause_count: int = 0
 
 
 class LiveReportService:
@@ -141,6 +146,118 @@ class LiveReportService:
                 self._style_memory = None
         else:
             self._style_memory = None
+
+    # ---------- Session State Persistence ----------
+    def _get_session_state_path(self) -> Path:
+        """获取会话状态文件路径"""
+        return self.records_root / ".live_session_state.json"
+
+    async def _save_session_state(self):
+        """保存会话状态到磁盘"""
+        if not self._session:
+            return
+        
+        try:
+            state_path = self._get_session_state_path()
+            state_data = {
+                "session": {
+                    "session_id": self._session.session_id,
+                    "live_url": self._session.live_url,
+                    "room_id": self._session.room_id,
+                    "anchor_name": self._session.anchor_name,
+                    "platform_key": self._session.platform_key,
+                    "started_at": self._session.started_at,
+                    "stopped_at": self._session.stopped_at,
+                    "recording_pid": self._session.recording_pid,
+                    "recording_dir": self._session.recording_dir,
+                    "session_date": self._session.session_date,
+                    "session_index": self._session.session_index,
+                    "segment_seconds": self._session.segment_seconds,
+                    "segments": self._session.segments,
+                    "comments_count": self._session.comments_count,
+                    "transcript_chars": self._session.transcript_chars,
+                    "report_path": self._session.report_path,
+                    "metrics": self._session.metrics,
+                    "status": self._session.status,
+                    "paused_at": self._session.paused_at,
+                    "resumed_at": self._session.resumed_at,
+                    "pause_count": self._session.pause_count,
+                },
+                "aggregates": self._agg,
+                "comments_count": len(self._comments),
+                "carry": self._carry,
+            }
+            
+            state_path.write_text(
+                json.dumps(state_data, ensure_ascii=False, indent=2),
+                encoding="utf-8"
+            )
+            logger.debug(f"💾 会话状态已保存: {state_path}")
+        except Exception as e:
+            logger.error(f"保存会话状态失败: {e}", exc_info=True)
+
+    async def _load_session_state(self) -> Optional[LiveReportStatus]:
+        """从磁盘加载会话状态"""
+        state_path = self._get_session_state_path()
+        if not state_path.exists():
+            logger.debug("未找到保存的会话状态")
+            return None
+        
+        try:
+            data = json.loads(state_path.read_text(encoding="utf-8"))
+            session_data = data.get("session")
+            self._agg = data.get("aggregates", {})
+            self._carry = data.get("carry", "")
+            
+            # 重建会话对象
+            self._session = LiveReportStatus(**session_data)
+            
+            # 加载保存的评论
+            await self._load_saved_comments()
+            
+            logger.info(f"✅ 成功加载会话状态: session_id={self._session.session_id}, status={self._session.status}")
+            return self._session
+        except Exception as e:
+            logger.error(f"加载会话状态失败: {e}", exc_info=True)
+            return None
+
+    async def _load_saved_comments(self):
+        """从磁盘加载保存的评论"""
+        if not self._session:
+            return
+        
+        try:
+            artifacts_dir = Path(self._session.recording_dir) / "artifacts"
+            comments_file = artifacts_dir / "comments.jsonl"
+            
+            if comments_file.exists():
+                self._comments = []
+                with comments_file.open("r", encoding="utf-8") as f:
+                    for line in f:
+                        try:
+                            self._comments.append(json.loads(line))
+                        except Exception:
+                            pass
+                logger.info(f"✅ 加载了 {len(self._comments)} 条弹幕记录")
+        except Exception as e:
+            logger.warning(f"加载弹幕记录失败: {e}")
+
+    async def _clear_session_state(self):
+        """清除保存的会话状态"""
+        try:
+            state_path = self._get_session_state_path()
+            if state_path.exists():
+                state_path.unlink()
+                logger.debug("✅ 会话状态已清除")
+        except Exception as e:
+            logger.warning(f"清除会话状态失败: {e}")
+
+    async def get_resumable_session(self) -> Optional[LiveReportStatus]:
+        """获取可恢复的会话"""
+        session = await self._load_session_state()
+        if session and session.status in ["recording", "paused"]:
+            return session
+        return None
 
     # ---------- Public API ----------
     async def start(self, live_url: str, segment_minutes: int = 30) -> LiveReportStatus:
@@ -292,11 +409,153 @@ class LiveReportService:
                 segments=[],
                 comments_count=0,
                 transcript_chars=0,
-                metrics={}
+                metrics={},
+                status="stopped"
             )
 
         logger.info("🛑 停止录制...")
 
+        # 停止所有录制任务
+        await self._stop_recording_tasks()
+
+        self._session.stopped_at = _now_ts()
+        self._session.status = "stopped"
+        self._session.comments_count = len(self._comments)
+        try:
+            self._session.metrics = dict(self._agg)
+        except Exception:
+            pass
+
+        # Capture existing segments (best effort)
+        await self._scan_segments()
+        
+        # 持久化会话状态
+        await self._save_session_state()
+        
+        # 清理录制相关的资源，但保留 session 数据供生成报告使用
+        self._relay_client_queue = None
+        self._comment_task = None
+        self._ffmpeg_proc = None
+        
+        # 标记 session 为已停止状态（用于前端判断）
+        return self._session
+
+    async def pause(self) -> LiveReportStatus:
+        """暂停录制(保留会话状态,可以继续)"""
+        if not self._session:
+            raise RuntimeError("No active session to pause")
+        if self._session.status != "recording":
+            raise RuntimeError(f"Cannot pause: current status is {self._session.status}")
+        
+        logger.info("⏸️ 暂停录制...")
+        
+        # 停止所有录制任务
+        await self._stop_recording_tasks()
+        
+        # 标记为暂停状态
+        self._session.status = "paused"
+        self._session.paused_at = _now_ts()
+        self._session.pause_count = (self._session.pause_count or 0) + 1
+        self._session.comments_count = len(self._comments)
+        try:
+            self._session.metrics = dict(self._agg)
+        except Exception:
+            pass
+        
+        # Capture existing segments
+        await self._scan_segments()
+        
+        # 持久化会话状态(暂停时保存,供恢复使用)
+        await self._save_session_state()
+        
+        # 保存当前已收集的弹幕
+        await self._save_comments_incremental()
+        
+        logger.info(f"✅ 录制已暂停,会话保留: session_id={self._session.session_id}")
+        return self._session
+
+    async def resume(self) -> LiveReportStatus:
+        """继续录制(从暂停状态恢复)"""
+        if not self._session:
+            raise RuntimeError("No session to resume")
+        if self._session.status != "paused":
+            raise RuntimeError(f"Cannot resume: current status is {self._session.status}")
+        
+        logger.info("▶️ 继续录制...")
+        
+        try:
+            # 重新获取流地址(可能已过期)
+            handler = get_platform_handler(live_url=self._session.live_url)
+            if handler is None:
+                raise RuntimeError("Unsupported live URL")
+            
+            info = await handler.get_stream_info(self._session.live_url)
+            is_live = info.get("is_live") if isinstance(info, dict) else getattr(info, "is_live", None)
+            
+            if not is_live:
+                raise RuntimeError(f"直播间当前未开播: {self._session.anchor_name or self._session.room_id}")
+            
+            record_url = self._extract_record_url(info)
+            if not record_url:
+                raise RuntimeError("Failed to resolve record URL")
+            
+            # 保存新的流 URL
+            self._current_record_url = record_url
+            
+            # 重新启动 ffmpeg
+            seg_secs = self._session.segment_seconds
+            # 使用相同的输出目录,新的文件会自动按序号递增
+            out_dir = Path(self._session.recording_dir)
+            anchor = self._session.anchor_name or "unknown"
+            pattern = str(out_dir / f"{anchor}_%Y%m%d_%H%M%S_%03d.mp4")
+            self._output_pattern = pattern
+            
+            self._ffmpeg_proc = await self._start_ffmpeg(record_url, seg_secs, pattern)
+            self._session.recording_pid = self._ffmpeg_proc.pid
+            logger.info(f"✅ FFmpeg 重启成功,PID: {self._ffmpeg_proc.pid}")
+            
+            # 🆕 重启 URL 自动刷新任务
+            if self._url_refresh_task is None or self._url_refresh_task.done():
+                self._url_refresh_task = asyncio.create_task(self._auto_refresh_stream_url())
+                logger.info(f"🔄 重启 URL 自动刷新任务")
+            
+            # 🆕 重启健康监控任务
+            if self._health_monitor_task is None or self._health_monitor_task.done():
+                self._health_monitor_task = asyncio.create_task(self._monitor_ffmpeg_health())
+                logger.info(f"💓 重启健康监控任务")
+            
+            # 重新启动弹幕采集
+            relay = get_douyin_web_relay()
+            if self._session.room_id:
+                await relay.start(self._session.room_id)
+                logger.info(f"✅ 弹幕 relay 重启成功")
+            
+            self._relay_client_queue = await relay.register_client()
+            logger.info(f"✅ 重新注册弹幕客户端")
+            
+            self._comment_task = asyncio.create_task(self._consume_danmu())
+            logger.info(f"✅ 重启弹幕消费任务")
+            
+            # 标记为录制状态
+            self._session.status = "recording"
+            self._session.resumed_at = _now_ts()
+            
+            # 持久化会话状态
+            await self._save_session_state()
+            
+            logger.info("=" * 60)
+            logger.info("✅ 录制已恢复,后台任务运行中")
+            logger.info("=" * 60)
+            
+            return self._session
+            
+        except Exception as e:
+            logger.error(f"❌ 恢复录制失败: {e}", exc_info=True)
+            # 恢复失败时保持暂停状态
+            raise
+
+    async def _stop_recording_tasks(self):
+        """停止所有录制相关的任务"""
         # 🆕 停止 URL 刷新任务
         if self._url_refresh_task:
             self._url_refresh_task.cancel()
@@ -337,23 +596,24 @@ class LiveReportService:
             except asyncio.CancelledError:
                 pass
 
-        self._session.stopped_at = _now_ts()
-        self._session.comments_count = len(self._comments)
+    async def _save_comments_incremental(self):
+        """增量保存弹幕到磁盘(用于暂停时保存进度)"""
+        if not self._session or not self._comments:
+            return
+        
         try:
-            self._session.metrics = dict(self._agg)
-        except Exception:
-            pass
-
-        # Capture existing segments (best effort)
-        await self._scan_segments()
-        
-        # 清理录制相关的资源，但保留 session 数据供生成报告使用
-        self._relay_client_queue = None
-        self._comment_task = None
-        self._ffmpeg_proc = None
-        
-        # 标记 session 为已停止状态（用于前端判断）
-        return self._session
+            out_dir = Path(self._session.recording_dir)
+            artifacts_dir = out_dir / "artifacts"
+            artifacts_dir.mkdir(parents=True, exist_ok=True)
+            
+            comments_path = artifacts_dir / "comments.jsonl"
+            with comments_path.open("w", encoding="utf-8") as f:
+                for ev in self._comments:
+                    f.write(json.dumps(ev, ensure_ascii=False) + "\n")
+            
+            logger.info(f"💾 已保存 {len(self._comments)} 条弹幕记录")
+        except Exception as e:
+            logger.error(f"保存弹幕失败: {e}")
 
     async def generate_report(self) -> Dict[str, Any]:
         """Offline pipeline after stop(): transcribe segments, integrate comments, compose HTML.
@@ -504,6 +764,9 @@ class LiveReportService:
             "like_total": 0,
             "gifts": {},
         }
+        
+        # 🆕 清除持久化的会话状态文件
+        await self._clear_session_state()
         
         # 返回结构化数据，供前端直接展示
         return result

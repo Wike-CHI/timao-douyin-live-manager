@@ -1,6 +1,14 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { startLiveReport, stopLiveReport, getLiveReportStatus, generateLiveReport } from '../../services/liveReport';
+import { 
+  startLiveReport, 
+  stopLiveReport, 
+  pauseLiveReport, 
+  resumeLiveReport, 
+  getResumableSession, 
+  getLiveReportStatus, 
+  generateLiveReport 
+} from '../../services/liveReport';
 import type { ReviewData, ReportArtifacts } from '../../services/liveReport';
 import ReviewReportPage from './ReviewReportPage';
 
@@ -24,10 +32,15 @@ const ReportsPage: React.FC = () => {
   const [hasStopped, setHasStopped] = useState(false); // 标记是否已停止录制
   const [historyReports, setHistoryReports] = useState<any[]>([]); // 历史报告列表
   const [showHistory, setShowHistory] = useState(false); // 是否显示历史记录
+  // 🆕 恢复会话相关状态
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
+  const [resumableSession, setResumableSession] = useState<any>(null);
   const pollTimerRef = useRef<any>(null);
 
   const isActive = !!status;
   const hasRecordedSession = hasStopped && !artifacts; // 有已停止但未生成报告的会话
+  const isPaused = status?.status === 'paused'; // 🆕 是否处于暂停状态
+  const isRecording = status?.status === 'recording'; // 🆕 是否正在录制
   const metrics: Metrics = status?.metrics || {};
 
   const start = async () => {
@@ -62,6 +75,84 @@ const ReportsPage: React.FC = () => {
       setHasStopped(true); // 标记已停止
     } catch (e: any) {
       setError(e?.message || '停止录制失败');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // 🆕 暂停录制
+  const pause = async () => {
+    try {
+      setBusy(true); setError(null);
+      await pauseLiveReport(FASTAPI_BASE_URL);
+      await refresh();
+      stopPolling(); // 暂停后停止轮询
+      setError(null);
+    } catch (e: any) {
+      setError(e?.message || '暂停录制失败');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // 🆕 继续录制
+  const resume = async () => {
+    try {
+      setBusy(true); setError(null);
+      await resumeLiveReport(FASTAPI_BASE_URL);
+      await refresh();
+      startPolling(); // 继续后重新启动轮询
+      setError(null);
+    } catch (e: any) {
+      setError(e?.message || '继续录制失败');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // 🆕 恢复会话(从暂停或录制状态恢复)
+  const resumeSession = async () => {
+    if (!resumableSession) return;
+    
+    try {
+      setBusy(true); setError(null);
+      setShowResumeDialog(false);
+      
+      // 如果会话是暂停状态,调用 resume API
+      if (resumableSession.status === 'paused') {
+        await resumeLiveReport(FASTAPI_BASE_URL);
+        startPolling();
+      } else {
+        // 如果会话是录制状态(意外退出),只需刷新状态
+        await refresh();
+        startPolling();
+      }
+      
+      setError(null);
+    } catch (e: any) {
+      setError(e?.message || '恢复会话失败');
+      setShowResumeDialog(true); // 失败时重新显示对话框
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // 🆕 放弃恢复会话
+  const discardSession = async () => {
+    if (!resumableSession) return;
+    
+    try {
+      setBusy(true); setError(null);
+      setShowResumeDialog(false);
+      
+      // 调用 stop API 清除会话
+      await stopLiveReport(FASTAPI_BASE_URL);
+      await refresh();
+      
+      setResumableSession(null);
+      setError(null);
+    } catch (e: any) {
+      setError(e?.message || '清除会话失败');
     } finally {
       setBusy(false);
     }
@@ -239,6 +330,21 @@ const ReportsPage: React.FC = () => {
   useEffect(() => { 
     refresh(); 
     loadHistory(); // 加载历史记录
+    
+    // 🆕 检查是否有可恢复的会话
+    const checkResumableSession = async () => {
+      try {
+        const res = await getResumableSession(FASTAPI_BASE_URL);
+        if (res?.success && res?.data) {
+          setResumableSession(res.data);
+          setShowResumeDialog(true);
+        }
+      } catch (e) {
+        console.error('检查可恢复会话失败:', e);
+      }
+    };
+    checkResumableSession();
+    
     return () => stopPolling(); 
   }, [refresh]);
 
@@ -383,7 +489,15 @@ const ReportsPage: React.FC = () => {
           <div className="text-4xl">🧾</div>
           <div>
             <div className="text-lg font-semibold text-purple-600">整场复盘 · 录制与报告</div>
-            <div className="text-sm timao-support-text">{isActive ? '录制中' : '未开始'}</div>
+            <div className="text-sm timao-support-text">
+              {isPaused ? (
+                <span className="text-yellow-600 font-medium">⏸️ 已暂停</span>
+              ) : isRecording ? (
+                <span className="text-green-600 font-medium">🔴 录制中</span>
+              ) : (
+                '未开始'
+              )}
+            </div>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -421,6 +535,22 @@ const ReportsPage: React.FC = () => {
             {busy ? <span className="animate-spin">⏳</span> : <span>🎬</span>}
             <span>开始录制</span>
           </button>
+          {/* 🆕 暂停/继续按钮 */}
+          {isActive && (
+            <button 
+              className={`timao-outline-btn flex items-center gap-2 px-4 py-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                isPaused 
+                  ? 'hover:bg-green-50 hover:border-green-400 hover:text-green-600'
+                  : 'hover:bg-yellow-50 hover:border-yellow-400 hover:text-yellow-600'
+              }`}
+              onClick={isPaused ? resume : pause} 
+              disabled={busy}
+              title={isPaused ? "继续录制" : "暂停录制"}
+            >
+              {busy ? <span className="animate-spin">⏳</span> : isPaused ? <span>▶️</span> : <span>⏸️</span>}
+              <span>{isPaused ? '继续' : '暂停'}</span>
+            </button>
+          )}
           <button 
             className="timao-outline-btn flex items-center gap-2 px-4 py-2 hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed" 
             onClick={stop} 
@@ -440,6 +570,61 @@ const ReportsPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* 🆕 恢复会话对话框 */}
+      {showResumeDialog && resumableSession && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="timao-card max-w-md w-full mx-4 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-3xl">🔄</span>
+              <div>
+                <h3 className="text-lg font-semibold text-purple-600">发现未完成的录制会话</h3>
+                <p className="text-sm text-gray-500">检测到上次的录制会话未完成，是否继续？</p>
+              </div>
+            </div>
+            <div className="timao-soft-card mb-4 space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-gray-700">主播:</span>
+                <span>{resumableSession.anchor_name || resumableSession.room_id}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-gray-700">状态:</span>
+                <span className={`px-2 py-0.5 rounded text-xs ${
+                  resumableSession.status === 'paused' 
+                    ? 'bg-yellow-100 text-yellow-700'
+                    : 'bg-green-100 text-green-700'
+                }`}>
+                  {resumableSession.status === 'paused' ? '已暂停' : '录制中'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-gray-700">片段:</span>
+                <span>{resumableSession.segments?.length || 0} 个</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-gray-700">弹幕:</span>
+                <span>{resumableSession.comments_count || 0} 条</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 justify-end">
+              <button 
+                className="timao-outline-btn px-4 py-2 hover:bg-red-50 hover:border-red-300 hover:text-red-600 disabled:opacity-50"
+                onClick={discardSession}
+                disabled={busy}
+              >
+                {busy ? <span className="animate-spin">⏳</span> : '放弃'}
+              </button>
+              <button 
+                className="timao-primary-btn px-6 py-2 disabled:opacity-50"
+                onClick={resumeSession}
+                disabled={busy}
+              >
+                {busy ? <span className="animate-spin">⏳</span> : '继续录制'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {error ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>

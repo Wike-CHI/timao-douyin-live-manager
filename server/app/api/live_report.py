@@ -79,6 +79,7 @@ async def stop_live_report() -> BaseResp:
             "stopped_at": status.stopped_at,
             "segments": status.segments,
             "comments_count": status.comments_count,
+            "status": status.status,
         })
     except Exception as e:
         import logging
@@ -92,6 +93,91 @@ async def stop_live_report() -> BaseResp:
             return BaseResp(success=True, message="没有正在运行的录制会话", data=None)
         else:
             raise HTTPException(status_code=400, detail=f"停止直播录制服务失败: {error_msg}")
+
+
+@router.post("/pause")
+async def pause_live_report() -> BaseResp:
+    """暂停录制(保留会话状态,可以继续)"""
+    try:
+        svc = get_live_report_service()
+        status = await svc.pause()
+        return BaseResp(data={
+            "session_id": status.session_id,
+            "status": status.status,
+            "paused_at": status.paused_at,
+            "pause_count": status.pause_count,
+            "segments": status.segments,
+            "comments_count": status.comments_count,
+        })
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Live report pause failed: {type(e).__name__}: {str(e)}", exc_info=True)
+        
+        error_msg = str(e)
+        if "no active session" in error_msg.lower():
+            raise HTTPException(status_code=404, detail="没有正在运行的录制会话")
+        elif "cannot pause" in error_msg.lower():
+            raise HTTPException(status_code=400, detail=error_msg)
+        else:
+            raise HTTPException(status_code=400, detail=f"暂停录制失败: {error_msg}")
+
+
+@router.post("/resume")
+async def resume_live_report() -> BaseResp:
+    """继续录制(从暂停状态恢复)"""
+    try:
+        svc = get_live_report_service()
+        status = await svc.resume()
+        return BaseResp(data={
+            "session_id": status.session_id,
+            "status": status.status,
+            "resumed_at": status.resumed_at,
+            "recording_pid": status.recording_pid,
+            "segments": status.segments,
+            "comments_count": status.comments_count,
+        })
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Live report resume failed: {type(e).__name__}: {str(e)}", exc_info=True)
+        
+        error_msg = str(e)
+        if "no session" in error_msg.lower():
+            raise HTTPException(status_code=404, detail="没有可以恢复的会话")
+        elif "cannot resume" in error_msg.lower():
+            raise HTTPException(status_code=400, detail=error_msg)
+        elif "未开播" in error_msg or "not live" in error_msg.lower():
+            raise HTTPException(status_code=400, detail=error_msg)
+        else:
+            raise HTTPException(status_code=400, detail=f"恢复录制失败: {error_msg}")
+
+
+@router.get("/resumable")
+async def get_resumable_session() -> BaseResp:
+    """检查是否有可恢复的会话(应用启动时调用)"""
+    try:
+        svc = get_live_report_service()
+        session = await svc.get_resumable_session()
+        if session:
+            return BaseResp(data={
+                "session_id": session.session_id,
+                "live_url": session.live_url,
+                "room_id": session.room_id,
+                "anchor_name": session.anchor_name,
+                "status": session.status,
+                "started_at": session.started_at,
+                "paused_at": session.paused_at,
+                "segments": session.segments,
+                "comments_count": session.comments_count,
+            })
+        else:
+            return BaseResp(success=True, message="没有可恢复的会话", data=None)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Get resumable session failed: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"获取可恢复会话失败: {str(e)}")
 
 
 @router.get("/status")

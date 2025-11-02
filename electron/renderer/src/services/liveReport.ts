@@ -64,6 +64,24 @@ export const stopLiveReport = async (baseUrl: string = DEFAULT_BASE_URL) => {
   return handleResponse<LiveReportStartResp>(response);
 };
 
+export const pauseLiveReport = async (baseUrl: string = DEFAULT_BASE_URL) => {
+  const headers = await buildHeaders();
+  const response = await fetch(`${baseUrl}/api/report/live/pause`, { method: 'POST', headers });
+  return handleResponse<LiveReportStartResp>(response);
+};
+
+export const resumeLiveReport = async (baseUrl: string = DEFAULT_BASE_URL) => {
+  const headers = await buildHeaders();
+  const response = await fetch(`${baseUrl}/api/report/live/resume`, { method: 'POST', headers });
+  return handleResponse<LiveReportStartResp>(response);
+};
+
+export const getResumableSession = async (baseUrl: string = DEFAULT_BASE_URL) => {
+  const headers = await buildHeaders();
+  const response = await fetch(`${baseUrl}/api/report/live/resumable`, { headers });
+  return handleResponse<any>(response);
+};
+
 export const getLiveReportStatus = async (baseUrl: string = DEFAULT_BASE_URL) => {
   const headers = await buildHeaders();
   const response = await fetch(`${baseUrl}/api/report/live/status`, { headers });
