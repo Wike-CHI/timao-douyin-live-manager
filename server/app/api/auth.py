@@ -320,14 +320,22 @@ async def login_user(
         
         # 认证用户
         logger.info("🔐 开始用户认证...")
-        user = UserService.authenticate_user(
-            username_or_email=request.username_or_email,
-            password=request.password,
-            ip_address=client_ip
-        )
+        try:
+            user = UserService.authenticate_user(
+                username_or_email=request.username_or_email,
+                password=request.password,
+                ip_address=client_ip
+            )
+        except ValueError as e:
+            # 账户被锁定或其他业务错误
+            logger.warning(f"❌ 用户认证失败（业务错误）: {request.username_or_email} - {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(e)
+            )
         
         if not user:
-            logger.warning(f"❌ 用户认证失败: {request.username_or_email}")
+            logger.warning(f"❌ 用户认证失败: {request.username_or_email}（用户名/密码错误或用户不存在）")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="用户名/邮箱或密码错误"
@@ -387,6 +395,9 @@ async def login_user(
             )
         )
         
+    except HTTPException:
+        # HTTPException 应该直接传播，不能被捕获
+        raise
     except ValueError as e:
         logger.error(f"❌ 登录验证错误: {str(e)}")
         raise HTTPException(
