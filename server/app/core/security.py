@@ -40,8 +40,8 @@ if not SECRET_KEY:
     logger.warning("⚠️ SECRET_KEY 未设置，使用临时密钥（仅供开发使用）")
 
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-REFRESH_TOKEN_EXPIRE_DAYS = 7
+ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8小时 (原30分钟) - 优化用户体验，减少频繁登录
+REFRESH_TOKEN_EXPIRE_DAYS = 3650  # 3650天=10年 (原7天) - 实现永久登录，只要不退出就一直保持登录状态
 
 # 统一通过 RedisManager 访问缓存（带内存回退）
 # 注意：应用启动时会在 startup_event 中初始化 RedisManager

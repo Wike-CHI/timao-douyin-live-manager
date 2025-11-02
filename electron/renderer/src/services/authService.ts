@@ -7,16 +7,16 @@ class AuthService {
   private refreshPromise: Promise<boolean> | null = null;
 
   /**
-   * 检查token是否即将过期（5分钟内）
+   * 检查token是否即将过期（10分钟内，从5分钟延长以配合8小时token）
    */
   private isTokenExpiringSoon(token: string): boolean {
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
       const exp = payload.exp * 1000; // 转换为毫秒
       const now = Date.now();
-      const fiveMinutes = 5 * 60 * 1000;
+      const tenMinutes = 10 * 60 * 1000; // 从5分钟延长到10分钟
       
-      return exp - now < fiveMinutes;
+      return exp - now < tenMinutes;
     } catch (error) {
       console.error('Error parsing token:', error);
       return true; // 解析失败时认为需要刷新
