@@ -63,6 +63,7 @@ export interface UserResponse extends UserInfo {}
 export interface LoginPayload {
   email: string;
   password: string;
+  remember_me?: boolean;  // 是否记住登录状态
 }
 
 export interface RegisterPayload {
@@ -82,7 +83,8 @@ export const login = async (payload: LoginPayload): Promise<LoginResponse> => {
   // 转换前端字段名到后端期望的字段名
   const requestBody = {
     username_or_email: payload.email,
-    password: payload.password
+    password: payload.password,
+    remember_me: payload.remember_me !== undefined ? payload.remember_me : true  // 默认记住
   };
   
   // 使用统一的错误处理

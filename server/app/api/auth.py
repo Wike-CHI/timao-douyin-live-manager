@@ -71,6 +71,7 @@ class UserLoginRequest(BaseModel):
     """用户登录请求"""
     username_or_email: str
     password: str
+    remember_me: bool = True  # 默认记住用户
 
 
 class UserResponse(BaseModel):
@@ -344,12 +345,31 @@ async def login_user(
         logger.info(f"✅ 用户认证成功: {user.username} (ID: {user.id})")
         
         # 创建JWT token而不是session token
-        logger.info("🔑 开始创建JWT token...")
+        logger.info(f"🔑 开始创建JWT token... (记住我: {request.remember_me})")
         from server.app.core.security import JWTManager
+        from datetime import timedelta
+        
+        # 根据 remember_me 设置不同的 token 有效期
+        if request.remember_me:
+            # 勾选"记住我"：长期有效
+            access_token_expires = timedelta(hours=8)  # 8小时
+            refresh_token_expires = timedelta(days=3650)  # 10年
+            logger.info("✅ 长期登录模式：Access Token 8小时，Refresh Token 10年")
+        else:
+            # 未勾选"记住我"：短期有效
+            access_token_expires = timedelta(hours=1)  # 1小时
+            refresh_token_expires = timedelta(days=1)  # 1天
+            logger.info("✅ 短期登录模式：Access Token 1小时，Refresh Token 1天")
         
         # 生成JWT access token和refresh token
-        access_token = JWTManager.create_access_token(data={"sub": str(user.id)})
-        refresh_token = JWTManager.create_refresh_token(data={"sub": str(user.id)})
+        access_token = JWTManager.create_access_token(
+            data={"sub": str(user.id)}, 
+            expires_delta=access_token_expires
+        )
+        refresh_token = JWTManager.create_refresh_token(
+            data={"sub": str(user.id)},
+            expires_delta=refresh_token_expires
+        )
         logger.info("✅ JWT token创建成功")
         
         # 获取用户订阅信息

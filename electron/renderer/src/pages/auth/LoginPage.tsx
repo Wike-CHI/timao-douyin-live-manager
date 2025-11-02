@@ -19,7 +19,11 @@ const LoginPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const response: LoginResponse = await login({ email, password });
+      const response: LoginResponse = await login({ 
+        email, 
+        password,
+        remember_me: rememberMe  // 传递"记住我"状态
+      });
       if (response.success) {
         // 写入认证状态
         setAuth({
