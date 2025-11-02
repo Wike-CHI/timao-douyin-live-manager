@@ -10,8 +10,9 @@ const navItems = [
   { to: '/live', label: '直播控制台', icon: '🎤' },
   { to: '/reports', label: '直播报告', icon: '📑' },
   { to: '/tools', label: '工具', icon: '🧰' },
-  { to: '/ai-gateway', label: 'AI网关', icon: '🚀' },
-  { to: '/ai-usage', label: 'AI监控', icon: '📊' },
+  // 管理后台功能，前端应用中隐藏
+  // { to: '/ai-gateway', label: 'AI网关', icon: '🚀' },
+  // { to: '/ai-usage', label: 'AI监控', icon: '📊' },
   { to: '/about', label: '关于', icon: 'ℹ️' },
 ];
 
