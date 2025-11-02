@@ -17,53 +17,71 @@ const httpClient = (url: string, options: any = {}) => {
 };
 
 export const dataProvider: DataProvider = {
-  getList: async (resource, params) => {
-    const { page, perPage } = params.pagination || { page: 1, perPage: 25 };
-    const { field, order } = params.sort || { field: 'id', order: 'ASC' };
-    
-    // 构建查询参数
-    const query = new URLSearchParams({
-      page: page.toString(),
-      perPage: perPage.toString(),
-    });
+    getList: async (resource, params) => {
+        const { page, perPage } = params.pagination || { page: 1, perPage: 25 };
+        const { field, order } = params.sort || { field: 'id', order: 'DESC' };
+        
+        // 构建查询参数
+        const query = new URLSearchParams({
+            page: page.toString(),
+            size: perPage.toString(),
+        });
 
-    // 添加排序
-    if (field && order) {
-      const sortField = order === 'ASC' ? field : `-${field}`;
-      query.append('sort', sortField);
-    }
+        // 添加排序（后端使用不同的排序格式）
+        // 后端目前不支持排序参数，可以在后续添加
 
-    // 添加过滤
-    if (params.filter) {
-      Object.entries(params.filter).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          if (typeof value === 'object' && value !== null) {
-            // 处理对象类型的过滤（如时间范围）
-            query.append(`filter[${key}]`, JSON.stringify(value));
-          } else {
-            query.append(`filter[${key}]`, value.toString());
-          }
+        // 添加过滤
+        if (params.filter) {
+            // 搜索关键词
+            if (params.filter.search) {
+                query.append('search', params.filter.search);
+            }
+            // 角色过滤
+            if (params.filter.role) {
+                query.append('role', params.filter.role);
+            }
+            // 状态过滤
+            if (params.filter.is_active !== undefined) {
+                query.append('is_active', params.filter.is_active.toString());
+            }
+            // 验证状态过滤
+            if (params.filter.is_verified !== undefined) {
+                query.append('is_verified', params.filter.is_verified.toString());
+            }
+            // 处理嵌套的filter对象
+            if (params.filter.filter) {
+                Object.entries(params.filter.filter).forEach(([key, value]) => {
+                    if (value !== undefined && value !== null && value !== '') {
+                        query.append(key, value.toString());
+                    }
+                });
+            }
         }
-      });
-    }
 
-    const url = `${API_BASE}/api/admin/${resource}?${query.toString()}`;
-    const { json } = await httpClient(url);
-    
-    return {
-      data: json.data || json.items || [],
-      total: json.total || json.data?.length || 0,
-    };
-  },
+        const url = `${API_BASE}/api/admin/${resource}?${query.toString()}`;
+        const { json } = await httpClient(url);
+        
+        return {
+            data: json.data || json.items || [],
+            total: json.total || (json.data ? json.data.length : 0),
+        };
+    },
 
-  getOne: async (resource, params) => {
-    const url = `${API_BASE}/api/admin/${resource}/${params.id}`;
-    const { json } = await httpClient(url);
-    
-    return {
-      data: json.data || json,
-    };
-  },
+    getOne: async (resource, params) => {
+        const url = `${API_BASE}/api/admin/${resource}/${params.id}`;
+        const { json } = await httpClient(url);
+        
+        // 如果返回的是详情格式，提取user字段
+        if (json.data && json.data.user) {
+            return {
+                data: json.data,
+            };
+        }
+        
+        return {
+            data: json.data || json,
+        };
+    },
 
   getMany: async (resource, params) => {
     const promises = params.ids.map((id) =>

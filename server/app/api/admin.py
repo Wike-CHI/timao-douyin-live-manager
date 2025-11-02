@@ -27,15 +27,42 @@ class UserListResponse(BaseModel):
     id: int
     username: str
     email: str
-    full_name: Optional[str]
+    full_name: Optional[str] = None
+    nickname: Optional[str] = None
+    phone: Optional[str] = None
     role: UserRoleEnum
+    status: Optional[UserStatusEnum] = None
     is_active: bool
     is_verified: bool
+    email_verified: Optional[bool] = False
+    phone_verified: Optional[bool] = False
+    login_count: Optional[int] = 0
     created_at: datetime
-    last_login_at: Optional[datetime]
+    last_login_at: Optional[datetime] = None
     
     class Config:
         from_attributes = True
+    
+    @classmethod
+    def from_orm(cls, user: User):
+        """从ORM对象创建响应"""
+        return cls(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            full_name=getattr(user, 'full_name', None) or user.nickname,
+            nickname=user.nickname,
+            phone=user.phone,
+            role=user.role,
+            status=user.status,
+            is_active=user.is_active,
+            is_verified=user.email_verified,
+            email_verified=user.email_verified,
+            phone_verified=user.phone_verified,
+            login_count=user.login_count,
+            created_at=user.created_at,
+            last_login_at=user.last_login_at
+        )
 
 
 class UserDetailResponse(BaseModel):
@@ -49,11 +76,15 @@ class UserDetailResponse(BaseModel):
 
 class UserUpdateRequest(BaseModel):
     """用户更新请求"""
-    full_name: Optional[str] = None
+    nickname: Optional[str] = None
     email: Optional[str] = None
+    phone: Optional[str] = None
     role: Optional[UserRoleEnum] = None
+    status: Optional[UserStatusEnum] = None
     is_active: Optional[bool] = None
     is_verified: Optional[bool] = None
+    email_verified: Optional[bool] = None
+    phone_verified: Optional[bool] = None
     password: Optional[str] = Field(None, min_length=8)
 
 
@@ -187,6 +218,64 @@ class UpdateSubscriptionPlanRequest(BaseModel):
 
 
 # 用户管理API
+@router.post("/users", response_model=UserListResponse, status_code=status.HTTP_201_CREATED)
+async def create_user(
+    user_data: CreateUserRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin_role)
+):
+    """创建用户"""
+    try:
+        admin_service = AdminService(db)
+        audit_service = AuditService(db)
+        
+        # 检查用户名和邮箱是否已存在
+        existing_user = db.query(User).filter(
+            (User.username == user_data.username) | (User.email == user_data.email)
+        ).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="用户名或邮箱已存在"
+            )
+        
+        # 创建用户
+        new_user = admin_service.create_user(
+            username=user_data.username,
+            email=user_data.email,
+            password=user_data.password,
+            nickname=user_data.nickname,
+            phone=user_data.phone,
+            role=user_data.role
+        )
+        
+        if not new_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="创建用户失败"
+            )
+        
+        # 记录审计日志
+        await audit_service.log_action(
+            user_id=current_user.id,
+            action="create_user",
+            resource_type="user",
+            resource_id=new_user.id,
+            details={"username": user_data.username, "email": user_data.email}
+        )
+        
+        user_response = UserListResponse.from_orm(new_user)
+        return {
+            "data": user_response.model_dump()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"创建用户失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="创建用户失败")
+
+
 @router.get("/users", response_model=Dict[str, Any])
 async def get_users(
     search: Optional[str] = Query(None, description="搜索关键词"),
@@ -221,11 +310,18 @@ async def get_users(
             details={"search": search, "role": role, "page": page}
         )
         
+        # 转换为字典格式
+        user_list = []
+        for user in users:
+            user_response = UserListResponse.from_orm(user)
+            user_dict = user_response.model_dump()
+            user_list.append(user_dict)
+        
         return {
-            "items": [UserListResponse.from_orm(user) for user in users],
+            "data": user_list,
             "total": total,
             "page": page,
-            "size": size,
+            "perPage": size,
             "pages": (total + size - 1) // size
         }
         
@@ -257,7 +353,43 @@ async def get_user_detail(
             resource_id=user_id
         )
         
-        return UserDetailResponse(**user_detail)
+        # 格式化响应数据
+        user_response = UserListResponse.from_orm(user_detail["user"])
+        detail_data = {
+            "user": user_response.model_dump(),
+            "subscriptions": [
+                {
+                    "id": sub.id if hasattr(sub, 'id') else None,
+                    "plan": {"name": getattr(sub, 'plan', {}).get('name', '未知') if isinstance(getattr(sub, 'plan', {}), dict) else str(getattr(sub, 'plan', '未知'))},
+                    "status": getattr(sub, 'status', '未知'),
+                    "created_at": sub.created_at.isoformat() if hasattr(sub, 'created_at') and sub.created_at else None,
+                }
+                for sub in user_detail.get("subscriptions", [])
+            ],
+            "payments": [
+                {
+                    "id": pay.id if hasattr(pay, 'id') else None,
+                    "amount": float(getattr(pay, 'amount', 0)),
+                    "status": getattr(pay, 'status', '未知'),
+                    "created_at": pay.created_at.isoformat() if hasattr(pay, 'created_at') and pay.created_at else None,
+                }
+                for pay in user_detail.get("payments", [])
+            ],
+            "audit_logs": [
+                {
+                    "id": log.id if hasattr(log, 'id') else None,
+                    "action": getattr(log, 'action', '未知'),
+                    "description": getattr(log, 'description', ''),
+                    "created_at": log.created_at.isoformat() if hasattr(log, 'created_at') and log.created_at else None,
+                }
+                for log in user_detail.get("audit_logs", [])
+            ],
+            "stats": user_detail.get("stats", {})
+        }
+        
+        return {
+            "data": detail_data
+        }
         
     except HTTPException:
         raise
@@ -299,7 +431,10 @@ async def update_user(
             details={"updated_fields": list(update_data.keys())}
         )
         
-        return UserListResponse.from_orm(updated_user)
+        user_response = UserListResponse.from_orm(updated_user)
+        return {
+            "data": user_response.model_dump()
+        }
         
     except HTTPException:
         raise
@@ -341,7 +476,10 @@ async def ban_user(
             }
         )
         
-        return UserListResponse.from_orm(banned_user)
+        user_response = UserListResponse.from_orm(banned_user)
+        return {
+            "data": user_response.model_dump()
+        }
         
     except HTTPException:
         raise
@@ -373,7 +511,10 @@ async def unban_user(
             resource_id=user_id
         )
         
-        return UserListResponse.from_orm(unbanned_user)
+        user_response = UserListResponse.from_orm(unbanned_user)
+        return {
+            "data": user_response.model_dump()
+        }
         
     except HTTPException:
         raise
@@ -405,7 +546,9 @@ async def delete_user(
             resource_id=user_id
         )
         
-        return {"message": "用户删除成功"}
+        return {
+            "data": {"id": user_id}
+        }
         
     except HTTPException:
         raise

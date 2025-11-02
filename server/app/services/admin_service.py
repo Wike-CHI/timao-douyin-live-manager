@@ -63,6 +63,40 @@ class AdminService:
         
         return users, total
     
+    def create_user(
+        self,
+        username: str,
+        email: str,
+        password: str,
+        nickname: Optional[str] = None,
+        phone: Optional[str] = None,
+        role: UserRoleEnum = UserRoleEnum.USER
+    ) -> Optional[User]:
+        """创建用户"""
+        from server.app.services.user_service import UserService
+        
+        try:
+            user = UserService.create_user(
+                username=username,
+                email=email,
+                password=password,
+                phone=phone,
+                nickname=nickname,
+                role=role,
+                session=self.db
+            )
+            self.db.commit()
+            self.db.refresh(user)
+            return user
+        except ValueError as e:
+            self.db.rollback()
+            logger.error(f"创建用户失败: {str(e)}")
+            raise ValueError(str(e))
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"创建用户异常: {str(e)}")
+            raise
+    
     def get_user_detail(self, user_id: int) -> Optional[Dict[str, Any]]:
         """获取用户详细信息"""
         user = self.db.query(User).filter(User.id == user_id).first()

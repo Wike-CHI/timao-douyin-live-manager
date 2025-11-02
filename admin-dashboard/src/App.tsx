@@ -4,6 +4,7 @@ import { dataProvider } from './dataProvider';
 import { AppLayout } from './AppLayout';
 import { LoginPage } from './pages/LoginPage';
 import { Dashboard } from './pages/Dashboard';
+import { UserList, UserShow, UserCreate, UserEdit } from './resources/users';
 
 function App() {
   return (
@@ -26,7 +27,13 @@ function App() {
       }}
       title="提猫直播助手 - 管理后台"
     >
-      {/* 资源将在后续阶段添加 */}
+      <Resource
+        name="users"
+        list={UserList}
+        show={UserShow}
+        create={UserCreate}
+        edit={UserEdit}
+      />
     </Admin>
   );
 }
