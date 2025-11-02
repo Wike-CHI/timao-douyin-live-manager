@@ -442,6 +442,25 @@ async def shutdown_event():
 
 if __name__ == "__main__":
     import uvicorn
+    from pathlib import Path
+
+    # 排除脚本目录、日志目录等，避免自动重载导致的频繁重启
+    reload_exclude = [
+        "**/scripts/**",
+        "**/logs/**",
+        "**/*.pyc",
+        "**/__pycache__/**",
+        "**/node_modules/**",
+        "**/.venv/**",
+        "**/.git/**",
+    ]
 
     # 使用默认端口 9019，与 Electron 启动配置保持一致
-    uvicorn.run("main:app", host="0.0.0.0", port=9019, reload=True, log_level="info")
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=9019,
+        reload=True,
+        reload_exclude=reload_exclude,
+        log_level="info"
+    )

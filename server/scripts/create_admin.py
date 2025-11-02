@@ -43,14 +43,16 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def create_admin_user():
+def create_admin_user(db_manager_instance=None):
     """创建默认管理员账号"""
-    if not db_manager:
+    # 如果提供了实例，使用提供的；否则使用模块级别的
+    manager = db_manager_instance or db_manager
+    if not manager:
         logger.error("数据库未初始化")
         return False
     
     # 获取数据库会话
-    db = db_manager.get_session_sync()
+    db = manager.get_session_sync()
     
     try:
         # 检查是否已存在管理员账号
@@ -148,15 +150,19 @@ if __name__ == "__main__":
         logger.info("✅ 数据库初始化完成")
         
         # 重新导入以获取更新后的db_manager
-        from server.app.database import db_manager as updated_db_manager
+        import importlib
+        from server.app import database
+        importlib.reload(database)
+        
+        # 获取更新后的db_manager实例
+        updated_db_manager = database.db_manager
         
         if not updated_db_manager:
             logger.error("❌ 数据库管理器未创建")
             sys.exit(1)
         
-        # 使用更新后的db_manager
-        global db_manager
-        db_manager = updated_db_manager
+        # 更新模块级别的db_manager引用
+        # 注意：这里不能直接修改导入的变量，需要在create_admin_user中使用updated_db_manager
         logger.info("✅ 数据库连接已建立")
             
     except Exception as e:
@@ -166,7 +172,8 @@ if __name__ == "__main__":
         sys.exit(1)
     
     logger.info("=" * 60)
-    success = create_admin_user()
+    # 传递更新后的db_manager实例给函数
+    success = create_admin_user(updated_db_manager)
     logger.info("=" * 60)
     
     if success:
