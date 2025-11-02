@@ -10,9 +10,9 @@ import ssl
 import sys
 
 import asyncio
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
@@ -119,27 +119,62 @@ app = FastAPI(
 )
 
 # CORS配置 - 允许本地开发环境访问
+# 注意：不能同时使用 allow_origins=["*"] 和 allow_credentials=True
+# 浏览器安全策略不允许这种组合，所以必须明确列出所有允许的来源
+# 将CORS中间件放在最前面，确保在所有路由之前处理
+allowed_origins = [
+    "http://127.0.0.1:10030",
+    "http://localhost:10030",
+    "http://127.0.0.1:9019",  # 允许后端静态文件访问 API
+    "http://localhost:9019",   # 允许后端静态文件访问 API
+    "http://127.0.0.1:3000",   # 管理后台开发端口
+    "http://localhost:3000",   # 管理后台开发端口
+    "http://127.0.0.1:8090",    # 兼容旧端口
+    "http://localhost:8090",     # 兼容旧端口
+    "http://localhost:8001",
+    "http://127.0.0.1:8001",
+    "http://127.0.0.1:8000",    # 兼容测试端口
+    "http://localhost:8000",     # 兼容测试端口
+    "http://127.0.0.1:5173",     # Vite默认端口
+    "http://localhost:5173",     # Vite默认端口
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://127.0.0.1:10030",
-        "http://localhost:10030",
-        "http://127.0.0.1:9019",  # 允许后端静态文件访问 API
-        "http://localhost:9019",   # 允许后端静态文件访问 API
-        "http://127.0.0.1:3000",   # 管理后台开发端口
-        "http://localhost:3000",   # 管理后台开发端口
-        "http://127.0.0.1:8090",    # 兼容旧端口
-        "http://localhost:8090",     # 兼容旧端口
-        "http://localhost:8001",
-        "http://127.0.0.1:8001",
-        "http://127.0.0.1:8000",    # 兼容测试端口
-        "http://localhost:8000",     # 兼容测试端口
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "Accept",
+        "Origin",
+        "X-Requested-With",
+        "Access-Control-Request-Method",
+        "Access-Control-Request-Headers",
+    ],
     expose_headers=["*"],  # 允许前端访问所有响应头
 )
+
+# 日志输出CORS配置（启动时）
+logging.info("=" * 60)
+logging.info("🌐 CORS配置已加载")
+logging.info(f"   允许的来源: {len(allowed_origins)} 个")
+for origin in allowed_origins:
+    logging.info(f"   - {origin}")
+logging.info("=" * 60)
+
+# 添加CORS测试端点（用于验证CORS配置）
+@app.get("/api/cors-test")
+async def cors_test(request: Request):
+    """CORS测试端点"""
+    origin = request.headers.get("origin")
+    return {
+        "message": "CORS配置正常",
+        "origin": origin,
+        "allowed_origins": allowed_origins,
+        "origin_allowed": origin in allowed_origins if origin else False,
+    }
 
 def _include_router_safe(desc: str, import_path: str):
     """Import and include a router; log error but don't crash on failure."""

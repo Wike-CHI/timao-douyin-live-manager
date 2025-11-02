@@ -25,12 +25,16 @@ export const authProvider: AuthProvider = {
 
       const data = await response.json();
       
-      // 保存token
-      if (data.access_token) {
-        localStorage.setItem('token', data.access_token);
-        if (data.refresh_token) {
-          localStorage.setItem('refresh_token', data.refresh_token);
+      // 保存token - 支持多种字段名
+      const token = data.access_token || data.token || data.accessToken;
+      if (token) {
+        localStorage.setItem('token', token);
+        const refreshToken = data.refresh_token || data.refreshToken;
+        if (refreshToken) {
+          localStorage.setItem('refresh_token', refreshToken);
         }
+      } else {
+        throw new Error('登录响应中未找到token');
       }
 
       return Promise.resolve();

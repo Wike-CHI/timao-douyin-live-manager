@@ -1,10 +1,15 @@
 # 创建管理员账号指南
 
+## ✅ 已修复：脚本现在可以正常使用了！
+
 ## 方法1: 使用脚本（推荐）
 
 ### Windows (PowerShell)
 ```powershell
-cd D:\gsxm\timao-douyin-live-manager
+# 激活虚拟环境（如果使用）
+.venv\Scripts\Activate.ps1
+
+# 从项目根目录运行
 python server\scripts\create_admin.py
 ```
 
@@ -14,11 +19,19 @@ cd /path/to/timao-douyin-live-manager
 python server/scripts/create_admin.py
 ```
 
-### 默认账号信息
-- **用户名**: `admin`
-- **邮箱**: `admin@timao.com`
-- **密码**: `admin123456`
+### Linux/Mac
+```bash
+cd /path/to/timao-douyin-live-manager
+python server/scripts/create_admin.py
+```
+
+### 硬编码管理员账号信息
+- **用户名**: `tc1102Admin`
+- **邮箱**: `tc1102admin@timao.com`
+- **密码**: `xjystimao1115`
 - **角色**: 超级管理员 (super_admin)
+
+⚠️ **注意**: 此账号是硬编码在脚本中的，每次运行脚本都会确保此账号存在且密码正确。
 
 ⚠️ **重要**: 登录后请立即修改默认密码！
 

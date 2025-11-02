@@ -4,7 +4,7 @@
 """
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field, validator, EmailStr
@@ -17,7 +17,7 @@ from server.app.models.permission import AuditLog
 import logging
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
 # ==================== Pydantic 模型 ====================
