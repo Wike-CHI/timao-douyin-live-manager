@@ -76,37 +76,40 @@ class IntegratedLauncher {
             console.log(`   命令: ${command} ${args.join(' ')}`);
             console.log(`   目录: ${cwd}`);
             
-            const process = spawn(command, args, {
+            // 准备环境变量（在 spawn 之前，避免变量作用域冲突）
+            const spawnEnv = {
+                ...process.env,
+                // 设置 UTF-8 编码，解决 Windows 中文乱码问题
+                PYTHONIOENCODING: 'utf-8',
+                PYTHONUTF8: '1',
+            };
+            
+            const childProcess = spawn(command, args, {
                 cwd,
                 stdio: ['ignore', 'pipe', 'pipe'],
                 shell: true,
-                env: {
-                    ...process.env,
-                    // 设置 UTF-8 编码，解决 Windows 中文乱码问题
-                    PYTHONIOENCODING: 'utf-8',
-                    PYTHONUTF8: '1',
-                },
+                env: spawnEnv,
                 ...options
             });
             
-            this.processes.set(name, process);
+            this.processes.set(name, childProcess);
             
             // 输出处理（使用 UTF-8 解码）
-            process.stdout.on('data', (data) => {
+            childProcess.stdout.on('data', (data) => {
                 const output = data.toString('utf-8').trim();
                 if (output) {
                     console.log(`[${name}] ${output}`);
                 }
             });
             
-            process.stderr.on('data', (data) => {
+            childProcess.stderr.on('data', (data) => {
                 const output = data.toString('utf-8').trim();
                 if (output) {
                     console.log(`[${name}] ${output}`);
                 }
             });
             
-            process.on('close', (code) => {
+            childProcess.on('close', (code) => {
                 this.processes.delete(name);
                 if (code === 0) {
                     console.log(`✅ 服务 ${name} 正常退出`);
@@ -115,7 +118,7 @@ class IntegratedLauncher {
                 }
             });
             
-            process.on('error', (error) => {
+            childProcess.on('error', (error) => {
                 this.processes.delete(name);
                 console.error(`❌ 服务 ${name} 启动失败: ${error.message}`);
                 reject(error);
@@ -124,8 +127,8 @@ class IntegratedLauncher {
             // 给进程一些时间启动
             setTimeout(() => {
                 if (this.processes.has(name)) {
-                    console.log(`✅ 服务 ${name} 启动成功 (PID: ${process.pid})`);
-                    resolve(process);
+                    console.log(`✅ 服务 ${name} 启动成功 (PID: ${childProcess.pid})`);
+                    resolve(childProcess);
                 }
             }, 2000);
         });
