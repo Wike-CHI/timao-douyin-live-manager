@@ -33,7 +33,7 @@ class LiveAnalysisGenerator:
     def __init__(self, config: Dict[str, Any]) -> None:
         self.config = config
         self.gateway = get_gateway()
-        self.model: str = config.get("ai_model", "qwen-plus")
+        # 移除硬编码模型，使用功能级别的默认配置
         logger.info("LiveAnalysisGenerator initialized with AI Gateway.")
 
     def _format_chat_samples(self, chat_signals: List[Dict[str, Any]]) -> str:
@@ -269,10 +269,10 @@ class LiveAnalysisGenerator:
         """带使用追踪的生成方法"""
         messages = self._build_prompt(context)
         
-        # 使用网关调用
+        # 使用网关调用，通过function参数自动选择默认模型
         response = self.gateway.chat_completion(
             messages=messages,
-            model=self.model,
+            function="live_analysis",  # 使用功能标识，自动选择qwen3-max
             temperature=0.3,
             response_format={"type": "json_object"},
             max_tokens=800,

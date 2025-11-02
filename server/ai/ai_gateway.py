@@ -86,12 +86,37 @@ class AIGateway:
     
     _instance: Optional[AIGateway] = None
     
+    # 功能级别的默认模型配置
+    # 这些配置可以通过环境变量覆盖：
+    # AI_FUNCTION_LIVE_ANALYSIS_PROVIDER, AI_FUNCTION_LIVE_ANALYSIS_MODEL
+    # AI_FUNCTION_STYLE_PROFILE_PROVIDER, AI_FUNCTION_STYLE_PROFILE_MODEL
+    # AI_FUNCTION_SCRIPT_GENERATION_PROVIDER, AI_FUNCTION_SCRIPT_GENERATION_MODEL
+    # AI_FUNCTION_LIVE_REVIEW_PROVIDER, AI_FUNCTION_LIVE_REVIEW_MODEL
+    FUNCTION_MODELS = {
+        "live_analysis": {
+            "provider": os.getenv("AI_FUNCTION_LIVE_ANALYSIS_PROVIDER", "qwen"),
+            "model": os.getenv("AI_FUNCTION_LIVE_ANALYSIS_MODEL", "qwen3-max")  # 默认使用qwen3-max
+        },  # AI分析
+        "style_profile": {
+            "provider": os.getenv("AI_FUNCTION_STYLE_PROFILE_PROVIDER", "qwen"),
+            "model": os.getenv("AI_FUNCTION_STYLE_PROFILE_MODEL", "qwen3-max")  # 默认使用qwen3-max
+        },  # 主播画像与氛围分析
+        "script_generation": {
+            "provider": os.getenv("AI_FUNCTION_SCRIPT_GENERATION_PROVIDER", "qwen"),
+            "model": os.getenv("AI_FUNCTION_SCRIPT_GENERATION_MODEL", "qwen3-max")  # 默认使用qwen3-max
+        },  # 话术生成
+        "live_review": {
+            "provider": os.getenv("AI_FUNCTION_LIVE_REVIEW_PROVIDER", "gemini"),
+            "model": os.getenv("AI_FUNCTION_LIVE_REVIEW_MODEL", "gemini-2.5-flash-preview-09-2025")
+        },  # 复盘
+    }
+    
     # 内置服务商配置模板
     PROVIDER_TEMPLATES = {
         AIProvider.QWEN: {
             "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
             "default_model": "qwen-plus",
-            "models": ["qwen-plus", "qwen-turbo", "qwen-max", "qwen-max-longcontext"],
+            "models": ["qwen-plus", "qwen-turbo", "qwen-max", "qwen-max-longcontext", "qwen3-max"],
         },
         AIProvider.OPENAI: {
             "base_url": "https://api.openai.com/v1",
@@ -332,6 +357,7 @@ class AIGateway:
         messages: List[Dict[str, str]],
         provider: Optional[str] = None,
         model: Optional[str] = None,
+        function: Optional[str] = None,  # 功能标识：live_analysis, style_profile, script_generation, live_review
         temperature: float = 0.3,
         max_tokens: Optional[int] = None,
         response_format: Optional[Dict[str, str]] = None,
@@ -341,8 +367,9 @@ class AIGateway:
         
         Args:
             messages: 消息列表 [{"role": "user", "content": "..."}]
-            provider: 临时指定服务商（为空则使用当前默认）
-            model: 临时指定模型（为空则使用当前默认）
+            provider: 临时指定服务商（为空则使用功能默认或当前默认）
+            model: 临时指定模型（为空则使用功能默认或当前默认）
+            function: 功能标识（live_analysis/style_profile/script_generation/live_review），用于自动选择默认模型
             temperature: 温度参数
             max_tokens: 最大token数
             response_format: 响应格式（如 {"type": "json_object"}）
@@ -351,9 +378,15 @@ class AIGateway:
         Returns:
             AIResponse: 统一响应对象
         """
-        # 确定使用的服务商和模型
-        target_provider = (provider or self.current_provider or "").lower()
-        target_model = model or self.current_model
+        # 如果指定了功能，但没有指定provider和model，则使用功能级别的默认配置
+        if function and function in self.FUNCTION_MODELS and not provider and not model:
+            func_config = self.FUNCTION_MODELS[function]
+            target_provider = func_config["provider"].lower()
+            target_model = func_config["model"]
+        else:
+            # 确定使用的服务商和模型
+            target_provider = (provider or self.current_provider or "").lower()
+            target_model = model or self.current_model
         
         if not target_provider or target_provider not in self.providers:
             return AIResponse(
@@ -525,6 +558,44 @@ class AIGateway:
             }
             for name, config in self.providers.items()
         }
+    
+    def get_function_config(self, function: str) -> Optional[Dict[str, str]]:
+        """获取指定功能的默认配置
+        
+        Args:
+            function: 功能标识（live_analysis/style_profile/script_generation/live_review）
+            
+        Returns:
+            功能配置字典，包含provider和model，如果功能不存在则返回None
+        """
+        return self.FUNCTION_MODELS.get(function)
+    
+    def update_function_config(
+        self,
+        function: str,
+        provider: Optional[str] = None,
+        model: Optional[str] = None,
+    ) -> None:
+        """更新指定功能的默认配置
+        
+        Args:
+            function: 功能标识
+            provider: 新的服务商（为空则不更新）
+            model: 新的模型（为空则不更新）
+        """
+        if function not in self.FUNCTION_MODELS:
+            raise ValueError(f"未知的功能标识: {function}")
+        
+        if provider:
+            self.FUNCTION_MODELS[function]["provider"] = provider.lower()
+        if model:
+            self.FUNCTION_MODELS[function]["model"] = model
+        
+        logger.info(f"功能 {function} 的配置已更新: provider={provider or '未更改'}, model={model or '未更改'}")
+    
+    def list_function_configs(self) -> Dict[str, Dict[str, str]]:
+        """列出所有功能的默认配置"""
+        return self.FUNCTION_MODELS.copy()
 
 
 # 便捷函数

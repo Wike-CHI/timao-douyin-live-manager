@@ -148,7 +148,7 @@ export const useLiveConsoleStore = create<LiveConsoleState>()(
       pushAiEvent: (value) =>
         set((state) => ({
           ...state,
-          aiEvents: [value, ...state.aiEvents].slice(0, 10),
+          aiEvents: [value, ...state.aiEvents],
         })),
       appendLog: (entry) =>
         set((state) => {

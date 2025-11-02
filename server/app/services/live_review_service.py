@@ -32,12 +32,13 @@ class LiveReviewService:
     def __init__(self):
         self.gateway = get_gateway()
         self.persist_root = os.getenv("PERSIST_ROOT", "records/live_logs")
-        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-preview-09-2025")
+        # 移除硬编码模型，使用功能级别的默认配置
     
-    def _is_gemini_available(self) -> bool:
-        """检查 Gemini 服务是否可用"""
+    def _is_review_ai_available(self) -> bool:
+        """检查复盘AI服务是否可用"""
         try:
             providers = self.gateway.list_providers()
+            # 检查gemini服务是否可用（复盘默认使用gemini）
             return "gemini" in providers and providers["gemini"].get("enabled", False)
         except Exception:
             return False
@@ -52,9 +53,9 @@ class LiveReviewService:
         Returns:
             LiveReviewReport 对象或 None
         """
-        if not self._is_gemini_available():
-            logger.error("❌ Gemini 服务不可用，无法生成复盘报告")
-            logger.info("请在 .env 文件中配置 AIHUBMIX_API_KEY")
+        if not self._is_review_ai_available():
+            logger.error("❌ 复盘AI服务不可用，无法生成复盘报告")
+            logger.info("请在 .env 文件中配置 AIHUBMIX_API_KEY（用于Gemini服务）")
             return None
         
         # 查询直播会话
@@ -101,8 +102,7 @@ class LiveReviewService:
         try:
             ai_response = self.gateway.chat_completion(
                 messages=messages,
-                provider="gemini",
-                model=self.gemini_model,
+                function="live_review",  # 使用功能标识，自动选择gemini-2.5-flash-preview-09-2025
                 temperature=0.3,
                 max_tokens=4096,
                 response_format={"type": "json_object"},
@@ -115,8 +115,8 @@ class LiveReviewService:
                 report = LiveReviewReport(
                     session_id=session_id,
                     status="failed",
-                    error_message=f"Gemini API 调用失败: {ai_response.error}",
-                    ai_model=self.gemini_model
+                    error_message=f"AI API 调用失败: {ai_response.error}",
+                    ai_model=ai_response.model
                 )
                 db.add(report)
                 db.commit()
@@ -134,8 +134,8 @@ class LiveReviewService:
             report = LiveReviewReport(
                 session_id=session_id,
                 status="failed",
-                error_message=f"Gemini API 调用异常: {str(e)}",
-                ai_model=self.gemini_model
+                error_message=f"AI API 调用异常: {str(e)}",
+                ai_model="unknown"
             )
             db.add(report)
             db.commit()
@@ -150,7 +150,7 @@ class LiveReviewService:
                 session_id=session_id,
                 full_report_text=response_text,
                 status="completed",
-                ai_model=self.gemini_model,
+                ai_model=ai_response.model,
                 generation_cost=response_cost,
                 generation_tokens=response_usage.get("total_tokens", 0),
                 generation_duration=response_duration
@@ -170,7 +170,7 @@ class LiveReviewService:
             improvement_suggestions=result.get("improvement_suggestions", []),
             full_report_text=self._format_markdown_report(result),
             status="completed",
-            ai_model=self.gemini_model,
+            ai_model=ai_response.model,
             generation_cost=response_cost,
             generation_tokens=response_usage.get("total_tokens", 0),
             generation_duration=response_duration

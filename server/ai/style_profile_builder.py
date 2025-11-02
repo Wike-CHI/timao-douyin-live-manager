@@ -30,11 +30,10 @@ class StyleProfileBuilder:
         self,
         api_key: Optional[str] = None,  # 保留以便兼容，但不再使用
         base_url: Optional[str] = None,  # 保留以便兼容，但不再使用
-        model: Optional[str] = None,
+        model: Optional[str] = None,  # 保留以便兼容，但不再使用
     ) -> None:
-        self.config = StyleProfileBuilderConfig(
-            model=model or os.getenv("AI_MODEL", "qwen-plus"),
-        )
+        # 移除硬编码模型和API key，使用功能级别的默认配置
+        self.config = StyleProfileBuilderConfig()
         self.gateway = get_gateway()
         logger.info("StyleProfileBuilder initialized with AI Gateway.")
 
@@ -54,10 +53,10 @@ class StyleProfileBuilder:
         
         prompt = self._build_prompt(anchor_id, session_date, session_index, excerpt)
         
-        # 使用网关调用
+        # 使用网关调用，通过function参数自动选择默认模型
         response = self.gateway.chat_completion(
             messages=prompt,
-            model=self.config.model,
+            function="style_profile",  # 使用功能标识，自动选择qwen3-max
             max_tokens=800,
             temperature=0.4,
         )

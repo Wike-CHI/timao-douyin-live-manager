@@ -725,6 +725,7 @@ const LiveConsolePage = () => {
   const handleSelectQuestion = useCallback((entry: { content: string }) => {
     const text = String(entry?.content || '').trim();
     if (!text) return;
+    // 替换而不是累加，避免生成话术时处理太多问题导致变慢
     setSelectedQuestions([text]);
     setAnswerError(null);
   }, [setSelectedQuestions, setAnswerError]);
@@ -763,14 +764,21 @@ const LiveConsolePage = () => {
       if (vibe) payload.vibe = vibe;
       const res = await generateAnswerScripts(payload, FASTAPI_BASE_URL);
       const scripts = res?.data?.scripts || [];
-      setAnswerScripts(scripts);
+      // 累加新生成的话术，而不是替换
+      const currentScripts = answerScripts || [];
+      const existingIds = new Set(currentScripts.map((s: any) => s.id || s.text));
+      const newScripts = scripts.filter((s: any) => {
+        const id = s.id || s.text;
+        return !existingIds.has(id);
+      });
+      setAnswerScripts([...currentScripts, ...newScripts]);
     } catch (err) {
       setAnswerError((err as Error)?.message || '生成失败，请稍后再试');
     } finally {
       setAnswerLoading(false);
       generatingRef.current = false;
     }
-  }, [selectedQuestions, log, styleProfile, vibe, setAnswerScripts, FASTAPI_BASE_URL]);
+  }, [selectedQuestions, log, styleProfile, vibe, answerScripts, setAnswerScripts, FASTAPI_BASE_URL]);
 
   // --------------- State persistence ---------------
   return (
@@ -1095,7 +1103,7 @@ const LiveConsolePage = () => {
               </div>
             ) : (
               <div className="space-y-3 p-1">
-                {aiEvents.slice(0, 2).map((ev, idx) => {
+                {aiEvents.map((ev, idx) => {
                   const sentiment = ev?.audience_sentiment
                     || (ev?.analysis_card && typeof ev.analysis_card === 'object' ? ev.analysis_card.audience_sentiment : null);
                   const sentimentSignals = Array.isArray(sentiment?.signals) ? sentiment.signals : [];

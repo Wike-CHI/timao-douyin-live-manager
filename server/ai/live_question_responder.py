@@ -26,7 +26,7 @@ class LiveQuestionResponder:
     def __init__(self, config: Dict[str, Any]) -> None:
         self.config = config
         self.gateway = get_gateway()
-        self.model: str = config.get("ai_model", "qwen-plus")
+        # 移除硬编码模型，使用功能级别的默认配置
         self._examples_cache: Optional[str] = None
         logger.info("LiveQuestionResponder initialized with AI Gateway.")
 
@@ -136,10 +136,10 @@ class LiveQuestionResponder:
         
         messages = self._build_prompt(context)
         
-        # 使用网关调用
+        # 使用网关调用，通过function参数自动选择默认模型
         response = self.gateway.chat_completion(
             messages=messages,
-            model=self.model,
+            function="script_generation",  # 使用功能标识，自动选择qwen3-max
             temperature=0.4,
             response_format={"type": "json_object"},
             max_tokens=900,

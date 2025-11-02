@@ -34,6 +34,7 @@ class ChatCompletionRequest(BaseModel):
     messages: List[Dict[str, str]] = Field(..., description="消息列表")
     provider: Optional[str] = Field(None, description="临时指定服务商")
     model: Optional[str] = Field(None, description="临时指定模型")
+    function: Optional[str] = Field(None, description="功能标识 (live_analysis/style_profile/script_generation/live_review)")
     temperature: float = Field(0.3, description="温度参数", ge=0, le=2)
     max_tokens: Optional[int] = Field(None, description="最大token数")
     response_format: Optional[Dict[str, str]] = Field(None, description="响应格式")
@@ -45,6 +46,13 @@ class UpdateApiKeyRequest(BaseModel):
     api_key: str = Field(..., description="新的 API 密钥")
 
 
+class UpdateFunctionConfigRequest(BaseModel):
+    """更新功能配置请求"""
+    function: str = Field(..., description="功能标识 (live_analysis/style_profile/script_generation/live_review)")
+    provider: Optional[str] = Field(None, description="服务商名称")
+    model: Optional[str] = Field(None, description="模型名称")
+
+
 @router.get("/status")
 async def get_status():
     """获取网关状态"""
@@ -53,6 +61,7 @@ async def get_status():
         "success": True,
         "current": gateway.get_current_config(),
         "providers": gateway.list_providers(),
+        "function_configs": gateway.list_function_configs(),  # 添加功能配置信息
     }
 
 
@@ -113,6 +122,7 @@ async def chat_completion(req: ChatCompletionRequest):
             messages=req.messages,
             provider=req.provider,
             model=req.model,
+            function=req.function,  # 支持功能标识
             temperature=req.temperature,
             max_tokens=req.max_tokens,
             response_format=req.response_format,
@@ -174,6 +184,49 @@ async def update_api_key(req: UpdateApiKeyRequest):
         return {
             "success": True,
             "message": f"服务商 {req.provider} 的 API Key 已更新",
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/functions")
+async def list_function_configs():
+    """列出所有功能的默认配置"""
+    gateway = get_gateway()
+    return {
+        "success": True,
+        "function_configs": gateway.list_function_configs(),
+    }
+
+
+@router.get("/functions/{function}")
+async def get_function_config(function: str):
+    """获取指定功能的默认配置"""
+    gateway = get_gateway()
+    config = gateway.get_function_config(function)
+    if config is None:
+        raise HTTPException(status_code=404, detail=f"未知的功能标识: {function}")
+    return {
+        "success": True,
+        "function": function,
+        "config": config,
+    }
+
+
+@router.put("/functions/{function}")
+async def update_function_config(function: str, req: UpdateFunctionConfigRequest = Body(...)):
+    """更新指定功能的默认配置"""
+    try:
+        gateway = get_gateway()
+        gateway.update_function_config(
+            function=function,
+            provider=req.provider,
+            model=req.model,
+        )
+        return {
+            "success": True,
+            "message": f"功能 {function} 的配置已更新",
+            "config": gateway.get_function_config(function),
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
