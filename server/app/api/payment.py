@@ -22,7 +22,7 @@ from ..models.payment import (
 from ..services.payment_service import PaymentService
 from ..services.audit_service import AuditService
 
-router = APIRouter(prefix="/payment", tags=["payment"])
+router = APIRouter(prefix="/api/payment", tags=["payment"])
 
 
 # ==================== Pydantic 模型 ====================
@@ -455,6 +455,17 @@ async def get_active_subscription(
     current_user: User = Depends(get_current_active_user)
 ):
     """获取当前活跃订阅"""
+    payment_service = PaymentService(db)
+    subscription = payment_service.get_active_subscription(current_user.id)
+    return subscription
+
+
+@router.get("/subscriptions/current", response_model=Optional[SubscriptionResponse])
+async def get_current_subscription(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """获取当前订阅（别名端点，兼容前端）"""
     payment_service = PaymentService(db)
     subscription = payment_service.get_active_subscription(current_user.id)
     return subscription

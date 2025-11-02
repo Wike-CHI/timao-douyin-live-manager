@@ -116,8 +116,20 @@ const SubscriptionPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
-        {/* 页面标题 */}
+        {/* 页面标题和回退按钮 */}
         <div className="text-center mb-12">
+          <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              返回主界面
+            </button>
+            <div className="flex-1"></div>
+          </div>
           <h1 className="text-4xl font-bold text-gray-900 mb-4">选择您的订阅套餐</h1>
           <p className="text-xl text-gray-600">解锁更多 AI 分析功能，提升直播效果</p>
         </div>
@@ -248,13 +260,22 @@ const SubscriptionPage = () => {
 
         {/* 支付模态框 */}
         {showPaymentModal && selectedPlanDetails && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-md w-full p-6">
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            onClick={(e) => {
+              // 点击背景关闭模态框
+              if (e.target === e.currentTarget) {
+                setShowPaymentModal(false);
+              }
+            }}
+          >
+            <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold">确认订阅</h3>
+                <h3 className="text-xl font-semibold text-gray-900">确认订阅</h3>
                 <button
                   onClick={() => setShowPaymentModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  aria-label="关闭"
                 >
                   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

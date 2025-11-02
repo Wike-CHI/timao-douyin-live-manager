@@ -175,6 +175,7 @@ _include_router_safe("AI 使用监控", "server.app.api.ai_usage")
 _include_router_safe("AI 网关管理", "server.app.api.ai_gateway_api")
 _include_router_safe("用户认证", "server.app.api.auth")
 _include_router_safe("订阅管理", "server.app.api.subscription")
+_include_router_safe("支付管理", "server.app.api.payment")
 _include_router_safe("管理员", "server.app.api.admin")
 _include_router_safe("直播评论管理", "server.app.api.live_comments")
 
