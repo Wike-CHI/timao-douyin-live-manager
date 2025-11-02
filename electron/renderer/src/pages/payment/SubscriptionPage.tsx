@@ -32,27 +32,37 @@ const SubscriptionPage = () => {
   // 加载数据
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user]); // 添加user依赖，当登录状态变化时重新加载
 
   const loadData = async () => {
     try {
       setLoading(true);
       setError('');
       
-      // 并行加载套餐和当前订阅
-      const [plans, subscription] = await Promise.all([
-        getPlans(),
-        getCurrentSubscription()
-      ]);
-      
+      // 加载套餐列表（公开API，无需登录）
+      const plans = await getPlans();
       setAvailablePlans(plans);
-      setCurrentSubscription(subscription);
+      
+      // 只有登录用户才加载当前订阅信息
+      if (user) {
+        try {
+          const subscription = await getCurrentSubscription();
+          setCurrentSubscription(subscription);
+        } catch (subError: any) {
+          // 如果获取订阅信息失败，不影响套餐列表显示
+          console.warn('获取订阅信息失败:', subError);
+          setCurrentSubscription(null);
+        }
+      } else {
+        setCurrentSubscription(null);
+      }
+      
     } catch (error: any) {
       console.error('加载数据失败:', error);
       const errorMessage = error?.message || error?.toString() || '未知错误';
       
       // 根据错误类型给出更具体的提示
-      if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
+      if (errorMessage.includes('401') || errorMessage.includes('Unauthorized') || errorMessage.includes('credentials')) {
         setError('请先登录后再访问此页面');
       } else if (errorMessage.includes('404')) {
         setError('订阅服务暂不可用，请联系管理员');
@@ -242,12 +252,12 @@ const SubscriptionPage = () => {
                   </div>
 
                   <ul className="space-y-3 mb-8">
-                    {plan.features.map((feature: string, index: number) => (
+                    {plan.features && typeof plan.features === 'object' && Object.entries(plan.features).map(([key, value], index) => (
                       <li key={index} className="flex items-start">
                         <svg className="h-5 w-5 text-green-500 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
-                        <span className="text-gray-700">{feature}</span>
+                        <span className="text-gray-700">{key}: {String(value)}</span>
                       </li>
                     ))}
                   </ul>

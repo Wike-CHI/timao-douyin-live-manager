@@ -96,17 +96,31 @@ async def get_subscription_plans(
 ):
     """获取订阅套餐列表"""
     try:
-        plans = SubscriptionService.get_subscription_plans(active_only=active_only)
+        import json
+        from server.app.models.subscription import SubscriptionPlan
+        
+        # 直接查询数据库
+        query = db.query(SubscriptionPlan)
+        if active_only:
+            query = query.filter(SubscriptionPlan.is_active == True)
+        
+        plans = query.order_by(SubscriptionPlan.price).all()
+        
         return [
             SubscriptionPlanResponse(
                 id=plan.id,
                 name=plan.name,
                 description=plan.description,
                 plan_type=plan.plan_type.value,
-                price=plan.price,
-                duration_days=plan.duration_days,
-                features=plan.features,
-                usage_limits=plan.usage_limits,
+                price=float(plan.price),
+                duration_days=plan.billing_cycle,  # 使用 billing_cycle 作为 duration_days
+                features=json.loads(plan.features) if plan.features else {},  # 解析JSON字符串
+                usage_limits={  # 构造 usage_limits 字典
+                    "max_streams": plan.max_streams,
+                    "max_storage_gb": plan.max_storage_gb,
+                    "max_ai_requests": plan.max_ai_requests,
+                    "max_export_count": plan.max_export_count
+                },
                 is_active=plan.is_active,
                 created_at=plan.created_at
             )
@@ -114,9 +128,11 @@ async def get_subscription_plans(
         ]
         
     except Exception as e:
+        import logging
+        logging.error(f"获取套餐列表失败: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="获取套餐列表失败"
+            detail=f"获取套餐列表失败: {str(e)}"
         )
 
 
