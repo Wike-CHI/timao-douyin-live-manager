@@ -18,7 +18,7 @@ const SubscriptionPage = () => {
   const [currentSubscription, setCurrentSubscription] = useState<Subscription | null>(null);
   const [availablePlans, setAvailablePlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<string>('');
+  const [selectedPlan, setSelectedPlan] = useState<number | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [couponCode, setCouponCode] = useState('');
   const [couponValidation, setCouponValidation] = useState<{
@@ -47,16 +47,27 @@ const SubscriptionPage = () => {
       
       setAvailablePlans(plans);
       setCurrentSubscription(subscription);
-    } catch (error) {
+    } catch (error: any) {
       console.error('加载数据失败:', error);
-      setError('加载数据失败，请刷新页面重试');
+      const errorMessage = error?.message || error?.toString() || '未知错误';
+      
+      // 根据错误类型给出更具体的提示
+      if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
+        setError('请先登录后再访问此页面');
+      } else if (errorMessage.includes('404')) {
+        setError('订阅服务暂不可用，请联系管理员');
+      } else if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+        setError('网络连接失败，请检查网络连接后重试');
+      } else {
+        setError(`加载数据失败: ${errorMessage}`);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   // 验证优惠券
-  const handleValidateCoupon = async (planId: string) => {
+  const handleValidateCoupon = async (planId: number) => {
     if (!couponCode.trim()) {
       setCouponValidation(null);
       return;
@@ -76,7 +87,7 @@ const SubscriptionPage = () => {
     }
   };
 
-  const handleSubscribe = (planId: string) => {
+  const handleSubscribe = (planId: number) => {
     setSelectedPlan(planId);
     setShowPaymentModal(true);
     setCouponCode('');
@@ -90,7 +101,7 @@ const SubscriptionPage = () => {
     setError('');
     
     try {
-      const result = await createAndConfirmPayment(selectedPlan, method);
+      const result = await createAndConfirmPayment(String(selectedPlan), method);
       
       if (result.success) {
         // 支付成功，更新状态
@@ -301,8 +312,9 @@ const SubscriptionPage = () => {
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                     <button
-                      onClick={() => handleValidateCoupon(selectedPlan)}
-                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                      onClick={() => selectedPlan && handleValidateCoupon(selectedPlan)}
+                      disabled={!selectedPlan}
+                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       验证
                     </button>
