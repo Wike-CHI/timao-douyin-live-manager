@@ -2,7 +2,6 @@ import {
   Create,
   SimpleForm,
   TextInput,
-  EmailInput,
   PasswordInput,
   SelectInput,
   required,
@@ -28,9 +27,10 @@ export const UserCreate = () => {
           validate={[required(), minLength(3)]}
           helperText="用户名长度至少3个字符"
         />
-        <EmailInput
+        <TextInput
           source="email"
           label="邮箱"
+          type="email"
           validate={[required(), email()]}
         />
         <PasswordInput

@@ -12,7 +12,6 @@ import {
   CreateButton,
   TopToolbar,
   ExportButton,
-  useListContext,
 } from 'react-admin';
 import { Chip } from '@mui/material';
 
@@ -35,9 +34,9 @@ const statusChoices = [
 const UserFilter = () => (
   <FilterForm>
     <SearchInput source="search" alwaysOn placeholder="搜索用户名、邮箱、手机号" />
-    <SelectInput source="filter.role" choices={roleChoices} label="角色" />
-    <SelectInput source="filter.is_active" choices={statusChoices} label="状态" />
-    <BooleanInput source="filter.is_verified" label="已验证" />
+    <SelectInput source="role" choices={roleChoices} label="角色" />
+    <SelectInput source="is_active" choices={statusChoices} label="状态" />
+    <BooleanInput source="is_verified" label="已验证" />
   </FilterForm>
 );
 

@@ -2,7 +2,6 @@ import {
   Edit,
   SimpleForm,
   TextInput,
-  EmailInput,
   PasswordInput,
   SelectInput,
   BooleanInput,
@@ -123,9 +122,10 @@ export const UserEdit = () => {
     <Edit>
       <SimpleForm toolbar={<CustomToolbar />}>
         <TextInput source="username" label="用户名" disabled />
-        <EmailInput
+        <TextInput
           source="email"
           label="邮箱"
+          type="email"
           validate={email()}
         />
         <TextInput
