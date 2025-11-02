@@ -101,7 +101,8 @@ async def get_current_user(
                 detail="User account is disabled"
             )
         
-        if getattr(user, "is_locked", lambda: False)():
+        # is_locked 是方法，需要调用
+        if user.is_locked():
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User account is locked"
@@ -291,7 +292,7 @@ class OptionalAuth:
                     User.id == user_id,
                     User.is_deleted == False
                 ).first()
-                if user and user.is_active() and not getattr(user, "is_locked", lambda: False)():
+                if user and user.is_active() and not user.is_locked():
                     # 更新会话活动时间
                     session_id = payload.get("session_id")
                     if session_id:
@@ -321,7 +322,7 @@ def get_user_from_token(token: str, db: Session) -> Optional[User]:
                 User.id == user_id,
                 User.is_deleted == False
             ).first()
-            if user and user.is_active() and not getattr(user, "is_locked", lambda: False)():
+            if user and user.is_active() and not user.is_locked():
                 return user
     except:
         pass
@@ -360,7 +361,7 @@ def validate_refresh_token(
             User.id == user_id,
             User.is_deleted == False
         ).first()
-        if not user or not user.is_active() or getattr(user, "is_locked", lambda: False)():
+        if not user or not user.is_active() or user.is_locked():
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found or inactive"
