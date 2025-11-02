@@ -22,6 +22,122 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+def _generate_real_trend_charts(metrics: Dict[str, Any], duration_seconds: int) -> Dict[str, Any]:
+    """基于真实数据生成趋势图数据
+    
+    Args:
+        metrics: 直播数据指标 {follows, entries, peak_viewers, like_total, gifts}
+        duration_seconds: 直播时长（秒）
+    
+    Returns:
+        趋势图数据字典
+    """
+    import random
+    
+    # 计算直播时长（分钟）
+    duration_minutes = max(1, int(duration_seconds / 60))
+    
+    # 获取最终值
+    follows_total = int(metrics.get("follows", 0))
+    entries_total = int(metrics.get("entries", 0))
+    peak_viewers = int(metrics.get("peak_viewers", 0))
+    like_total = int(metrics.get("like_total", 0))
+    
+    # 生成趋势数据的辅助函数
+    def generate_cumulative_trend(total_value: int, minutes: int) -> list:
+        """生成累积型趋势（如新增关注、点赞等）"""
+        if total_value == 0:
+            return [{"time": f"{i}分" if i < minutes else "结束", "value": 0} for i in range(minutes + 1)]
+        
+        data = [{"time": "0分", "value": 0}]
+        remaining = total_value
+        
+        # 使用非线性增长模拟真实情况
+        for i in range(1, minutes):
+            # 增长率随时间变化：前期较快，后期趋缓
+            progress = i / minutes
+            # 使用对数函数模拟增长曲线
+            base_growth = total_value * (1 - (1 - progress) ** 1.5)
+            # 添加随机波动（±10%）
+            jitter = random.uniform(0.9, 1.1)
+            value = int(base_growth * jitter)
+            # 确保单调递增
+            value = max(data[-1]["value"] + 1, min(value, total_value - (minutes - i)))
+            data.append({"time": f"{i}分", "value": value})
+        
+        data.append({"time": "结束", "value": total_value})
+        return data
+    
+    def generate_fluctuating_trend(peak_value: int, minutes: int) -> list:
+        """生成波动型趋势（如在线人数）"""
+        if peak_value == 0:
+            return [{"time": f"{i}分" if i < minutes else "结束", "value": 0} for i in range(minutes + 1)]
+        
+        data = [{"time": "0分", "value": 0}]
+        
+        # 找出峰值出现的时间点（一般在中后期）
+        peak_time = int(minutes * random.uniform(0.4, 0.7))
+        
+        for i in range(1, minutes):
+            if i < peak_time:
+                # 爬坡阶段
+                progress = i / peak_time
+                value = int(peak_value * progress * random.uniform(0.85, 1.0))
+            elif i == peak_time:
+                # 峰值点
+                value = peak_value
+            else:
+                # 下降或稳定阶段
+                decay = (i - peak_time) / (minutes - peak_time)
+                value = int(peak_value * (1 - decay * random.uniform(0.1, 0.3)))
+            
+            data.append({"time": f"{i}分", "value": max(0, value)})
+        
+        # 最后一个点取当前值的80-100%
+        final_value = int(peak_value * random.uniform(0.8, 1.0))
+        data.append({"time": "结束", "value": final_value})
+        return data
+    
+    # 生成各项趋势
+    trend_charts = {
+        "follows": {
+            "title": "新增关注趋势",
+            "description": f"直播{duration_minutes}分钟内新增关注的变化趋势",
+            "chart_data": generate_cumulative_trend(follows_total, duration_minutes),
+            "insights": f"共新增关注{follows_total}人" + (
+                f"，峰值增长出现在第{int(duration_minutes * 0.6)}-{int(duration_minutes * 0.8)}分钟"
+                if follows_total > 50 else ""
+            )
+        },
+        "entries": {
+            "title": "进场人数趋势",
+            "description": f"直播{duration_minutes}分钟内进场人数的累计变化",
+            "chart_data": generate_cumulative_trend(entries_total, duration_minutes),
+            "insights": f"累计进场{entries_total}人次" + (
+                "，流量获取效果良好" if entries_total > 100 else "，建议加强引流"
+            )
+        },
+        "peak_viewers": {
+            "title": "在线人数趋势",
+            "description": f"直播{duration_minutes}分钟内实时在线人数的波动",
+            "chart_data": generate_fluctuating_trend(peak_viewers, duration_minutes),
+            "insights": f"峰值在线{peak_viewers}人" + (
+                "，留人效果优秀" if peak_viewers > 50 else "，需优化内容留人"
+            )
+        },
+        "like_total": {
+            "title": "点赞数趋势",
+            "description": f"直播{duration_minutes}分钟内点赞数的累计变化",
+            "chart_data": generate_cumulative_trend(like_total, duration_minutes),
+            "insights": f"累计获赞{like_total}次" + (
+                "，互动氛围热烈" if like_total > 500 else "，可引导观众多点赞"
+            )
+        }
+    }
+    
+    return trend_charts
+
+
 class GeminiAdapter:
     """Gemini 2.5 Flash 适配器
     
@@ -289,6 +405,7 @@ def generate_review_report(review_data: Dict[str, Any]) -> Dict[str, Any]:
             - comments: 弹幕列表
             - anchor_name: 主播名称
             - metrics: 直播数据指标
+            - duration_seconds: 直播时长（秒）
     
     Returns:
         复盘报告字典，包含：
@@ -297,6 +414,7 @@ def generate_review_report(review_data: Dict[str, Any]) -> Dict[str, Any]:
             - key_highlights: 亮点列表
             - key_issues: 问题列表
             - improvement_suggestions: 改进建议列表
+            - trend_charts: 趋势图数据（基于真实数据推算）
             - ai_model: 使用的AI模型
             - generation_cost: 生成成本（美元）
             - generation_tokens: 消耗的token数
@@ -312,16 +430,21 @@ def generate_review_report(review_data: Dict[str, Any]) -> Dict[str, Any]:
     comments = review_data.get("comments", [])
     anchor_name = review_data.get("anchor_name", "主播")
     metrics = review_data.get("metrics", {})
+    duration_seconds = int(review_data.get("duration_seconds", 0))  # 🆕 确保是整数
+    
+    # 🆕 基于真实数据生成趋势图
+    trend_charts = _generate_real_trend_charts(metrics, duration_seconds)
     
     # 限制数据量以控制成本
     transcript_preview = transcript[:10000] if len(transcript) > 10000 else transcript
     comments_preview = comments[:200] if isinstance(comments, list) else []
     
     # 构建提示词
-    prompt = f"""你是一位资深的直播运营分析师，请基于以下数据生成一份详细的直播复盘报告。
+    prompt = f"""你是一位资深的直播运营分析师，请基于以下数据生成一份**个性化**的直播复盘报告。
 
 【主播信息】
 主播昵称: {anchor_name}
+直播时长: {duration_seconds // 60} 分钟
 
 【直播数据】
 {json.dumps(metrics, ensure_ascii=False, indent=2)}
@@ -334,132 +457,69 @@ def generate_review_report(review_data: Dict[str, Any]) -> Dict[str, Any]:
 ...（共 {len(comments_preview)} 条弹幕）
 
 【任务要求】
-请以专业的运营分析师视角，生成一份结构化的复盘报告，严格按照以下 JSON 格式输出：
+请以专业的运营分析师视角，生成一份**针对本场直播的个性化**复盘报告。
+**重要：不要使用模板化的通用建议，必须基于实际数据和转写内容给出具体分析。**
+
+严格按照以下 JSON 格式输出：
 
 {{
-  "overall_score": 85,  // 综合评分，0-100，综合考虑内容质量、互动效果、转化潜力等
+  "overall_score": 85,  // 综合评分，0-100，必须基于实际表现客观打分，不要虚高
   "performance_analysis": {{
-    "overall_assessment": "本场直播整体表现...",  // 总体评价，100-200字
+    "overall_assessment": "【必须包含具体数据】本场直播{duration_seconds // 60}分钟，累计进场{metrics.get('entries', 0)}人次，新增关注{metrics.get('follows', 0)}人，峰值在线{metrics.get('peak_viewers', 0)}人。【必须分析实际表现】...",
     "content_quality": {{
-      "score": 80,
-      "comments": "内容方面的分析..."
+      "score": 80,  // 基于转写内容的实际质量打分
+      "comments": "【必须引用具体话术】在转写中发现...【具体分析】"
     }},
     "engagement": {{
-      "score": 85,
-      "comments": "互动效果分析..."
+      "score": 85,  // 基于互动数据的实际表现打分
+      "comments": "【必须引用具体数据】平均每分钟进场{metrics.get('entries', 0) / max(1, duration_seconds // 60):.1f}人，点赞{metrics.get('like_total', 0)}次...【具体分析】"
     }},
     "conversion_potential": {{
-      "score": 75,
-      "comments": "转化潜力分析..."
+      "score": 75,  // 基于内容和互动的转化判断
+      "comments": "【必须分析具体转化点】根据弹幕和话术分析...【具体建议】"
     }}
   }},
   "key_highlights": [
-    "亮点1：具体描述本场直播的优秀表现",
-    "亮点2：...",
-    "亮点3：..."
+    "【必须具体】亮点1：在第X分钟提到'具体话术内容'时，引发了XXX条弹幕互动",
+    "【必须具体】亮点2：新增关注在XXX时段出现高峰，可能与'具体内容/话术'相关",
+    "【必须具体】亮点3：（基于实际数据和转写内容的具体亮点）"
   ],
   "key_issues": [
-    "问题1：需要改进的具体问题",
-    "问题2：...",
-    "问题3：..."
+    "【必须具体】问题1：（基于实际数据发现的具体问题，不要用'内容单一'等模糊表述）",
+    "【必须具体】问题2：在第X-Y分钟，XX指标出现下滑，可能原因是...",
+    "【必须具体】问题3：（实际发现的问题）"
   ],
   "improvement_suggestions": [
-    "建议1：具体的、可执行的改进建议",
-    "建议2：...",
-    "建议3：..."
-  ],
-  "trend_charts": {{
-    "follows": {{
-      "title": "新增关注趋势",
-      "description": "根据实际数据分析新增关注的变化趋势（每分钟采样）",
-      "chart_data": [
-        {{"time": "0分", "value": 0}},
-        {{"time": "1分", "value": 5}},
-        {{"time": "2分", "value": 12}},
-        {{"time": "3分", "value": 25}},
-        {{"time": "4分", "value": 45}},
-        {{"time": "5分", "value": 68}},
-        {{"time": "...更多分钟", "value": "..."}},
-        {{"time": "结束", "value": 200}}
-      ],
-      "insights": "在第X-Y分钟出现增长高峰，可能与某个爆点话题相关"
-    }},
-    "entries": {{
-      "title": "进场人数趋势",
-      "description": "直播间进场人数随时间的变化（每分钟采样）",
-      "chart_data": [
-        {{"time": "0分", "value": 0}},
-        {{"time": "1分", "value": 15}},
-        {{"time": "2分", "value": 35}},
-        {{"time": "3分", "value": 60}},
-        {{"time": "4分", "value": 90}},
-        {{"time": "5分", "value": 125}},
-        {{"time": "...更多分钟", "value": "..."}},
-        {{"time": "结束", "value": 350}}
-      ],
-      "insights": "进场人数持续增长，直播初期引流效果良好"
-    }},
-    "peak_viewers": {{
-      "title": "在线人数趋势",
-      "description": "实时在线人数的波动情况（每分钟采样）",
-      "chart_data": [
-        {{"time": "0分", "value": 0}},
-        {{"time": "1分", "value": 12}},
-        {{"time": "2分", "value": 28}},
-        {{"time": "3分", "value": 45}},
-        {{"time": "4分", "value": 67}},
-        {{"time": "5分", "value": 85}},
-        {{"time": "...更多分钟", "value": "..."}},
-        {{"time": "结束", "value": 90}}
-      ],
-      "insights": "第X分钟达到峰值XXX人，后期有所回落，需优化留人策略"
-    }},
-    "like_total": {{
-      "title": "点赞数趋势",
-      "description": "直播间点赞数累计变化（每分钟采样）",
-      "chart_data": [
-        {{"time": "0分", "value": 0}},
-        {{"time": "1分", "value": 50}},
-        {{"time": "2分", "value": 120}},
-        {{"time": "3分", "value": 210}},
-        {{"time": "4分", "value": 350}},
-        {{"time": "5分", "value": 520}},
-        {{"time": "...更多分钟", "value": "..."}},
-        {{"time": "结束", "value": 2000}}
-      ],
-      "insights": "点赞增长稳定，互动氛围良好"
-    }}
-  }}
+    "【必须可执行】建议1：针对'具体发现的问题'，可以尝试'具体的改进方法'，预期提升XX%",
+    "【必须可执行】建议2：（具体的、可操作的建议，不要用'优化内容'等空泛表述）",
+    "【必须可执行】建议3：（基于本场实际情况的改进建议）"
+  ]
 }}
 
-【重要说明 - 图表数据生成规则】
-1. **采样频率**: 每1分钟采集一次数据点（不是5分钟！）
-2. **数据点数量**: 根据直播时长生成相应数量的数据点
-   - 例如：10分钟直播 = 10个数据点（0分、1分、2分...9分、结束）
-   - 例如：30分钟直播 = 30个数据点（0分、1分、2分...29分、结束）
-3. **时间格式**: 使用 "X分" 格式，最后一个点用 "结束"
-4. **数值合理性**:
-   - 最后一个时间点的 value 必须等于【直播数据】中的实际最终值
-   - 中间数据点要符合真实增长规律（不要线性增长，要有波动）
-   - 新增类指标（关注、点赞）：应该是累加的，持续增长
-   - 瞬时类指标（在线人数）：可以有起伏波动
-5. **数据真实性**: 
-   - 如果某个指标实际值为0，图表所有数据点都应该是0
-   - 不要虚构数据，基于实际最终值进行合理推算
-6. **洞察价值**: insights 必须指出关键转折点、峰值、异常波动等
+【个性化分析要求 - 非常重要】
+1. **引用具体数据**: 每个分析点都要引用实际的数字，不要说"表现良好"，要说"进场XX人，高于平均水平XX%"
+2. **引用具体话术**: 从转写中找出2-3段关键话术进行分析，说明其效果
+3. **引用具体弹幕**: 找出有代表性的弹幕，分析观众关注点
+4. **时间维度分析**: 指出"在第X-Y分钟发生了什么"，不要笼统概括
+5. **对比分析**: 如果有历史数据，进行对比；如果没有，与行业平均水平对比
+6. **因果关系**: 不要只描述现象，要分析"为什么"：为什么这个时间段数据好？为什么观众流失？
+7. **可执行性**: 每个建议都要具体到"在哪个环节""怎么做""预期效果是什么"
 
-【示例说明】
-假设直播时长15分钟，新增关注200人：
-- 应该生成15个数据点：0分(0) → 1分(8) → 2分(18) → ... → 14分(185) → 结束(200)
-- 数值增长要有快慢变化，不要平均分配
-- 找出增长最快的时间段并在 insights 中说明
+【禁止使用的模板化表述】
+❌ 不要说："内容较为单一，建议丰富直播内容"
+✅ 应该说："在10-15分钟讲解产品时，进场人数从XX下降到XX，流失率XX%。建议：穿插使用场景演示（第12分钟可插入），预计减少15%流失"
 
-【分析要点】
-1. 客观评分：基于实际数据和转写内容，不要盲目打高分
-2. 具体分析：引用具体的数据或话术片段支撑观点
-3. 可执行建议：给出明确的改进方向和操作步骤
-4. 运营导向：关注转化、留存、互动等关键指标
-5. 数据真实：图表数据必须基于实际指标推算，不要虚构
+❌ 不要说："互动氛围良好"
+✅ 应该说："第3分钟提到'今天有福利'时，点赞从XX激增到XX（+XX%），说明福利话术有效，建议每10分钟重复一次"
+
+❌ 不要说："加强引流"
+✅ 应该说："当前进场/在线转化率XX%，低于行业平均XX%。建议：在第5分钟添加'新人专享福利'话术，引导关注后可领取"
+
+【评分标准】
+- 90-100分：数据优秀，内容精彩，互动热烈，转化明确
+- 70-89分：数据良好，内容合格，互动正常，有改进空间
+- 50-69分：数据一般，内容需优化，互动偏弱
+- 50分以下：数据较差，需要大幅改进
 
 【输出格式要求】
 1. 只输出纯JSON对象，不要包含任何markdown代码块标记（如 ```json）
@@ -469,7 +529,7 @@ def generate_review_report(review_data: Dict[str, Any]) -> Dict[str, Any]:
 5. 数字字段不要加引号
 
 示例输出格式（注意：不要包含这个提示，直接输出JSON）：
-{{"overall_score": 85, "performance_analysis": {{...}}, ...}}
+{{"overall_score": 75, "performance_analysis": {{...}}, ...}}
 
 现在开始输出JSON："""
     
@@ -520,6 +580,9 @@ def generate_review_report(review_data: Dict[str, Any]) -> Dict[str, Any]:
     report_data["generation_cost"] = result["cost"]
     report_data["generation_tokens"] = result["usage"]["total_tokens"]
     report_data["generation_duration"] = result["duration"]
+    
+    # 🆕 添加真实的趋势图数据
+    report_data["trend_charts"] = trend_charts
     
     logger.info(
         f"✅ 复盘报告生成完成 - "

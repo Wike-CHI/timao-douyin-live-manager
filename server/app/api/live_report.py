@@ -8,7 +8,7 @@ SenseVoice transcription per 30-min segment and compose a recap report.
 from __future__ import annotations
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union, List
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -29,7 +29,7 @@ class StartReq(BaseModel):
 class BaseResp(BaseModel):
     success: bool = True
     message: str = "ok"
-    data: Optional[dict] = None
+    data: Optional[Union[dict, list]] = None
 
 
 @router.post("/start")
@@ -182,9 +182,10 @@ async def get_resumable_session() -> BaseResp:
 
 @router.get("/status")
 async def live_report_status() -> dict:
+    from dataclasses import asdict
     svc = get_live_report_service()
     s = svc.status()
-    return {"active": s is not None, "status": s.__dict__ if s else None}
+    return {"active": s is not None, "status": asdict(s) if s else None}
 
 
 @router.post("/generate")
@@ -259,6 +260,7 @@ async def _save_report_to_database(artifacts: Dict[str, Any], db: Session):
     
     if not recent_session or (datetime.now() - recent_session.start_time).total_seconds() > 7200:
         # 创建新会话
+        logger.info(f"📊 [保存报告] 步骤4: 创建新 LiveSession，room_id={room_id}")
         session = LiveSession(
             user_id=user.id,
             room_id=room_id or "unknown",
@@ -291,12 +293,16 @@ async def _save_report_to_database(artifacts: Dict[str, Any], db: Session):
         logger.info(f"✅ 使用现有 LiveSession: id={session.id}, room_id={room_id}")
     
     # 2. 创建或更新 LiveReviewReport
+    logger.info(f"📊 [保存报告] 步骤5: 查找或创建 LiveReviewReport，session_id={session.id}")
     existing_report = db.query(LiveReviewReport).filter(
         LiveReviewReport.session_id == session.id
     ).first()
     
     ai_summary = review_data.get("ai_summary", {})
     gemini_metadata = ai_summary.get("gemini_metadata", {})
+    
+    logger.info(f"📊 [保存报告] ai_summary keys: {list(ai_summary.keys()) if ai_summary else 'None'}")
+    logger.info(f"📊 [保存报告] gemini_metadata: {gemini_metadata}")
     
     if existing_report:
         # 更新现有报告
@@ -333,7 +339,9 @@ async def _save_report_to_database(artifacts: Dict[str, Any], db: Session):
         db.flush()
         logger.info(f"✅ 创建新的 LiveReviewReport: id={report.id}")
     
+    logger.info(f"📊 [保存报告] 步骤6: 提交数据库事务...")
     db.commit()
+    logger.info(f"✅ [保存报告] 数据库事务提交成功！report_id={report.id if 'report' in locals() else existing_report.id}")
 
 
 @router.get("/review/{report_path:path}")
@@ -368,4 +376,142 @@ async def get_review_data(report_path: str) -> BaseResp:
         logger = logging.getLogger(__name__)
         logger.error(f"Load review data failed: {type(e).__name__}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=400, detail=f"加载复盘数据失败: {str(e)}")
+
+
+@router.get("/history")
+async def list_local_reports(limit: int = 20) -> BaseResp:
+    """
+    扫描本地 records 目录，返回最近的复盘报告列表
+    
+    - **limit**: 返回数量（默认 20）
+    
+    返回：
+    - 基于本地文件系统的报告列表（按生成时间倒序）
+    """
+    try:
+        import json
+        from pathlib import Path
+        from datetime import datetime
+        
+        svc = get_live_report_service()
+        records_root = svc.records_root
+        
+        logger.info(f"📂 扫描本地报告目录: {records_root}")
+        
+        # 查找所有 review_data.json 文件
+        reports = []
+        for review_file in records_root.rglob("review_data.json"):
+            try:
+                # 读取 review_data.json
+                review_data = json.loads(review_file.read_text(encoding="utf-8"))
+                
+                # 获取 artifacts 目录和 report.html 路径
+                artifacts_dir = review_file.parent
+                report_html = artifacts_dir / "report.html"
+                
+                # 提取关键信息
+                session_id = review_data.get("session_id", "unknown")
+                room_id = review_data.get("room_id")
+                anchor_name = review_data.get("anchor_name", "未知主播")
+                started_at = review_data.get("started_at", 0)
+                stopped_at = review_data.get("stopped_at", 0)
+                duration_seconds = review_data.get("duration_seconds", 0)
+                
+                # 获取文件修改时间作为生成时间
+                generated_at = datetime.fromtimestamp(review_file.stat().st_mtime)
+                
+                # AI 模型信息
+                ai_summary = review_data.get("ai_summary", {})
+                gemini_metadata = ai_summary.get("gemini_metadata", {})
+                ai_model = gemini_metadata.get("model", "unknown")
+                overall_score = ai_summary.get("overall_score")
+                
+                reports.append({
+                    "session_id": session_id,
+                    "room_id": room_id,
+                    "title": anchor_name,
+                    "anchor_name": anchor_name,
+                    "started_at": datetime.fromtimestamp(started_at / 1000).isoformat() if started_at else None,
+                    "stopped_at": datetime.fromtimestamp(stopped_at / 1000).isoformat() if stopped_at else None,
+                    "duration_seconds": duration_seconds,
+                    "generated_at": generated_at.isoformat(),
+                    "report_path": str(report_html),
+                    "review_data_path": str(review_file),
+                    "ai_model": ai_model,
+                    "overall_score": overall_score,
+                    "status": "completed"
+                })
+                
+            except Exception as e:
+                logger.warning(f"⚠️ 读取报告文件失败: {review_file}, 错误: {e}")
+                continue
+        
+        # 按生成时间倒序排序
+        reports.sort(key=lambda x: x["generated_at"], reverse=True)
+        
+        # 限制返回数量
+        reports = reports[:limit]
+        
+        logger.info(f"✅ 找到 {len(reports)} 个本地报告")
+        
+        return BaseResp(data=reports)
+        
+    except Exception as e:
+        logger.error(f"扫描本地报告失败: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"扫描本地报告失败: {str(e)}")
+
+
+@router.delete("/history/{session_id}")
+async def delete_local_report(session_id: str) -> BaseResp:
+    """
+    删除本地报告（包括整个会话目录）
+    
+    - **session_id**: 会话 ID，例如 live_抖音_主播名_1234567890
+    
+    返回：
+    - 删除结果
+    """
+    try:
+        import shutil
+        from pathlib import Path
+        
+        svc = get_live_report_service()
+        records_root = svc.records_root
+        
+        logger.info(f"🗑️ 尝试删除报告: {session_id}")
+        
+        # 查找会话目录（可能在不同的平台/主播/日期下）
+        session_dirs = list(records_root.rglob(session_id))
+        
+        if not session_dirs:
+            logger.warning(f"⚠️ 未找到会话目录: {session_id}")
+            raise HTTPException(status_code=404, detail=f"报告不存在: {session_id}")
+        
+        # 删除所有匹配的目录（通常只有一个）
+        deleted_count = 0
+        for session_dir in session_dirs:
+            if session_dir.is_dir():
+                try:
+                    shutil.rmtree(session_dir)
+                    logger.info(f"✅ 已删除目录: {session_dir}")
+                    deleted_count += 1
+                except Exception as e:
+                    logger.error(f"❌ 删除目录失败: {session_dir}, 错误: {e}")
+        
+        if deleted_count == 0:
+            raise HTTPException(status_code=500, detail="删除报告失败")
+        
+        logger.info(f"✅ 成功删除 {deleted_count} 个报告目录")
+        
+        return BaseResp(
+            success=True,
+            message=f"成功删除报告 {session_id}",
+            data={"deleted_count": deleted_count}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"删除报告失败: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"删除报告失败: {str(e)}")
 

@@ -31,6 +31,7 @@ export interface ReviewData {
   stopped_at?: number;
   ended_at?: number;  // 添加结束时间
   duration_seconds?: number;
+  pause_count?: number;  // 🆕 暂停次数
   metrics?: Record<string, any>;
   transcript?: string;
   comments_count?: number;
@@ -38,6 +39,23 @@ export interface ReviewData {
   transcript_chars?: number;
   segments_count?: number;
   trend_charts?: Record<string, any>;  // 添加趋势图数据
+  // 🆕 送礼大哥榜
+  top_gift_users?: Array<{
+    nickname: string;
+    total_value: number;
+    yuan_value: number;
+    tier: string;
+    label: string;
+    color: string;
+    icon: string;
+  }>;
+  // 🆕 在线人数快照
+  viewer_snapshots?: Array<{
+    timestamp: number;
+    minute: number;
+    count: number;
+    elapsed_seconds: number;
+  }>;
 }
 
 export interface ReportArtifacts {

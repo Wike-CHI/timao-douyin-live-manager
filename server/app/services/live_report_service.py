@@ -119,9 +119,18 @@ class LiveReportService:
             "follows": 0,
             "entries": 0,
             "peak_viewers": 0,
+            "current_viewers": 0,  # 🆕 当前在线人数（实时更新）
             "like_total": 0,
             "gifts": {},  # name -> count
         }
+        
+        # 🆕 用户价值统计（用户昵称 -> 送礼总价值）
+        self._user_gift_values: Dict[str, int] = {}
+        
+        # 🆕 在线人数快照（每分钟一次）
+        self._viewer_snapshots: List[Dict[str, Any]] = []  # [{"timestamp": ms, "count": int, "minute": int}]
+        self._snapshot_task: Optional[asyncio.Task] = None
+        
         try:  # Lazy optional imports for style summarisation
             from ...ai.style_profile_builder import StyleProfileBuilder  # type: ignore
         except Exception:  # pragma: no cover
@@ -312,6 +321,19 @@ class LiveReportService:
             self._current_record_url = record_url
             self._output_pattern = pattern
 
+            # 🆕 初始化聚合数据和快照（在创建 session 之前）
+            self._agg = {
+                "follows": 0,
+                "entries": 0,
+                "peak_viewers": 0,
+                "current_viewers": 0,
+                "like_total": 0,
+                "gifts": {},
+            }
+            self._user_gift_values = {}
+            self._viewer_snapshots = []
+            logger.info("✅ 初始化聚合数据和快照缓存")
+
             self._session = LiveReportStatus(
                 session_id=session_id,
                 live_url=live_url,
@@ -323,6 +345,10 @@ class LiveReportService:
                 session_index=session_index,
                 segment_seconds=seg_secs,
             )
+            
+            # 🆕 立即同步初始 metrics 到 session，让前端马上能看到数据
+            self._session.metrics = dict(self._agg)
+            logger.info(f"✅ 初始 metrics 已同步到 session: {self._session.metrics}")
 
             # Start ffmpeg segment recording
             self._ffmpeg_proc = await self._start_ffmpeg(record_url, seg_secs, pattern)
@@ -351,12 +377,17 @@ class LiveReportService:
             
             self._comment_task = asyncio.create_task(self._consume_danmu())
             logger.info(f"✅ 启动弹幕消费任务")
+            
+            # 🆕 启动在线人数快照任务
+            self._snapshot_task = asyncio.create_task(self._snapshot_viewers())
+            logger.info(f"✅ 启动在线人数快照任务（每分钟一次）")
 
             logger.info("=" * 60)
             logger.info("✅ 录制已启动，后台任务运行中:")
             logger.info(f"  📺 URL 刷新: 每 {self._url_refresh_interval // 60} 分钟")
             logger.info(f"  💓 健康检查: 每 30 秒")
             logger.info(f"  💬 弹幕收集: 实时")
+            logger.info(f"  📊 在线人数快照: 每 1 分钟")
             logger.info("=" * 60)
 
             return self._session
@@ -425,6 +456,21 @@ class LiveReportService:
             self._session.metrics = dict(self._agg)
         except Exception:
             pass
+        
+        # 🆕 记录最后一个快照（结束时）
+        if self._session.started_at and self._session.stopped_at:
+            elapsed_ms = self._session.stopped_at - self._session.started_at
+            final_minute = int(elapsed_ms / 60000)
+            final_snapshot = {
+                "timestamp": self._session.stopped_at,
+                "minute": final_minute,
+                "count": self._agg.get("current_viewers", 0),
+                "elapsed_seconds": elapsed_ms // 1000,
+            }
+            # 只有当最后一个快照的分钟数大于已有快照时才添加
+            if not self._viewer_snapshots or self._viewer_snapshots[-1]["minute"] < final_minute:
+                self._viewer_snapshots.append(final_snapshot)
+                logger.info(f"📊 在线人数快照: 第{final_minute}分钟（结束时）, 当前{final_snapshot['count']}人在线")
 
         # Capture existing segments (best effort)
         await self._scan_segments()
@@ -536,9 +582,19 @@ class LiveReportService:
             self._comment_task = asyncio.create_task(self._consume_danmu())
             logger.info(f"✅ 重启弹幕消费任务")
             
+            # 🆕 重启在线人数快照任务
+            if self._snapshot_task is None or self._snapshot_task.done():
+                self._snapshot_task = asyncio.create_task(self._snapshot_viewers())
+                logger.info(f"✅ 重启在线人数快照任务")
+            
             # 标记为录制状态
             self._session.status = "recording"
             self._session.resumed_at = _now_ts()
+            
+            # 🆕 立即同步当前 metrics 到 session，让前端马上能看到数据
+            if hasattr(self, '_agg'):
+                self._session.metrics = dict(self._agg)
+                logger.info(f"✅ 当前 metrics 已同步到 session: {self._session.metrics}")
             
             # 持久化会话状态
             await self._save_session_state()
@@ -575,6 +631,16 @@ class LiveReportService:
                 pass
             self._health_monitor_task = None
             logger.info("✅ 健康监控任务已停止")
+        
+        # 🆕 停止在线人数快照任务
+        if self._snapshot_task:
+            self._snapshot_task.cancel()
+            try:
+                await self._snapshot_task
+            except asyncio.CancelledError:
+                pass
+            self._snapshot_task = None
+            logger.info("✅ 在线人数快照任务已停止")
 
         # Stop ffmpeg
         if self._ffmpeg_proc:
@@ -663,13 +729,21 @@ class LiveReportService:
             logger.info("🔄 开始使用 Gemini 生成复盘报告...")
             from ...ai.gemini_adapter import generate_review_report  # lazy import
             
+            # 🆕 计算实际录制时长
+            duration_seconds = 0
+            if self._session.stopped_at and self._session.started_at:
+                duration_ms = self._session.stopped_at - self._session.started_at
+                duration_seconds = int(duration_ms / 1000)
+            
             # 准备复盘数据
             review_data = {
                 "session_id": self._session.session_id,
                 "transcript": transcript_txt,
                 "comments": self._comments,
                 "anchor_name": self._session.anchor_name,
-                "metrics": dict(self._agg) if hasattr(self, '_agg') else {}
+                "metrics": dict(self._agg) if hasattr(self, '_agg') else {},
+                "duration_seconds": duration_seconds,  # 🆕 添加时长
+                "viewer_snapshots": self._viewer_snapshots,  # 🆕 添加在线人数快照
             }
             
             # 调用 Gemini 生成复盘
@@ -725,20 +799,37 @@ class LiveReportService:
         self._session.report_path = str(report_path)
 
         # 构建结构化的复盘数据
+        # 🆕 计算实际录制时长（排除暂停时间）
+        actual_duration_ms = 0
+        if self._session.stopped_at and self._session.started_at:
+            # 总时长 = 停止时间 - 开始时间
+            total_ms = self._session.stopped_at - self._session.started_at
+            # TODO: 如果有多次暂停/继续，需要累计所有暂停时间
+            # 目前只记录了最后一次的 paused_at 和 resumed_at
+            actual_duration_ms = total_ms
+        
         review_data = {
             "session_id": self._session.session_id,
             "room_id": self._session.room_id,
             "anchor_name": self._session.anchor_name,
             "started_at": self._session.started_at,
             "stopped_at": self._session.stopped_at,
-            "duration_seconds": (self._session.stopped_at - self._session.started_at) / 1000 if self._session.stopped_at else 0,
+            "duration_seconds": actual_duration_ms / 1000,
+            "pause_count": self._session.pause_count,
             "metrics": dict(self._agg) if hasattr(self, '_agg') else {},
             "transcript": transcript_txt,
             "comments_count": len(self._comments),
             "ai_summary": ai_summary,
             "transcript_chars": len(transcript_txt),
             "segments_count": len(transcripts),
+            # 🆕 用户价值统计（送礼大哥榜）
+            "top_gift_users": self._get_top_gift_users(),
+            # 🆕 在线人数快照
+            "viewer_snapshots": self._viewer_snapshots,
         }
+        
+        # 🆕 打印调试信息
+        logger.info(f"📊 复盘数据统计: 时长={actual_duration_ms / 1000:.1f}秒, 快照数量={len(self._viewer_snapshots)}, 送礼榜={len(self._get_top_gift_users())}")
         
         # 保存 review_data 到 JSON 文件，方便后续查看
         review_data_path = artifacts_dir / "review_data.json"
@@ -761,9 +852,13 @@ class LiveReportService:
             "follows": 0,
             "entries": 0,
             "peak_viewers": 0,
+            "current_viewers": 0,  # 🆕
             "like_total": 0,
             "gifts": {},
         }
+        # 🆕 清空用户价值统计和快照
+        self._user_gift_values = {}
+        self._viewer_snapshots = []
         
         # 🆕 清除持久化的会话状态文件
         await self._clear_session_state()
@@ -776,8 +871,9 @@ class LiveReportService:
         if self._session and hasattr(self, '_agg'):
             try:
                 self._session.metrics = dict(self._agg)
-            except Exception:
-                pass
+                logger.debug(f"📊 同步 metrics 到 session: {self._session.metrics}")
+            except Exception as e:
+                logger.error(f"⚠️ 同步 metrics 失败: {e}")
         return self._session
 
     # ---------- Internals ----------
@@ -1240,9 +1336,11 @@ class LiveReportService:
                             cur = int(cur)
                         except Exception:
                             cur = 0
+                        # 🆕 同时更新当前在线人数和峰值在线人数
+                        self._agg["current_viewers"] = cur
                         if cur > int(self._agg.get("peak_viewers", 0)):
                             self._agg["peak_viewers"] = cur
-                            logger.debug(f"👥 在线人数更新: {cur}")
+                        logger.debug(f"👥 在线人数更新: 当前{cur}人, 峰值{self._agg['peak_viewers']}人")
                     elif et == "like":
                         inc = pl.get("count")
                         try:
@@ -1260,13 +1358,106 @@ class LiveReportService:
                             cnt = 1
                         gifts = self._agg.setdefault("gifts", {})
                         gifts[name] = int(gifts.get(name, 0)) + cnt
-                        logger.debug(f"🎁 收到礼物: {name} x{cnt}")
+                        
+                        # 🆕 统计用户送礼价值
+                        user_nickname = pl.get("nickname", "unknown")
+                        if user_nickname and user_nickname != "unknown":
+                            from ...utils.gift_values import get_gift_value
+                            gift_value = get_gift_value(name) * cnt
+                            self._user_gift_values[user_nickname] = self._user_gift_values.get(user_nickname, 0) + gift_value
+                            logger.debug(f"🎁 收到礼物: {name} x{cnt} (价值{gift_value}钻石) - {user_nickname}")
+                        else:
+                            logger.debug(f"🎁 收到礼物: {name} x{cnt}")
                 except Exception as e:
                     logger.error(f"处理弹幕事件失败: {e}, event_type={ev.get('type')}")
                     pass
         except asyncio.CancelledError:
             logger.info(f"✅ 弹幕采集结束，共处理 {event_count} 个事件")
             pass
+
+    async def _snapshot_viewers(self) -> None:
+        """
+        每分钟记录一次在线人数快照
+        用于生成在线人数趋势折线图
+        """
+        if not self._session:
+            return
+        
+        logger.info("📊 启动在线人数快照任务...")
+        minute_counter = 0
+        
+        try:
+            # 🆕 立即记录第0分钟的快照（启动时）
+            initial_snapshot = {
+                "timestamp": _now_ts(),
+                "minute": 0,
+                "count": self._agg.get("current_viewers", 0),
+                "elapsed_seconds": 0,
+            }
+            self._viewer_snapshots.append(initial_snapshot)
+            logger.info(f"📊 在线人数快照: 第0分钟（启动时）, 当前{initial_snapshot['count']}人在线")
+            
+            while True:
+                await asyncio.sleep(60)  # 每60秒记录一次
+                
+                if not self._session or self._session.status == "stopped":
+                    break
+                
+                # 🆕 获取当前在线人数（不是峰值）
+                current_viewers = self._agg.get("current_viewers", 0)
+                
+                # 计算相对时间（第几分钟）
+                minute_counter += 1
+                elapsed_ms = _now_ts() - self._session.started_at
+                
+                snapshot = {
+                    "timestamp": _now_ts(),
+                    "minute": minute_counter,
+                    "count": current_viewers,
+                    "elapsed_seconds": elapsed_ms // 1000,
+                }
+                
+                self._viewer_snapshots.append(snapshot)
+                logger.info(f"📊 在线人数快照: 第{minute_counter}分钟, 当前{current_viewers}人在线")
+                
+        except asyncio.CancelledError:
+            logger.info(f"✅ 在线人数快照任务结束，共记录 {len(self._viewer_snapshots)} 个快照")
+            pass
+
+    def _get_top_gift_users(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """
+        获取送礼价值最高的用户列表
+        
+        Returns:
+            [
+                {
+                    "nickname": "用户昵称",
+                    "total_value": 1000,  # 钻石数
+                    "yuan_value": 100.0,  # 人民币
+                    "tier": "super_vip",  # 用户等级
+                    "label": "超级大哥",
+                    "color": "#ff0000",
+                    "icon": "👑"
+                },
+                ...
+            ]
+        """
+        from ...utils.gift_values import classify_user_value
+        
+        # 按价值排序
+        sorted_users = sorted(
+            self._user_gift_values.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )[:limit]
+        
+        result = []
+        for nickname, total_value in sorted_users:
+            user_info = classify_user_value(total_value)
+            user_info["nickname"] = nickname
+            result.append(user_info)
+        
+        return result
 
     async def _get_sv(self) -> SenseVoiceService:
         if self._sv is None:

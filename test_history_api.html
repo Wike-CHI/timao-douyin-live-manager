@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试历史记录API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #6366f1;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #4f46e5;
+        }
+        .report-item {
+            border: 1px solid #e0e0e0;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            background-color: #fafafa;
+        }
+        .log {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin: 2px 0;
+        }
+        .success { color: #22c55e; }
+        .error { color: #ef4444; }
+        .info { color: #3b82f6; }
+        .warning { color: #f59e0b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📚 历史记录API测试</h1>
+        
+        <div>
+            <button onclick="testHistoryAPI()">🔍 测试历史记录API</button>
+            <button onclick="clearLogs()">🗑️ 清空日志</button>
+        </div>
+        
+        <h2>📊 日志输出</h2>
+        <div class="log" id="logOutput"></div>
+        
+        <h2>📝 历史报告列表</h2>
+        <div id="reportsList"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://127.0.0.1:9019';
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('logOutput');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+        
+        function clearLogs() {
+            document.getElementById('logOutput').innerHTML = '';
+            document.getElementById('reportsList').innerHTML = '';
+        }
+        
+        async function testHistoryAPI() {
+            try {
+                log('🔍 开始测试历史记录API...', 'info');
+                const url = `${API_BASE_URL}/api/report/live/history?limit=20`;
+                log(`📡 请求URL: ${url}`, 'info');
+                
+                const response = await fetch(url);
+                log(`📥 响应状态: ${response.status} ${response.statusText}`, response.ok ? 'success' : 'error');
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    log(`❌ API错误: ${errorText}`, 'error');
+                    return;
+                }
+                
+                const data = await response.json();
+                log(`✅ 数据解析成功`, 'success');
+                log(`📊 data.success: ${data.success}`, 'info');
+                log(`📊 data.data类型: ${Array.isArray(data.data) ? 'Array' : typeof data.data}`, 'info');
+                log(`📊 data.data长度: ${data.data?.length || 0}`, 'info');
+                
+                if (data.success && data.data && Array.isArray(data.data)) {
+                    const reports = data.data;
+                    log(`✅ 找到 ${reports.length} 个报告`, 'success');
+                    
+                    // 过滤测试报告
+                    const filteredReports = reports.filter(report => {
+                        const isTestModel = report.ai_model === 'test-model';
+                        const isTestRoom = report.room_id && report.room_id.toLowerCase().includes('test');
+                        if (isTestModel || isTestRoom) {
+                            log(`🔍 过滤掉测试报告: ${report.session_id}`, 'warning');
+                        }
+                        return !isTestModel && !isTestRoom;
+                    });
+                    
+                    log(`📊 过滤后: ${filteredReports.length} 个报告`, 'info');
+                    
+                    // 显示报告列表
+                    displayReports(filteredReports);
+                } else {
+                    log(`⚠️ 数据格式不正确`, 'warning');
+                    log(`原始数据: ${JSON.stringify(data, null, 2)}`, 'info');
+                }
+                
+            } catch (error) {
+                log(`❌ 测试失败: ${error.message}`, 'error');
+                console.error('详细错误:', error);
+            }
+        }
+        
+        function displayReports(reports) {
+            const reportsDiv = document.getElementById('reportsList');
+            reportsDiv.innerHTML = '';
+            
+            if (reports.length === 0) {
+                reportsDiv.innerHTML = '<div class="report-item">暂无历史报告</div>';
+                return;
+            }
+            
+            reports.forEach((report, index) => {
+                const reportDiv = document.createElement('div');
+                reportDiv.className = 'report-item';
+                reportDiv.innerHTML = `
+                    <div><strong>📊 报告 ${index + 1}</strong></div>
+                    <div><strong>主播:</strong> ${report.anchor_name || report.title || '未知'}</div>
+                    <div><strong>房间ID:</strong> ${report.room_id || 'N/A'}</div>
+                    <div><strong>会话ID:</strong> ${report.session_id}</div>
+                    <div><strong>生成时间:</strong> ${new Date(report.generated_at).toLocaleString('zh-CN')}</div>
+                    ${report.overall_score !== undefined ? `<div><strong>评分:</strong> ${report.overall_score}/100</div>` : ''}
+                    <div><strong>AI模型:</strong> ${report.ai_model || 'N/A'}</div>
+                    <div><strong>状态:</strong> ${report.status}</div>
+                    <div><strong>报告路径:</strong> <code style="font-size: 10px;">${report.report_path}</code></div>
+                `;
+                reportsDiv.appendChild(reportDiv);
+            });
+        }
+        
+        // 页面加载时自动测试
+        window.onload = function() {
+            log('✨ 页面加载完成，准备测试', 'success');
+        };
+    </script>
+</body>
+</html>
