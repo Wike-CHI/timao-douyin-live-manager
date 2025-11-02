@@ -30,8 +30,9 @@ class UserService:
     ) -> User:
         """创建用户"""
         def _create_user_impl(session: Session) -> User:
-            # 检查用户名和邮箱是否已存在
+            # 检查用户名和邮箱是否已存在（排除已删除的用户）
             existing_user = session.query(User).filter(
+                User.is_deleted == False,
                 or_(User.username == username, User.email == email)
             ).first()
             
@@ -41,9 +42,12 @@ class UserService:
                 if existing_user.email == email:
                     raise ValueError("邮箱已存在")
             
-            # 检查手机号是否已存在
+            # 检查手机号是否已存在（排除已删除的用户）
             if phone:
-                existing_phone = session.query(User).filter(User.phone == phone).first()
+                existing_phone = session.query(User).filter(
+                    User.is_deleted == False,
+                    User.phone == phone
+                ).first()
                 if existing_phone:
                     raise ValueError("手机号已存在")
             

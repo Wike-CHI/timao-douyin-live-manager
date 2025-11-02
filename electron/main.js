@@ -143,9 +143,9 @@ function startBackendServices() {
             
             const envForServices = {
                 ...process.env,
-                // 数据库配置
-                DB_TYPE: process.env.DB_TYPE || 'sqlite',
-                DATABASE_PATH: process.env.DATABASE_PATH || sqlitePath,
+                // 数据库配置（仅支持MySQL）
+                DB_TYPE: process.env.DB_TYPE || 'mysql',
+                // DATABASE_PATH 已移除（SQLite不再支持）
                 REDIS_ENABLED: process.env.REDIS_ENABLED || 'false',
                 // 编码配置
                 PYTHONIOENCODING: 'utf-8',

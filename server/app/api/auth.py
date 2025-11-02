@@ -274,6 +274,23 @@ async def register_user(
     except Exception as e:
         logger.error(f"❌ 注册失败 - 系统错误: {type(e).__name__}: {e}", exc_info=True)
         db.rollback()
+        
+        # 处理数据库唯一性约束错误
+        error_str = str(e)
+        if "Duplicate entry" in error_str:
+            if "username" in error_str.lower():
+                detail = "用户名已存在，请选择其他用户名"
+            elif "email" in error_str.lower():
+                detail = "邮箱已被注册，请使用其他邮箱"
+            elif "phone" in error_str.lower():
+                detail = "手机号已被注册，请使用其他手机号"
+            else:
+                detail = "注册信息已存在，请检查用户名、邮箱或手机号"
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=detail
+            )
+        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"注册失败: {str(e)}"

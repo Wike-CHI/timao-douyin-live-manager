@@ -268,6 +268,11 @@ class ConfigManager:
         
         # 从环境变量覆盖配置
         self._load_env_variables()
+        
+        # 强制使用MySQL（SQLite已完全移除）
+        if self.config.database.db_type != "mysql":
+            logging.warning(f"⚠️ 检测到 db_type={self.config.database.db_type}，已强制设置为 mysql（SQLite已移除）")
+            self.config.database.db_type = "mysql"
     
     def _load_config(self) -> AppConfig:
         """加载配置文件"""
