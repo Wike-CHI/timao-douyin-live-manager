@@ -184,7 +184,7 @@ class DatabaseManager:
                 user_host = "localhost"
                 
                 logger.info("🔧 尝试创建MySQL用户：%s@%s", user, user_host)
-                
+        
                 # 删除可能存在的旧用户
                 try:
                     conn.execute(text(f"DROP USER IF EXISTS '{user}'@'{user_host}'"))

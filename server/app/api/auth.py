@@ -321,11 +321,11 @@ async def login_user(
         # 认证用户
         logger.info("🔐 开始用户认证...")
         try:
-            user = UserService.authenticate_user(
-                username_or_email=request.username_or_email,
-                password=request.password,
-                ip_address=client_ip
-            )
+        user = UserService.authenticate_user(
+            username_or_email=request.username_or_email,
+            password=request.password,
+            ip_address=client_ip
+        )
         except ValueError as e:
             # 账户被锁定或其他业务错误
             logger.warning(f"❌ 用户认证失败（业务错误）: {request.username_or_email} - {str(e)}")
