@@ -36,12 +36,50 @@ const ReportsPage: React.FC = () => {
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const [resumableSession, setResumableSession] = useState<any>(null);
   const pollTimerRef = useRef<any>(null);
+  // 🆕 多选删除相关状态
+  const [selectedReports, setSelectedReports] = useState<Set<string>>(new Set()); // 选中的报告session_id集合
+  const [isSelectMode, setIsSelectMode] = useState(false); // 是否处于选择模式
 
   const isActive = !!status;
   const hasRecordedSession = hasStopped && !artifacts; // 有已停止但未生成报告的会话
   const isPaused = status?.status === 'paused'; // 🆕 是否处于暂停状态
   const isRecording = status?.status === 'recording'; // 🆕 是否正在录制
   const metrics: Metrics = status?.metrics || {};
+  
+  // 🆕 调试日志
+  React.useEffect(() => {
+    if (status) {
+      console.log('📊 [ReportsPage] 当前 status 更新:', status);
+      console.log('📊 [ReportsPage] 当前 metrics:', metrics);
+      console.log('📊 [ReportsPage] follows:', metrics?.follows);
+      console.log('📊 [ReportsPage] entries:', metrics?.entries);
+    }
+  }, [status, metrics]);
+
+  // 🆕 计算已录制时长
+  const getRecordedDuration = () => {
+    if (!status) return '—';
+    const startedAt = status.started_at;
+    const now = Date.now();
+    const pausedAt = status.paused_at;
+    const stoppedAt = status.stopped_at;
+    
+    let durationMs = 0;
+    if (isRecording) {
+      // 正在录制中
+      durationMs = now - startedAt;
+    } else if (isPaused && pausedAt) {
+      // 已暂停
+      durationMs = pausedAt - startedAt;
+    } else if (hasStopped && stoppedAt) {
+      // 已停止
+      durationMs = stoppedAt - startedAt;
+    }
+    
+    const minutes = Math.floor(durationMs / 60000);
+    const seconds = Math.floor((durationMs % 60000) / 1000);
+    return `${minutes}分${seconds}秒`;
+  };
 
   const start = async () => {
     try {
@@ -165,13 +203,21 @@ const ReportsPage: React.FC = () => {
       setArtifacts(res?.data || null);
       setHasStopped(false); // 生成报告后重置状态
       
-      // 🆕 刷新历史报告列表
+      // 🆕 刷新历史报告列表（后台更新）
       await loadHistory();
       
-      // 如果有复盘数据，自动展示复盘页面
+      // 🆕 如果有复盘数据，直接展示复盘页面
       if (res?.data?.review_data) {
         setShowReview(true);
+        setShowHistory(false);
+        console.log('✅ 报告已生成，自动显示复盘页面');
+      } else {
+        // 如果没有复盘数据，跳转到历史记录
+        setShowHistory(true);
+        setShowReview(false);
+        console.log('⚠️ 没有复盘数据，跳转到历史记录');
       }
+      
     } catch (e: any) {
       setError(e?.message || '生成报告失败');
     } finally {
@@ -210,43 +256,74 @@ const ReportsPage: React.FC = () => {
   // 加载历史报告列表
   const loadHistory = async () => {
     try {
-      const res = await fetch(`${FASTAPI_BASE_URL}/api/live/review/list/recent?limit=20`);
+      console.log('🔍 [loadHistory] 开始加载历史记录...');
+      console.log('🔍 [loadHistory] API URL:', `${FASTAPI_BASE_URL}/api/report/live/history?limit=20`);
+      
+      // 🆕 改为调用基于本地文件系统的 API
+      const res = await fetch(`${FASTAPI_BASE_URL}/api/report/live/history?limit=20`);
+      console.log('🔍 [loadHistory] 响应状态:', res.status, res.statusText);
+      
       if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+        const errorText = await res.text();
+        console.error('❌ [loadHistory] API错误:', errorText);
+        throw new Error(`HTTP ${res.status}: ${errorText}`);
       }
+      
       const data = await res.json();
+      console.log('📚 [loadHistory] 原始响应数据:', data);
+      console.log('📚 [loadHistory] data.success:', data?.success);
+      console.log('📚 [loadHistory] data.data类型:', Array.isArray(data?.data) ? 'Array' : typeof data?.data);
+      console.log('📚 [loadHistory] data.data长度:', data?.data?.length);
+      
       if (data?.success && data?.data) {
         // 🆕 过滤掉测试报告（room_id 包含 test 的）
         const filteredReports = data.data.filter((report: any) => {
           const isTestModel = report.ai_model === 'test-model';
           const isTestRoom = report.room_id && report.room_id.toLowerCase().includes('test');
-          return !isTestModel && !isTestRoom;
+          const shouldFilter = isTestModel || isTestRoom;
+          if (shouldFilter) {
+            console.log('🔍 [loadHistory] 过滤掉测试报告:', report.session_id);
+          }
+          return !shouldFilter;
         });
+        console.log('📚 [loadHistory] 过滤前数量:', data.data.length);
+        console.log('📚 [loadHistory] 过滤后数量:', filteredReports.length);
+        console.log('📚 [loadHistory] 设置历史记录状态...');
         setHistoryReports(filteredReports);
+        console.log('✅ [loadHistory] 历史记录加载完成');
+      } else {
+        console.warn('⚠️ [loadHistory] 数据格式不正确:', { success: data?.success, hasData: !!data?.data });
       }
     } catch (e: any) {
-      console.error('加载历史报告失败:', e);
+      console.error('❌ [loadHistory] 加载历史报告失败:', e);
+      console.error('❌ [loadHistory] 错误堆栈:', e.stack);
     }
   };
 
   // 删除历史报告
-  const deleteHistoryReport = async (reportId: number) => {
+  // 删除历史报告（基于本地文件系统）
+  const deleteHistoryReport = async (sessionId: string) => {
     if (!confirm('确定要删除这个报告吗？删除后无法恢复。')) {
       return;
     }
     
     try {
       setBusy(true); setError(null);
-      const res = await fetch(`${FASTAPI_BASE_URL}/api/live/review/${reportId}`, {
+      
+      // 🆕 调用基于本地文件系统的删除 API
+      const res = await fetch(`${FASTAPI_BASE_URL}/api/report/live/history/${encodeURIComponent(sessionId)}`, {
         method: 'DELETE'
       });
+      
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData?.detail || `HTTP ${res.status}`);
       }
-      // 删除成功后刷新列表
+      
+            // 删除成功后刷新列表
       await loadHistory();
-      setError(null);
+      console.log('✅ 报告已删除，历史记录已刷新');
+      
     } catch (e: any) {
       setError(e?.message || '删除报告失败');
     } finally {
@@ -254,59 +331,101 @@ const ReportsPage: React.FC = () => {
     }
   };
 
+  // 🆕 切换选择模式
+  const toggleSelectMode = () => {
+    setIsSelectMode(!isSelectMode);
+    setSelectedReports(new Set()); // 切换模式时清空选择
+  };
+
+  // 🆕 切换单个报告的选择状态
+  const toggleReportSelection = (sessionId: string) => {
+    const newSelected = new Set(selectedReports);
+    if (newSelected.has(sessionId)) {
+      newSelected.delete(sessionId);
+    } else {
+      newSelected.add(sessionId);
+    }
+    setSelectedReports(newSelected);
+  };
+
+  // 🆕 全选/取消全选
+  const toggleSelectAll = () => {
+    if (selectedReports.size === historyReports.length) {
+      // 当前全选，则取消全选
+      setSelectedReports(new Set());
+    } else {
+      // 否则全选
+      const allIds = new Set(historyReports.map(r => r.session_id));
+      setSelectedReports(allIds);
+    }
+  };
+
+  // 🆕 批量删除选中的报告
+  const deleteSelectedReports = async () => {
+    if (selectedReports.size === 0) {
+      alert('请先选择要删除的报告');
+      return;
+    }
+
+    if (!confirm(`确定要删除选中的 ${selectedReports.size} 个报告吗？删除后无法恢复。`)) {
+      return;
+    }
+
+    try {
+      setBusy(true);
+      setError(null);
+
+      // 并行删除所有选中的报告
+      const deletePromises = Array.from(selectedReports).map(sessionId =>
+        fetch(`${FASTAPI_BASE_URL}/api/report/live/history/${encodeURIComponent(sessionId)}`, {
+          method: 'DELETE'
+        }).then(res => {
+          if (!res.ok) {
+            throw new Error(`删除 ${sessionId} 失败: HTTP ${res.status}`);
+          }
+          return sessionId;
+        })
+      );
+
+      const results = await Promise.allSettled(deletePromises);
+      
+      // 统计成功和失败的数量
+      const succeeded = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+
+      // 刷新列表
+      await loadHistory();
+      
+      // 清空选择并退出选择模式
+      setSelectedReports(new Set());
+      setIsSelectMode(false);
+
+      if (failed > 0) {
+        setError(`删除完成：成功 ${succeeded} 个，失败 ${failed} 个`);
+      } else {
+        console.log(`✅ 成功删除 ${succeeded} 个报告`);
+      }
+
+    } catch (e: any) {
+      setError(e?.message || '批量删除失败');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // 根据报告ID查看历史报告
-  const viewHistoryReport = async (reportId: number) => {
+  const viewHistoryReport = async (reportPath: string) => {
     try {
       setBusy(true); setError(null);
-      // 获取报告详情（使用新的 API）
-      const res = await fetch(`${FASTAPI_BASE_URL}/api/live/review/report/${reportId}`);
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData?.detail || `HTTP ${res.status}`);
-      }
-      const data = await res.json();
-      if (data?.success && data?.data) {
-        // 构造 ReviewData 格式
-        const reportData = data.data;
-        const reviewData: ReviewData = {
-          session_id: reportData.session_id,
-          room_id: reportData.session?.room_id,
-          anchor_name: reportData.session?.title || reportData.session?.room_id, // 使用 title 或 room_id
-          started_at: reportData.session?.started_at ? new Date(reportData.session.started_at).getTime() : undefined,
-          ended_at: reportData.session?.ended_at ? new Date(reportData.session.ended_at).getTime() : undefined,
-          duration_seconds: reportData.session?.duration,
-          comments_count: reportData.session?.comment_count || 0,
-          transcript: '', // 历史报告没有原始转写文本
-          ai_summary: {
-            overall_score: reportData.overall_score,
-            performance_analysis: reportData.performance_analysis,
-            key_highlights: reportData.key_highlights,
-            key_issues: reportData.key_issues,
-            improvement_suggestions: reportData.improvement_suggestions,
-            gemini_metadata: {
-              model: reportData.ai_model,
-              cost: reportData.generation_cost,
-              tokens: reportData.generation_tokens,
-              duration: reportData.generation_duration
-            }
-          },
-          metrics: {
-            total_viewers: reportData.session?.total_viewers,
-            peak_viewers: reportData.session?.peak_viewers,
-            comment_count: reportData.session?.comment_count
-          },
-          // 重要：添加 trend_charts 数据
-          trend_charts: reportData.trend_charts
-        };
-        
-        setArtifacts({ review_data: reviewData });
-        setShowReview(true);
-        setShowHistory(false); // 关闭历史列表
-      } else {
-        throw new Error('报告数据格式错误');
-      }
+      
+      // 🆕 直接使用 viewReview 函数加载本地报告
+      await viewReview(reportPath);
+      
+      // 关闭历史列表，显示复盘报告
+      setShowHistory(false);
+      
     } catch (e: any) {
-      setError(e?.message || '加载历史报告失败');
+      setError(e?.message || '查看历史报告失败');
     } finally {
       setBusy(false);
     }
@@ -315,13 +434,18 @@ const ReportsPage: React.FC = () => {
   const refresh = useCallback(async () => {
     try {
       const r = await getLiveReportStatus(FASTAPI_BASE_URL);
+      console.log('📊 [ReportsPage] refresh 获取到的数据:', r);
+      console.log('📊 [ReportsPage] status:', r?.status);
+      console.log('📊 [ReportsPage] metrics:', r?.status?.metrics);
       setStatus(r?.status || null);
-    } catch { /* ignore */ }
+    } catch (e) {
+      console.error('❌ [ReportsPage] refresh 失败:', e);
+    }
   }, []);
 
   const startPolling = () => {
     if (pollTimerRef.current) return;
-    pollTimerRef.current = setInterval(refresh, 2000);
+    pollTimerRef.current = setInterval(refresh, 1000);
   };
   const stopPolling = () => {
     if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
@@ -345,6 +469,19 @@ const ReportsPage: React.FC = () => {
     };
     checkResumableSession();
     
+    // 🆕 检查是否有活动会话，如果有则启动轮询
+    const checkActiveSession = async () => {
+      try {
+        const r = await getLiveReportStatus(FASTAPI_BASE_URL);
+        if (r?.status && (r.status.status === 'recording' || r.status.status === 'paused')) {
+          startPolling();
+        }
+      } catch (e) {
+        console.error('检查活动会话失败:', e);
+      }
+    };
+    checkActiveSession();
+    
     return () => stopPolling(); 
   }, [refresh]);
 
@@ -362,21 +499,71 @@ const ReportsPage: React.FC = () => {
             <div className="text-4xl">📚</div>
             <div>
               <div className="text-lg font-semibold text-purple-600">历史复盘报告</div>
-              <div className="text-sm timao-support-text">最近 {historyReports.length} 条记录</div>
+              <div className="text-sm timao-support-text">
+                最近 {historyReports.length} 条记录
+                {isSelectMode && selectedReports.size > 0 && (
+                  <span className="ml-2 text-purple-600">（已选择 {selectedReports.size} 项）</span>
+                )}
+              </div>
             </div>
           </div>
-          <button
-            className="timao-outline-btn px-4 py-2"
-            onClick={() => {
-              setShowHistory(false);
-              // 🆕 返回主页面时清理状态
-              setArtifacts(null);
-              setHasStopped(false);
-              setError(null);
-            }}
-          >
-            ← 返回
-          </button>
+          <div className="flex items-center gap-2">
+            {/* 🆕 多选模式切换按钮 */}
+            {historyReports.length > 0 && (
+              <>
+                {isSelectMode ? (
+                  <>
+                    {/* 全选/取消全选按钮 */}
+                    <button
+                      className="timao-outline-btn px-3 py-2 text-sm"
+                      onClick={toggleSelectAll}
+                      disabled={busy}
+                    >
+                      {selectedReports.size === historyReports.length ? '取消全选' : '全选'}
+                    </button>
+                    {/* 批量删除按钮 */}
+                    <button
+                      className="timao-outline-btn px-3 py-2 text-sm text-red-600 hover:bg-red-50 hover:border-red-300"
+                      onClick={deleteSelectedReports}
+                      disabled={busy || selectedReports.size === 0}
+                    >
+                      {busy ? '删除中...' : `删除选中 (${selectedReports.size})`}
+                    </button>
+                    {/* 取消选择按钮 */}
+                    <button
+                      className="timao-outline-btn px-3 py-2 text-sm"
+                      onClick={toggleSelectMode}
+                      disabled={busy}
+                    >
+                      取消
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="timao-outline-btn px-3 py-2 text-sm"
+                    onClick={toggleSelectMode}
+                    disabled={busy}
+                  >
+                    多选删除
+                  </button>
+                )}
+              </>
+            )}
+            <button
+              className="timao-outline-btn px-4 py-2"
+              onClick={() => {
+                setShowHistory(false);
+                // 🆕 返回主页面时清理状态
+                setArtifacts(null);
+                setHasStopped(false);
+                setError(null);
+                setIsSelectMode(false);
+                setSelectedReports(new Set());
+              }}
+            >
+              ← 返回
+            </button>
+          </div>
         </div>
 
         {historyReports.length === 0 ? (
@@ -388,14 +575,39 @@ const ReportsPage: React.FC = () => {
         ) : (
           <div className="grid gap-4">
             {historyReports.map((report) => (
-              <div key={report.id} className="timao-card hover:shadow-lg transition-shadow">
+              <div 
+                key={report.session_id || report.report_path} 
+                className={`timao-card hover:shadow-lg transition-all ${
+                  isSelectMode && selectedReports.has(report.session_id) 
+                    ? 'ring-2 ring-purple-500 bg-purple-50' 
+                    : ''
+                }`}
+                onClick={() => {
+                  if (isSelectMode) {
+                    toggleReportSelection(report.session_id);
+                  }
+                }}
+                style={{ cursor: isSelectMode ? 'pointer' : 'default' }}
+              >
                 <div className="flex items-center justify-between">
+                  {/* 🆕 多选模式下显示复选框 */}
+                  {isSelectMode && (
+                    <div className="flex items-center mr-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedReports.has(report.session_id)}
+                        onChange={() => toggleReportSelection(report.session_id)}
+                        className="w-5 h-5 text-purple-600 rounded focus:ring-purple-500"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                  )}
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <span className="text-2xl">📊</span>
                       <div>
                         <div className="font-semibold text-purple-600">
-                          {report.title || `房间 ${report.room_id}`}
+                          {report.title || report.anchor_name || `房间 ${report.room_id}`}
                         </div>
                         <div className="text-sm text-gray-500">
                           {new Date(report.generated_at).toLocaleString('zh-CN', {
@@ -436,27 +648,33 @@ const ReportsPage: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      className="timao-primary-btn px-6 py-2.5 flex items-center gap-2 disabled:opacity-50"
-                      onClick={() => viewHistoryReport(report.id)}
-                      disabled={busy}
-                    >
-                      {busy ? <span className="animate-spin">⏳</span> : <span>👁️</span>}
-                      <span>查看报告</span>
-                    </button>
-                    <button
-                      className="timao-outline-btn px-4 py-2.5 text-red-600 hover:bg-red-50 hover:border-red-300 flex items-center gap-2 disabled:opacity-50"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteHistoryReport(report.id);
-                      }}
-                      disabled={busy}
-                      title="删除报告"
-                    >
-                      🗑️
-                    </button>
-                  </div>
+                  {/* 🆕 非选择模式下显示操作按钮 */}
+                  {!isSelectMode && (
+                    <div className="flex items-center gap-3">
+                      <button
+                        className="timao-primary-btn px-6 py-2.5 flex items-center gap-2 disabled:opacity-50"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          viewHistoryReport(report.report_path);
+                        }}
+                        disabled={busy}
+                      >
+                        {busy ? <span className="animate-spin">⏳</span> : <span>👁️</span>}
+                        <span>查看报告</span>
+                      </button>
+                      <button
+                        className="timao-outline-btn px-4 py-2.5 text-red-600 hover:bg-red-50 hover:border-red-300 flex items-center gap-2 disabled:opacity-50"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteHistoryReport(report.session_id);
+                        }}
+                        disabled={busy}
+                        title="删除报告"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -491,9 +709,15 @@ const ReportsPage: React.FC = () => {
             <div className="text-lg font-semibold text-purple-600">整场复盘 · 录制与报告</div>
             <div className="text-sm timao-support-text">
               {isPaused ? (
-                <span className="text-yellow-600 font-medium">⏸️ 已暂停</span>
+                <>
+                  <span className="text-yellow-600 font-medium">⏸️ 已暂停</span>
+                  <div className="text-xs text-gray-500 mt-1">{getRecordedDuration()}</div>
+                </>
               ) : isRecording ? (
-                <span className="text-green-600 font-medium">🔴 录制中</span>
+                <>
+                  <span className="text-green-600 font-medium">🔴 录制中</span>
+                  <div className="text-xs text-gray-500 mt-1">{getRecordedDuration()}</div>
+                </>
               ) : (
                 '未开始'
               )}
@@ -643,19 +867,31 @@ const ReportsPage: React.FC = () => {
             <div className="timao-soft-card">新增点赞 <div className="text-lg font-semibold text-purple-600">{metrics?.like_total ?? 0}</div></div>
           </div>
           <div className="mt-4">
-            <div className="text-sm text-slate-500 mb-2">礼物统计</div>
-            <div className="max-h-[220px] overflow-y-auto pr-1">
+            <div className="text-sm font-semibold text-gray-700 mb-3">礼物</div>
+            <div className="max-h-[300px] overflow-y-auto pr-2">
               {giftList.length === 0 ? (
                 <div className="timao-outline-card text-xs timao-support-text">暂无礼物数据</div>
               ) : (
-                <table className="w-full text-sm">
-                  <thead><tr><th className="text-left">礼物</th><th className="text-left">数量</th></tr></thead>
-                  <tbody>
-                    {giftList.map(([name, cnt]) => (
-                      <tr key={name}><td>{name}</td><td>{cnt as number}</td></tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="space-y-2">
+                  {giftList.map(([name, cnt]) => {
+                    const maxCount = Math.max(...giftList.map(([, c]) => c as number));
+                    const percentage = maxCount > 0 ? ((cnt as number) / maxCount) * 100 : 0;
+                    return (
+                      <div key={name} className="timao-soft-card p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-700">{name}</span>
+                          <span className="text-sm font-semibold text-purple-600">{cnt as number}</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                          <div 
+                            className="bg-gradient-to-r from-purple-500 to-pink-500 h-2.5 rounded-full transition-all duration-500"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           </div>
@@ -663,15 +899,20 @@ const ReportsPage: React.FC = () => {
 
         <section className="timao-card">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-purple-600">片段与产物</h3>
-            <div className="text-xs timao-support-text">分段 {status?.segments?.length ?? 0} · 间隔 {Math.round((status?.segment_seconds ?? 0)/60)} 分钟</div>
+            <h3 className="text-lg font-semibold text-purple-600">录制信息</h3>
+            <div className="text-xs timao-support-text">
+              {/* {isActive && `已录制: ${getRecordedDuration()}`} */}
+            </div>
           </div>
-          <div className="timao-soft-card text-xs timao-support-text">
+          
+          {/* 录制文件位置 */}
+          <div className="timao-soft-card mb-3">
+            <div className="text-sm font-medium text-gray-700 mb-2">📂 文件保存位置</div>
             <div className="flex items-center justify-between">
-              <span>录制目录：{status?.recording_dir || '—'}</span>
+              <span className="text-xs text-gray-600 break-all">{status?.recording_dir || '未开始录制'}</span>
               {status?.recording_dir && (
                 <button 
-                  className="timao-outline-btn text-xs px-3 py-1 ml-2 flex items-center gap-1 hover:bg-purple-50 transition-colors" 
+                  className="timao-outline-btn text-xs px-3 py-1 ml-2 flex-shrink-0 flex items-center gap-1 hover:bg-purple-50 transition-colors" 
                   onClick={() => { try { (window as any).electronAPI?.openPath(status.recording_dir as string); } catch {} }}
                 >
                   <span>📂</span>
@@ -679,6 +920,12 @@ const ReportsPage: React.FC = () => {
                 </button>
               )}
             </div>
+          </div>
+
+          {/* 会话ID */}
+          <div className="timao-soft-card text-xs text-gray-500">
+            <div>会话ID: {status?.session_id || '—'}</div>
+            <div className="mt-1">录制片段: {status?.segments?.length ?? 0} 个</div>
           </div>
           {artifacts ? (
             <div className="mt-3 space-y-3">

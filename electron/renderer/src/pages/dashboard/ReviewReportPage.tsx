@@ -66,20 +66,26 @@ const ReviewReportPage: React.FC<ReviewReportPageProps> = ({ reviewData, onClose
     const minValue = Math.min(...values, 0);
     const valueRange = maxValue - minValue || 1;
 
-    // 生成路径点
-    const points = data.map((point, index) => {
+    // 🆕 生成所有数据点（用于绘制完整折线）
+    const allPoints = data.map((point, index) => {
       const x = padding + (index / (data.length - 1)) * chartWidth;
       const y = padding + chartHeight - ((point.value - minValue) / valueRange) * chartHeight;
-      return { x, y, ...point };
+      return { x, y, index, ...point };
     });
 
-    // 生成 SVG 路径
-    const pathData = points.map((p, i) => 
+    // 🆕 决定哪些点需要显示标签（每10分钟 + 首尾）
+    const shouldShowLabel = (index: number, total: number): boolean => {
+      if (index === 0 || index === total - 1) return true; // 首尾必显示
+      return index % 10 === 0; // 每10分钟显示一次
+    };
+
+    // 生成 SVG 路径（使用所有点）
+    const pathData = allPoints.map((p, i) => 
       `${i === 0 ? 'M' : 'L'} ${p.x},${p.y}`
     ).join(' ');
 
     // 生成填充区域路径
-    const areaData = `${pathData} L ${points[points.length - 1].x},${height - padding} L ${padding},${height - padding} Z`;
+    const areaData = `${pathData} L ${allPoints[allPoints.length - 1].x},${height - padding} L ${padding},${height - padding} Z`;
 
     return (
       <div className="w-full">
@@ -119,7 +125,7 @@ const ReviewReportPage: React.FC<ReviewReportPageProps> = ({ reviewData, onClose
             fillOpacity="0.1"
           />
 
-          {/* 折线 */}
+          {/* 🆕 折线（使用所有数据点） */}
           <path
             d={pathData}
             fill="none"
@@ -129,9 +135,23 @@ const ReviewReportPage: React.FC<ReviewReportPageProps> = ({ reviewData, onClose
             strokeLinejoin="round"
           />
 
-          {/* 数据点 */}
-          {points.map((point, index) => (
-            <g key={index}>
+          {/* 🆕 所有数据点的小圆点 */}
+          {allPoints.map((point, index) => (
+            <circle
+              key={`dot-${index}`}
+              cx={point.x}
+              cy={point.y}
+              r="3"
+              fill={shouldShowLabel(index, allPoints.length) ? color : 'white'}
+              stroke={color}
+              strokeWidth="2"
+            />
+          ))}
+
+          {/* 🆕 只在特定点显示标签（每10分钟 + 首尾） */}
+          {allPoints.filter((_, index) => shouldShowLabel(index, allPoints.length)).map((point, labelIndex) => (
+            <g key={`label-${point.index}`}>
+              {/* 加粗特定点 */}
               <circle
                 cx={point.x}
                 cy={point.y}
@@ -147,6 +167,7 @@ const ReviewReportPage: React.FC<ReviewReportPageProps> = ({ reviewData, onClose
                 textAnchor="middle"
                 fontSize="11"
                 fill="#6b7280"
+                fontWeight="bold"
               >
                 {point.time}
               </text>
@@ -186,7 +207,14 @@ const ReviewReportPage: React.FC<ReviewReportPageProps> = ({ reviewData, onClose
               <div className="text-sm text-gray-600 mt-2 space-y-1">
                 {room_id && <div>房间号: {room_id}</div>}
                 {anchor_name && <div>主播: {anchor_name}</div>}
-                <div>时长: {formatDuration(duration_seconds)}</div>
+                <div className="flex items-center gap-2">
+                  <span>时长: {formatDuration(duration_seconds)}</span>
+                  {(reviewData.pause_count ?? 0) > 0 && (
+                    <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">
+                      录制中暂停{reviewData.pause_count}次
+                    </span>
+                  )}
+                </div>
                 <div>弹幕: {comments_count?.toLocaleString() || 0} 条</div>
                 {reviewData.started_at && <div>开始: {formatTimestamp(reviewData.started_at)}</div>}
               </div>
@@ -203,8 +231,8 @@ const ReviewReportPage: React.FC<ReviewReportPageProps> = ({ reviewData, onClose
         {ai_summary?.gemini_metadata && (
           <div className="mt-4 flex items-center gap-4 text-xs text-gray-500 bg-purple-50 rounded-lg px-4 py-2">
             <span>🤖 {ai_summary.gemini_metadata.model}</span>
-            <span>Tokens: {ai_summary.gemini_metadata.tokens.toLocaleString()}</span>
-            <span className="text-green-600 font-semibold">成本: ${ai_summary.gemini_metadata.cost.toFixed(6)}</span>
+            {/* <span>Tokens: {ai_summary.gemini_metadata.tokens.toLocaleString()}</span> */}
+            {/* <span className="text-green-600 font-semibold">成本: ${ai_summary.gemini_metadata.cost.toFixed(6)}</span> */}
             <span>耗时: {ai_summary.gemini_metadata.duration.toFixed(2)}s</span>
           </div>
         )}
@@ -470,27 +498,105 @@ const ReviewReportPage: React.FC<ReviewReportPageProps> = ({ reviewData, onClose
 
       {/* 指标 Tab */}
       {activeTab === 'metrics' && (
-        <div className="timao-card">
-          <h2 className="text-xl font-semibold text-purple-600 mb-4">📈 直播数据指标</h2>
-          {metrics && Object.keys(metrics).length > 0 ? (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Object.entries(metrics).map(([key, value]) => (
-                <div key={key} className="timao-soft-card">
-                  <div className="text-sm text-gray-500 mb-1">
-                    {key === 'follows' && '新增关注'}
-                    {key === 'entries' && '进场人数'}
-                    {key === 'peak_viewers' && '最高在线'}
-                    {key === 'like_total' && '新增点赞'}
-                    {!['follows', 'entries', 'peak_viewers', 'like_total'].includes(key) && key}
+        <div className="space-y-6">
+          {/* 基础数据指标 */}
+          <div className="timao-card">
+            <h2 className="text-xl font-semibold text-purple-600 mb-4">📈 直播数据指标</h2>
+            {metrics && Object.keys(metrics).length > 0 ? (
+              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {Object.entries(metrics).filter(([key]) => !['gifts'].includes(key)).map(([key, value]) => (
+                  <div key={key} className="timao-soft-card">
+                    <div className="text-sm text-gray-500 mb-1">
+                      {key === 'follows' && '新增关注'}
+                      {key === 'entries' && '进场人数'}
+                      {key === 'peak_viewers' && '最高在线'}
+                      {key === 'like_total' && '新增点赞'}
+                      {!['follows', 'entries', 'peak_viewers', 'like_total'].includes(key) && key}
+                    </div>
+                    <div className="text-2xl font-bold text-purple-600">
+                      {typeof value === 'object' ? JSON.stringify(value) : value?.toLocaleString()}
+                    </div>
                   </div>
-                  <div className="text-2xl font-bold text-purple-600">
-                    {typeof value === 'object' ? JSON.stringify(value) : value?.toLocaleString()}
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
+            ) : (
+              <div className="text-gray-500 text-center py-12">暂无数据指标</div>
+            )}
+          </div>
+
+          {/* 🆕 在线人数趋势图 */}
+          {reviewData.viewer_snapshots && reviewData.viewer_snapshots.length > 0 && (
+            <div className="timao-card">
+              <h2 className="text-xl font-semibold text-purple-600 mb-4 flex items-center gap-2">
+                <span>👥</span> 在线人数趋势
+              </h2>
+              <p className="text-sm text-gray-600 mb-4">每分钟记录一次在线人数</p>
+              <div className="timao-soft-card bg-gradient-to-br from-blue-50 to-purple-50 p-6">
+                <LineChart
+                  data={reviewData.viewer_snapshots.map(s => ({
+                    time: `${s.minute}分钟`,
+                    value: s.count
+                  }))}
+                  title="在线人数"
+                  color="#3b82f6"
+                />
+              </div>
+              <div className="mt-4 text-sm text-gray-600">
+                共记录 {reviewData.viewer_snapshots.length} 个数据点，峰值 {Math.max(...reviewData.viewer_snapshots.map(s => s.count))} 人
+              </div>
             </div>
-          ) : (
-            <div className="text-gray-500 text-center py-12">暂无数据指标</div>
+          )}
+
+          {/* 🆕 送礼大哥榜 */}
+          {reviewData.top_gift_users && reviewData.top_gift_users.length > 0 && (
+            <div className="timao-card">
+              <h2 className="text-xl font-semibold text-purple-600 mb-4 flex items-center gap-2">
+                <span>👑</span> 送礼榜单（TOP {reviewData.top_gift_users.length}）
+              </h2>
+              <div className="space-y-3">
+                {reviewData.top_gift_users.map((user, index) => (
+                  <div 
+                    key={user.nickname}
+                    className="timao-soft-card p-4 flex items-center justify-between hover:shadow-md transition-shadow"
+                    style={{ 
+                      borderLeft: `4px solid ${user.color}`,
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 font-bold text-gray-600">
+                        {index + 1}
+                      </div>
+                      <div className="text-2xl">{user.icon}</div>
+                      <div>
+                        <div className="font-semibold text-gray-800 flex items-center gap-2">
+                          {user.nickname}
+                          <span 
+                            className="text-xs px-2 py-0.5 rounded"
+                            style={{ 
+                              backgroundColor: `${user.color}20`,
+                              color: user.color,
+                            }}
+                          >
+                            {user.label}
+                          </span>
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {user.total_value.toLocaleString()} 钻石 ≈ ¥{user.yuan_value.toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold" style={{ color: user.color }}>
+                        ¥{user.yuan_value.toFixed(0)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 text-xs text-gray-500 text-center border-t pt-3">
+                💎 1钻石 ≈ ¥0.1 · 数据基于礼物市场价格统计
+              </div>
+            </div>
           )}
         </div>
       )}
