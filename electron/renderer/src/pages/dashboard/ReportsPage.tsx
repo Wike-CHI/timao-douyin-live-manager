@@ -445,7 +445,7 @@ const ReportsPage: React.FC = () => {
 
   const startPolling = () => {
     if (pollTimerRef.current) return;
-    pollTimerRef.current = setInterval(refresh, 1000);
+    pollTimerRef.current = setInterval(refresh, 2000); // 🔧 从1秒改为2秒，降低轮询频率
   };
   const stopPolling = () => {
     if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
