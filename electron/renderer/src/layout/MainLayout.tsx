@@ -174,9 +174,19 @@ const MainLayout = () => {
             </NavLink>
           ))}
         </nav>
-        <button onClick={handleLogout} className="mt-6 text-sm timao-support-text hover:text-purple-500">
-          退出登录
-        </button>
+        
+        {/* 退出登录按钮 - 固定在左下角 */}
+        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <button 
+            onClick={handleLogout} 
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            退出登录
+          </button>
+        </div>
       </aside>
       <main className="flex-1 flex flex-col pr-4">
         <header className="flex justify-between items-center px-8 py-6">
