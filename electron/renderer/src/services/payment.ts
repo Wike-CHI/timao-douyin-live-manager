@@ -1,5 +1,7 @@
 import useAuthStore from '../store/useAuthStore';
 import authService from './authService';
+import { SubscriptionPlan, CreateSubscriptionRequest } from '../types/api-types';
+import { apiCall } from '../utils/error-handler';
 
 const DEFAULT_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9019';
 
@@ -30,7 +32,7 @@ const authFetch = async (url: string, options?: RequestInit): Promise<Response> 
 };
 
 /**
- * 处理响应
+ * 处理响应（保留用于兼容性）
  */
 const handleResponse = async <T>(response: Response): Promise<T> => {
   const data = await response.json().catch(() => null);
@@ -179,21 +181,15 @@ export const getPlan = async (planId: string, baseUrl: string = DEFAULT_BASE_URL
 // ========== 订阅管理 API ==========
 
 /**
- * 创建订阅
+ * 创建订阅（支持试用期，修复 PAY-003）
  */
 export const createSubscription = async (
-  planId: string,
-  couponCode?: string,
+  request: CreateSubscriptionRequest,
   baseUrl: string = DEFAULT_BASE_URL
 ): Promise<Subscription> => {
-  const body: any = { plan_id: planId };
-  if (couponCode) {
-    body.coupon_code = couponCode;
-  }
-  
   const response = await authFetch(`${baseUrl}/api/payment/subscriptions`, {
     method: 'POST',
-    body: JSON.stringify(body),
+    body: JSON.stringify(request),
   });
   return handleResponse(response);
 };

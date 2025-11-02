@@ -1,6 +1,8 @@
 import useAuthStore from '../store/useAuthStore';
 import authService from './authService';
 import { apiConfig, buildApiUrl, requestWithRetry } from './apiConfig';
+import { AIUsage } from '../types/api-types';
+import { apiCall } from '../utils/error-handler';
 
 // 使用统一的API配置管理
 const getAuthBaseUrl = () => {
@@ -40,7 +42,7 @@ export interface UserInfo {
   created_at: string;  // ISO 8601 日期时间字符串
 }
 
-// 定义与后端LoginResponse模型一致的接口
+// 定义与后端LoginResponse模型一致的接口（修复 AUTH-001, AUTH-002）
 export interface LoginResponse {
   success: boolean;
   token: string;
@@ -49,6 +51,10 @@ export interface LoginResponse {
   expires_in: number;
   user: UserInfo;
   isPaid: boolean;
+  /** 是否已使用首次免费额度 */
+  firstFreeUsed?: boolean;
+  /** AI 使用统计信息 */
+  aiUsage?: AIUsage;
 }
 
 // 定义与后端UserResponse模型一致的接口（用于注册响应）
@@ -78,16 +84,16 @@ export const login = async (payload: LoginPayload): Promise<LoginResponse> => {
     username_or_email: payload.email,
     password: payload.password
   };
-  const resp = await fetch(joinUrl('/api/auth/login'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(requestBody),
-  });
-  if (!resp.ok) {
-    const txt = await resp.text().catch(() => '登录失败');
-    throw new Error(txt || '登录失败');
-  }
-  return resp.json();
+  
+  // 使用统一的错误处理
+  return apiCall<LoginResponse>(
+    () => fetch(joinUrl('/api/auth/login'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody),
+    }),
+    '登录'
+  );
 };
 
 export const register = async (payload: RegisterPayload): Promise<RegisterResponse> => {
