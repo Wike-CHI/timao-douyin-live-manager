@@ -375,15 +375,19 @@ class DouyinWebRelay:
                                     time.sleep(min(delay, 10.0))  # 最大延迟10秒
                                     
                         except Exception as exc:
-                            last_error = str(exc)
-                            error_msg = str(exc).lower()
+                            last_error = str(exc) if exc else "未知错误"
+                            error_msg = str(exc).lower() if exc else ""
                             
-                            # 判断是否是可重试的错误
-                            is_retryable = any(keyword in error_msg for keyword in [
-                                "a_bogus", "bogus", "signature", "签名", 
-                                "status_code", "403", "400", "timeout",
-                                "connection", "网络", "请求失败"
-                            ])
+                            # 判断是否是可重试的错误（确保 error_msg 不为 None）
+                            if error_msg:
+                                is_retryable = any(keyword in error_msg for keyword in [
+                                    "a_bogus", "bogus", "signature", "签名", 
+                                    "status_code", "403", "400", "timeout",
+                                    "connection", "网络", "请求失败", "noneType", "not iterable"
+                                ])
+                            else:
+                                # 如果无法确定错误类型，默认允许重试
+                                is_retryable = True
                             
                             if not is_retryable and attempt >= 3:
                                 # 非重试性错误，且已尝试3次，直接失败

@@ -232,8 +232,17 @@ class DouyinLiveWebFetcher:
             "&enter_source=&is_need_double_stream=false&insert_task_id=&live_reason=&msToken="
             + msToken
         )
-        query = parse_url(url).query
-        params = {i[0]: i[1] for i in [j.split("=") for j in query.split("&")]}
+        parsed = parse_url(url)
+        query = parsed.query if parsed.query else ""
+        # 安全处理 query 参数解析
+        if not query:
+            params = {}
+        else:
+            params = {}
+            for item in query.split("&"):
+                if "=" in item:
+                    key, value = item.split("=", 1)
+                    params[key] = value
         a_bogus = self.get_a_bogus(params)
         url += f"&a_bogus={a_bogus}"
         headers = self.headers.copy()
@@ -300,8 +309,17 @@ class DouyinLiveWebFetcher:
             "&enter_source=&is_need_double_stream=false&insert_task_id=&live_reason=&msToken="
             + msToken
         )
-        query = parse_url(url).query
-        params = {i[0]: i[1] for i in [j.split("=") for j in query.split("&")]}
+        parsed = parse_url(url)
+        query = parsed.query if parsed.query else ""
+        # 安全处理 query 参数解析
+        if not query:
+            params = {}
+        else:
+            params = {}
+            for item in query.split("&"):
+                if "=" in item:
+                    key, value = item.split("=", 1)
+                    params[key] = value
         
         # 尝试生成 a_bogus，失败时抛出异常以便重试
         try:
