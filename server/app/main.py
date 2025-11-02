@@ -332,11 +332,18 @@ async def startup_event():
     # 初始化数据库
     try:
         db_config = config_manager.config.database
+        # 确保使用MySQL（如果配置为mysql）
+        if db_config.db_type == "mysql":
+            logging.info(f"📊 数据库配置: MySQL - {db_config.mysql_user}@{db_config.mysql_host}:{db_config.mysql_port}/{db_config.mysql_database}")
+        else:
+            logging.warning(f"⚠️ 数据库配置: {db_config.db_type} (建议使用MySQL)")
         init_database(db_config)
         log_service_start("数据库服务")
         logging.info("✅ 数据库已初始化")
     except Exception as e:
         logging.error(f"❌ 数据库初始化失败: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
     
     try:
         start_websocket_services()

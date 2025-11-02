@@ -5,6 +5,7 @@
 
 import os
 import json
+import logging
 from typing import Dict, Any, Optional, Union
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
@@ -193,15 +194,6 @@ class SecurityConfig:
 
 
 @dataclass
-class DemoConfig:
-    """演示模式配置"""
-    enabled: bool = False                # 是否启用演示模式
-    user_name: str = "demo_user"         # 演示用户名
-    user_email: str = "demo@example.com" # 演示用户邮箱
-    user_nickname: str = "演示用户"      # 演示用户昵称
-
-
-@dataclass
 class RedisConfig:
     """
 Redis缓存配置"""
@@ -237,7 +229,6 @@ class AppConfig:
     log: LogConfig = field(default_factory=LogConfig)
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     security: SecurityConfig = field(default_factory=SecurityConfig)
-    demo: DemoConfig = field(default_factory=DemoConfig)
     redis: RedisConfig = field(default_factory=RedisConfig)
     
     # 应用信息
@@ -254,7 +245,18 @@ class ConfigManager:
     """配置管理器"""
     
     def __init__(self, config_dir: str = "config"):
-        self.config_dir = Path(config_dir)
+        # 如果config_dir是相对路径，则从项目根目录查找
+        if not Path(config_dir).is_absolute():
+            # 尝试从server目录查找config目录
+            server_dir = Path(__file__).resolve().parent
+            config_path = server_dir / config_dir
+            if not config_path.exists():
+                # 如果server/config不存在，尝试项目根目录
+                project_root = server_dir.parent
+                config_path = project_root / config_dir
+            self.config_dir = config_path
+        else:
+            self.config_dir = Path(config_dir)
         self.config_file = self.config_dir / "app.json"
         self.env_file = Path(".env")
         
@@ -272,15 +274,21 @@ class ConfigManager:
         try:
             if self.config_file.exists():
                 config_data = read_json_file(str(self.config_file))
+                logging.info(f"✅ 配置文件已加载: {self.config_file}")
+                logging.debug(f"数据库类型: {config_data.get('database', {}).get('db_type', 'unknown')}")
+                logging.debug(f"演示模式: {config_data.get('demo', {}).get('enabled', 'unknown')}")
                 return self._dict_to_config(config_data)
             else:
+                logging.warning(f"⚠️ 配置文件不存在: {self.config_file}，使用默认配置")
                 # 创建默认配置
                 default_config = AppConfig()
                 self.save_config(default_config)
                 return default_config
                 
         except Exception as e:
-            print(f"加载配置失败，使用默认配置: {e}")
+            logging.error(f"❌ 加载配置失败，使用默认配置: {e}")
+            import traceback
+            logging.error(traceback.format_exc())
             return AppConfig()
     
     def _dict_to_config(self, data: Dict[str, Any]) -> AppConfig:
@@ -370,12 +378,6 @@ class ConfigManager:
                 'LOGIN_REQUIRED': ('security', 'auth_required', bool),  # 别名，兼容UI设置
                 'PERMISSION_REQUIRED': ('security', 'permission_required', bool),
                 'ROLE_REQUIRED': ('security', 'role_required', bool),
-                
-                # 演示模式配置
-                'DEMO_MODE': ('demo', 'enabled', bool),
-                'DEMO_USER_NAME': ('demo', 'user_name'),
-                'DEMO_USER_EMAIL': ('demo', 'user_email'),
-                'DEMO_USER_NICKNAME': ('demo', 'user_nickname'),
                 
                 # 应用配置
                 'ENVIRONMENT': ('environment',),
@@ -579,7 +581,14 @@ DEBUG=false
 
 
 # 全局配置管理器实例
-config_manager = ConfigManager()
+# 配置文件路径：优先使用 server/app/config/app.json，如果不存在则使用 server/config/app.json
+_config_dir = None
+_app_config_path = Path(__file__).resolve().parent / "app" / "config" / "app.json"
+if _app_config_path.exists():
+    _config_dir = "app/config"
+else:
+    _config_dir = "config"
+config_manager = ConfigManager(config_dir=_config_dir)
 config = config_manager.get_config()
 
 

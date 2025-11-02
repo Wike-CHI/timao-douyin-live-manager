@@ -41,8 +41,16 @@ const useAuthStore = create<AuthState>()(
         set({ user, token, refreshToken, isPaid, isAuthenticated: true }),
       clearAuth: () =>
         set({ user: null, token: null, refreshToken: null, isPaid: false, isAuthenticated: false }),
-      logout: () =>
-        set({ user: null, token: null, refreshToken: null, isPaid: false, isAuthenticated: false }),
+      logout: () => {
+        // 清除所有状态
+        set({ user: null, token: null, refreshToken: null, isPaid: false, isAuthenticated: false });
+        // 清除持久化存储
+        try {
+          localStorage.removeItem('timao-auth');
+        } catch (e) {
+          console.warn('清除认证缓存失败:', e);
+        }
+      },
       setPaid: (value: boolean) => set({ isPaid: value }),
       setRememberMe: (value: boolean) => set({ rememberMe: value }),
     }),

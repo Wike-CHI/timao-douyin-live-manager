@@ -5,6 +5,7 @@
 
 from datetime import datetime
 import secrets
+import logging
 from typing import Optional, Dict, Any
 import re
 from fastapi import APIRouter, Depends, HTTPException, status, Request
@@ -131,19 +132,8 @@ async def get_current_user(
     db: Session = Depends(get_db_session)
 ) -> Optional[dict]:
     """获取当前认证用户"""
-    # 检查是否启用演示模式
-    config = get_config()
-    if config.demo.enabled:
-        print("[DEBUG] 演示模式已启用，返回演示用户")
-        return {
-            "id": 999999,
-            "user_id": 999999,
-            "username": config.demo.user_name,
-            "email": config.demo.user_email,
-            "nickname": config.demo.user_nickname,
-            "role": "admin",
-            "status": "active"
-        }
+    # 开发模式：强制禁用演示模式，使用真实用户系统
+    # 不再检查 config.demo.enabled，始终使用真实用户认证
     
     try:
         token = credentials.credentials
@@ -223,8 +213,14 @@ async def get_current_user(
         )
 
 
+class RegisterResponse(BaseModel):
+    """注册响应模型"""
+    success: bool = True
+    user: UserResponse
+
+
 # API 路由
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 async def register_user(
     request: UserRegisterRequest,
     req: Request,
@@ -252,17 +248,20 @@ async def register_user(
         logger.info(f"✅ 用户注册成功: {user.username} (ID: {user.id})")
         log_user_action("注册", user_id=user.id, username=user.username, email=user.email)
         
-        return UserResponse(
-            id=user.id,
-            username=user.username,
-            email=user.email,
-            nickname=user.nickname,
-            avatar_url=user.avatar_url,
-            role=user.role.value,
-            status=user.status.value,
-            email_verified=user.email_verified,
-            phone_verified=user.phone_verified,
-            created_at=user.created_at
+        return RegisterResponse(
+            success=True,
+            user=UserResponse(
+                id=user.id,
+                username=user.username,
+                email=user.email,
+                nickname=user.nickname,
+                avatar_url=user.avatar_url,
+                role=user.role.value,
+                status=user.status.value,
+                email_verified=user.email_verified,
+                phone_verified=user.phone_verified,
+                created_at=user.created_at
+            )
         )
         
     except ValueError as e:
@@ -292,48 +291,8 @@ async def login_user(
     logger = logging.getLogger(__name__)
     
     try:
-        # 检查是否启用演示模式
-        config = get_config()
-        if config.demo.enabled:
-            logger.info("🎭 演示模式已启用，返回演示用户登录信息")
-            
-            # 创建演示用户的JWT token
-            from server.app.core.security import JWTManager
-            access_token = JWTManager.create_access_token(data={"sub": "999999"})
-            refresh_token = JWTManager.create_refresh_token(data={"sub": "999999"})
-            
-            # 返回演示用户信息
-            demo_user = UserResponse(
-                id=999999,
-                username=config.demo.user_name,
-                email=config.demo.user_email,
-                nickname=config.demo.user_nickname,
-                avatar_url=None,
-                role="admin",
-                status="active",
-                email_verified=True,
-                phone_verified=True,
-                created_at=datetime.now()
-            )
-            
-            return LoginResponse(
-                success=True,
-                token=access_token,
-                access_token=access_token,
-                refresh_token=refresh_token,
-                token_type="bearer",
-                expires_in=86400,
-                user=demo_user,
-                isPaid=True,
-                firstFreeUsed=False,
-                aiUsage={
-                    'requests_used': 0,
-                    'requests_limit': 10000,
-                    'tokens_used': 0,
-                    'tokens_limit': 1000000,
-                    'first_free_used': False
-                }
-            )
+        # 开发模式：强制禁用演示模式，使用真实用户系统
+        # 不再检查 config.demo.enabled，始终使用真实用户登录
         
         logger.info(f"🔍 开始登录流程，用户名/邮箱: {request.username_or_email}")
         
@@ -427,60 +386,24 @@ async def login_user(
 
 @router.get("/demo-status")
 async def demo_status():
-    """检查演示模式状态"""
-    config = get_config()
+    """检查演示模式状态（开发模式：强制禁用）"""
+    # 开发模式：强制禁用演示模式
+    logging.info("📊 演示模式状态检查: 强制禁用演示模式（开发模式）")
     return {
-        "demo_enabled": config.demo.enabled,
-        "demo_user_name": config.demo.user_name if config.demo.enabled else None,
-        "demo_user_email": config.demo.user_email if config.demo.enabled else None,
-        "demo_user_nickname": config.demo.user_nickname if config.demo.enabled else None
+        "demo_enabled": False,
+        "demo_user_name": None,
+        "demo_user_email": None,
+        "demo_user_nickname": None
     }
 
 
 @router.post("/demo-login", response_model=LoginResponse)
 async def demo_login():
-    """演示模式登录"""
-    config = get_config()
-    
-    if not config.demo.enabled:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="演示模式未启用"
-        )
-    
-    # 生成演示用户的JWT token
-    from server.app.core.security import JWTManager
-    access_token = JWTManager.create_access_token(data={"sub": "999999"})
-    refresh_token = JWTManager.create_refresh_token(data={"sub": "999999"})
-    
-    # 返回演示用户登录信息
-    return LoginResponse(
-        success=True,
-        token=access_token,
-        access_token=access_token,
-        refresh_token=refresh_token,
-        expires_in=86400,
-        isPaid=True,
-        firstFreeUsed=False,
-        aiUsage={
-            'requests_used': 0,
-            'requests_limit': 10000,
-            'tokens_used': 0,
-            'tokens_limit': 1000000,
-            'first_free_used': False
-        },
-        user=UserResponse(
-            id=999999,
-            username=config.demo.user_name,
-            email=config.demo.user_email,
-            nickname=config.demo.user_nickname,
-            avatar_url=None,
-            role="admin",
-            status="active",
-            email_verified=True,
-            phone_verified=True,
-            created_at=datetime.now()
-        )
+    """演示模式登录（已禁用）"""
+    # 开发模式：强制禁用演示模式登录
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="演示模式已禁用，请使用真实用户账号登录"
     )
 
 
@@ -509,40 +432,7 @@ async def refresh_token(
                 detail="无效的刷新令牌"
             )
         
-        # 检查是否为演示模式用户
-        if config.demo.enabled and user_id == "999999":
-            # 演示模式用户的特殊处理
-            new_access_token = JWTManager.create_access_token(data={"sub": "999999"})
-            new_refresh_token = JWTManager.create_refresh_token(data={"sub": "999999"})
-            
-            return LoginResponse(
-                success=True,
-                token=new_access_token,
-                access_token=new_access_token,
-                refresh_token=new_refresh_token,
-                expires_in=86400,
-                isPaid=True,
-                firstFreeUsed=False,
-                aiUsage={
-                    'requests_used': 0,
-                    'requests_limit': 10000,
-                    'tokens_used': 0,
-                    'tokens_limit': 1000000,
-                    'first_free_used': False
-                },
-                user=UserResponse(
-                    id=999999,
-                    username=config.demo.user_name,
-                    email=config.demo.user_email,
-                    nickname=config.demo.user_nickname,
-                    avatar_url=None,
-                    role="admin",
-                    status="active",
-                    email_verified=True,
-                    phone_verified=True,
-                    created_at=datetime.now()
-                )
-            )
+        # 开发模式：不再支持演示模式用户，所有用户都必须真实注册
         
         # 获取用户信息
         user = UserService.get_user_by_id(int(user_id))

@@ -29,8 +29,13 @@ const LoginPage = () => {
           isPaid: response.isPaid
         });
 
-        // 登录成功后统一跳转到dashboard
-        navigate('/dashboard');
+        // 登录成功后检查订阅状态
+        // 如果未订阅，跳转到订阅页面；否则跳转到dashboard
+        if (!response.isPaid) {
+          navigate('/pay/subscription');
+        } else {
+          navigate('/dashboard');
+        }
       }
     } catch (err) {
       setError((err as Error).message);

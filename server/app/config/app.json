@@ -135,12 +135,6 @@
     "permission_required": true,
     "role_required": true
   },
-  "demo": {
-    "enabled": false,
-    "user_name": "demo_user",
-    "user_email": "demo@example.com",
-    "user_nickname": "演示用户"
-  },
   "redis": {
     "enabled": true,
     "host": "localhost",
