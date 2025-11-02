@@ -1,6 +1,12 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import useAuthStore from '../../store/useAuthStore';
 
 const DashboardPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { isPaid, user } = useAuthStore();
+  const isSuperAdmin = user?.role === 'super_admin';
+
   return (
     <div className="h-full timao-card p-8">
       <h1 className="text-2xl font-semibold text-purple-500 mb-4 flex items-center gap-2">
@@ -10,6 +16,33 @@ const DashboardPage: React.FC = () => {
       <p className="timao-support-text">
         这里列出当前版本适合主播的全部能力，方便快速了解还能做什么、该去哪个页面操作。
       </p>
+
+      {/* 未付费用户提示 */}
+      {!isPaid && !isSuperAdmin && (
+        <div className="mt-6 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-6">
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0">
+              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                <span className="text-2xl">🎁</span>
+              </div>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-purple-900 mb-2">
+                解锁全部功能，开启AI直播新体验
+              </h3>
+              <p className="text-sm text-purple-700 mb-4">
+                订阅套餐后即可使用实时字幕、AI分析、话术生成等强大功能，让您的直播更加出色！
+              </p>
+              <button
+                onClick={() => navigate('/pay/subscription')}
+                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium shadow-sm"
+              >
+                查看订阅套餐 →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 grid gap-4 xl:grid-cols-3 md:grid-cols-2">
         <div className="timao-soft-card">
