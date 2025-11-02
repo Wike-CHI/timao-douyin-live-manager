@@ -141,7 +141,7 @@ class CouponCreate(BaseModel):
     code: str = Field(..., min_length=3, max_length=50)
     name: str = Field(..., min_length=1, max_length=100)
     description: Optional[str] = None
-    discount_type: str = Field(..., regex="^(percentage|fixed)$")
+    discount_type: str = Field(..., pattern="^(percentage|fixed)$")
     discount_value: Decimal = Field(..., gt=0)
     min_amount: Optional[Decimal] = Field(None, ge=0)
     max_discount: Optional[Decimal] = Field(None, ge=0)
