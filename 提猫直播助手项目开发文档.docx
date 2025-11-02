@@ -1,0 +1,105 @@
+　　　提猫直播助手项目开发文档
+
+　　　 一、项目概述
+
+　　　 1.1 技术栈
+　　　桌面端：Electron 38、electron-builder
+　　　  前端：React 18、Vite 5、Tailwind CSS、Zustand
+　　　后端：FastAPI + Uvicorn（主要API）、Flask（遗留SSE工具）
+　　　AI & NLP：LangChain、Qwen接口、jieba、SnowNLP
+　　　音频处理：ffmpeg、PyAudio、librosa、webrtc-audio-processing
+　　　测试工具：Jest、Pytest、ESLint、Playwright
+
+　　　   1.2 系统要求
+　　　Node.js ≥ 16.x
+　　　Python ≥ 3.8
+　　　数据库：SQLite/MySQL
+　　　Redis（可选，用于缓存）
+
+　　　  二、核心功能实现
+
+　　　   2.1 人工接入模块
+　　　 实现技术  ：FastAPI + WebSocket
+　　　 核心功能  ：
+　　　   实时直播数据采集
+　　　   弹幕分析与处理
+　　　   主播打分系统（待开发UI）
+　　　接口路径：
+　　　   `/api/live_audio/ `：音频相关操作
+　　　   `/api/ai/live/ `：AI分析接口
+　　　   `/api/ai/scripts/generate_one`：话术生成
+
+　　　   2.2 知识库系统
+　　　实现方式:向量数据库
+　　　核心功能：
+　　　  1. 素材库检索
+　　　  2. 主播专属记忆
+　　　  3. 风格分析
+　　　技术实现  ：
+　　　  使用LangChain进行向量检索
+　　　  集成多模型支持（Qwen、DeepSeek等）
+　　　  实时风格适配
+
+　　　   2.3 AI模型集成
+　　　-   当前支持模型  ：
+　　　   Qwen3-max（默认）
+　　　   Qwen3-plus
+　　　   Gemini（已完成接入）
+　　　 配置管理  ：
+　　　   环境变量控制
+　　　   动态切换支持
+　　　   统一网关管理
+
+　　　   2.4 支付系统
+　　　实现框架  ：易支付
+　　　支持方式  ：
+　　　  支付宝
+　　　  微信支付
+　　　  其他第三方支付
+
+　　　  三、项目结构
+
+　　　```
+　　　project/
+　　　├── server/
+　　　│   ├── app/
+　　　│   │   ├── api/             API路由
+　　　│   │   ├── core/            核心配置
+　　　│   │   ├── models/          数据模型
+　　　│   │   └── services/        业务服务
+　　　│   ├── modules/
+　　　│   │   ├── ast/            语音识别
+　　　│   │   └── douyin/         直播采集
+　　　│   └── utils/              工具函数
+　　　├── frontend/               前端代码
+　　　└── docker/                容器配置
+　　　```
+
+　　　  四、开发计划
+
+　　　   当前任务
+　　　1. 完善主播打分UI界面
+　　　2. 优化模型选择功能
+　　　3. 完善支付系统集成
+　　　4. 完善直播采集链条优化
+　　　5. 完善记忆功能和优化记忆调控
+　　　   未来规划
+　　　1. 扩展更多AI模型支持
+　　　2. 优化直播效果分析
+　　　3. 增强用户运营功能
+　　　4. 完善付费系统
+　　　5. 运营端版本 运营通过付费一次管理5个主播
+
+　　　  五、技术亮点
+
+　　　  5.1核心竞争力
+　　　专属直播链条优化
+　　　垂直领域AI优化
+　　　主播个性化分析
+　　　实时互动能力
+
+　　　  5.2运维特性
+　　　容器化部署支持
+　　　完整监控系统
+　　　灵活的配置管理
+　　　高可用性设计
