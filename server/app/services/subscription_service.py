@@ -379,6 +379,10 @@ class SubscriptionService:
                     },
                 }
             
+            # 超级管理员自动拥有付费权限（无需实际订阅）
+            from server.app.models.user import UserRoleEnum
+            is_super_admin = user.role == UserRoleEnum.SUPER_ADMIN
+            
             subscription = session.query(UserSubscription).filter(
                 and_(
                     UserSubscription.user_id == user_id,
@@ -386,40 +390,67 @@ class SubscriptionService:
                 )
             ).first()
             
-            has_subscription = subscription is not None
-            usage_stats: Dict[str, Any] = subscription.usage_stats or {} if subscription else {}
-            limits = subscription.plan.usage_limits if subscription else {}
-            features = subscription.plan.features if subscription else None
+            # 超级管理员或有活跃订阅的用户都视为有订阅
+            has_subscription = is_super_admin or (subscription is not None)
             
-            ai_usage = {
-                "tokens_used": int(user.ai_quota_used or 0),
-                "token_quota": None if user.ai_unlimited else int(user.ai_quota_monthly or 0),
-                "token_limit": None,
-                "requests_used": 0,
-                "request_limit": None,
-                "first_free_used": (user.ai_quota_used or 0) > 0,
-            }
-            
-            if subscription:
-                stats = subscription.usage_stats or {}
-                tokens_used = int(stats.get("ai_tokens_used", 0))
-                if tokens_used:
-                    ai_usage["tokens_used"] = max(ai_usage["tokens_used"], tokens_used)
+            # 超级管理员拥有特殊权限
+            if is_super_admin:
+                usage_stats: Dict[str, Any] = {}
+                limits = {}
+                features = {
+                    "all_access": True,
+                    "unlimited": True,
+                    "admin_privileges": True
+                }
+                ai_usage = {
+                    "tokens_used": int(user.ai_quota_used or 0),
+                    "token_quota": None,  # 无限配额
+                    "token_limit": None,  # 无限制
+                    "requests_used": 0,
+                    "request_limit": None,  # 无限制
+                    "first_free_used": False,  # 超管不受此限制
+                }
+                plan_name = "超级管理员"
+                plan_type = "admin"
+                status = "active"
+            else:
+                usage_stats = subscription.usage_stats or {} if subscription else {}
+                limits = subscription.plan.usage_limits if subscription else {}
+                features = subscription.plan.features if subscription else None
                 
-                ai_usage["requests_used"] = int(stats.get("ai_requests_used", subscription.ai_requests_used or 0))
-                ai_usage["request_limit"] = subscription.plan.max_ai_requests
+                ai_usage = {
+                    "tokens_used": int(user.ai_quota_used or 0),
+                    "token_quota": None if user.ai_unlimited else int(user.ai_quota_monthly or 0),
+                    "token_limit": None,
+                    "requests_used": 0,
+                    "request_limit": None,
+                    "first_free_used": (user.ai_quota_used or 0) > 0,
+                }
                 
-                if isinstance(limits, dict):
-                    ai_usage["token_limit"] = limits.get("ai_tokens")
+                if subscription:
+                    stats = subscription.usage_stats or {}
+                    tokens_used = int(stats.get("ai_tokens_used", 0))
+                    if tokens_used:
+                        ai_usage["tokens_used"] = max(ai_usage["tokens_used"], tokens_used)
+                    
+                    ai_usage["requests_used"] = int(stats.get("ai_requests_used", subscription.ai_requests_used or 0))
+                    ai_usage["request_limit"] = subscription.plan.max_ai_requests
+                    
+                    if isinstance(limits, dict):
+                        ai_usage["token_limit"] = limits.get("ai_tokens")
+                
+                plan_name = subscription.plan.name if subscription else None
+                plan_type = subscription.plan.plan_type.value if subscription else None
+                status = subscription.status.value if subscription else None
             
             return {
                 "has_subscription": has_subscription,
-                "plan_name": subscription.plan.name if subscription else None,
-                "plan_type": subscription.plan.plan_type.value if subscription else None,
-                "status": subscription.status.value if subscription else None,
-                "start_date": subscription.start_date.isoformat() if subscription else None,
-                "end_date": subscription.end_date.isoformat() if subscription else None,
-                "auto_renew": subscription.auto_renew if subscription else False,
+                "plan_name": plan_name,
+                "plan_type": plan_type,
+                "status": status,
+                "start_date": subscription.start_date.isoformat() if subscription and not is_super_admin else None,
+                "end_date": subscription.end_date.isoformat() if subscription and not is_super_admin else None,
+                "auto_renew": subscription.auto_renew if subscription and not is_super_admin else False,
                 "usage_stats": usage_stats,
                 "limits": limits,
                 "features": features,

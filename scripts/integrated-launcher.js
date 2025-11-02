@@ -80,21 +80,27 @@ class IntegratedLauncher {
                 cwd,
                 stdio: ['ignore', 'pipe', 'pipe'],
                 shell: true,
+                env: {
+                    ...process.env,
+                    // 设置 UTF-8 编码，解决 Windows 中文乱码问题
+                    PYTHONIOENCODING: 'utf-8',
+                    PYTHONUTF8: '1',
+                },
                 ...options
             });
             
             this.processes.set(name, process);
             
-            // 输出处理
+            // 输出处理（使用 UTF-8 解码）
             process.stdout.on('data', (data) => {
-                const output = data.toString().trim();
+                const output = data.toString('utf-8').trim();
                 if (output) {
                     console.log(`[${name}] ${output}`);
                 }
             });
             
             process.stderr.on('data', (data) => {
-                const output = data.toString().trim();
+                const output = data.toString('utf-8').trim();
                 if (output) {
                     console.log(`[${name}] ${output}`);
                 }
