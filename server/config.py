@@ -139,7 +139,7 @@ class LogConfig:
 class DatabaseConfig:
     """数据库配置"""
     # 数据库类型
-    db_type: str = "mysql"  # mysql 或 sqlite
+    db_type: str = "mysql"  # 仅支持mysql
     
     # MySQL配置
     mysql_host: str = "localhost"
@@ -149,9 +149,9 @@ class DatabaseConfig:
     mysql_database: str = "timao_live"
     mysql_charset: str = "utf8mb4"
     
-    # SQLite配置（备用）
-    sqlite_path: str = "data/app.db"
-    sqlite_timeout: int = 30
+    # MySQL root账号配置（用于自动创建用户）
+    mysql_root_password: str = "123456"  # 从环境变量 MYSQL_ROOT_PASSWORD 读取，默认123456
+    mysql_auto_create_user: bool = True  # 是否自动创建MySQL用户
     
     # 连接池配置
     pool_size: int = 20
@@ -164,7 +164,7 @@ class DatabaseConfig:
     backup_enabled: bool = True
     backup_interval: int = 3600  # 1小时
     backup_keep_days: int = 7
-
+    
     # 自动建库配置
     mysql_auto_create_db: bool = True
 
@@ -359,7 +359,7 @@ class ConfigManager:
                 'MYSQL_USER': ('database', 'mysql_user'),
                 'MYSQL_PASSWORD': ('database', 'mysql_password'),
                 'MYSQL_DATABASE': ('database', 'mysql_database'),
-                'DATABASE_PATH': ('database', 'sqlite_path'),
+                'MYSQL_ROOT_PASSWORD': ('database', 'mysql_root_password'),
                 
                 # Redis配置
                 'REDIS_ENABLED': ('redis', 'enabled', bool),
@@ -491,12 +491,7 @@ class ConfigManager:
         
         # 验证数据库配置
         db_errors = []
-        db_path = Path(self.config.database.sqlite_path)
-        if not db_path.parent.exists():
-            try:
-                db_path.parent.mkdir(parents=True, exist_ok=True)
-            except Exception as e:
-                db_errors.append(f"无法创建数据库目录: {e}")
+        # MySQL配置验证已在DatabaseConfig中完成，无需额外验证
         if db_errors:
             errors["database"] = db_errors
         

@@ -1,14 +1,12 @@
 import logging
-import os
 from contextlib import contextmanager
 from typing import Generator, Optional
 from urllib.parse import quote_plus
 
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from server.app.models import Base
 from server.config import DatabaseConfig
@@ -31,6 +29,10 @@ class DatabaseManager:
 
         if self.config.db_type == "mysql":
             try:
+                # 先尝试创建MySQL用户（如果启用）
+                self._ensure_mysql_user()
+                
+                # 然后初始化MySQL引擎（会创建数据库和表）
                 self._init_mysql_engine()
                 backend_name = "MYSQL"
                 logger.info(
@@ -152,33 +154,66 @@ class DatabaseManager:
             self.config.mysql_database,
         )
     
-    def _init_sqlite_engine(self) -> None:
-        """初始化 SQLite 数据库引擎"""
-        # 创建数据库目录
-        db_path = self.config.sqlite_path
-        db_dir = os.path.dirname(db_path)
-        if db_dir and not os.path.exists(db_dir):
-            os.makedirs(db_dir, exist_ok=True)
+    def _ensure_mysql_user(self) -> None:
+        """使用root账号创建MySQL用户并授予权限"""
+        if not self.config.mysql_auto_create_user:
+            return
         
-        # 创建数据库引擎（SQLite 不支持 pool_size 等参数）
-        self._engine = create_engine(
-            f"sqlite:///{db_path}",
-            poolclass=StaticPool,
-            connect_args={
-                "check_same_thread": False,
-                "timeout": self.config.sqlite_timeout
-            },
-            echo=False  # 生产环境关闭SQL日志
+        root_password = self.config.mysql_root_password or "123456"
+        root_user = quote_plus("root")
+        root_pwd = quote_plus(root_password)
+        host = self.config.mysql_host
+        port = self.config.mysql_port
+        
+        # 使用root账号连接MySQL服务器
+        root_url = f"mysql+pymysql://{root_user}:{root_pwd}@{host}:{port}/"
+        root_engine = create_engine(
+            root_url,
+            pool_pre_ping=True,
+            echo=False,
+            isolation_level="AUTOCOMMIT",
         )
         
-        # 启用SQLite外键约束
-        @event.listens_for(self._engine, "connect")
-        def set_sqlite_pragma(dbapi_connection, connection_record):
-            cursor = dbapi_connection.cursor()
-            cursor.execute("PRAGMA foreign_keys=ON")
-            cursor.execute("PRAGMA journal_mode=WAL")  # 启用WAL模式提高并发性能
-            cursor.execute("PRAGMA synchronous=NORMAL")  # 平衡性能和安全性
-            cursor.close()
+        try:
+            with root_engine.connect() as conn:
+                # 创建用户（如果不存在）
+                user = self.config.mysql_user
+                password = self.config.mysql_password
+                database = self.config.mysql_database
+                # MySQL用户主机部分：使用localhost（本地连接）
+                user_host = "localhost"
+                
+                logger.info("🔧 尝试创建MySQL用户：%s@%s", user, user_host)
+                
+                # 删除可能存在的旧用户
+                try:
+                    conn.execute(text(f"DROP USER IF EXISTS '{user}'@'{user_host}'"))
+                except Exception as e:
+                    logger.debug("删除旧用户时出错（可忽略）：%s", e)
+                
+                # 创建新用户
+                conn.execute(
+                    text(f"CREATE USER IF NOT EXISTS '{user}'@'{user_host}' IDENTIFIED BY :password"),
+                    {"password": password}
+                )
+                logger.info("✅ MySQL用户已创建：%s@%s", user, user_host)
+                
+                # 授予权限
+                conn.execute(
+                    text(f"GRANT ALL PRIVILEGES ON `{database}`.* TO '{user}'@'{user_host}'")
+                )
+                conn.execute(text("FLUSH PRIVILEGES"))
+                logger.info("✅ 已授予用户 %s@%s 对数据库 %s 的所有权限", user, user_host, database)
+                
+        except OperationalError as exc:
+            logger.warning(
+                "⚠️ 无法使用root账号创建MySQL用户（可忽略，如果用户已存在）：%s", exc
+            )
+            logger.warning("   将尝试使用现有用户连接数据库")
+        except Exception as exc:
+            logger.warning("⚠️ 创建MySQL用户时出错（可忽略）：%s", exc)
+        finally:
+            root_engine.dispose()
     
     def create_tables(self) -> None:
         """创建所有数据库表"""
