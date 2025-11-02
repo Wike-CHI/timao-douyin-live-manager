@@ -94,8 +94,8 @@ async def get_current_user(
                 detail="User not found"
             )
         
-        # 检查用户状态（is_active 是方法，需要调用）
-        if not user.is_active():
+        # 检查用户状态（is_active 是 @property，不需要括号）
+        if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User account is disabled"
@@ -135,8 +135,8 @@ async def get_current_active_user(
             return current_user
     except Exception:
         pass
-    # is_active 是方法，需要调用
-    if not current_user.is_active():
+    # is_active 是 @property，不需要括号
+    if not current_user.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user"
@@ -292,7 +292,7 @@ class OptionalAuth:
                     User.id == user_id,
                     User.is_deleted == False
                 ).first()
-                if user and user.is_active() and not user.is_locked():
+                if user and user.is_active and not user.is_locked():
                     # 更新会话活动时间
                     session_id = payload.get("session_id")
                     if session_id:
@@ -322,7 +322,7 @@ def get_user_from_token(token: str, db: Session) -> Optional[User]:
                 User.id == user_id,
                 User.is_deleted == False
             ).first()
-            if user and user.is_active() and not user.is_locked():
+            if user and user.is_active and not user.is_locked():
                 return user
     except:
         pass
@@ -361,7 +361,7 @@ def validate_refresh_token(
             User.id == user_id,
             User.is_deleted == False
         ).first()
-        if not user or not user.is_active() or user.is_locked():
+        if not user or not user.is_active or user.is_locked():
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found or inactive"
