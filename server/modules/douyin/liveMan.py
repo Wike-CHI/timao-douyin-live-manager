@@ -467,47 +467,113 @@ class DouyinLiveWebFetcher:
         :param ws: websocket实例
         :param message: 数据
         """
-
-        # 根据proto结构体解析对象
-        package = PushFrame().parse(message)
-        response = Response().parse(gzip.decompress(package.payload))
-
-        # 返回直播间服务器链接存活确认消息，便于持续获取数据
-        if response.need_ack:
-            ack = PushFrame(
-                log_id=package.log_id,
-                payload_type="ack",
-                payload=response.internal_ext.encode("utf-8"),
-            ).SerializeToString()
-            ws.send(ack, websocket.ABNF.OPCODE_BINARY)
-
-        # 根据消息类别解析消息体
-        # 修复：检查 messages_list 是否为 None，避免 'NoneType' object is not iterable 错误
-        messages_list = getattr(response, 'messages_list', None)
-        if messages_list is None:
-            print(f"【警告】messages_list 为 None，跳过消息处理")
-            return
-        
-        for msg in messages_list:
-            method = msg.method
+        try:
+            # 根据proto结构体解析对象
+            if not message:
+                # 抖音数据拉取不是100%成功，静默处理空消息
+                return
+                
+            package = PushFrame().parse(message)
+            
+            # 检查 package 和 payload
+            if not package or not hasattr(package, 'payload') or not package.payload:
+                # 抖音数据拉取不是100%成功，静默处理
+                return
+            
+            # 解压 payload，处理可能的解压错误
             try:
-                {
-                    "WebcastChatMessage": self._parseChatMsg,  # 聊天消息
-                    "WebcastGiftMessage": self._parseGiftMsg,  # 礼物消息
-                    "WebcastLikeMessage": self._parseLikeMsg,  # 点赞消息
-                    "WebcastMemberMessage": self._parseMemberMsg,  # 进入直播间消息
-                    "WebcastSocialMessage": self._parseSocialMsg,  # 关注消息
-                    "WebcastRoomUserSeqMessage": self._parseRoomUserSeqMsg,  # 直播间统计
-                    "WebcastFansclubMessage": self._parseFansclubMsg,  # 粉丝团消息
-                    "WebcastControlMessage": self._parseControlMsg,  # 直播间状态消息
-                    "WebcastEmojiChatMessage": self._parseEmojiChatMsg,  # 聊天表情包消息
-                    "WebcastRoomStatsMessage": self._parseRoomStatsMsg,  # 直播间统计信息
-                    "WebcastRoomMessage": self._parseRoomMsg,  # 直播间信息
-                    "WebcastRoomRankMessage": self._parseRankMsg,  # 直播间排行榜信息
-                    "WebcastRoomStreamAdaptationMessage": self._parseRoomStreamAdaptationMsg,  # 直播间流配置
-                }.get(method)(msg.payload)
-            except Exception:
-                pass
+                decompressed = gzip.decompress(package.payload)
+            except Exception as e:
+                # 抖音数据拉取不是100%成功，静默处理解压错误
+                return
+            
+            # 解析 response，处理可能的解析错误
+            try:
+                response = Response().parse(decompressed)
+            except Exception as e:
+                # 抖音数据拉取不是100%成功，静默处理解析错误
+                return
+            
+            if not response:
+                # 抖音数据拉取不是100%成功，静默处理
+                return
+
+            # 返回直播间服务器链接存活确认消息，便于持续获取数据
+            if hasattr(response, 'need_ack') and response.need_ack:
+                try:
+                    internal_ext = getattr(response, 'internal_ext', b'')
+                    if not internal_ext:
+                        internal_ext = b''
+                    if isinstance(internal_ext, str):
+                        internal_ext = internal_ext.encode("utf-8")
+                    
+                    ack = PushFrame(
+                        log_id=package.log_id,
+                        payload_type="ack",
+                        payload=internal_ext,
+                    ).SerializeToString()
+                    ws.send(ack, websocket.ABNF.OPCODE_BINARY)
+                except Exception:
+                    # ACK 发送失败不影响主流程
+                    pass
+
+            # 根据消息类别解析消息体
+            # 修复：检查 messages_list 是否为 None 或不可迭代，避免 'NoneType' object is not iterable 错误
+            messages_list = getattr(response, 'messages_list', None)
+            
+            # 检查 messages_list 是否有效（不能为 None，且必须可迭代）
+            if messages_list is None:
+                # 抖音数据拉取不是100%成功，静默处理
+                return
+            
+            # 确保 messages_list 是可迭代的（可能返回非列表类型的值）
+            try:
+                iter(messages_list)
+            except TypeError:
+                # 抖音数据拉取不是100%成功，静默处理不可迭代的情况
+                return
+            
+            # 安全迭代消息列表
+            for msg in messages_list:
+                if not msg:
+                    continue
+                    
+                # 检查 msg 是否有 method 属性
+                method = getattr(msg, 'method', None)
+                if not method:
+                    continue
+                
+                try:
+                    # 获取解析函数
+                    parser_func = {
+                        "WebcastChatMessage": self._parseChatMsg,  # 聊天消息
+                        "WebcastGiftMessage": self._parseGiftMsg,  # 礼物消息
+                        "WebcastLikeMessage": self._parseLikeMsg,  # 点赞消息
+                        "WebcastMemberMessage": self._parseMemberMsg,  # 进入直播间消息
+                        "WebcastSocialMessage": self._parseSocialMsg,  # 关注消息
+                        "WebcastRoomUserSeqMessage": self._parseRoomUserSeqMsg,  # 直播间统计
+                        "WebcastFansclubMessage": self._parseFansclubMsg,  # 粉丝团消息
+                        "WebcastControlMessage": self._parseControlMsg,  # 直播间状态消息
+                        "WebcastEmojiChatMessage": self._parseEmojiChatMsg,  # 聊天表情包消息
+                        "WebcastRoomStatsMessage": self._parseRoomStatsMsg,  # 直播间统计信息
+                        "WebcastRoomMessage": self._parseRoomMsg,  # 直播间信息
+                        "WebcastRoomRankMessage": self._parseRankMsg,  # 直播间排行榜信息
+                        "WebcastRoomStreamAdaptationMessage": self._parseRoomStreamAdaptationMsg,  # 直播间流配置
+                    }.get(method)
+                    
+                    if parser_func:
+                        # 检查 payload 是否存在
+                        payload = getattr(msg, 'payload', None)
+                        if payload is not None:
+                            parser_func(payload)
+                except Exception:
+                    # 单个消息解析失败不应该影响其他消息，静默处理
+                    pass
+                    
+        except Exception as e:
+            # 捕获所有未预期的错误，避免 WebSocket 连接中断
+            # 抖音数据拉取不是100%成功，静默处理所有异常
+            pass
 
     def _wsOnError(self, ws, error):
         print("WebSocket error: ", error)
