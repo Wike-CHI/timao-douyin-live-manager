@@ -41,8 +41,11 @@ const ReportsPage: React.FC = () => {
       await startLiveReport(liveUrl, 30, FASTAPI_BASE_URL);
       await refresh();
       startPolling();
-      setHasStopped(false); // 重置停止状态
-      setArtifacts(null); // 清空之前的报告
+      // 🆕 开始新录制时清理所有状态
+      setHasStopped(false);
+      setArtifacts(null);
+      setShowReview(false);
+      setShowHistory(false);
     } catch (e: any) {
       setError(e?.message || '启动录制失败');
     } finally {
@@ -258,7 +261,13 @@ const ReportsPage: React.FC = () => {
           </div>
           <button
             className="timao-outline-btn px-4 py-2"
-            onClick={() => setShowHistory(false)}
+            onClick={() => {
+              setShowHistory(false);
+              // 🆕 返回主页面时清理状态
+              setArtifacts(null);
+              setHasStopped(false);
+              setError(null);
+            }}
           >
             ← 返回
           </button>
@@ -356,7 +365,13 @@ const ReportsPage: React.FC = () => {
     return (
       <ReviewReportPage
         reviewData={artifacts.review_data}
-        onClose={() => setShowReview(false)}
+        onClose={() => {
+          setShowReview(false);
+          // 🆕 关闭报告时清理状态，允许开始新的录制
+          setArtifacts(null);
+          setHasStopped(false);
+          setError(null);
+        }}
       />
     );
   }
