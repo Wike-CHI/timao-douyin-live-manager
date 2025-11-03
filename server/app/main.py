@@ -10,6 +10,7 @@ import ssl
 import sys
 
 import asyncio
+from urllib.parse import urlparse
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, Response
@@ -139,24 +140,109 @@ allowed_origins = [
     "http://localhost:5173",     # Vite默认端口
 ]
 
+# Allow extra origins configured at runtime so credentials remain supported.
+try:
+    extra_origins = config_manager.config.security.cors_origins or []
+    for origin in extra_origins:
+        if origin and origin != "*" and origin not in allowed_origins:
+            allowed_origins.append(origin)
+except Exception:
+    logging.warning(
+        "Failed to extend CORS allow list from config; falling back to defaults",
+        exc_info=True,
+    )
+
+_ALLOWED_ORIGIN_SET = set(allowed_origins)
+_LOCALHOST_PREFIXES = (
+    "http://localhost",
+    "http://127.0.0.1",
+    "https://localhost",
+    "https://127.0.0.1",
+)
+_CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"]
+_CORS_ALLOW_HEADERS = [
+    "Content-Type",
+    "Authorization",
+    "Accept",
+    "Origin",
+    "X-Requested-With",
+    "Access-Control-Request-Method",
+    "Access-Control-Request-Headers",
+]
+_CORS_EXPOSE_HEADERS = ["*"]
+_CORS_MAX_AGE = 3600
+
+
+def _origin_allowed(origin: str) -> bool:
+    if not origin:
+        return False
+    if origin in _ALLOWED_ORIGIN_SET:
+        return True
+    for prefix in _LOCALHOST_PREFIXES:
+        if origin.startswith(prefix):
+            return True
+    try:
+        parsed = urlparse(origin)
+    except Exception:
+        return False
+    return (parsed.hostname or "") in {"localhost", "127.0.0.1"}
+
+
+def _ensure_vary_header(response: Response, value: str) -> None:
+    current = response.headers.get("Vary")
+    if not current:
+        response.headers["Vary"] = value
+        return
+    items = [v.strip() for v in current.split(",") if v.strip()]
+    if value not in items:
+        items.append(value)
+        response.headers["Vary"] = ", ".join(items)
+
+
+@app.middleware("http")
+async def cors_preflight_guard(request: Request, call_next):
+    origin = request.headers.get("origin", "")
+    origin_allowed = _origin_allowed(origin)
+
+    if request.method == "OPTIONS":
+        logging.info(
+            "CORS preflight - origin=%s path=%s",
+            origin or "n/a",
+            request.url.path,
+        )
+        response = Response(status_code=200)
+        if origin_allowed:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = ", ".join(_CORS_ALLOW_METHODS)
+        response.headers["Access-Control-Allow-Headers"] = ", ".join(_CORS_ALLOW_HEADERS)
+        response.headers["Access-Control-Max-Age"] = str(_CORS_MAX_AGE)
+        response.headers["Access-Control-Expose-Headers"] = ", ".join(_CORS_EXPOSE_HEADERS)
+        if origin_allowed:
+            _ensure_vary_header(response, "Origin")
+        return response
+
+    response = await call_next(request)
+
+    if origin_allowed:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers.setdefault(
+            "Access-Control-Expose-Headers", ", ".join(_CORS_EXPOSE_HEADERS)
+        )
+        _ensure_vary_header(response, "Origin")
+    return response
+
 # 直接使用CORSMiddleware处理CORS，包括OPTIONS预检请求
 # CORSMiddleware会自动处理OPTIONS请求，不需要自定义中间件
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
-    allow_headers=[
-        "Content-Type",
-        "Authorization",
-        "Accept",
-        "Origin",
-        "X-Requested-With",
-        "Access-Control-Request-Method",
-        "Access-Control-Request-Headers",
-    ],
-    expose_headers=["*"],  # 允许前端访问所有响应头
-    max_age=3600,  # 预检请求缓存时间
+    allow_methods=_CORS_ALLOW_METHODS,
+    allow_headers=_CORS_ALLOW_HEADERS,
+    expose_headers=_CORS_EXPOSE_HEADERS,  # 允许前端访问所有响应头
+    max_age=_CORS_MAX_AGE,  # 预检请求缓存时间
 )
 
 # 日志输出CORS配置（启动时）
@@ -187,10 +273,11 @@ async def options_handler_fallback(request: Request, full_path: str):
         status_code=200,
         headers={
             "Access-Control-Allow-Origin": allow_origin,
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, Origin, X-Requested-With, Access-Control-Request-Method, Access-Control-Request-Headers",
+            "Access-Control-Allow-Methods": ", ".join(_CORS_ALLOW_METHODS),
+            "Access-Control-Allow-Headers": ", ".join(_CORS_ALLOW_HEADERS),
             "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Max-Age": "3600",
+            "Access-Control-Max-Age": str(_CORS_MAX_AGE),
+            "Access-Control-Expose-Headers": ", ".join(_CORS_EXPOSE_HEADERS),
         }
     )
 
