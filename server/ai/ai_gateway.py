@@ -103,12 +103,12 @@ class AIGateway:
             "model": os.getenv("AI_FUNCTION_STYLE_PROFILE_MODEL", "lite")  # 默认使用讯飞 lite（免费）
         },  # 主播画像与氛围分析
         "script_generation": {
-            "provider": os.getenv("AI_FUNCTION_SCRIPT_GENERATION_PROVIDER", "xunfei"),
-            "model": os.getenv("AI_FUNCTION_SCRIPT_GENERATION_MODEL", "lite")  # 默认使用讯飞 lite（免费）
+            "provider": os.getenv("AI_FUNCTION_SCRIPT_GENERATION_PROVIDER", "qwen"),
+            "model": os.getenv("AI_FUNCTION_SCRIPT_GENERATION_MODEL", "qwen3-max")  # 默认使用讯飞 lite（免费）
         },  # 话术生成
         "live_review": {
-            "provider": os.getenv("AI_FUNCTION_LIVE_REVIEW_PROVIDER", "xunfei"),
-            "model": os.getenv("AI_FUNCTION_LIVE_REVIEW_MODEL", "lite")  # 默认使用讯飞 lite（免费）
+            "provider": os.getenv("AI_FUNCTION_LIVE_REVIEW_PROVIDER", "gemini"),
+            "model": os.getenv("AI_FUNCTION_LIVE_REVIEW_MODEL", "gemini-2.5-flash-preview-09-2025")  # 复盘使用 Gemini（高质量）
         },  # 复盘
     }
     
