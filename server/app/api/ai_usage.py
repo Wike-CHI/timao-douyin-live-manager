@@ -193,6 +193,7 @@ async def get_model_pricing():
         "deepseek_series": ModelPricing.DEEPSEEK_PRICING,
         "doubao_series": ModelPricing.DOUBAO_PRICING,
         "glm_series": ModelPricing.GLM_PRICING,
+        "xunfei_series": ModelPricing.XUNFEI_PRICING,
         "all_models": ModelPricing.ALL_PRICING,
         "note": "价格单位：元/1K tokens",
         "calculation_example": {

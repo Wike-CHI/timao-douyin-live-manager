@@ -189,6 +189,30 @@ class ModelPricing:
         },
     }
     
+    # 科大讯飞星火系列定价（元/1K tokens）
+    XUNFEI_PRICING = {
+        "lite": {
+            "input": 0.0,
+            "output": 0.0,
+            "display_name": "讯飞星火-Lite (免费)"
+        },
+        "generalv3": {
+            "input": 0.003,
+            "output": 0.003,
+            "display_name": "讯飞星火-V3.0"
+        },
+        "generalv3.5": {
+            "input": 0.0036,
+            "output": 0.0036,
+            "display_name": "讯飞星火-V3.5"
+        },
+        "4.0Ultra": {
+            "input": 0.005,
+            "output": 0.005,
+            "display_name": "讯飞星火-V4.0 Ultra"
+        },
+    }
+    
     # Gemini 系列定价（美元/1K tokens，仅适用于 gemini-2.5-flash-preview-09-2025）
     GEMINI_PRICING = {
         "gemini-2.5-flash-preview-09-2025": {
@@ -227,6 +251,7 @@ class ModelPricing:
         **DOUBAO_PRICING,
         **GLM_PRICING,
         **GEMINI_PRICING,
+        **XUNFEI_PRICING,
     }
     
     @classmethod

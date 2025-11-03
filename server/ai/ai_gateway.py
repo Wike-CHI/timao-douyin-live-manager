@@ -49,6 +49,7 @@ class AIProvider(str, Enum):
     DOUBAO = "doubao"       # 字节豆包
     GLM = "glm"             # 智谱 ChatGLM
     GEMINI = "gemini"       # Google Gemini (通过 AiHubMix)
+    XUNFEI = "xunfei"       # 科大讯飞星火
 
 
 @dataclass
@@ -94,25 +95,30 @@ class AIGateway:
     # AI_FUNCTION_LIVE_REVIEW_PROVIDER, AI_FUNCTION_LIVE_REVIEW_MODEL
     FUNCTION_MODELS = {
         "live_analysis": {
-            "provider": os.getenv("AI_FUNCTION_LIVE_ANALYSIS_PROVIDER", "qwen"),
-            "model": os.getenv("AI_FUNCTION_LIVE_ANALYSIS_MODEL", "qwen3-max")  # 默认使用qwen3-max
+            "provider": os.getenv("AI_FUNCTION_LIVE_ANALYSIS_PROVIDER", "xunfei"),
+            "model": os.getenv("AI_FUNCTION_LIVE_ANALYSIS_MODEL", "lite")  # 默认使用讯飞 lite（免费）
         },  # AI分析
         "style_profile": {
-            "provider": os.getenv("AI_FUNCTION_STYLE_PROFILE_PROVIDER", "qwen"),
-            "model": os.getenv("AI_FUNCTION_STYLE_PROFILE_MODEL", "qwen3-max")  # 默认使用qwen3-max
+            "provider": os.getenv("AI_FUNCTION_STYLE_PROFILE_PROVIDER", "xunfei"),
+            "model": os.getenv("AI_FUNCTION_STYLE_PROFILE_MODEL", "lite")  # 默认使用讯飞 lite（免费）
         },  # 主播画像与氛围分析
         "script_generation": {
-            "provider": os.getenv("AI_FUNCTION_SCRIPT_GENERATION_PROVIDER", "qwen"),
-            "model": os.getenv("AI_FUNCTION_SCRIPT_GENERATION_MODEL", "qwen3-max")  # 默认使用qwen3-max
+            "provider": os.getenv("AI_FUNCTION_SCRIPT_GENERATION_PROVIDER", "xunfei"),
+            "model": os.getenv("AI_FUNCTION_SCRIPT_GENERATION_MODEL", "lite")  # 默认使用讯飞 lite（免费）
         },  # 话术生成
         "live_review": {
-            "provider": os.getenv("AI_FUNCTION_LIVE_REVIEW_PROVIDER", "gemini"),
-            "model": os.getenv("AI_FUNCTION_LIVE_REVIEW_MODEL", "gemini-2.5-flash-preview-09-2025")
+            "provider": os.getenv("AI_FUNCTION_LIVE_REVIEW_PROVIDER", "xunfei"),
+            "model": os.getenv("AI_FUNCTION_LIVE_REVIEW_MODEL", "lite")  # 默认使用讯飞 lite（免费）
         },  # 复盘
     }
     
     # 内置服务商配置模板
     PROVIDER_TEMPLATES = {
+        AIProvider.XUNFEI: {
+            "base_url": "https://spark-api-open.xf-yun.com/v1",
+            "default_model": "lite",
+            "models": ["lite", "generalv3", "generalv3.5", "4.0Ultra"],
+        },
         AIProvider.QWEN: {
             "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
             "default_model": "qwen-plus",
@@ -164,11 +170,11 @@ class AIGateway:
     
     def _load_from_env(self) -> None:
         """从环境变量加载配置"""
-        # 主服务商配置（向后兼容）
-        primary_provider = os.getenv("AI_SERVICE", "qwen").lower()
+        # 主服务商配置（向后兼容）- 默认使用讯飞 lite
+        primary_provider = os.getenv("AI_SERVICE", "xunfei").lower()
         primary_api_key = os.getenv("AI_API_KEY") or os.getenv("OPENAI_API_KEY", "")
         primary_base_url = os.getenv("AI_BASE_URL") or os.getenv("OPENAI_BASE_URL", "")
-        primary_model = os.getenv("AI_MODEL") or os.getenv("OPENAI_MODEL", "qwen-plus")
+        primary_model = os.getenv("AI_MODEL") or os.getenv("OPENAI_MODEL", "lite")
         
         # 注册主服务商
         if primary_api_key:
@@ -185,6 +191,26 @@ class AIGateway:
         
     def _load_additional_providers(self) -> None:
         """加载额外的服务商配置"""
+        # 科大讯飞（优先加载）
+        xunfei_key = os.getenv("XUNFEI_API_KEY")
+        if xunfei_key:
+            self.register_provider(
+                provider="xunfei",
+                api_key=xunfei_key,
+                base_url=os.getenv("XUNFEI_BASE_URL"),
+                default_model=os.getenv("XUNFEI_MODEL", "lite"),
+            )
+        
+        # 通义千问
+        qwen_key = os.getenv("QWEN_API_KEY") or os.getenv("DASHSCOPE_API_KEY")
+        if qwen_key:
+            self.register_provider(
+                provider="qwen",
+                api_key=qwen_key,
+                base_url=os.getenv("QWEN_BASE_URL"),
+                default_model=os.getenv("QWEN_MODEL", "qwen-plus"),
+            )
+        
         # DeepSeek
         deepseek_key = os.getenv("DEEPSEEK_API_KEY")
         if deepseek_key:
@@ -518,6 +544,8 @@ class AIGateway:
             function_name = f"gateway_{provider}"
             if provider == "gemini":
                 function_name = "live_review"  # Gemini主要用于复盘
+            elif provider == "xunfei":
+                function_name = "实时分析"  # 讯飞主要用于实时分析和话术生成
             
             record_ai_usage(
                 model=model,
