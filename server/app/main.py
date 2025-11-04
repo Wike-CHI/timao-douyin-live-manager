@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
-# 确保项目根目录在 Python 路径中，以便正确导入 DouyinLiveWebFetcher 等模块
+# 确保项目根目录在 Python 路径中（模块已迁移到 server/modules/）
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))

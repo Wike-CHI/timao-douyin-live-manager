@@ -56,10 +56,9 @@ def _collect_python_cache_targets() -> List[Path]:
     targets: List[Path] = []
     py_roots = [
         ROOT / "server",
-        ROOT / "AST_module",
-        ROOT / "DouyinLiveWebFetcher",
-        ROOT / "StreamCap",
         ROOT / "tools",
+        # 注意：AST_module、DouyinLiveWebFetcher、StreamCap 已迁移到 server/modules/
+        # 这些目录已移动到 docs/ 作为历史代码，不再扫描
     ]
     for base in py_roots:
         if not base.exists():
