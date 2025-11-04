@@ -9,8 +9,12 @@ import logging
 from typing import Dict, Any, Optional, Union
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
+from dotenv import load_dotenv
 
 from server.utils.helpers import read_json_file, write_json_file, safe_get
+
+# 加载 .env 环境变量
+load_dotenv()
 
 
 @dataclass
@@ -141,17 +145,17 @@ class DatabaseConfig:
     # 数据库类型
     db_type: str = "mysql"  # 仅支持mysql
     
-    # MySQL配置
-    mysql_host: str = "localhost"
-    mysql_port: int = 3306
-    mysql_user: str = "timao"
-    mysql_password: str = "timao-20251030"
-    mysql_database: str = "timao_live"
+    # MySQL配置 - 优先使用环境变量，支持本地和RDS
+    mysql_host: str = os.getenv("RDS_HOST", "localhost")
+    mysql_port: int = int(os.getenv("RDS_PORT", "3306"))
+    mysql_user: str = os.getenv("RDS_USER", "timao")
+    mysql_password: str = os.getenv("RDS_PASSWORD", "timao-20251030")
+    mysql_database: str = os.getenv("RDS_DATABASE", "timao_live")
     mysql_charset: str = "utf8mb4"
     
     # MySQL root账号配置（用于自动创建用户）
     mysql_root_password: str = "123456"  # 从环境变量 MYSQL_ROOT_PASSWORD 读取，默认123456
-    mysql_auto_create_user: bool = True  # 是否自动创建MySQL用户
+    mysql_auto_create_user: bool = False  # RDS不需要自动创建用户
     
     # 连接池配置
     pool_size: int = 20
