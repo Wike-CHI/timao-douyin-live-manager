@@ -136,6 +136,9 @@ const DouyinRelayPanel = ({
 }: DouyinRelayPanelProps) => {
   const [status, setStatus] = useState<DouyinRelayStatus | null>(null);
   const [chatLog, setChatLog] = useState<ChatEntry[]>(() => loadChatLogFromStorage(liveId));
+  // 使用 ref 保存最新的 chatLog，避免在 useEffect 依赖数组中包含 chatLog
+  // 这样可以避免每次 chatLog 更新时都重新运行 effect，减少不必要的 localStorage 写入
+  const chatLogRef = useRef<ChatEntry[]>(chatLog);
   const [rankList, setRankList] = useState<RankEntry[]>([]);
   const [eventLog, setEventLog] = useState<OtherEventEntry[]>([]);
   const [banner, setBanner] = useState<{ tone: StatusTone; message: string } | null>({
@@ -606,16 +609,24 @@ const DouyinRelayPanel = ({
     }
   }, [isRunning, liveId, baseUrl, connectStream, disconnectStream, refreshStatus]);
 
+  // 同步 chatLog 到 ref，确保 ref 始终是最新值
+  // 这样在清理函数中可以从 ref 读取最新值，而不需要将 chatLog 加入依赖数组
+  useEffect(() => {
+    chatLogRef.current = chatLog;
+  }, [chatLog]);
+
+  // 组件挂载/卸载和 liveId 变化时的处理
+  // 注意：不包含 chatLog 在依赖数组中，避免频繁重新运行
   useEffect(() => {
     refreshStatus();
     return () => {
       disconnectStream();
-      // 组件卸载前保存当前弹幕数据
-      if (liveId && chatLog.length > 0) {
-        saveChatLogToStorage(liveId, chatLog);
+      // 组件卸载前保存当前弹幕数据（从 ref 读取最新值，避免依赖 chatLog）
+      if (liveId && chatLogRef.current.length > 0) {
+        saveChatLogToStorage(liveId, chatLogRef.current);
       }
     };
-  }, [refreshStatus, disconnectStream, liveId, chatLog]);
+  }, [refreshStatus, disconnectStream, liveId]); // 移除 chatLog 依赖，避免频繁重新运行
 
   // 定期保存弹幕数据到本地存储（作为备份，防止意外丢失）
   useEffect(() => {
