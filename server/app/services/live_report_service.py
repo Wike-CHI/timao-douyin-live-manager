@@ -703,6 +703,11 @@ class LiveReportService:
         transcripts: List[Dict[str, Any]] = []
         await self._scan_segments()
         sv = await self._get_sv()
+        
+        # 🆕 计算每个分段的开始时间
+        segment_start_time = 0
+        segment_duration = self._session.segment_seconds  # 默认1800秒（30分钟）
+        
         for seg in sorted(self._session.segments, key=lambda x: x.get("seq", 0)):
             seg_path = Path(seg["path"])  # mp4
             pcm_path = seg_path.with_suffix(".pcm")
@@ -710,24 +715,47 @@ class LiveReportService:
             pcm_bytes = pcm_path.read_bytes()
             res = await sv.transcribe_audio(pcm_bytes)
             text = res.get("text", "") or ""
+            
+            # 🆕 保存带时间戳的分段信息
             transcripts.append({
                 "seq": seg.get("seq"),
                 "path": str(seg_path),
                 "text": text,
+                "start_time": segment_start_time,  # 🆕 分段开始时间（秒）
+                "end_time": segment_start_time + segment_duration,  # 🆕 分段结束时间
             })
+            
+            segment_start_time += segment_duration
+        
+        # 保存纯文本格式（兼容性）
         transcript_txt = "\n\n".join(
             [f"[Segment {t['seq']}]\n{t['text']}" for t in transcripts]
         )
         self._session.transcript_chars = len(transcript_txt)
         transcript_path = artifacts_dir / "transcript.txt"
         transcript_path.write_text(transcript_txt, encoding="utf-8")
+        
+        # 🆕 保存带时间戳的 JSONL 格式（用于精确触发点分析）
+        timestamped_transcript_path = artifacts_dir / "transcript_timestamped.jsonl"
+        with timestamped_transcript_path.open("w", encoding="utf-8") as f:
+            for t in transcripts:
+                f.write(json.dumps({
+                    "segment": t["seq"],
+                    "start_time": t["start_time"],
+                    "end_time": t["end_time"],
+                    "text": t["text"]
+                }, ensure_ascii=False) + "\n")
+        
+        logger.info(f"✅ 转写完成 - 总计 {len(transcripts)} 个分段，{len(transcript_txt)} 字符")
+        logger.info(f"📄 保存文件: transcript.txt (纯文本) + transcript_timestamped.jsonl (带时间戳)")
+        
         self._update_style_profile(transcript_txt, artifacts_dir)
 
-        # 使用 Gemini 2.5 Flash 进行复盘（超低成本，约 $0.000131/次）
+        # 🆕 使用增强版 Gemini 复盘（专注于内容质量和触发点分析）
         ai_summary: Dict[str, Any] | None = None
         try:
-            logger.info("🔄 开始使用 Gemini 生成复盘报告...")
-            from ...ai.gemini_adapter import generate_review_report  # lazy import
+            logger.info("🔄 开始使用增强版 Gemini 生成内容质量复盘...")
+            from ...ai.gemini_adapter_enhanced import generate_enhanced_review_report  # lazy import
             
             # 🆕 计算实际录制时长
             duration_seconds = 0
@@ -735,36 +763,64 @@ class LiveReportService:
                 duration_ms = self._session.stopped_at - self._session.started_at
                 duration_seconds = int(duration_ms / 1000)
             
+            # 🆕 读取带时间戳的转写（优先）或降级到纯文本
+            timestamped_transcript_path = artifacts_dir / "transcript_timestamped.jsonl"
+            if timestamped_transcript_path.exists():
+                timestamped_segments = []
+                with timestamped_transcript_path.open("r", encoding="utf-8") as f:
+                    for line in f:
+                        if line.strip():
+                            timestamped_segments.append(json.loads(line))
+                logger.info(f"📊 加载带时间戳转写 - {len(timestamped_segments)} 个分段")
+                transcript_data = timestamped_segments  # List[Dict] 格式
+            else:
+                logger.warning("⚠️ 未找到带时间戳转写文件，使用纯文本格式（精度较低）")
+                transcript_data = transcript_txt  # str 格式（降级）
+            
             # 准备复盘数据
             review_data = {
                 "session_id": self._session.session_id,
-                "transcript": transcript_txt,
+                "transcript": transcript_data,  # 🔄 传递带时间戳的转写或纯文本
                 "comments": self._comments,
                 "anchor_name": self._session.anchor_name,
                 "metrics": dict(self._agg) if hasattr(self, '_agg') else {},
-                "duration_seconds": duration_seconds,  # 🆕 添加时长
-                "viewer_snapshots": self._viewer_snapshots,  # 🆕 添加在线人数快照
+                "duration_seconds": duration_seconds,
+                "viewer_snapshots": self._viewer_snapshots,
             }
             
-            # 调用 Gemini 生成复盘
-            gemini_result = generate_review_report(review_data)
+            # 🆕 调用增强版 Gemini 生成复盘
+            gemini_result = generate_enhanced_review_report(review_data)
             
-            # 转换为旧格式以兼容 HTML 报告模板
+            # 🆕 转换为兼容格式，同时保留增强字段
             ai_summary = {
+                # 基础字段（兼容旧格式）
                 "summary": gemini_result.get("performance_analysis", {}).get("overall_assessment", ""),
                 "highlight_points": gemini_result.get("key_highlights", []),
                 "risks": gemini_result.get("key_issues", []),
                 "suggestions": gemini_result.get("improvement_suggestions", []),
-                "top_questions": [],  # Gemini 不返回此字段
-                "scripts": [],  # Gemini 不返回此字段
                 "overall_score": gemini_result.get("overall_score"),
                 "performance_analysis": gemini_result.get("performance_analysis"),
-                "trend_charts": gemini_result.get("trend_charts", {}),  # 🆕 保留趋势图数据
+                "trend_charts": gemini_result.get("trend_charts", {}),
+                
+                # 🆕 增强字段（专注于内容质量）
+                "content_topics": gemini_result.get("content_topics", {}),  # 话题分析
+                "trigger_analysis": gemini_result.get("trigger_analysis", {}),  # 触发点分析
+                "high_value_users": gemini_result.get("high_value_users", []),  # 高价值用户
+                "replicable_scripts": gemini_result.get("replicable_scripts", []),  # 可复制话术
+                "training_points": gemini_result.get("training_points", []),  # 训练要点
+                "event_statistics": gemini_result.get("event_statistics", {}),  # 事件统计
+                
+                # 兼容字段
+                "top_questions": [],
+                "scripts": gemini_result.get("replicable_scripts", []),  # 使用新的可复制话术
+                
+                # 元数据
                 "gemini_metadata": {
                     "model": gemini_result.get("ai_model", "gemini-2.5-flash"),
                     "cost": gemini_result.get("generation_cost", 0),
                     "tokens": gemini_result.get("generation_tokens", 0),
-                    "duration": gemini_result.get("generation_duration", 0)
+                    "duration": gemini_result.get("generation_duration", 0),
+                    "analysis_type": "enhanced_content_quality"  # 🆕 标记为增强版分析
                 }
             }
             
@@ -773,9 +829,11 @@ class LiveReportService:
             )
             
             logger.info(
-                f"✅ Gemini 复盘完成 - 评分: {ai_summary.get('overall_score')}/100, "
+                f"✅ 增强版Gemini复盘完成 - 评分: {ai_summary.get('overall_score')}/100, "
                 f"成本: ${ai_summary['gemini_metadata']['cost']:.6f}, "
-                f"耗时: {ai_summary['gemini_metadata']['duration']:.2f}s"
+                f"耗时: {ai_summary['gemini_metadata']['duration']:.2f}s, "
+                f"话题: {len(ai_summary.get('content_topics', {}).get('anchor_topics', []))}个, "
+                f"触发点: {len(ai_summary.get('trigger_analysis', {}).get('consumption_triggers', []))}个"
             )
             
         except Exception as e:
