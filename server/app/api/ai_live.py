@@ -19,6 +19,7 @@ router = APIRouter(prefix="/api/ai/live", tags=["ai-live"])
 
 class StartReq(BaseModel):
     window_sec: int = Field(60, ge=30, le=600)
+    session_id: Optional[str] = Field(None, description="统一会话ID（可选，如果不提供将从统一会话管理器获取）")
 
 
 class AnswerRequest(BaseModel):
@@ -31,7 +32,7 @@ class AnswerRequest(BaseModel):
 @router.post("/start")
 async def start_ai(req: StartReq):
     svc = get_ai_live_analyzer()
-    res = await svc.start(req.window_sec)
+    res = await svc.start(req.window_sec, session_id=req.session_id)
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("message", "failed"))
     return res

@@ -78,6 +78,53 @@ const chatCategoryLabel: Record<ChatCategory, string> = {
   system: '系统',
 };
 
+// 本地存储工具函数
+const STORAGE_KEY_PREFIX = 'timao-douyin-chat-';
+const MAX_STORED_MESSAGES = 500; // 最多保存500条弹幕
+
+const loadChatLogFromStorage = (liveId: string | undefined): ChatEntry[] => {
+  if (!liveId) return [];
+  try {
+    const key = `${STORAGE_KEY_PREFIX}${liveId}`;
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      const parsed = JSON.parse(stored) as ChatEntry[];
+      // 按时间戳排序（最新的在前）
+      return parsed.sort((a, b) => b.timestamp - a.timestamp);
+    }
+  } catch (error) {
+    console.error('加载弹幕数据失败:', error);
+  }
+  return [];
+};
+
+const saveChatLogToStorage = (liveId: string | undefined, chatLog: ChatEntry[]) => {
+  if (!liveId) return;
+  try {
+    const key = `${STORAGE_KEY_PREFIX}${liveId}`;
+    // 只保存最新的 MAX_STORED_MESSAGES 条
+    const toSave = chatLog.slice(0, MAX_STORED_MESSAGES);
+    localStorage.setItem(key, JSON.stringify(toSave));
+  } catch (error) {
+    console.error('保存弹幕数据失败:', error);
+    // 如果存储空间不足，尝试清理旧数据
+    try {
+      const keys = Object.keys(localStorage).filter(k => k.startsWith(STORAGE_KEY_PREFIX));
+      if (keys.length > 10) {
+        // 保留最新的10个直播间数据，删除最旧的
+        const sortedKeys = keys.sort((a, b) => {
+          const aTime = localStorage.getItem(a) ? JSON.parse(localStorage.getItem(a) || '[]')[0]?.timestamp || 0 : 0;
+          const bTime = localStorage.getItem(b) ? JSON.parse(localStorage.getItem(b) || '[]')[0]?.timestamp || 0 : 0;
+          return bTime - aTime;
+        });
+        sortedKeys.slice(10).forEach(k => localStorage.removeItem(k));
+      }
+    } catch (cleanError) {
+      console.error('清理旧数据失败:', cleanError);
+    }
+  }
+};
+
 const DouyinRelayPanel = ({ 
   baseUrl, 
   maxMessages = DEFAULT_MAX_MESSAGES, 
@@ -88,7 +135,7 @@ const DouyinRelayPanel = ({
   onStop // 从父组件接收停止回调
 }: DouyinRelayPanelProps) => {
   const [status, setStatus] = useState<DouyinRelayStatus | null>(null);
-  const [chatLog, setChatLog] = useState<ChatEntry[]>([]);
+  const [chatLog, setChatLog] = useState<ChatEntry[]>(() => loadChatLogFromStorage(liveId));
   const [rankList, setRankList] = useState<RankEntry[]>([]);
   const [eventLog, setEventLog] = useState<OtherEventEntry[]>([]);
   const [banner, setBanner] = useState<{ tone: StatusTone; message: string } | null>({
@@ -121,8 +168,13 @@ const DouyinRelayPanel = ({
 
   const appendChat = useCallback((entry: ChatEntry) => {
     // 不裁剪条数：完整保留会话中的弹幕/礼物/点赞；滚动列表负责展示
-    setChatLog((prev) => [entry, ...prev]);
-  }, []);
+    setChatLog((prev) => {
+      const updated = [entry, ...prev];
+      // 异步保存到本地存储，避免阻塞UI
+      setTimeout(() => saveChatLogToStorage(liveId, updated), 0);
+      return updated;
+    });
+  }, [liveId]);
 
   const pushSystemMessage = useCallback(
     (content: string) => {
@@ -482,6 +534,23 @@ const DouyinRelayPanel = ({
     }
   }, [baseUrl, connectStream, disconnectStream]);
 
+  // 当 liveId 变化时，从本地存储恢复对应直播间的弹幕数据
+  useEffect(() => {
+    if (liveId) {
+      const stored = loadChatLogFromStorage(liveId);
+      if (stored.length > 0) {
+        setChatLog(stored);
+        console.log(`📦 已恢复 ${stored.length} 条弹幕记录（直播间: ${liveId}）`);
+      } else {
+        // 切换直播间时，如果没有历史数据，清空当前显示
+        setChatLog([]);
+      }
+    } else {
+      // liveId 为空时，清空显示
+      setChatLog([]);
+    }
+  }, [liveId]);
+
   // 使用从父组件传入的 liveId 和 isRunning 状态
   useEffect(() => {
     if (isRunning && liveId) {
@@ -541,8 +610,23 @@ const DouyinRelayPanel = ({
     refreshStatus();
     return () => {
       disconnectStream();
+      // 组件卸载前保存当前弹幕数据
+      if (liveId && chatLog.length > 0) {
+        saveChatLogToStorage(liveId, chatLog);
+      }
     };
-  }, [refreshStatus, disconnectStream]);
+  }, [refreshStatus, disconnectStream, liveId, chatLog]);
+
+  // 定期保存弹幕数据到本地存储（作为备份，防止意外丢失）
+  useEffect(() => {
+    if (!liveId || chatLog.length === 0) return;
+    
+    const saveInterval = setInterval(() => {
+      saveChatLogToStorage(liveId, chatLog);
+    }, 30000); // 每30秒保存一次
+
+    return () => clearInterval(saveInterval);
+  }, [liveId, chatLog]);
 
   const currentStatusText = useMemo(() => {
     if (isRunning) {
@@ -583,7 +667,24 @@ const DouyinRelayPanel = ({
             <span>💬</span>
             实时弹幕
           </h4>
-          <span className="text-xs timao-support-text">{chatLog.length} 条</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs timao-support-text">{chatLog.length} 条</span>
+            {chatLog.length > 0 && (
+              <button
+                className="timao-outline-btn text-[10px] px-2 py-0.5"
+                onClick={() => {
+                  if (liveId && confirm('确定要清空当前直播间的弹幕记录吗？')) {
+                    setChatLog([]);
+                    const key = `${STORAGE_KEY_PREFIX}${liveId}`;
+                    localStorage.removeItem(key);
+                  }
+                }}
+                title="清空当前直播间的弹幕记录"
+              >
+                清空
+              </button>
+            )}
+          </div>
         </div>
         <div className="max-h-[400px] space-y-3 overflow-y-auto pr-1 flex-1 custom-scrollbar">
           {chatLog.length === 0 ? (

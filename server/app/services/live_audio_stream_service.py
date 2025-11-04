@@ -358,11 +358,31 @@ class LiveAudioStreamService:
             if self._sv is None:
                 raise RuntimeError("SenseVoice initialize failed")
 
+            # 🆕 使用统一会话管理器的session_id（如果提供）
+            # 如果没有提供，尝试从统一会话管理器获取
+            if not session_id:
+                try:
+                    from .live_session_manager import get_session_manager
+                    session_mgr = get_session_manager()
+                    current_session = await session_mgr.get_current_session()
+                    if current_session:
+                        session_id = current_session.session_id
+                        # 更新统一会话状态
+                        await session_mgr.update_session(
+                            audio_transcription_active=True,
+                            audio_session_id=session_id
+                        )
+                except Exception as e:
+                    self.logger.warning(f"获取统一会话失败: {e}")
+            
+            # 如果没有统一会话，使用默认session_id
+            final_session_id = session_id or f"live_audio_{int(time.time())}"
+            
             self._status = LiveAudioStatus(
                 is_running=True,
                 live_url=str(resolved_live_url or f"https://live.douyin.com/{live_id}"),
                 live_id=live_id,
-                session_id=session_id or f"live_{int(time.time())}",
+                session_id=final_session_id,
                 started_at=_now(),
             )
             self._agc_gain = 1.0
@@ -403,12 +423,33 @@ class LiveAudioStreamService:
             # Prepare persistence writer
             if self.persist_enabled and JSONLWriter is not None:
                 try:
-                    root = Path(self.persist_root or (PROJECT_ROOT / "records" / "live_logs")).resolve()
-                    day = time.strftime("%Y-%m-%d", time.localtime())
-                    out_dir = root / (self._status.live_id or "unknown") / day
-                    self._persist_tr = JSONLWriter(out_dir / f"transcripts_{self._status.session_id}.jsonl")
+                    # 🆕 如果有关联的session_id，按session存储；否则按旧方式存储
+                    if session_id:
+                        from .live_session_manager import get_session_manager
+                        session_mgr = get_session_manager()
+                        session_dir = session_mgr.get_session_data_dir(session_id)
+                        if session_dir:
+                            out_dir = session_dir / "artifacts"
+                            out_dir.mkdir(parents=True, exist_ok=True)
+                            self._persist_tr = JSONLWriter(out_dir / "transcripts.jsonl")
+                        else:
+                            # 回退到旧方式
+                            root = Path(self.persist_root or (PROJECT_ROOT / "records" / "live_logs")).resolve()
+                            day = time.strftime("%Y-%m-%d", time.localtime())
+                            out_dir = root / (self._status.live_id or "unknown") / day
+                            out_dir.mkdir(parents=True, exist_ok=True)
+                            self._persist_tr = JSONLWriter(out_dir / f"transcripts_{self._status.session_id}.jsonl")
+                    else:
+                        # 旧方式：按日期和live_id存储
+                        root = Path(self.persist_root or (PROJECT_ROOT / "records" / "live_logs")).resolve()
+                        day = time.strftime("%Y-%m-%d", time.localtime())
+                        out_dir = root / (self._status.live_id or "unknown") / day
+                        out_dir.mkdir(parents=True, exist_ok=True)
+                        self._persist_tr = JSONLWriter(out_dir / f"transcripts_{self._status.session_id}.jsonl")
+                    
                     self._persist_tr.open()
-                except Exception:
+                except Exception as e:
+                    self.logger.warning(f"转写持久化初始化失败: {e}")
                     self._persist_tr = None
 
             # Start ffmpeg to pipe raw PCM s16le 16k mono to stdout
@@ -462,6 +503,18 @@ class LiveAudioStreamService:
             raise e
 
     async def stop(self) -> LiveAudioStatus:
+        # 🆕 更新统一会话状态
+        try:
+            from .live_session_manager import get_session_manager
+            session_mgr = get_session_manager()
+            if session_mgr and self._status.session_id:
+                await session_mgr.update_session(
+                    audio_transcription_active=False
+                )
+        except Exception as e:
+            self.logger.warning(f"更新统一会话状态失败: {e}")
+        
+        # 原有逻辑
         self._stop_evt.set()
         if self._reader_task:
             self._reader_task.cancel()

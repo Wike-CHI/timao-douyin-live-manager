@@ -75,21 +75,53 @@ class AILiveAnalyzer:
         self._init_workflow()
 
     # -------------- Public API --------------
-    async def start(self, window_sec: int = 90) -> Dict[str, Any]:
+    async def start(self, window_sec: int = 90, session_id: Optional[str] = None) -> Dict[str, Any]:
         async with self._lock:
             if self._state.active:
                 return {"success": True, "message": "already running"}
+            
+            # 🆕 如果没有提供session_id，尝试从统一会话管理器获取
+            if not session_id:
+                try:
+                    from .live_session_manager import get_session_manager
+                    session_mgr = get_session_manager()
+                    current_session = await session_mgr.get_current_session()
+                    if current_session:
+                        session_id = current_session.session_id
+                        # 更新统一会话状态
+                        await session_mgr.update_session(
+                            ai_analysis_active=True,
+                            ai_session_id=session_id
+                        )
+                except Exception as e:
+                    logger.warning(f"获取统一会话失败: {e}")
+            
             self._state = AIState(
                 active=True,
                 window_sec=max(30, int(window_sec)),
                 anchor_id=self._anchor_id,
             )
+            
+            # 🆕 保存session_id到state中（如果有AIState需要扩展字段）
+            self._session_id = session_id
+            
             await self._attach_hooks()
             self._task = asyncio.create_task(self._run_loop())
-            return {"success": True}
+            return {"success": True, "session_id": session_id}
 
     async def stop(self) -> Dict[str, Any]:
         async with self._lock:
+            # 🆕 更新统一会话状态
+            try:
+                from .live_session_manager import get_session_manager
+                session_mgr = get_session_manager()
+                if session_mgr and self._session_id:
+                    await session_mgr.update_session(
+                        ai_analysis_active=False
+                    )
+            except Exception as e:
+                logger.warning(f"更新统一会话状态失败: {e}")
+            
             self._state.active = False
             await self._detach_hooks()
             if self._task:
@@ -215,8 +247,9 @@ class AILiveAnalyzer:
                             queries.append(str(name))
                     
                     # 构建AI话题生成的上下文
+                    transcript_snippet = result.get("transcript_snippet", "") or ""
                     context = {
-                        'transcript': transcript or "",
+                        'transcript': transcript_snippet,
                         'chat_messages': [],
                         'persona': result.get("persona", {}),
                         'vibe': result.get("vibe", {}),

@@ -316,6 +316,7 @@ def _include_router_safe(desc: str, import_path: str):
 _include_router_safe("直播音频转写", "server.app.api.live_audio")
 _include_router_safe("直播复盘", "server.app.api.live_report")
 _include_router_safe("直播复盘分析", "server.app.api.live_review")  # 新增：Gemini 复盘
+_include_router_safe("统一会话管理", "server.app.api.live_session")  # 🆕 统一会话管理
 _include_router_safe("AI 测试", "server.app.api.ai_test")
 _include_router_safe("抖音 API", "server.app.api.douyin")
 _include_router_safe("抖音 Web 测试", "server.app.api.douyin_web")

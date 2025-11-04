@@ -35,6 +35,7 @@ class RelayStatus:
     is_running: bool = False
     live_id: Optional[str] = None
     room_id: Optional[str] = None
+    session_id: Optional[str] = None  # 🆕 绑定到统一会话
     last_error: Optional[str] = None
 
 
@@ -308,7 +309,7 @@ class DouyinWebRelay:
     # ------------------------------------------------------------------
     # 启动 / 停止
     # ------------------------------------------------------------------
-    async def start(self, live_id: str) -> Dict[str, Any]:
+    async def start(self, live_id: str, session_id: Optional[str] = None) -> Dict[str, Any]:
         async with self._lock:
             if self._status.is_running:
                 if self._status.live_id == live_id:
@@ -316,7 +317,7 @@ class DouyinWebRelay:
                 await self.stop()
 
             self._event_loop = asyncio.get_running_loop()
-            self._status = RelayStatus(is_running=True, live_id=live_id)
+            self._status = RelayStatus(is_running=True, live_id=live_id, session_id=session_id)
             self._status.last_error = None
             self._status.room_id = None
             log_service_start("抖音直播互动服务", live_id=live_id)
@@ -431,13 +432,34 @@ class DouyinWebRelay:
                 try:
                     from pathlib import Path
                     from server.utils.jsonl_writer import JSONLWriter  # type: ignore
-                    root = Path(self._persist_root or "records/live_logs").resolve()
-                    day = time.strftime("%Y-%m-%d", time.localtime())
-                    out_dir = root / (self._status.live_id or "unknown") / day
-                    fn = out_dir / f"danmu_{int(time.time())}.jsonl"
+                    root = Path(self._persist_root or "records").resolve()
+                    
+                    # 🆕 如果有关联的session_id，按session存储；否则按旧方式存储
+                    if self._status.session_id:
+                        from .live_session_manager import get_session_manager
+                        session_mgr = get_session_manager()
+                        session_dir = session_mgr.get_session_data_dir(self._status.session_id)
+                        if session_dir:
+                            out_dir = session_dir / "artifacts"
+                            out_dir.mkdir(parents=True, exist_ok=True)
+                            fn = out_dir / "comments.jsonl"
+                        else:
+                            # 回退到旧方式
+                            day = time.strftime("%Y-%m-%d", time.localtime())
+                            out_dir = root / "live_logs" / (self._status.live_id or "unknown") / day
+                            out_dir.mkdir(parents=True, exist_ok=True)
+                            fn = out_dir / f"danmu_{int(time.time())}.jsonl"
+                    else:
+                        # 旧方式：按日期和live_id存储
+                        day = time.strftime("%Y-%m-%d", time.localtime())
+                        out_dir = root / "live_logs" / (self._status.live_id or "unknown") / day
+                        out_dir.mkdir(parents=True, exist_ok=True)
+                        fn = out_dir / f"danmu_{int(time.time())}.jsonl"
+                    
                     self._writer = JSONLWriter(fn)
                     self._writer.open()
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"弹幕持久化初始化失败: {e}")
                     self._writer = None
             return {"success": True, "live_id": live_id}
 
@@ -446,14 +468,28 @@ class DouyinWebRelay:
             if not self._status.is_running:
                 return {"success": True, "message": "未在运行"}
 
+            # 🆕 更新统一会话状态
+            try:
+                if self._status.session_id:
+                    from .live_session_manager import get_session_manager
+                    session_mgr = get_session_manager()
+                    if session_mgr:
+                        await session_mgr.update_session(
+                            douyin_relay_active=False
+                        )
+            except Exception as e:
+                logger.warning(f"更新统一会话状态失败: {e}")
+
             fetcher = self._fetcher
             thread = self._thread
             live_id = self._status.live_id
             room_id = self._status.room_id
+            session_id = self._status.session_id
             self._status.is_running = False
             self._status.live_id = None
+            self._status.session_id = None
 
-            log_service_stop("抖音直播互动服务", live_id=live_id, room_id=room_id)
+            log_service_stop("抖音直播互动服务", live_id=live_id, room_id=room_id, session_id=session_id)
 
             if fetcher:
                 await asyncio.to_thread(fetcher.stop)

@@ -38,6 +38,7 @@ from server.modules.streamcap.media import create_builder  # type: ignore
 # server/services/* and crashes with "No module named 'server.services'" when
 # FastAPI includes this router. We import from the current package instead.
 from .douyin_web_relay import get_douyin_web_relay  # type: ignore
+from .live_session_manager import get_session_manager  # 🆕 统一会话管理
 
 # SenseVoice batch API: transcribe PCM16 mono @ 16k
 from server.modules.ast.sensevoice_service import (  # type: ignore
@@ -270,6 +271,9 @@ class LiveReportService:
 
     # ---------- Public API ----------
     async def start(self, live_url: str, segment_minutes: int = 30) -> LiveReportStatus:
+        # 🆕 使用统一会话管理器
+        session_mgr = get_session_manager()
+        
         # 检查是否有活跃的录制会话（正在录制中）
         if self._session is not None and self._ffmpeg_proc is not None:
             raise RuntimeError("Live report session already started")
@@ -307,12 +311,34 @@ class LiveReportService:
 
             anchor = _safe_name(anchor_raw)
             day = time.strftime("%Y-%m-%d", time.localtime())
-            session_id = f"live_{platform}_{anchor}_{int(time.time())}"
-            day_dir = self.records_root / platform / anchor / day
-            existing_sessions = [p for p in day_dir.glob("live_*") if p.is_dir()]
-            session_index = len(existing_sessions) + 1
-            out_dir = day_dir / session_id
-            out_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 🆕 使用统一会话管理器创建会话
+            unified_session = await session_mgr.create_session(
+                live_url=live_url,
+                live_id=live_id,
+                room_id=None,  # 稍后从弹幕服务获取
+                anchor_name=anchor,
+                platform_key=platform
+            )
+            session_id = unified_session.session_id
+            
+            # 🆕 使用统一的会话目录
+            session_dir = session_mgr.get_session_data_dir(session_id)
+            if session_dir:
+                out_dir = session_dir
+            else:
+                # 回退到旧方式
+                day_dir = self.records_root / platform / anchor / day
+                existing_sessions = [p for p in day_dir.glob("live_*") if p.is_dir()]
+                session_index = len(existing_sessions) + 1
+                out_dir = day_dir / session_id
+                out_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 🆕 更新统一会话状态
+            await session_mgr.update_session(
+                recording_active=True,
+                recording_session_id=session_id
+            )
 
             seg_secs = max(300, int(segment_minutes) * 60)
             pattern = str(out_dir / f"{anchor}_%Y%m%d_%H%M%S_%03d.mp4")
@@ -366,9 +392,23 @@ class LiveReportService:
             # Start Douyin relay and consume events into in-memory buffer
             relay = get_douyin_web_relay()
             if live_id:
-                logger.info(f"🚀 启动抖音弹幕采集，房间ID: {live_id}")
-                await relay.start(live_id)
+                logger.info(f"🚀 启动抖音弹幕采集，房间ID: {live_id}, session_id: {session_id}")
+                # 🆕 传递session_id给弹幕服务
+                await relay.start(live_id, session_id=session_id)
                 logger.info(f"✅ 弹幕 relay 启动成功")
+                
+                # 🆕 等待获取room_id后更新统一会话
+                for _ in range(20):
+                    relay_status = relay.get_status()
+                    if relay_status.room_id:
+                        await session_mgr.update_session(
+                            room_id=relay_status.room_id,
+                            douyin_relay_active=True,
+                            douyin_session_id=session_id
+                        )
+                        logger.info(f"✅ 已更新统一会话 room_id: {relay_status.room_id}")
+                        break
+                    await asyncio.sleep(0.25)
             else:
                 logger.warning(f"⚠️ 无法获取房间ID，弹幕采集可能失败")
             
@@ -427,6 +467,18 @@ class LiveReportService:
             raise e
 
     async def stop(self) -> LiveReportStatus:
+        # 🆕 更新统一会话状态
+        session_mgr = get_session_manager()
+        if session_mgr:
+            try:
+                await session_mgr.update_session(
+                    recording_active=False,
+                    status="stopped"
+                )
+            except Exception as e:
+                logger.warning(f"更新统一会话状态失败: {e}")
+        
+        # 原有逻辑
         if not self._session:
             # 返回一个默认的停止状态，而不是抛出异常
             return LiveReportStatus(

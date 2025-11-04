@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../store/useAuthStore';
 import { startAILiveAnalysis, stopAILiveAnalysis, openAILiveStream, generateAnswerScripts } from '../../services/ai';
 import { useLiveConsoleStore, getLiveConsoleSocket } from '../../store/useLiveConsoleStore';
+import { getSessionStatus, resumeSession, resumePausedSession, type LiveSessionState } from '../../services/liveSession';
 
 // Note: Do not cap transcript items; persist to disk is handled by backend.
 // We keep full in-memory log for current session (may grow large for long sessions).
@@ -76,12 +77,16 @@ const LiveConsolePage = () => {
   const [lastSpeaker, setLastSpeaker] = useState<string>('unknown');
   const [douyinStatus, setDouyinStatus] = useState<any>(null);
   const [douyinConnected, setDouyinConnected] = useState<boolean>(false);
+  const [sessionState, setSessionState] = useState<LiveSessionState | null>(null);
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
+  const [resumingSession, setResumingSession] = useState(false);
   const navigate = useNavigate();
   const { isPaid, user } = useAuthStore();
 
   const isRunning = status?.is_running ?? false;
   const isSuperAdmin = user?.role === 'super_admin';
   const generatingRef = useRef(false);
+  const sessionCheckedRef = useRef(false);
 
   const speakerLabelShort = useCallback((value?: string | null) => {
     if (!value) return '未识别';
@@ -254,6 +259,141 @@ const LiveConsolePage = () => {
     timer = setInterval(poll, 5000);
     return () => clearInterval(timer);
   }, [setReportStatus]);
+
+  // 🆕 页面加载时检查是否有可恢复的会话
+  useEffect(() => {
+    if (sessionCheckedRef.current) return;
+    sessionCheckedRef.current = true;
+
+    const checkResumableSession = async () => {
+      try {
+        const response = await getSessionStatus(FASTAPI_BASE_URL);
+        if (response.success && response.data?.session) {
+          const session = response.data.session;
+          // 如果会话状态是 recording 或 paused，显示恢复提示
+          if (session.status === 'recording' || session.status === 'paused') {
+            setSessionState(session);
+            setShowResumeDialog(true);
+            console.log('📦 发现可恢复的会话:', session.session_id);
+          }
+        }
+      } catch (err) {
+        console.warn('检查可恢复会话失败:', err);
+        // 检查失败不影响正常使用
+      }
+    };
+
+    // 延迟检查，确保页面已加载
+    setTimeout(checkResumableSession, 1000);
+  }, []);
+
+  // 🆕 处理会话恢复
+  const handleResumeSession = async () => {
+    if (!sessionState || resumingSession) return;
+
+    setResumingSession(true);
+    setError(null);
+
+    try {
+      console.log('🔄 开始恢复会话:', sessionState.session_id);
+
+      // 恢复统一会话
+      const resumeResponse = await resumeSession(FASTAPI_BASE_URL);
+      if (!resumeResponse.success || !resumeResponse.data?.session) {
+        throw new Error(resumeResponse.message || '恢复会话失败');
+      }
+
+      const resumedSession = resumeResponse.data.session;
+      console.log('✅ 统一会话已恢复:', resumedSession.session_id);
+
+      // 恢复各服务状态
+      const servicesToResume: string[] = [];
+
+      if (resumedSession.recording_active) {
+        servicesToResume.push('录制服务');
+        // 录制服务会自动从会话恢复
+        try {
+          await getLiveReportStatus(FASTAPI_BASE_URL);
+        } catch (err) {
+          console.warn('检查录制服务状态失败:', err);
+        }
+      }
+
+      if (resumedSession.douyin_relay_active && resumedSession.live_id) {
+        servicesToResume.push('弹幕服务');
+        try {
+          await startDouyinRelay(resumedSession.live_id, FASTAPI_BASE_URL);
+          await updateDouyinPersist({ persist_enabled: true }, FASTAPI_BASE_URL);
+        } catch (err) {
+          console.warn('恢复弹幕服务失败:', err);
+        }
+      }
+
+      if (resumedSession.audio_transcription_active && resumedSession.live_url) {
+        servicesToResume.push('转写服务');
+        try {
+          await startLiveAudio({ live_url: resumedSession.live_url }, FASTAPI_BASE_URL);
+          connectWebSocket(FASTAPI_BASE_URL);
+          await updateLiveAudioAdvanced(
+            {
+              persist_enabled: true,
+              agc: agcEnabled,
+              diarization: diarizationEnabled,
+              max_speakers: diarizationEnabled ? maxSpeakers : 1,
+            },
+            FASTAPI_BASE_URL
+          );
+        } catch (err) {
+          console.warn('恢复转写服务失败:', err);
+        }
+      }
+
+      if (resumedSession.ai_analysis_active) {
+        servicesToResume.push('AI分析服务');
+        try {
+          await startAILiveAnalysis({ window_sec: 30 }, FASTAPI_BASE_URL);
+          analysisBootRef.current = true;
+          connectAIStream();
+        } catch (err) {
+          console.warn('恢复AI分析服务失败:', err);
+        }
+      }
+
+      // 如果会话是暂停状态，恢复暂停状态
+      if (resumedSession.status === 'paused') {
+        try {
+          await resumePausedSession(FASTAPI_BASE_URL);
+        } catch (err) {
+          console.warn('恢复暂停状态失败:', err);
+        }
+      }
+
+      // 更新liveInput以显示恢复的直播间
+      if (resumedSession.live_id) {
+        setLiveInput(resumedSession.live_id);
+      }
+
+      // 刷新状态
+      await refreshStatus();
+
+      setShowResumeDialog(false);
+      setSessionState(null);
+
+      console.log('✅ 会话恢复完成，已恢复服务:', servicesToResume.join(', '));
+    } catch (err) {
+      console.error('恢复会话失败:', err);
+      setError((err as Error).message || '恢复会话失败');
+      setShowResumeDialog(false);
+    } finally {
+      setResumingSession(false);
+    }
+  };
+
+  // 🆕 忽略恢复，开始新的会话
+  const handleIgnoreResume = () => {
+    setShowResumeDialog(false);
+    setSessionState(null);
+  };
 
   const handleStart = async () => {
     if (isStarting) {
@@ -992,6 +1132,86 @@ const LiveConsolePage = () => {
 
       {error ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
+      ) : null}
+
+      {/* 🆕 会话恢复提示对话框 */}
+      {showResumeDialog && sessionState ? (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="text-3xl">📦</div>
+              <div>
+                <h3 className="text-lg font-semibold text-purple-600">发现可恢复的会话</h3>
+                <p className="text-sm text-gray-500">检测到之前的直播会话，是否恢复？</p>
+              </div>
+            </div>
+            
+            <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">直播间ID:</span>
+                <span className="font-mono text-gray-800">{sessionState.live_id || '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Room ID:</span>
+                <span className="font-mono text-gray-800">{sessionState.room_id || '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">主播:</span>
+                <span className="text-gray-800">{sessionState.anchor_name || '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">会话状态:</span>
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                  sessionState.status === 'recording' 
+                    ? 'bg-emerald-100 text-emerald-700' 
+                    : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {sessionState.status === 'recording' ? '录制中' : '已暂停'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">开始时间:</span>
+                <span className="text-gray-800">
+                  {new Date(sessionState.started_at).toLocaleString('zh-CN')}
+                </span>
+              </div>
+              <div className="flex justify-between pt-2 border-t border-gray-200">
+                <span className="text-gray-600">活跃服务:</span>
+                <div className="flex gap-1 flex-wrap">
+                  {sessionState.recording_active && (
+                    <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">录制</span>
+                  )}
+                  {sessionState.audio_transcription_active && (
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">转写</span>
+                  )}
+                  {sessionState.ai_analysis_active && (
+                    <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">AI</span>
+                  )}
+                  {sessionState.douyin_relay_active && (
+                    <span className="px-2 py-0.5 bg-pink-100 text-pink-700 rounded text-xs">弹幕</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                className="flex-1 timao-primary-btn"
+                onClick={handleResumeSession}
+                disabled={resumingSession}
+              >
+                {resumingSession ? '恢复中...' : '恢复会话'}
+              </button>
+              <button
+                className="flex-1 timao-outline-btn"
+                onClick={handleIgnoreResume}
+                disabled={resumingSession}
+              >
+                忽略，开始新会话
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {/* 四宫格布局 */}
