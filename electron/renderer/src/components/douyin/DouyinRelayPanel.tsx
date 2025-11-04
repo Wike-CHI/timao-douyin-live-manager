@@ -237,10 +237,24 @@ const DouyinRelayPanel = ({
             const maxRetries = payload.max_retries as number | undefined;
             const error = payload.error as string | undefined;
             const nextRetryIn = payload.next_retry_in as number | undefined;
+            const successRate = payload.success_rate as number | undefined;
+            const successCount = payload.success_count as number | undefined;
+            const totalFailures = payload.total_failures as number | undefined;
+            
             const delayText = nextRetryIn ? ` (${Math.round(nextRetryIn)}秒后重试)` : '';
+            let rateText = '';
+            if (successRate !== undefined && successCount !== undefined && totalFailures !== undefined) {
+              const total = successCount + totalFailures;
+              if (total > 0) {
+                rateText = ` | 成功率: ${(successRate * 100).toFixed(1)}% (成功${successCount}次/失败${totalFailures}次)`;
+              }
+            } else if (successRate !== undefined) {
+              rateText = ` | 成功率: ${(successRate * 100).toFixed(1)}%`;
+            }
+            
             setBanner({ 
               tone: 'warning', 
-              message: `连接失败，正在重试 (${attempt}/${maxRetries})${delayText}${error ? `: ${error}` : ''}` 
+              message: `连接失败，正在重试 (${attempt}/${maxRetries})${delayText}${rateText}${error ? `: ${error}` : ''}` 
             });
           } else if (stage === 'room_ready') {
             const roomId = (payload.room_id as string | number | undefined) ?? null;
@@ -301,7 +315,24 @@ const DouyinRelayPanel = ({
         }
         case 'error': {
           const message = (payload.message as string | undefined) ?? '连接异常';
-          setBanner({ tone: 'error', message: `连接异常：${message}` });
+          const successRate = payload.success_rate as number | undefined;
+          const successCount = payload.success_count as number | undefined;
+          const totalFailures = payload.total_failures as number | undefined;
+          const attempt = payload.attempt as number | undefined;
+          const maxRetries = payload.max_retries as number | undefined;
+          
+          let fullMessage = `连接异常：${message}`;
+          if (successRate !== undefined && successCount !== undefined && totalFailures !== undefined) {
+            const total = successCount + totalFailures;
+            if (total > 0) {
+              fullMessage += ` (成功率: ${(successRate * 100).toFixed(1)}%, 成功${successCount}次/失败${totalFailures}次)`;
+            }
+          }
+          if (attempt !== undefined && maxRetries !== undefined) {
+            fullMessage += ` (已尝试 ${attempt}/${maxRetries} 次)`;
+          }
+          
+          setBanner({ tone: 'error', message: fullMessage });
           setStatus((prev) =>
             prev
               ? { ...prev, last_error: message }

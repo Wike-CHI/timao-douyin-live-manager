@@ -198,7 +198,16 @@ class _WebRelayFetcher(DouyinLiveWebFetcher):
     def _parseRankMsg(self, payload):  # noqa: N802
         message = RoomRankMessage().parse(payload)
         ranks: List[Dict[str, Any]] = []
-        for item in message.ranks_list:
+        # 安全处理 ranks_list，可能为 None
+        ranks_list = getattr(message, 'ranks_list', None)
+        if ranks_list is None:
+            return
+        # 确保 ranks_list 是可迭代的
+        try:
+            iter(ranks_list)
+        except TypeError:
+            return
+        for item in ranks_list:
             avatar = None
             if item.user.avatar_thumb and item.user.avatar_thumb.url_list_list:
                 avatar = item.user.avatar_thumb.url_list_list[0]

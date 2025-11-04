@@ -141,12 +141,22 @@ class DouyinConnectionManager:
         self.state.status = ConnectionStatus.CONNECTED
         self.state.attempt = 0  # 重置尝试次数
         
-        logger.info(f"✅ {message} (成功{self.state.success_count}次)")
+        success_rate = self.get_success_rate()
+        total = self.state.success_count + self.state.total_failures
+        if total > 0:
+            logger.info(
+                f"✅ {message} (成功{self.state.success_count}次/失败{self.state.total_failures}次, "
+                f"成功率: {success_rate:.1%})"
+            )
+        else:
+            logger.info(f"✅ {message}")
         
         self._emit_status("status", {
             "stage": "connected",
             "message": message,
             "success_count": self.state.success_count,
+            "total_failures": self.state.total_failures,
+            "success_rate": success_rate,
         })
     
     def record_failure(self, error: Exception | str, is_retryable: bool = True):
@@ -154,50 +164,107 @@ class DouyinConnectionManager:
         error_msg = str(error) if error else "未知错误"
         self.state.record_failure(error_msg)
         
-        # 判断错误类型
+        # 判断错误类型并生成友好的错误说明
         error_lower = error_msg.lower()
         is_network_error = any(keyword in error_lower for keyword in [
             "timeout", "connection", "网络", "noneType", "not iterable",
             "bogus", "signature", "403", "400", "请求失败"
         ])
         
+        # 生成友好的错误说明
+        error_description = self._get_error_description(error_msg)
+        
         if not self.should_retry():
             self.state.status = ConnectionStatus.FAILED
-            logger.error(f"❌ 连接失败（已达最大重试次数）: {error_msg}")
+            success_rate = self.get_success_rate()
+            logger.error(
+                f"❌ 连接失败（已达最大重试次数 {self.state.attempt}/{self.state.max_retries}）: {error_msg} "
+                f"(成功率: {success_rate:.1%}, 成功{self.state.success_count}次/失败{self.state.total_failures}次)"
+            )
             
             self._emit_status("error", {
-                "message": f"连接失败: {error_msg}",
+                "message": f"连接失败: {error_description}",
                 "attempt": self.state.attempt,
                 "max_retries": self.state.max_retries,
                 "can_retry": False,
+                "success_rate": success_rate,
+                "success_count": self.state.success_count,
+                "total_failures": self.state.total_failures,
+                "error_type": self._get_error_type(error_msg),
             })
         else:
             delay = self.calculate_delay()
+            success_rate = self.get_success_rate()
             
             # 降级模式下使用警告而非错误
             if self.state.status == ConnectionStatus.DEGRADED:
                 logger.warning(
                     f"⚠️ 连接不稳定 (尝试 {self.state.attempt}/{self.state.max_retries}, "
-                    f"成功率: {self.get_success_rate():.1%}): {error_msg}"
+                    f"成功率: {success_rate:.1%}, 成功{self.state.success_count}次/失败{self.state.total_failures}次): {error_description}"
                 )
             else:
                 logger.warning(
                     f"⚠️ 连接失败 (尝试 {self.state.attempt}/{self.state.max_retries}, "
-                    f"{delay:.1f}秒后重试): {error_msg}"
+                    f"{delay:.1f}秒后重试, 成功率: {success_rate:.1%}): {error_description}"
                 )
             
             self._emit_status("status", {
                 "stage": "retrying",
                 "attempt": self.state.attempt,
                 "max_retries": self.state.max_retries,
-                "error": error_msg,
+                "error": error_description,
+                "error_raw": error_msg,  # 保留原始错误信息用于调试
                 "next_retry_in": delay,
                 "is_network_error": is_network_error,
                 "status": self.state.status,
-                "success_rate": self.get_success_rate(),
+                "success_rate": success_rate,
+                "success_count": self.state.success_count,
+                "total_failures": self.state.total_failures,
+                "error_type": self._get_error_type(error_msg),
             })
         
         return is_retryable and self.should_retry()
+    
+    def _get_error_description(self, error_msg: str) -> str:
+        """生成友好的错误说明"""
+        error_lower = error_msg.lower()
+        
+        # NoneType 相关错误
+        if "nonetype" in error_lower or "not iterable" in error_lower:
+            return "抖音API响应异常（这是正常现象，系统会自动重试）"
+        
+        # a_bogus 签名错误
+        if "bogus" in error_lower or "signature" in error_lower:
+            return "签名验证失败（抖音API限制，系统会自动重试）"
+        
+        # HTTP 错误
+        if "403" in error_msg:
+            return "请求被拒绝（可能是抖音API限制，系统会自动重试）"
+        if "400" in error_msg:
+            return "请求参数错误（系统会自动重试）"
+        
+        # 网络错误
+        if "timeout" in error_lower or "connection" in error_lower:
+            return "网络连接超时（系统会自动重试）"
+        
+        # 默认返回原始错误，但添加说明
+        return f"{error_msg}（系统会自动重试）"
+    
+    def _get_error_type(self, error_msg: str) -> str:
+        """获取错误类型"""
+        error_lower = error_msg.lower()
+        if "nonetype" in error_lower or "not iterable" in error_lower:
+            return "api_response_error"
+        elif "bogus" in error_lower or "signature" in error_lower:
+            return "signature_error"
+        elif "403" in error_msg:
+            return "forbidden"
+        elif "400" in error_msg:
+            return "bad_request"
+        elif "timeout" in error_lower or "connection" in error_lower:
+            return "network_error"
+        else:
+            return "unknown"
     
     def get_success_rate(self) -> float:
         """获取成功率"""
