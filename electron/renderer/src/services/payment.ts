@@ -149,25 +149,35 @@ export interface SubscriptionStatistics {
 
 /**
  * 获取所有可用套餐
+ * 注意：统一使用 /api/subscription/plans（废弃 /api/payment/plans）
  */
 export const getPlans = async (baseUrl: string = DEFAULT_BASE_URL): Promise<Plan[]> => {
-  // 优先尝试 /api/payment/plans，如果失败则尝试 /api/subscription/plans
-  try {
-    const response = await authFetch(`${baseUrl}/api/payment/plans`);
-    return handleResponse(response);
-  } catch (error) {
-    // 如果 /api/payment/plans 失败，尝试使用 /api/subscription/plans
-    console.warn('尝试使用备用端点 /api/subscription/plans');
-    const response = await authFetch(`${baseUrl}/api/subscription/plans`);
-    const data = await handleResponse<any[]>(response);
-    // 转换数据格式以匹配 Plan 接口
-    return data.map(plan => ({
-      ...plan,
-      duration: plan.duration_days ? `${plan.duration_days}天` : 'monthly',
-      is_popular: false,
-      original_price: plan.price
-    }));
-  }
+  const response = await authFetch(`${baseUrl}/api/subscription/plans`);
+  const data = await handleResponse<any[]>(response);
+  
+  // 转换 subscription_plans 格式为前端 Plan 接口
+  return data.map(plan => ({
+    id: plan.id,
+    name: plan.name || plan.display_name,
+    description: plan.description,
+    plan_type: plan.plan_type,
+    duration: plan.billing_cycle ? `${plan.billing_cycle}天` : '30天',
+    price: String(plan.price),
+    original_price: String(plan.price),
+    currency: plan.currency || 'CNY',
+    features: plan.features ? (typeof plan.features === 'string' ? JSON.parse(plan.features) : plan.features) : {},
+    limits: {
+      max_streams: plan.max_streams,
+      max_storage_gb: plan.max_storage_gb,
+      max_ai_requests: plan.max_ai_requests,
+      max_export_count: plan.max_export_count,
+    },
+    is_active: plan.is_active,
+    is_popular: plan.is_popular || false,
+    sort_order: plan.sort_order || 0,
+    created_at: plan.created_at,
+    updated_at: plan.updated_at,
+  }));
 };
 
 /**
@@ -196,32 +206,27 @@ export const createSubscription = async (
 
 /**
  * 获取用户当前订阅
+ * 注意：统一使用 /api/subscription/current
  */
 export const getCurrentSubscription = async (baseUrl: string = DEFAULT_BASE_URL): Promise<Subscription | null> => {
   try {
-    // 优先尝试 /api/payment/subscriptions/current
-    const response = await authFetch(`${baseUrl}/api/payment/subscriptions/current`);
-    return handleResponse(response);
+    const response = await authFetch(`${baseUrl}/api/subscription/current`);
+    const data = await handleResponse<any>(response);
+    
+    if (!data) return null;
+    
+    // 转换格式
+    return {
+      ...data,
+      plan_name: data.plan?.name || data.plan?.display_name,
+      expires_at: data.end_date
+    };
   } catch (error) {
-    // 如果失败，尝试使用 /api/subscription/current
-    try {
-      console.warn('尝试使用备用端点 /api/subscription/current');
-      const response = await authFetch(`${baseUrl}/api/subscription/current`);
-      const data = await handleResponse<any>(response);
-      // 转换数据格式以匹配 Subscription 接口
-      if (!data) return null;
-      return {
-        ...data,
-        plan_name: data.plan?.name,
-        expires_at: data.end_date
-      };
-    } catch (fallbackError) {
-      // 如果没有订阅，返回 null
-      if ((fallbackError as any)?.message?.includes('404')) {
-        return null;
-      }
-      throw fallbackError;
+    // 如果没有订阅，返回 null
+    if ((error as any)?.message?.includes('404') || (error as any)?.message?.includes('没有找到')) {
+      return null;
     }
+    throw error;
   }
 };
 
