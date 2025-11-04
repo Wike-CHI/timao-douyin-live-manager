@@ -139,7 +139,7 @@ class LiveQuestionResponder:
         # 使用网关调用，通过function参数自动选择默认模型
         response = self.gateway.chat_completion(
             messages=messages,
-            function="script_generation",  # 使用功能标识，自动选择qwen3-max
+            function="script_generation",  # 使用功能标识，自动选择qwen3-max（话术生成）
             temperature=0.4,
             response_format={"type": "json_object"},
             max_tokens=900,

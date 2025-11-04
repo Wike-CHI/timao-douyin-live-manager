@@ -209,21 +209,19 @@ class LiveAnalysisGenerator:
             '"risks":["两条以内的潜在问题与原因"],'
             '"next_actions":["三条以内的行动指引"],'
             '"next_topic_direction":"一句话点出接下来要围绕的聊天方向",'
-            '"confidence":0.0~1.0,'
-            '"style_profile":{"persona":"","tone":"","tempo":"","register":"","catchphrases":[],"slang":[]},'
-            '"vibe":{"level":"cold|neutral|hot","score":0,"trends":["两条趋势"]}}'
-            "。若信息不足，也要保留字段并说明“暂无数据”。"
+            '"confidence":0.0~1.0}'
+            "。若信息不足，也要保留字段并说明暂无数据。"
+            "注意：不要生成 style_profile 和 vibe 字段，这些由其他模块单独生成。"
             "写作要求："
-            "1) 用主播能听懂的口语表达，语气自然、有温度，避免“当前”“本轮”“请注意”等官腔；"
+            "1) 用主播能听懂的口语表达，语气自然、有温度，避免当前本轮请注意等官腔；"
             "2) 每条 highlights/risks/next_actions 最多 16 个字，聚焦现象或原因；"
-            "3) next_actions 写可执行方向（如“围绕宿舍话题提问”“点名欢迎新观众”），不要给出口播样板；"
-            "4) next_topic_direction 结合当前弹幕与口播，用 12 字以内的口语句式描述“接下来聊点什么”，不要写“围绕/建议”等字眼；"
+            "3) next_actions 写可执行方向（如围绕宿舍话题提问点名欢迎新观众），不要给出口播样板；"
+            "4) next_topic_direction 结合当前弹幕与口播，用 12 字以内的口语句式描述接下来聊点什么，不要写围绕/建议等字眼；"
             "5) 引用提供的弹幕、口播、统计线索，必要时说明数量或关键词；"
-            "6) style_profile 结合近期语气和历史画像总结语气、节奏、常用表达；"
-            "7) 提醒互动时可参考关键词，但不要让主播照念任何模板；"
+            "6) 提醒互动时可参考关键词，但不要让主播照念任何模板；"
             "8) 全文保持像熟悉运营同事的口吻，避免过度书面或命令式表达；"
-            "9) 优先点名“优质弹幕/高价值信号”中的观众，并结合其关键词顺势延展话题。"
-            "10) audience_sentiment中的signals字段必须包含具体的证据，如'新观众连续入场带节奏'、'点赞数增加'等。"
+            "9) 优先点名优质弹幕/高价值信号中的观众，并结合其关键词顺势延展话题。"
+            "10) audience_sentiment中的signals字段必须包含具体的证据，如新观众连续入场带节奏、点赞数增加等。"
         )
 
         persona_notes = ""
@@ -268,7 +266,7 @@ class LiveAnalysisGenerator:
         # 网关会自动记录使用情况，包括模型名称和token消耗
         response = self.gateway.chat_completion(
             messages=messages,
-            function="live_analysis",  # 使用功能标识，自动选择qwen3-max
+            function="live_analysis",  # 使用功能标识，自动选择xunfei lite（直播分析）
             temperature=0.3,
             response_format={"type": "json_object"},
             max_tokens=800,

@@ -173,8 +173,11 @@ class AILiveAnalyzer:
 
     def _format_workflow_payload(self, result: Dict[str, Any]) -> Dict[str, Any]:
         card = result.get("analysis_card", {}) or {}
-        persona_from_card = card.get("style_profile") if isinstance(card, dict) else None
-        vibe_from_card = card.get("vibe") if isinstance(card, dict) else None
+        # style_profile 和 vibe 现在由独立节点生成，不再从 analysis_card 中提取
+        # style_profile 由 style_profile_builder 节点生成（qwen3-max）
+        # vibe 由 mood_estimator 节点生成（本地计算）
+        style_profile = result.get("style_profile") or result.get("persona") or {}
+        vibe = result.get("vibe") or {}
 
         payload = {
             "summary": result.get("summary"),
@@ -182,12 +185,12 @@ class AILiveAnalyzer:
             "risks": result.get("risks", []),
             "suggestions": result.get("suggestions", []),
             "top_questions": result.get("top_questions", []),
-            "analysis_card": card,
+            "analysis_card": card,  # 只包含直播分析内容，不包含 style_profile 和 vibe
             "topic_candidates": result.get("topic_candidates", []),
             "analysis_focus": result.get("analysis_focus"),
             "planner_notes": result.get("planner_notes", {}),
-            "style_profile": persona_from_card if isinstance(persona_from_card, dict) else result.get("persona", {}),
-            "vibe": vibe_from_card if isinstance(vibe_from_card, dict) else result.get("vibe", {}),
+            "style_profile": style_profile,  # 由 style_profile_builder 独立生成（qwen3-max）
+            "vibe": vibe,  # 由 mood_estimator 独立生成（本地计算）
             "transcript_snippet": result.get("transcript_snippet", ""),
             "speech_stats": result.get("speech_stats", {}),
             "knowledge_snippets": result.get("knowledge_snippets", []),

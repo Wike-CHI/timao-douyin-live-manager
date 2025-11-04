@@ -33,6 +33,7 @@ from .live_analysis_generator import LiveAnalysisGenerator
 from .live_question_responder import LiveQuestionResponder
 from .knowledge_service import get_knowledge_base
 from .ai_gateway import get_gateway
+from .style_profile_builder import StyleProfileBuilder
 
 try:  # pragma: no cover - optional reuse of helpers
     from .style_memory import _sanitize_anchor_id  # type: ignore
@@ -93,14 +94,22 @@ class LiveWorkflowConfig:
     anchor_id: Optional[str] = None
     memory_root: Path = Path("records") / "memory"
     enable_chat_focus_ai: bool = True
-    chat_focus_model: str = "qwen3-max"
+    chat_focus_model: Optional[str] = None  # 如果为None，则通过Gateway的功能配置自动选择
 
 
 class ChatFocusSummarizer:
     """Use LLM to describe what the audience is mainly discussing."""
 
-    def __init__(self, model: str = "qwen3-max", temperature: float = 0.2, max_tokens: int = 80) -> None:
-        self.model = model
+    def __init__(self, model: Optional[str] = None, temperature: float = 0.2, max_tokens: int = 80) -> None:
+        """
+        初始化聊天焦点摘要器
+        
+        Args:
+            model: 模型名称（可选，如果为None则通过Gateway的功能配置自动选择）
+            temperature: 温度参数
+            max_tokens: 最大token数
+        """
+        self.model = model  # 可选，如果为None则让Gateway使用功能默认配置
         self.temperature = temperature
         self.max_tokens = max_tokens
         try:
@@ -176,12 +185,15 @@ class ChatFocusSummarizer:
             "例如“宿舍八卦”或“夏季穿搭分享”。若信息不足，请原样输出提供的备用短语。"
         )
 
+        # 通过Gateway调用，支持功能级别的模型配置
+        # 如果指定了model则使用，否则通过function参数让Gateway自动选择
         response = self.gateway.chat_completion(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            model=self.model,
+            function="chat_focus",  # 使用功能标识，支持通过环境变量配置
+            model=self.model,  # 可选，如果指定则覆盖功能默认配置
             temperature=self.temperature,
             max_tokens=self.max_tokens,
         )
@@ -252,7 +264,10 @@ class LangGraphLiveWorkflow:
         self.chat_focus_summarizer = chat_focus_summarizer
         if self.chat_focus_summarizer is None and self.config.enable_chat_focus_ai:
             try:
-                self.chat_focus_summarizer = ChatFocusSummarizer(model=self.config.chat_focus_model)
+                # 如果配置了model则使用，否则让Gateway通过功能配置自动选择
+                self.chat_focus_summarizer = ChatFocusSummarizer(
+                    model=self.config.chat_focus_model if self.config.chat_focus_model else None
+                )
             except Exception as exc:  # pragma: no cover - defensive
                 logger.warning("Chat focus summarizer init failed, fallback to keywords: %s", exc)
                 self.chat_focus_summarizer = None
@@ -288,6 +303,7 @@ class LangGraphLiveWorkflow:
         graph.add_node("planner", self._planner)
         graph.add_node("knowledge_loader", self._knowledge_loader)
         graph.add_node("analysis_generator", self._analysis_generator)
+        graph.add_node("style_profile_builder", self._style_profile_builder)  # 新增：独立的风格画像生成节点（使用 qwen3-max）
         if self.question_responder:
             graph.add_node("question_responder", self._question_responder)
         graph.add_node("summary", self._summary_node)
@@ -298,7 +314,10 @@ class LangGraphLiveWorkflow:
         graph.add_edge("topic_detector", "mood_estimator")
         graph.add_edge("mood_estimator", "planner")
         graph.add_edge("planner", "knowledge_loader")
-        graph.add_edge("knowledge_loader", "analysis_generator")
+        # 顺序执行：先执行 style_profile_builder（qwen3-max），再执行 analysis_generator（xunfei lite）
+        # 这样可以确保两个任务独立生成，不会混合在一起
+        graph.add_edge("knowledge_loader", "style_profile_builder")
+        graph.add_edge("style_profile_builder", "analysis_generator")
         if self.question_responder:
             graph.add_edge("analysis_generator", "question_responder")
             graph.add_edge("question_responder", "summary")
@@ -890,6 +909,39 @@ class LangGraphLiveWorkflow:
             error_msg = str(exc)
         return {"analysis_card": card, "analysis_error": error_msg}
 
+    def _style_profile_builder(self, state: GraphState) -> Dict[str, Any]:
+        """独立的风格画像与氛围分析生成节点（使用 qwen3-max）"""
+        transcript = state.get("transcript_snippet") or "\n".join(state.get("sentences") or [])
+        
+        # 如果没有足够的转写内容，跳过生成
+        if not transcript or len(transcript.strip()) < 50:
+            return {"style_profile": state.get("persona") or {}}
+        
+        anchor_id = state.get("anchor_id") or "default"
+        session_date = time.strftime("%Y-%m-%d", time.localtime())
+        session_index = int(state.get("window_start", 0) // 60) or 1  # 简单的会话索引
+        
+        try:
+            # 异步调用 StyleProfileBuilder（使用 qwen3-max）
+            profile_result = self.style_profile_builder.build_profile(
+                anchor_id=anchor_id,
+                transcript=transcript,
+                session_date=session_date,
+                session_index=session_index,
+            )
+            
+            # 提取 style_profile
+            style_profile = profile_result.get("style_profile") or {}
+            if isinstance(style_profile, dict):
+                logger.info(f"✅ 风格画像生成完成（qwen3-max）: {len(style_profile)} 个字段")
+                return {"style_profile": style_profile, "persona": style_profile}
+            else:
+                return {"style_profile": state.get("persona") or {}, "persona": state.get("persona") or {}}
+        except Exception as exc:
+            logger.warning(f"风格画像生成失败: {exc}")
+            # 失败时返回现有的 persona 或空字典
+            return {"style_profile": state.get("persona") or {}, "persona": state.get("persona") or {}}
+
     def _question_responder(self, state: GraphState) -> Dict[str, Any]:
         if not self.question_responder:
             return {"answer_scripts": []}
@@ -1096,6 +1148,10 @@ class LangGraphLiveWorkflow:
             for snippet in knowledge_snippets
         ]
 
+        # 从 state 中获取 style_profile 和 vibe（由独立节点生成）
+        style_profile = state.get("style_profile") or state.get("persona") or {}
+        vibe = state.get("vibe") or {}
+        
         return {
             "summary": summary,
             "highlight_points": clean_highlights,
@@ -1105,6 +1161,8 @@ class LangGraphLiveWorkflow:
             "knowledge_refs": knowledge_refs,
             "lead_candidates": lead_candidates,
             "chat_focus": topic_text,
+            "style_profile": style_profile,  # 由 style_profile_builder 节点生成（qwen3-max）
+            "vibe": vibe,  # 由 mood_estimator 节点生成（本地计算）
         }
 
     # ------------------------------------------------------------------ fallback
@@ -1117,7 +1175,8 @@ class LangGraphLiveWorkflow:
             self._mood_estimator,
             self._planner,
             self._knowledge_loader,
-            self._analysis_generator,
+            self._style_profile_builder,  # 新增：独立的风格画像生成（qwen3-max）
+            self._analysis_generator,  # 直播分析（xunfei lite）
         ]
         if self.question_responder:
             sequence.append(self._question_responder)

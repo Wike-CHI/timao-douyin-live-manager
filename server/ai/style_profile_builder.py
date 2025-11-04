@@ -56,7 +56,7 @@ class StyleProfileBuilder:
         # 使用网关调用，通过function参数自动选择默认模型
         response = self.gateway.chat_completion(
             messages=prompt,
-            function="style_profile",  # 使用功能标识，自动选择qwen3-max
+            function="style_profile",  # 使用功能标识，自动选择qwen3-max（直播间氛围与情绪识别）
             max_tokens=800,
             temperature=0.4,
         )

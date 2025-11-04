@@ -833,8 +833,15 @@ const LiveConsolePage = () => {
   const handleSelectQuestion = useCallback((entry: { content: string }) => {
     const text = String(entry?.content || '').trim();
     if (!text) return;
-    // 替换而不是累加，避免生成话术时处理太多问题导致变慢
-    setSelectedQuestions([text]);
+    // 累加问题，但限制最多3个，避免生成话术时处理太多问题导致变慢
+    setSelectedQuestions((prev) => {
+      const newList = [...prev];
+      if (!newList.includes(text)) {
+        newList.push(text);
+      }
+      // 限制最多3个问题
+      return newList.slice(-3);
+    });
     setAnswerError(null);
   }, [setSelectedQuestions, setAnswerError]);
 
@@ -863,23 +870,18 @@ const LiveConsolePage = () => {
         .map((item) => item.text)
         .filter(Boolean)
         .join('\n');
-      const latestQuestion = selectedQuestions[0];
+      // 发送所有选择的问题（最多3个），而不是只发送第一个
+      const questionsToGenerate = selectedQuestions.slice(0, 3);
       const payload: any = {
-        questions: latestQuestion ? [latestQuestion] : [],
+        questions: questionsToGenerate,
       };
       if (transcriptSnippet) payload.transcript = transcriptSnippet;
       if (styleProfile) payload.style_profile = styleProfile;
       if (vibe) payload.vibe = vibe;
       const res = await generateAnswerScripts(payload, FASTAPI_BASE_URL);
       const scripts = res?.data?.scripts || [];
-      // 累加新生成的话术，而不是替换
-      const currentScripts = answerScripts || [];
-      const existingIds = new Set(currentScripts.map((s: any) => s.id || s.text));
-      const newScripts = scripts.filter((s: any) => {
-        const id = s.id || s.text;
-        return !existingIds.has(id);
-      });
-      setAnswerScripts([...currentScripts, ...newScripts]);
+      // 替换为最新生成的话术，确保用户看到的是针对当前选择问题的回答
+      setAnswerScripts(scripts);
     } catch (err) {
       setAnswerError((err as Error)?.message || '生成失败，请稍后再试');
     } finally {
@@ -1238,7 +1240,7 @@ const LiveConsolePage = () => {
                         </div>
                       ) : null}
                       {ev?.summary ? (
-                        <div className="text-sm text-slate-700 mb-3 whitespace-pre-wrap leading-relaxed">
+                        <div className="text-sm text-slate-700 mb-3 whitespace-pre-wrap leading-relaxed break-words max-h-48 overflow-y-auto">
                           {ev.summary}
                         </div>
                       ) : null}
@@ -1246,7 +1248,7 @@ const LiveConsolePage = () => {
                         <>
                           <div className="text-xs text-slate-500 mb-1 font-medium">亮点</div>
                           <ul className="list-disc pl-4 text-sm text-slate-600 space-y-1">
-                            {ev.highlight_points.slice(0, 2).map((x: any, i: number) => (<li key={i} className="truncate">{String(x)}</li>))}
+                            {ev.highlight_points.slice(0, 2).map((x: any, i: number) => (<li key={i} className="break-words">{String(x)}</li>))}
                           </ul>
                         </>
                       ) : null}
@@ -1254,7 +1256,7 @@ const LiveConsolePage = () => {
                         <>
                           <div className="text-xs text-slate-500 mt-2 mb-1 font-medium">风险</div>
                           <ul className="list-disc pl-4 text-sm text-slate-600 space-y-1">
-                            {ev.risks.slice(0, 2).map((x: any, i: number) => (<li key={i} className="truncate">{String(x)}</li>))}
+                            {ev.risks.slice(0, 2).map((x: any, i: number) => (<li key={i} className="break-words">{String(x)}</li>))}
                           </ul>
                         </>
                       ) : null}
@@ -1262,7 +1264,7 @@ const LiveConsolePage = () => {
                         <>
                           <div className="text-xs text-slate-500 mt-2 mb-1 font-medium">建议</div>
                           <ul className="list-disc pl-4 text-sm text-slate-600 space-y-1">
-                            {ev.suggestions.slice(0, 3).map((x: any, i: number) => (<li key={i} className="truncate">{String(x)}</li>))}
+                            {ev.suggestions.slice(0, 3).map((x: any, i: number) => (<li key={i} className="break-words">{String(x)}</li>))}
                           </ul>
                         </>
                       ) : null}
@@ -1275,13 +1277,13 @@ const LiveConsolePage = () => {
                           {sentimentSignals.length ? (
                             <ul className="list-disc pl-4 text-sm text-slate-600 mt-1 space-y-1">
                               {sentimentSignals.slice(0, 2).map((signal: any, i: number) => (
-                                <li key={i} className="truncate">{String(signal)}</li>
+                                <li key={i} className="break-words">{String(signal)}</li>
                               ))}
                             </ul>
                           ) : Array.isArray(ev?.audience_sentiment?.signals) && ev.audience_sentiment.signals.length ? (
                             <ul className="list-disc pl-4 text-sm text-slate-600 mt-1 space-y-1">
                               {ev.audience_sentiment.signals.slice(0, 2).map((signal: any, i: number) => (
-                                <li key={i} className="truncate">{String(signal)}</li>
+                                <li key={i} className="break-words">{String(signal)}</li>
                               ))}
                             </ul>
                           ) : null}
@@ -1291,7 +1293,7 @@ const LiveConsolePage = () => {
                         <>
                           <div className="text-xs text-slate-500 mt-2 mb-1 font-medium">高频问题</div>
                           <ul className="list-disc pl-4 text-sm text-slate-600 space-y-1">
-                            {ev.top_questions.slice(0, 2).map((x: any, i: number) => (<li key={i} className="truncate">{String(x)}</li>))}
+                            {ev.top_questions.slice(0, 2).map((x: any, i: number) => (<li key={i} className="break-words">{String(x)}</li>))}
                           </ul>
                         </>
                       ) : null}
@@ -1299,7 +1301,7 @@ const LiveConsolePage = () => {
                         <>
                           <div className="text-xs text-slate-500 mt-2 mb-1 font-medium">话题推荐</div>
                           <ul className="list-disc pl-4 text-sm text-slate-600 space-y-1">
-                            {ev.topic_playlist.slice(0, 2).map((x: any, i: number) => (<li key={i} className="truncate">{String(x.topic)}</li>))}
+                            {ev.topic_playlist.slice(0, 2).map((x: any, i: number) => (<li key={i} className="break-words">{String(x.topic)}</li>))}
                           </ul>
                         </>
                       ) : null}

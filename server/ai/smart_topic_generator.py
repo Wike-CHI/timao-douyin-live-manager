@@ -59,9 +59,10 @@ class SmartTopicGenerator:
             
             prompt = self._build_topic_generation_prompt(context)
             
-            # 使用网关调用
+            # 通过Gateway调用，支持功能级别的模型配置
             response = self.gateway.chat_completion(
                 messages=[{"role": "user", "content": prompt}],
+                function="topic_generation",  # 使用功能标识，支持通过环境变量配置
                 temperature=0.7,
                 max_tokens=800
             )

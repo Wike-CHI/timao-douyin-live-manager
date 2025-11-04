@@ -96,20 +96,28 @@ class AIGateway:
     FUNCTION_MODELS = {
         "live_analysis": {
             "provider": os.getenv("AI_FUNCTION_LIVE_ANALYSIS_PROVIDER", "xunfei"),
-            "model": os.getenv("AI_FUNCTION_LIVE_ANALYSIS_MODEL", "lite")  # 默认使用讯飞 lite（免费）
-        },  # AI分析
+            "model": os.getenv("AI_FUNCTION_LIVE_ANALYSIS_MODEL", "lite")  # 直播分析：默认使用讯飞 lite（免费）
+        },
         "style_profile": {
-            "provider": os.getenv("AI_FUNCTION_STYLE_PROFILE_PROVIDER", "xunfei"),
-            "model": os.getenv("AI_FUNCTION_STYLE_PROFILE_MODEL", "lite")  # 默认使用讯飞 lite（免费）
-        },  # 主播画像与氛围分析
+            "provider": os.getenv("AI_FUNCTION_STYLE_PROFILE_PROVIDER", "qwen"),
+            "model": os.getenv("AI_FUNCTION_STYLE_PROFILE_MODEL", "qwen3-max")  # 直播间氛围与情绪识别：使用 qwen3-max
+        },
         "script_generation": {
             "provider": os.getenv("AI_FUNCTION_SCRIPT_GENERATION_PROVIDER", "qwen"),
-            "model": os.getenv("AI_FUNCTION_SCRIPT_GENERATION_MODEL", "qwen3-max")  # 默认使用讯飞 lite（免费）
-        },  # 话术生成
+            "model": os.getenv("AI_FUNCTION_SCRIPT_GENERATION_MODEL", "qwen3-max")  # 话术生成：使用 qwen3-max
+        },
         "live_review": {
             "provider": os.getenv("AI_FUNCTION_LIVE_REVIEW_PROVIDER", "gemini"),
-            "model": os.getenv("AI_FUNCTION_LIVE_REVIEW_MODEL", "gemini-2.5-flash-preview-09-2025")  # 复盘使用 Gemini（高质量）
-        },  # 复盘
+            "model": os.getenv("AI_FUNCTION_LIVE_REVIEW_MODEL", "gemini-2.5-flash-preview-09-2025")  # 复盘：使用 Gemini 2.5 Flash Preview
+        },
+        "chat_focus": {
+            "provider": os.getenv("AI_FUNCTION_CHAT_FOCUS_PROVIDER", "qwen"),
+            "model": os.getenv("AI_FUNCTION_CHAT_FOCUS_MODEL", "qwen3-max")  # 聊天焦点摘要：使用 qwen3-max
+        },
+        "topic_generation": {
+            "provider": os.getenv("AI_FUNCTION_TOPIC_GENERATION_PROVIDER", "qwen"),
+            "model": os.getenv("AI_FUNCTION_TOPIC_GENERATION_MODEL", "qwen-plus")  # 智能话题生成：使用 qwen-plus
+        },
     }
     
     # 内置服务商配置模板
@@ -545,8 +553,8 @@ class AIGateway:
         
         return 0.0
     
-    def _get_function_display_name(self, function: Optional[str], provider: str) -> str:
-        """获取功能显示名称"""
+    def _get_function_display_name(self, function: Optional[str], provider: str, model: Optional[str] = None) -> str:
+        """获取功能显示名称（包含模型信息）"""
         if function:
             function_map = {
                 "live_analysis": "实时分析",
@@ -554,15 +562,41 @@ class AIGateway:
                 "script_generation": "话术生成",
                 "live_review": "复盘总结",
             }
-            return function_map.get(function, function)
+            base_name = function_map.get(function, function)
         else:
             # 降级：根据provider推断功能
             if provider == "gemini":
-                return "复盘总结"
+                base_name = "复盘总结"
             elif provider == "xunfei":
-                return "实时分析"  # 默认推断
+                base_name = "实时分析"  # 默认推断
             else:
-                return f"AI调用({provider})"
+                base_name = f"AI调用({provider})"
+        
+        # 添加模型信息以区分不同模型
+        if model:
+            # 简化模型名称显示
+            model_display = model
+            if model == "lite":
+                model_display = "讯飞lite"
+            elif "qwen" in model.lower():
+                # 提取qwen模型的简化名称
+                if "max" in model.lower():
+                    if "3" in model or "qwen3" in model.lower():
+                        model_display = "qwen3-max"
+                    else:
+                        model_display = "qwen-max"
+                elif "plus" in model.lower():
+                    model_display = "qwen-plus"
+                elif "turbo" in model.lower():
+                    model_display = "qwen-turbo"
+                else:
+                    model_display = model
+            elif "gemini" in model.lower():
+                model_display = "gemini"
+            
+            return f"{base_name}({model_display})"
+        
+        return base_name
     
     def _record_usage(
         self,
@@ -577,8 +611,8 @@ class AIGateway:
         try:
             from server.utils.ai_usage_monitor import record_ai_usage
             
-            # 根据功能标识确定功能名称
-            function_name = self._get_function_display_name(function, provider)
+            # 根据功能标识确定功能名称（包含模型信息）
+            function_name = self._get_function_display_name(function, provider, model)
             
             if not usage:
                 usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}

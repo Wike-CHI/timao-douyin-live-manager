@@ -7,7 +7,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -334,17 +334,15 @@ class KnowledgeBase:
             try:
                 from .smart_topic_generator import create_smart_topic_generator
                 
-                # 尝试获取AI客户端
-                ai_client = None
+                # 使用Gateway创建智能话题生成器（不再需要直接获取客户端）
                 try:
-                    from .qwen_openai_compatible import get_qwen_client
-                    ai_client = get_qwen_client()
-                    logger.info("成功获取AI客户端，准备生成智能话题")
+                    generator = create_smart_topic_generator(None)  # 传入None，生成器内部会使用Gateway
+                    logger.info("成功初始化智能话题生成器，准备生成话题")
                 except Exception as e:
-                    logger.warning("无法获取AI客户端: %s，使用备用话题", e)
+                    logger.warning("无法初始化智能话题生成器: %s，使用备用话题", e)
+                    generator = None
                 
-                if ai_client:
-                    generator = create_smart_topic_generator(ai_client)
+                if generator:
                     ai_topics = generator.generate_contextual_topics(
                         transcript=context.get('transcript', ''),
                         chat_messages=context.get('chat_messages', []),
