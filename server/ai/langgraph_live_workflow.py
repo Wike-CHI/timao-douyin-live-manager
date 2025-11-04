@@ -262,6 +262,14 @@ class LangGraphLiveWorkflow:
         self._graph = None
         self._workflow = None
         self.chat_focus_summarizer = chat_focus_summarizer
+        
+        # 初始化独立的风格画像生成器（通过 Gateway，使用 qwen3-max）
+        try:
+            self.style_profile_builder = StyleProfileBuilder()
+        except Exception as exc:
+            logger.warning("StyleProfileBuilder 初始化失败: %s", exc)
+            self.style_profile_builder = None
+        
         if self.chat_focus_summarizer is None and self.config.enable_chat_focus_ai:
             try:
                 # 如果配置了model则使用，否则让Gateway通过功能配置自动选择
@@ -910,7 +918,11 @@ class LangGraphLiveWorkflow:
         return {"analysis_card": card, "analysis_error": error_msg}
 
     def _style_profile_builder(self, state: GraphState) -> Dict[str, Any]:
-        """独立的风格画像与氛围分析生成节点（使用 qwen3-max）"""
+        """独立的风格画像与氛围分析生成节点（通过 Gateway，使用 qwen3-max）"""
+        # 如果没有初始化 style_profile_builder，返回现有的 persona
+        if not self.style_profile_builder:
+            return {"style_profile": state.get("persona") or {}}
+        
         transcript = state.get("transcript_snippet") or "\n".join(state.get("sentences") or [])
         
         # 如果没有足够的转写内容，跳过生成
@@ -922,7 +934,7 @@ class LangGraphLiveWorkflow:
         session_index = int(state.get("window_start", 0) // 60) or 1  # 简单的会话索引
         
         try:
-            # 异步调用 StyleProfileBuilder（使用 qwen3-max）
+            # 通过 Gateway 调用 StyleProfileBuilder（使用 qwen3-max）
             profile_result = self.style_profile_builder.build_profile(
                 anchor_id=anchor_id,
                 transcript=transcript,
