@@ -23,8 +23,8 @@ const SubscriptionPage = () => {
   const [couponCode, setCouponCode] = useState('');
   const [couponValidation, setCouponValidation] = useState<{
     valid: boolean;
-    discount_amount?: number;
-    final_amount?: number;
+    discount_amount?: string;
+    final_amount?: string;
     message?: string;
   } | null>(null);
   const [error, setError] = useState<string>('');

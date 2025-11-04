@@ -1,6 +1,24 @@
 # -*- coding: utf-8 -*-
 """
 支付相关API路由
+
+⚠️ DEPRECATED WARNING ⚠️
+==========================================
+本模块已废弃，请使用 subscription.py 代替
+
+原因：
+1. 与 subscription.py 功能重复
+2. 数据表设计不一致（plans vs subscription_plans）
+3. 功能不完整（缺少初始化脚本）
+
+迁移指南：
+- /api/payment/plans → /api/subscription/plans
+- /api/payment/subscriptions → /api/subscription/*
+- Plan 模型 → SubscriptionPlan 模型
+- Subscription 模型 → UserSubscription 模型
+
+计划移除时间：下一个大版本
+==========================================
 """
 from datetime import datetime, timedelta
 from decimal import Decimal
