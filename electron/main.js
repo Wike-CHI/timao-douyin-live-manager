@@ -486,7 +486,7 @@ ipcMain.handle('runtime-info', async () => {
 
 ipcMain.handle('run-prepare-torch', async () => {
     return new Promise((resolve) => {
-        const proc = spawn(process.platform === 'win32' ? 'python' : 'python3', ['tools/prepare_torch.py'], {
+        const proc = spawn(process.platform === 'win32' ? 'python' : 'python3', ['server/tools/prepare_torch.py'], {
             cwd: path.join(__dirname, '..'),
             env: { ...process.env, PYTHONENSUREPIP: '1' },
         });

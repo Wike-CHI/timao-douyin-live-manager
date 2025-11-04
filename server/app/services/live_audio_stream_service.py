@@ -423,7 +423,7 @@ class LiveAudioStreamService:
                 headers.extend(["-headers", f"user-agent:{ua}"])
                 if ".m3u8" in (record_url or ""):
                     headers.extend(["-headers", "accept:application/vnd.apple.mpegurl"])
-            # Resolve ffmpeg binary: env FFMPEG_BIN > PATH > local tools/ffmpeg/*/bin
+            # Resolve ffmpeg binary: env FFMPEG_BIN > PATH > local server/server/tools/ffmpeg/*/bin
             ffmpeg_bin = os.environ.get("FFMPEG_BIN") or shutil.which("ffmpeg") or str(
                 (PROJECT_ROOT / "tools" / "ffmpeg" / ("win64" if os.name == "nt" else ("mac" if sys.platform == "darwin" else "linux")) / "bin" / ("ffmpeg.exe" if os.name == "nt" else "ffmpeg")).resolve()
             )

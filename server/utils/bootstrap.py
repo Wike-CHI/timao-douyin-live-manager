@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """First‑run bootstrap helpers
 
-- Ensure local FFmpeg binary is available (prefer PATH, else download Windows zip to tools/ffmpeg/win64)
+- Ensure local FFmpeg binary is available (prefer PATH, else download Windows zip to server/server/tools/ffmpeg/win64)
 - Ensure SenseVoiceSmall + VAD models exist (invoke tools/download_* scripts if missing)
 
 We do NOT modify system PATH permanently. Instead we resolve a local ffmpeg
@@ -53,7 +53,7 @@ def which(cmd: str) -> Optional[str]:
 
 
 def resolve_local_ffmpeg_path() -> Optional[Path]:
-    """Return a candidate local ffmpeg path under tools/ffmpeg/* if present."""
+    """Return a candidate local ffmpeg path under server/server/tools/ffmpeg/* if present."""
     tools = PROJECT_ROOT / "tools" / "ffmpeg"
     candidates = []
     if platform.system().lower().startswith("win"):

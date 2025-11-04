@@ -3,8 +3,8 @@ version: '3.8'
 services:
   timao-live-manager:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: deploy/Dockerfile
     container_name: timao-douyin-live-manager
     image: timao-live-manager:latest
     ports:

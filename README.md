@@ -6,8 +6,8 @@
 
 ## 功能亮点
 
-- 🎯 **直播互动中台**：`DouyinLiveWebFetcher` 模块拉取 WebSocket 弹幕/礼物，并通过 REST/SSE 向桌面端推送。
-- 🎤 **本地实时语音转写**：`AST_module` 使用 SenseVoice Small + VAD，实现直播音频直抓、断句校准与字幕流。
+- 🎯 **直播互动中台**：`server/modules/douyin` 模块拉取 WebSocket 弹幕/礼物，并通过 REST/SSE 向桌面端推送。
+- 🎤 **本地实时语音转写**：`server/modules/ast` 使用 SenseVoice Small + VAD，实现直播音频直抓、断句校准与字幕流。
 - 🧠 **AI 实时分析**：`server/ai` 基于 LangChain + Qwen/OpenAI 兼容接口生成热词洞察、实时提示与话术。
 - 🚀 **AI 网关统一管理**：支持多 AI 服务商（Qwen/OpenAI/DeepSeek/豆包/ChatGLM）一键切换、集中配置、自动监控。
 - 📊 **直播复盘留存**：自动生成 `comments.jsonl`、`transcript.txt`、`report.html` 等复盘素材，支撑离线分析。
@@ -32,7 +32,7 @@ electron/main.js
 │   ├─ server/ingest/             抖音抓取与缓冲
 │   ├─ server/nlp/                热词/情绪分析
 │   └─ server/ai/                 LangChain/Qwen 实时策略
-├─ 调用 AST_module/*              SenseVoice 音频采集、后处理与降级
+├─ 调用 server/modules/ast/*      SenseVoice 音频采集、后处理与降级
 └─ （兼容）server/app.py          Flask SSE 与工具接口
 ```
 
@@ -40,26 +40,49 @@ electron/main.js
 
 ```
 timao-douyin-live-manager/
-├── electron/                 # 桌面壳（main.js、preload.js、renderer/）
-│   └── renderer/             # React + Vite 前端，端口 30013（dev）
-├── server/                   # 后端服务
-│   ├── app/main.py           # FastAPI 入口
-│   ├── app/api/              # REST/WebSocket 路由
-│   ├── utils/                # 配置、日志、启动助手
-│   ├── ingest/               # Douyin 弹幕抓取
-│   ├── nlp/                  # 热词/情感分析
-│   └── ai/                   # LangChain/Qwen 工作流
-├── AST_module/               # SenseVoice/FunASR 音频管线
-│   ├── ast_service.py        # 语音转写服务入口
-│   └── sensevoice_service.py # 模型集成与降级策略
-├── DouyinLiveWebFetcher/     # 抖音 WebSocket → SSE 桥接
-├── frontend/                 # 独立静态网页与测试面板
-├── docs/                     # 设计文档、流程、部署指南
-├── tests/                    # Python 集成与单元测试
-├── electron/__tests__/       # Electron 桌面端测试
-├── requirements.all.txt      # Python 全量依赖
-└── tools/                    # 模型下载、缓存清理、打包脚本
+├── server/                   # 后端服务（所有后端代码统一在此）
+│   ├── app/main.py          # FastAPI 入口
+│   ├── app/api/             # REST/WebSocket 路由
+│   ├── app/services/        # 业务逻辑服务
+│   ├── app/models/          # 数据模型
+│   ├── ai/                  # AI 相关模块（LangChain/Qwen 工作流）
+│   ├── modules/             # 核心功能模块
+│   │   ├── ast/             # 音频转写（SenseVoice/FunASR）
+│   │   ├── douyin/          # 抖音弹幕抓取
+│   │   └── streamcap/       # 流媒体处理
+│   ├── utils/               # 配置、日志、工具函数
+│   ├── tests/               # 测试文件（单元测试、集成测试）
+│   └── requirements.txt     # Python 依赖
+│
+├── electron/                # 桌面端应用
+│   ├── main.js              # Electron 主进程
+│   └── renderer/            # React + Vite 前端，端口 30013（dev）
+│
+├── scripts/                 # 工具脚本
+│   ├── check_db_config.py   # 数据库配置检查
+│   ├── init_mysql.py        # MySQL 初始化
+│   ├── create_admin_user.py # 创建管理员用户
+│   └── ...
+│
+├── docs/                    # 文档目录（所有文档统一在此）
+│   ├── AI处理工作流/         # AI 工作流相关文档
+│   ├── legacy_code/          # 历史代码（已弃用）
+│   └── *.md                 # 各种文档文件
+│
+├── deploy/                  # 部署相关文件（Docker、部署文档、脚本）
+│   ├── Dockerfile           # Docker 镜像构建
+│   ├── docker-compose.yml   # Docker Compose 配置
+│   ├── scripts/             # 部署脚本
+│   └── config/              # 部署配置
+├── migrations/              # 数据库迁移文件
+├── tests/                   # 全局测试文件
+├── tools/                   # 开发工具（模型下载、缓存清理等）
+├── config/                  # 配置文件
+├── records/                 # 记录文件（日志、数据等）
+└── logs/                    # 日志文件
 ```
+
+> **注意**：`AST_module`、`DouyinLiveWebFetcher`、`StreamCap` 等历史模块已迁移到 `server/modules/` 目录，历史代码保存在 `docs/legacy_code/` 仅用于参考。详细说明请参考 [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)。
 
 ## 环境准备
 
@@ -89,7 +112,7 @@ python tools/download_sensevoice.py      # 下载 SenseVoiceSmall
 python tools/download_vad_model.py       # 下载 VAD 模型
 ```
 
-模型默认保存在 `models/models/iic/`，`/api/live_audio/health` 可检查准备情况。若需要 GPU/CUDA，请先运行 `python tools/prepare_torch.py`。
+模型默认保存在 `models/models/iic/`，`/api/live_audio/health` 可检查准备情况。若需要 GPU/CUDA，请先运行 `python server/server/tools/prepare_torch.py`。
 
 ## 启动流程
 

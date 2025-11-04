@@ -203,7 +203,7 @@ async def live_audio_health() -> dict:
         init_error = str(e)
     suggestions = []
     if not present["model_present"]:
-        suggestions.append("Run: python3 tools/download_sensevoice.py")
+        suggestions.append("Run: python3 server/server/tools/download_sensevoice.py")
     if not present["vad_present"]:
         suggestions.append("Run: python3 tools/download_vad_model.py")
     return {
