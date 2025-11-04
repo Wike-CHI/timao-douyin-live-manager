@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from typing import Optional, Dict, Any, Union, List
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -189,7 +189,11 @@ async def live_report_status() -> dict:
 
 
 @router.post("/generate")
-async def generate_live_report(db: Session = Depends(get_db_session)) -> BaseResp:
+async def generate_live_report() -> BaseResp:
+    """
+    生成直播复盘报告（仅保存到本地，不保存到数据库）
+    报告保存在 server/records/ 目录下
+    """
     try:
         svc = get_live_report_service()
         import time
@@ -199,13 +203,12 @@ async def generate_live_report(db: Session = Depends(get_db_session)) -> BaseRes
         duration = time.time() - start_time
         log_generation_complete("直播报告", "当前会话", duration=duration)
         
-        # 🆕 自动保存到数据库
-        try:
-            await _save_report_to_database(artifacts, db)
-            logger.info("✅ 复盘报告已保存到数据库")
-        except Exception as e:
-            logger.error(f"⚠️ 保存报告到数据库失败: {e}", exc_info=True)
-            # 不影响主流程，继续返回
+        # 桌面端仅保存到本地，不保存到数据库
+        report_path = artifacts.get("report")
+        if report_path:
+            logger.info(f"✅ 复盘报告已保存到本地: {report_path}")
+        else:
+            logger.info("✅ 复盘报告已生成（本地保存）")
         
         return BaseResp(data=artifacts)
     except Exception as e:
@@ -221,7 +224,12 @@ async def generate_live_report(db: Session = Depends(get_db_session)) -> BaseRes
 
 
 async def _save_report_to_database(artifacts: Dict[str, Any], db: Session):
-    """将生成的报告保存到数据库"""
+    """
+    将生成的报告保存到数据库（已废弃，桌面端仅保存到本地）
+    
+    注意：此函数已不再使用，桌面端的复盘报告仅保存在本地文件系统中。
+    如需恢复数据库保存功能，请取消注释 generate_live_report 中的相关调用。
+    """
     from ..models.live import LiveSession
     from ..models.live_review import LiveReviewReport
     from ..models.user import User

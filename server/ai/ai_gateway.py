@@ -430,6 +430,7 @@ class AIGateway:
         return self._call_provider(
             provider=target_provider,
             model=target_model,
+            function=function,  # 传递功能标识
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
@@ -442,6 +443,7 @@ class AIGateway:
         provider: str,
         model: Optional[str],
         messages: List[Dict[str, str]],
+        function: Optional[str] = None,  # 功能标识
         **kwargs: Any,
     ) -> AIResponse:
         """调用指定服务商"""
@@ -475,10 +477,25 @@ class AIGateway:
         # 计算成本
         cost = self._calculate_cost(provider, actual_model, usage)
         
+        # 在控制台显示调用信息（网关层）
+        function_name = self._get_function_display_name(function, provider)
+        duration_sec = duration_ms / 1000.0
+        tokens_per_sec = usage["total_tokens"] / duration_sec if duration_sec > 0 else 0
+        
+        logger.info(
+            f"🚀 AI网关调用: {function_name:20s} | "
+            f"模型: {actual_model:25s} | "
+            f"Provider: {provider:10s}\n"
+            f"   └─ Token: {usage['prompt_tokens']:6d}+{usage['completion_tokens']:6d}={usage['total_tokens']:8d} | "
+            f"成本: ¥{cost:.6f} | "
+            f"耗时: {duration_ms:.1f}ms ({tokens_per_sec:.1f} tokens/s)"
+        )
+        
         # 记录到监控（可选）
         self._record_usage(
             provider=provider,
             model=actual_model,
+            function=function,  # 传递功能标识
             usage=usage,
             cost=cost,
             duration_ms=duration_ms,
@@ -528,31 +545,50 @@ class AIGateway:
         
         return 0.0
     
+    def _get_function_display_name(self, function: Optional[str], provider: str) -> str:
+        """获取功能显示名称"""
+        if function:
+            function_map = {
+                "live_analysis": "实时分析",
+                "style_profile": "风格画像与氛围分析",
+                "script_generation": "话术生成",
+                "live_review": "复盘总结",
+            }
+            return function_map.get(function, function)
+        else:
+            # 降级：根据provider推断功能
+            if provider == "gemini":
+                return "复盘总结"
+            elif provider == "xunfei":
+                return "实时分析"  # 默认推断
+            else:
+                return f"AI调用({provider})"
+    
     def _record_usage(
         self,
         provider: str,
         model: str,
-        usage: Dict[str, int],
-        cost: float,
-        duration_ms: float,
+        function: Optional[str] = None,  # 功能标识
+        usage: Dict[str, int] = None,
+        cost: float = 0.0,
+        duration_ms: float = 0.0,
     ) -> None:
         """记录使用情况到监控系统"""
         try:
             from server.utils.ai_usage_monitor import record_ai_usage
             
-            # 确定功能名称
-            function_name = f"gateway_{provider}"
-            if provider == "gemini":
-                function_name = "live_review"  # Gemini主要用于复盘
-            elif provider == "xunfei":
-                function_name = "实时分析"  # 讯飞主要用于实时分析和话术生成
+            # 根据功能标识确定功能名称
+            function_name = self._get_function_display_name(function, provider)
+            
+            if not usage:
+                usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
             
             record_ai_usage(
                 model=model,
                 function=function_name,
                 input_tokens=usage["prompt_tokens"],
                 output_tokens=usage["completion_tokens"],
-                total_tokens=usage.get("total_tokens"),
+                total_tokens=usage.get("total_tokens") or (usage["prompt_tokens"] + usage["completion_tokens"]),
                 cost=cost,
                 duration_ms=duration_ms,
                 success=True,

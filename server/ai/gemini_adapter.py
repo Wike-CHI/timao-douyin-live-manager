@@ -252,12 +252,36 @@ class GeminiAdapter:
                 usage.completion_tokens * 0.30 / 1_000_000
             )
             
+            # 计算token速率
+            tokens_per_sec = usage.total_tokens / duration if duration > 0 else 0
+            
+            # 格式化的日志输出
             logger.info(
-                f"✅ Gemini 调用成功 - "
-                f"Tokens: {usage.prompt_tokens} (输入) + {usage.completion_tokens} (输出) = {usage.total_tokens}, "
-                f"成本: ${cost:.6f}, "
-                f"耗时: {duration:.2f}s"
+                f"\n{'='*80}\n"
+                f"✅ Gemini 复盘报告生成\n"
+                f"{'─'*80}\n"
+                f"  模型: {self.model:45s}\n"
+                f"  Token: {usage.prompt_tokens:6d} (输入) + {usage.completion_tokens:6d} (输出) = {usage.total_tokens:8d} (总计)\n"
+                f"  成本: ${cost:10.6f} (美元) | 耗时: {duration:8.2f}s\n"
+                f"  速率: {tokens_per_sec:6.1f} tokens/s\n"
+                f"{'='*80}"
             )
+            
+            # 记录到监控系统
+            try:
+                from server.utils.ai_usage_monitor import record_ai_usage
+                record_ai_usage(
+                    model=self.model,
+                    function="复盘总结",
+                    input_tokens=usage.prompt_tokens,
+                    output_tokens=usage.completion_tokens,
+                    total_tokens=usage.total_tokens,
+                    cost=cost,
+                    duration_ms=duration * 1000,
+                    success=True,
+                )
+            except Exception as monitor_exc:
+                logger.debug(f"记录复盘使用情况失败: {monitor_exc}")
             
             return {
                 "text": content,

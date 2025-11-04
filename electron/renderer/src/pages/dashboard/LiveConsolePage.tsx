@@ -611,10 +611,94 @@ const LiveConsolePage = () => {
   // AI 实时分析流（SSE，带鉴权）
   const aiSourceRef = useRef<EventSource | null>(null);
   const analysisBootRef = useRef(false);
+  // 智能提取可读内容：从包含markdown代码块或JSON的文本中提取可读信息
+  const extractReadableContent = useCallback((text: string): string => {
+    if (!text || typeof text !== 'string') return '';
+    
+    // 如果包含JSON代码块，尝试提取
+    if (text.includes('```json') || text.includes('```')) {
+      try {
+        // 尝试提取 analysis_overview 字段的值
+        const overviewMatch = text.match(/"analysis_overview"\s*:\s*"([^"]+)"/);
+        if (overviewMatch && overviewMatch[1]) {
+          return overviewMatch[1];
+        }
+        // 尝试提取整个JSON对象
+        let jsonText = '';
+        if (text.includes('```json')) {
+          const parts = text.split('```json');
+          if (parts.length > 1) {
+            jsonText = parts[1].split('```')[0].trim();
+          }
+        } else if (text.includes('```')) {
+          const parts = text.split('```');
+          if (parts.length > 1) {
+            jsonText = parts[1].trim();
+            // 如果包含 "json" 标识，去掉
+            if (jsonText.toLowerCase().startsWith('json')) {
+              jsonText = jsonText.substring(4).trim();
+            }
+          }
+        }
+        if (jsonText) {
+          try {
+            const parsed = JSON.parse(jsonText);
+            if (parsed && typeof parsed === 'object') {
+              // 优先返回 analysis_overview
+              if (parsed.analysis_overview) {
+                return String(parsed.analysis_overview);
+              }
+              // 如果有其他可读字段，组合显示
+              const readableParts: string[] = [];
+              if (parsed.analysis_overview) readableParts.push(parsed.analysis_overview);
+              if (parsed.engagement_highlights && Array.isArray(parsed.engagement_highlights) && parsed.engagement_highlights.length) {
+                readableParts.push('亮点：' + parsed.engagement_highlights[0]);
+              }
+              if (readableParts.length) {
+                return readableParts.join('；');
+              }
+            }
+          } catch (e) {
+            // JSON解析失败，继续尝试其他方法
+          }
+        }
+      } catch (e) {
+        // 提取失败，返回原始文本
+      }
+    }
+    
+    // 如果看起来像是JSON字符串，尝试解析
+    if (text.trim().startsWith('{') && text.trim().endsWith('}')) {
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed && typeof parsed === 'object' && parsed.analysis_overview) {
+          return String(parsed.analysis_overview);
+        }
+      } catch (e) {
+        // 解析失败，返回原文本
+      }
+    }
+    
+    // 如果包含太多技术性内容，尝试提取关键部分
+    if (text.length > 200 && (text.includes('```') || text.includes('{') || text.includes('"'))) {
+      // 尝试找到第一个有意义的句子
+      const sentences = text.split(/[。！？\n]/);
+      for (const sentence of sentences) {
+        const clean = sentence.trim();
+        if (clean.length > 10 && !clean.startsWith('```') && !clean.startsWith('{') && !clean.startsWith('"')) {
+          return clean;
+        }
+      }
+    }
+    
+    // 默认返回原文本（限制长度）
+    return text.length > 200 ? text.substring(0, 200) + '...' : text;
+  }, []);
+
   const normalizeAiEvent = useCallback((payload: any, timestamp?: number) => {
     if (!payload || typeof payload !== 'object') {
       return {
-        summary: typeof payload === 'string' ? payload : '',
+        summary: typeof payload === 'string' ? extractReadableContent(payload) : '',
         raw: payload,
         timestamp: timestamp ?? Date.now(),
       };
@@ -628,9 +712,15 @@ const LiveConsolePage = () => {
       if (primaryArr.length) return primaryArr;
       return toArray(fallback);
     };
-    const summaryText = payload.summary && String(payload.summary).trim().length
+    let summaryText = payload.summary && String(payload.summary).trim().length
       ? payload.summary
       : (card?.analysis_overview || '');
+    
+    // 如果summary包含markdown代码块或看起来像JSON，尝试提取可读内容
+    if (summaryText && (summaryText.includes('```') || summaryText.includes('{') || payload.parse_error)) {
+      summaryText = extractReadableContent(summaryText);
+    }
+    
     const normalized: any = {
       ...payload,
       summary: summaryText,
@@ -659,8 +749,24 @@ const LiveConsolePage = () => {
     } else if (card && typeof card === 'object' && card.audience_sentiment !== undefined) {
       normalized.audience_sentiment = card.audience_sentiment;
     }
+    // 确保从card中提取vibe和style_profile，用于"主播画像与氛围分析"卡片
+    if (card && typeof card === 'object') {
+      if (card.vibe && typeof card.vibe === 'object') {
+        normalized.vibe = card.vibe;
+      }
+      if (card.style_profile && typeof card.style_profile === 'object') {
+        normalized.style_profile = card.style_profile;
+      }
+    }
+    // 如果payload中直接有这些字段，优先使用payload中的
+    if (payload.vibe && typeof payload.vibe === 'object') {
+      normalized.vibe = payload.vibe;
+    }
+    if (payload.style_profile && typeof payload.style_profile === 'object') {
+      normalized.style_profile = payload.style_profile;
+    }
     return normalized;
-  }, []);
+  }, [extractReadableContent]);
 
   const connectAIStream = useCallback(async () => {
     if (aiSourceRef.current) return;
@@ -1125,8 +1231,16 @@ const LiveConsolePage = () => {
                       {ev?.error ? (
                         <div className="text-xs text-red-600 mb-2">AI 分析错误：{String(ev.error)}</div>
                       ) : null}
+                      {ev?.parse_error ? (
+                        <div className="text-xs text-amber-600 mb-2 flex items-center gap-1">
+                          <span>⚠️</span>
+                          <span>解析提示：AI返回格式异常，已尝试提取可读内容</span>
+                        </div>
+                      ) : null}
                       {ev?.summary ? (
-                        <div className="text-sm text-slate-700 mb-3 whitespace-pre-wrap leading-relaxed">{ev.summary}</div>
+                        <div className="text-sm text-slate-700 mb-3 whitespace-pre-wrap leading-relaxed">
+                          {ev.summary}
+                        </div>
                       ) : null}
                       {Array.isArray(ev?.highlight_points) && ev.highlight_points.length ? (
                         <>

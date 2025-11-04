@@ -261,15 +261,11 @@ class LiveAnalysisGenerator:
         ]
 
     def generate(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        # 调用带追踪的内部方法
-        return self._generate_with_tracking(context)
-    
-    @track_ai_usage("实时分析")
-    def _generate_with_tracking(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """带使用追踪的生成方法"""
+        """生成直播分析（网关会自动记录使用情况）"""
         messages = self._build_prompt(context)
         
         # 使用网关调用，通过function参数自动选择默认模型
+        # 网关会自动记录使用情况，包括模型名称和token消耗
         response = self.gateway.chat_completion(
             messages=messages,
             function="live_analysis",  # 使用功能标识，自动选择qwen3-max
@@ -282,8 +278,102 @@ class LiveAnalysisGenerator:
             logger.error(f"AI调用失败: {response.error}")
             return {"analysis_overview": "生成失败，请稍后重试"}
         
+        # 尝试多种方式解析 JSON
+        parsed = self._parse_json_response(response.content)
+        if parsed is not None:
+            return parsed
+        
+        # 如果所有解析方式都失败，返回友好的错误信息
+        logger.warning("无法解析 AI 返回的 JSON，前 200 字符: %s", response.content[:200])
+        # 尝试提取可读的文本内容
+        readable_content = self._extract_readable_content(response.content)
+        return {
+            "analysis_overview": readable_content or "AI 分析结果解析失败，请稍后重试",
+            "parse_error": True
+        }
+    
+    def _parse_json_response(self, text: str) -> Optional[Dict[str, Any]]:
+        """解析 JSON 响应，支持多种格式
+        
+        尝试多种方式解析 AI 返回的 JSON 内容，包括从 Markdown 代码块中提取。
+        
+        Args:
+            text: AI 返回的文本
+            
+        Returns:
+            解析成功返回字典，失败返回 None
+        """
+        if not text or not text.strip():
+            return None
+        
+        # 方式 1: 直接解析
         try:
-            return json.loads(response.content)
+            return json.loads(text)
         except json.JSONDecodeError:
-            logger.warning("无法解析 AI 返回的 JSON：%s", response.content)
-            return {"analysis_overview": response.content}
+            pass
+        
+        # 方式 2: 提取 Markdown 代码块中的 JSON（```json ... ```）
+        if "```json" in text:
+            try:
+                json_text = text.split("```json")[1].split("```")[0].strip()
+                return json.loads(json_text)
+            except (IndexError, json.JSONDecodeError):
+                pass
+        
+        # 方式 3: 提取普通代码块中的 JSON（``` ... ```）
+        if "```" in text:
+            try:
+                # 查找第一个 ``` 之后和最后一个 ``` 之前的内容
+                parts = text.split("```")
+                if len(parts) >= 3:
+                    # 跳过第一个部分（可能是说明文字），取中间部分
+                    json_text = parts[1].strip()
+                    # 如果包含 "json" 标识，去掉
+                    if json_text.lower().startswith("json"):
+                        json_text = json_text[4:].strip()
+                    return json.loads(json_text)
+            except (IndexError, json.JSONDecodeError):
+                pass
+        
+        # 方式 4: 尝试清理后解析（移除 BOM 等）
+        try:
+            cleaned_text = text.strip().lstrip('\ufeff')
+            return json.loads(cleaned_text)
+        except json.JSONDecodeError:
+            pass
+        
+        return None
+    
+    def _extract_readable_content(self, text: str) -> str:
+        """从失败解析的文本中提取可读内容
+        
+        尝试从包含 JSON 的文本中提取一些可读的信息，以便在前端显示。
+        
+        Args:
+            text: 原始文本
+            
+        Returns:
+            提取的可读文本，如果无法提取则返回空字符串
+        """
+        if not text:
+            return ""
+        
+        # 如果包含 JSON 代码块，尝试提取其中的一些字段
+        if "```json" in text or "```" in text:
+            try:
+                # 尝试提取 analysis_overview（支持中文字符）
+                if "analysis_overview" in text:
+                    import re
+                    # 匹配包含中文字符的字符串值
+                    match = re.search(r'"analysis_overview"\s*:\s*"((?:[^"\\]|\\.)*)"', text, re.DOTALL)
+                    if match:
+                        return match.group(1).replace('\\"', '"').replace('\\n', '\n')
+                # 如果包含完整的 JSON 对象，尝试提取
+                parsed = self._parse_json_response(text)
+                if parsed and isinstance(parsed, dict):
+                    return parsed.get("analysis_overview", "")
+            except Exception:
+                pass
+        
+        # 如果都无法提取，返回原始文本的前 100 个字符
+        return text[:100] + ("..." if len(text) > 100 else "")

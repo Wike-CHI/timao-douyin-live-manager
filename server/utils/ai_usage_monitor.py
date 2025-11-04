@@ -426,6 +426,10 @@ class AIUsageMonitor:
         self._load_today_records()
         
         logger.info(f"AI 使用量监控器已启动，数据目录: {self.data_dir}")
+        
+        # 初始化汇总统计
+        self._last_summary_time = time.time()
+        self._summary_interval = 300  # 每5分钟显示一次汇总
     
     def record_usage(
         self,
@@ -518,6 +522,16 @@ class AIUsageMonitor:
             
             # 持久化到文件
             self._save_record(record)
+            
+            # 定期显示汇总统计（每5分钟或每20次调用）
+            current_time = time.time()
+            should_show_summary = (
+                (current_time - self._last_summary_time) >= self._summary_interval
+            ) or (len(self._records) % 20 == 0)
+            
+            if should_show_summary and len(self._records) > 0:
+                self._print_summary_stats()
+                self._last_summary_time = current_time
         
         if numeric_user_id is not None:
             try:
@@ -530,11 +544,24 @@ class AIUsageMonitor:
             except Exception as exc:  # pragma: no cover - 防御性记录
                 logger.debug(f"记录 AI 使用量失败: {exc}")
         
+        # 格式化的日志输出，更易读
+        status_icon = "✅" if success else "❌"
+        cost_symbol = "¥" if cost_value > 0.001 else "$"  # 根据成本大小选择符号
+        
+        # 计算token速率（每秒）
+        duration_sec = duration_ms / 1000.0
+        tokens_per_sec = total_tokens / duration_sec if duration_sec > 0 else 0
+        
+        # 格式化显示
         logger.info(
-            f"AI 调用记录: {function}({model}) | "
-            f"Tokens: {sanitized_input}+{sanitized_output}={total_tokens} | "
-            f"Cost: ¥{cost_value:.4f} | "
-            f"Duration: {duration_ms:.0f}ms"
+            f"\n{'='*80}\n"
+            f"{status_icon} AI 调用记录\n"
+            f"{'─'*80}\n"
+            f"  功能: {function:20s} | 模型: {model or 'unknown':25s}\n"
+            f"  Token: {sanitized_input:6d} (输入) + {sanitized_output:6d} (输出) = {total_tokens:8d} (总计)\n"
+            f"  成本: {cost_symbol}{cost_value:10.6f} | 耗时: {duration_ms:8.1f}ms ({duration_sec:.2f}s)\n"
+            f"  速率: {tokens_per_sec:6.1f} tokens/s\n"
+            f"{'='*80}"
         )
         
         return record
@@ -851,6 +878,96 @@ class AIUsageMonitor:
         end_time = time.time()
         start_time = end_time - (days * 24 * 3600)
         return self._get_records_in_range(start_time, end_time)
+    
+    def _print_summary_stats(self) -> None:
+        """打印汇总统计信息（用于控制台显示）"""
+        if not self._records:
+            return
+        
+        # 获取最近1小时的记录
+        one_hour_ago = time.time() - 3600
+        recent_records = [r for r in self._records if r.timestamp >= one_hour_ago]
+        
+        if not recent_records:
+            return
+        
+        # 计算统计
+        total_calls = len(recent_records)
+        total_input_tokens = sum(r.input_tokens for r in recent_records)
+        total_output_tokens = sum(r.output_tokens for r in recent_records)
+        total_tokens = sum(r.total_tokens for r in recent_records)
+        total_cost = sum(r.cost for r in recent_records)
+        successful_calls = sum(1 for r in recent_records if r.success)
+        failed_calls = total_calls - successful_calls
+        
+        # 按功能统计
+        by_function = defaultdict(lambda: {"calls": 0, "tokens": 0, "cost": 0.0})
+        by_model = defaultdict(lambda: {"calls": 0, "tokens": 0, "cost": 0.0})
+        
+        for r in recent_records:
+            by_function[r.function]["calls"] += 1
+            by_function[r.function]["tokens"] += r.total_tokens
+            by_function[r.function]["cost"] += r.cost
+            
+            by_model[r.model]["calls"] += 1
+            by_model[r.model]["tokens"] += r.total_tokens
+            by_model[r.model]["cost"] += r.cost
+        
+        # 格式化显示
+        logger.info(
+            f"\n{'='*80}\n"
+            f"📊 AI 使用量汇总（最近1小时）\n"
+            f"{'─'*80}\n"
+            f"  总调用: {total_calls:4d} 次 (成功: {successful_calls:4d}, 失败: {failed_calls:4d})\n"
+            f"  总Token: {total_input_tokens:8d} (输入) + {total_output_tokens:8d} (输出) = {total_tokens:10d} (总计)\n"
+            f"  总成本: ¥{total_cost:10.6f} (人民币)\n"
+            f"{'─'*80}\n"
+            f"  按功能统计:\n"
+        )
+        
+        # 按功能排序显示
+        sorted_functions = sorted(
+            by_function.items(),
+            key=lambda x: x[1]["cost"],
+            reverse=True
+        )
+        for func, stats in sorted_functions[:5]:  # 显示前5个
+            avg_cost = stats["cost"] / stats["calls"] if stats["calls"] > 0 else 0
+            logger.info(
+                f"    {func:25s}: {stats['calls']:4d} 次 | "
+                f"{stats['tokens']:8d} tokens | "
+                f"¥{stats['cost']:8.6f} (平均: ¥{avg_cost:.6f}/次)"
+            )
+        
+        logger.info(f"{'─'*80}\n  按模型统计:\n")
+        
+        # 按模型排序显示
+        sorted_models = sorted(
+            by_model.items(),
+            key=lambda x: x[1]["cost"],
+            reverse=True
+        )
+        for model, stats in sorted_models[:5]:  # 显示前5个
+            avg_cost = stats["cost"] / stats["calls"] if stats["calls"] > 0 else 0
+            logger.info(
+                f"    {model:25s}: {stats['calls']:4d} 次 | "
+                f"{stats['tokens']:8d} tokens | "
+                f"¥{stats['cost']:8.6f} (平均: ¥{avg_cost:.6f}/次)"
+            )
+        
+        # 成本估算
+        hourly_rate = total_cost
+        daily_estimate = hourly_rate * 24
+        monthly_estimate = daily_estimate * 30
+        
+        logger.info(
+            f"{'─'*80}\n"
+            f"  💰 成本估算（基于当前速率）:\n"
+            f"    每小时: ¥{hourly_rate:10.6f}\n"
+            f"    每天:   ¥{daily_estimate:10.6f}\n"
+            f"    每月:   ¥{monthly_estimate:10.6f}\n"
+            f"{'='*80}\n"
+        )
 
 
 # 全局单例
