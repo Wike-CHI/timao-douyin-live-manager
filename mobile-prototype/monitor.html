@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>直播监控 - 提猫直播助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            overflow-x: hidden;
+        }
+        .floating-window {
+            position: fixed;
+            z-index: 9999;
+            transition: all 0.3s ease;
+            cursor: move;
+        }
+        .floating-window.expanded {
+            width: 320px;
+            height: 240px;
+        }
+        .floating-window.collapsed {
+            width: 80px;
+            height: 80px;
+        }
+        .comment-item {
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .pulse-dot {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部状态栏 -->
+    <div class="bg-white shadow-sm sticky top-0 z-50">
+        <div class="flex items-center justify-between px-4 py-3">
+            <div class="flex items-center space-x-3">
+                <div class="relative">
+                    <div class="w-3 h-3 bg-red-500 rounded-full pulse-dot"></div>
+                    <div class="absolute inset-0 w-3 h-3 bg-red-500 rounded-full animate-ping opacity-75"></div>
+                </div>
+                <span class="font-semibold text-gray-800">直播监控中</span>
+            </div>
+            <div class="flex items-center space-x-4 text-sm text-gray-600">
+                <div class="flex items-center">
+                    <i class="fas fa-users mr-1"></i>
+                    <span id="viewerCount">1,234</span>
+                </div>
+                <button id="settingsBtn" class="text-gray-600">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 统计卡片 -->
+    <div class="bg-white mx-4 mt-4 rounded-2xl shadow-sm p-4">
+        <div class="grid grid-cols-3 gap-4">
+            <div class="text-center">
+                <div class="text-2xl font-bold text-purple-600" id="commentCount">1,234</div>
+                <div class="text-xs text-gray-500 mt-1">弹幕数</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold text-orange-500" id="giftCount">56</div>
+                <div class="text-xs text-gray-500 mt-1">礼物数</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold text-green-500" id="giftValue">¥8,888</div>
+                <div class="text-xs text-gray-500 mt-1">礼物价值</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 弹幕列表 -->
+    <div class="mx-4 mt-4 mb-20">
+        <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <div class="px-4 py-3 bg-gradient-to-r from-purple-50 to-purple-100 border-b border-purple-200">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-semibold text-gray-800">
+                        <i class="fas fa-comments mr-2 text-purple-600"></i>实时弹幕
+                    </h3>
+                    <button id="clearComments" class="text-xs text-gray-500 hover:text-purple-600">
+                        <i class="fas fa-trash-alt mr-1"></i>清空
+                    </button>
+                </div>
+            </div>
+            <div id="commentsList" class="max-h-96 overflow-y-auto" style="max-height: 60vh;">
+                <!-- 弹幕项将通过JS动态添加 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部控制栏 -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg">
+        <div class="flex items-center justify-around px-4 py-3">
+            <button id="pauseBtn" class="flex-1 mx-2 py-3 bg-yellow-500 text-white rounded-xl font-semibold hover:bg-yellow-600 transition-all">
+                <i class="fas fa-pause mr-2"></i>暂停
+            </button>
+            <button id="stopBtn" class="flex-1 mx-2 py-3 bg-red-500 text-white rounded-xl font-semibold hover:bg-red-600 transition-all">
+                <i class="fas fa-stop mr-2"></i>停止
+            </button>
+        </div>
+    </div>
+
+    <!-- AI分析悬浮窗 -->
+    <div id="aiAnalysisWindow" class="floating-window collapsed bg-gradient-to-br from-purple-600 to-purple-800 rounded-2xl shadow-2xl text-white" style="right: 20px; top: 100px;">
+        <div class="h-full flex flex-col p-4">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center">
+                    <i class="fas fa-brain mr-2"></i>
+                    <span class="font-semibold text-sm">AI分析</span>
+                </div>
+                <button id="closeAnalysis" class="text-white/80 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="analysisContent" class="flex-1 overflow-hidden hidden">
+                <div class="text-xs leading-relaxed" id="analysisText">检测到关键词热度上升，建议重点关注"优惠"、"限时"等话题...</div>
+                <button id="copyAnalysis" class="mt-2 w-full py-2 bg-white/20 rounded-lg text-xs hover:bg-white/30 transition-all">
+                    <i class="fas fa-copy mr-1"></i>复制
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 话术建议悬浮窗 -->
+    <div id="scriptWindow" class="floating-window collapsed bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl shadow-2xl text-white" style="right: 20px; top: 200px;">
+        <div class="h-full flex flex-col p-4">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center">
+                    <i class="fas fa-lightbulb mr-2"></i>
+                    <span class="font-semibold text-sm">话术建议</span>
+                </div>
+                <button id="closeScript" class="text-white/80 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="scriptContent" class="flex-1 overflow-hidden hidden">
+                <div class="text-xs leading-relaxed" id="scriptText">感谢大家的支持！今天为大家准备了超值福利，限时优惠不容错过...</div>
+                <button id="copyScript" class="mt-2 w-full py-2 bg-white/20 rounded-lg text-xs hover:bg-white/30 transition-all">
+                    <i class="fas fa-copy mr-1"></i>复制
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let commentCount = 1234;
+        let giftCount = 56;
+        let giftValue = 8888;
+        let viewerCount = 1234;
+
+        // 检查登录状态
+        if (!localStorage.getItem('isLoggedIn')) {
+            window.location.href = 'login.html';
+        }
+
+        // 模拟实时弹幕数据
+        const sampleComments = [
+            { user: '用户123', text: '主播好棒！', time: '刚刚' },
+            { user: '小可爱', text: '这个产品看起来不错', time: '1分钟前' },
+            { user: '购物达人', text: '有优惠吗？', time: '1分钟前' },
+            { user: '粉丝001', text: '支持支持！', time: '2分钟前' },
+            { user: '新用户', text: '第一次看，感觉很好', time: '2分钟前' },
+        ];
+
+        // 添加弹幕项
+        function addComment(comment) {
+            const commentsList = document.getElementById('commentsList');
+            const commentItem = document.createElement('div');
+            commentItem.className = 'comment-item px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors';
+            commentItem.innerHTML = `
+                <div class="flex items-start space-x-3">
+                    <div class="w-8 h-8 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                        ${comment.user.charAt(0)}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center space-x-2 mb-1">
+                            <span class="font-semibold text-sm text-gray-800">${comment.user}</span>
+                            <span class="text-xs text-gray-400">${comment.time}</span>
+                        </div>
+                        <p class="text-sm text-gray-700">${comment.text}</p>
+                    </div>
+                </div>
+            `;
+            commentsList.insertBefore(commentItem, commentsList.firstChild);
+            
+            // 更新计数
+            commentCount++;
+            document.getElementById('commentCount').textContent = commentCount.toLocaleString();
+            
+            // 滚动到顶部
+            commentsList.scrollTop = 0;
+        }
+
+        // 初始化弹幕
+        sampleComments.forEach(comment => addComment(comment));
+
+        // 模拟实时弹幕
+        setInterval(() => {
+            const users = ['用户A', '用户B', '粉丝001', '新用户', '购物达人', '小可爱'];
+            const texts = [
+                '主播讲得很好！',
+                '这个价格可以接受',
+                '有优惠券吗？',
+                '支持支持！',
+                '第一次购买，试试看',
+                '质量怎么样？',
+                '发货快吗？',
+            ];
+            const comment = {
+                user: users[Math.floor(Math.random() * users.length)],
+                text: texts[Math.floor(Math.random() * texts.length)],
+                time: '刚刚'
+            };
+            addComment(comment);
+        }, 3000);
+
+        // 悬浮窗交互
+        function initFloatingWindow(windowId, contentId, toggleBtnId, copyBtnId, closeBtnId) {
+            const window = document.getElementById(windowId);
+            const content = document.getElementById(contentId);
+            let isExpanded = false;
+            let isDragging = false;
+            let startX, startY, initialX, initialY;
+
+            // 点击展开/收起
+            window.addEventListener('click', (e) => {
+                if (e.target.closest('button')) return;
+                isExpanded = !isExpanded;
+                if (isExpanded) {
+                    window.classList.remove('collapsed');
+                    window.classList.add('expanded');
+                    content.classList.remove('hidden');
+                } else {
+                    window.classList.remove('expanded');
+                    window.classList.add('collapsed');
+                    content.classList.add('hidden');
+                }
+            });
+
+            // 拖拽功能
+            window.addEventListener('mousedown', (e) => {
+                if (e.target.closest('button')) return;
+                isDragging = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                const rect = window.getBoundingClientRect();
+                initialX = rect.left;
+                initialY = rect.top;
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const deltaX = e.clientX - startX;
+                const deltaY = e.clientY - startY;
+                
+                let newX = initialX + deltaX;
+                let newY = initialY + deltaY;
+                
+                // 限制在屏幕内
+                const maxX = window.innerWidth - window.offsetWidth;
+                const maxY = window.innerHeight - window.offsetHeight;
+                newX = Math.max(0, Math.min(newX, maxX));
+                newY = Math.max(0, Math.min(newY, maxY));
+                
+                window.style.left = newX + 'px';
+                window.style.right = 'auto';
+                window.style.top = newY + 'px';
+            });
+
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+
+            // 复制功能
+            document.getElementById(copyBtnId).addEventListener('click', (e) => {
+                e.stopPropagation();
+                const text = document.getElementById(contentId.replace('Content', 'Text')).textContent;
+                navigator.clipboard.writeText(text).then(() => {
+                    alert('已复制到剪贴板');
+                });
+            });
+
+            // 关闭功能
+            document.getElementById(closeBtnId).addEventListener('click', (e) => {
+                e.stopPropagation();
+                window.style.display = 'none';
+            });
+        }
+
+        initFloatingWindow('aiAnalysisWindow', 'analysisContent', null, 'copyAnalysis', 'closeAnalysis');
+        initFloatingWindow('scriptWindow', 'scriptContent', null, 'copyScript', 'closeScript');
+
+        // 模拟AI分析弹出
+        setTimeout(() => {
+            document.getElementById('aiAnalysisWindow').style.display = 'block';
+        }, 5000);
+
+        // 模拟话术建议弹出
+        setTimeout(() => {
+            document.getElementById('scriptWindow').style.display = 'block';
+        }, 8000);
+
+        // 控制按钮
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            alert('暂停监控');
+        });
+
+        document.getElementById('stopBtn').addEventListener('click', () => {
+            if (confirm('确定要停止直播监控吗？')) {
+                window.location.href = 'stats.html';
+            }
+        });
+
+        document.getElementById('clearComments').addEventListener('click', () => {
+            if (confirm('确定要清空弹幕列表吗？')) {
+                document.getElementById('commentsList').innerHTML = '';
+                commentCount = 0;
+                document.getElementById('commentCount').textContent = '0';
+            }
+        });
+
+        // 模拟礼物更新
+        setInterval(() => {
+            if (Math.random() > 0.7) {
+                giftCount++;
+                giftValue += Math.floor(Math.random() * 100) + 10;
+                document.getElementById('giftCount').textContent = giftCount;
+                document.getElementById('giftValue').textContent = '¥' + giftValue.toLocaleString();
+            }
+        }, 5000);
+
+        // 模拟观众数更新
+        setInterval(() => {
+            viewerCount += Math.floor(Math.random() * 10) - 5;
+            viewerCount = Math.max(1000, viewerCount);
+            document.getElementById('viewerCount').textContent = viewerCount.toLocaleString();
+        }, 10000);
+    </script>
+</body>
+</html>
+
