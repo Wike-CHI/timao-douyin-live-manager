@@ -9,7 +9,7 @@
   "files": [
     "electron/**/*",
     "backend_dist/**/*",
-    "service_launcher.py",
+    "scripts/service_launcher.py",
     "config.json",
     "package.json",
     "!AST_module/**/*",
@@ -33,8 +33,8 @@
       "filter": ["**/*"]
     },
     {
-      "from": "service_launcher.py",
-      "to": "service_launcher.py"
+      "from": "scripts/service_launcher.py",
+      "to": "scripts/service_launcher.py"
     },
     {
       "from": "config.json",
@@ -52,7 +52,7 @@
         "arch": ["x64"]
       }
     ],
-    "icon": "assets/icon.ico",
+    "icon": "electron/renderer/src/assets/icon.ico",
     "artifactName": "TalkingCat-Portable-${version}-${arch}.exe",
     "requestedExecutionLevel": "asInvoker"
   },
@@ -74,7 +74,7 @@
         "arch": ["x64", "arm64"]
       }
     ],
-    "icon": "assets/icon.icns",
+    "icon": "electron/renderer/src/assets/icon.icns",
     "artifactName": "TalkingCat-${version}-${arch}.dmg",
     "category": "public.app-category.productivity"
   },
@@ -89,7 +89,7 @@
         "arch": ["x64"]
       }
     ],
-    "icon": "assets/icon.png",
+    "icon": "electron/renderer/src/assets/icon.png",
     "artifactName": "TalkingCat-${version}-${arch}.${ext}",
     "category": "Office"
   },

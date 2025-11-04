@@ -163,7 +163,7 @@ function startBackendServices() {
             // 启动统一服务启动器
             backendServiceProcess = spawn(
                 process.platform === 'win32' ? 'python' : 'python3',
-                ['service_launcher.py'],
+                ['scripts/service_launcher.py'],
                 {
                     cwd: path.join(__dirname, '..'),
                     env: envForServices,

@@ -22,7 +22,7 @@ class ServiceManager:
     def __init__(self):
         self.services: Dict[str, subprocess.Popen] = {}
         self.running = False
-        self.base_dir = Path(__file__).parent
+        self.base_dir = Path(__file__).parent.parent  # scripts/ -> 项目根目录
         self.health_check_thread = None
         
         # 配置日志
@@ -145,21 +145,9 @@ class ServiceManager:
             self.logger.info("等待FastAPI服务启动...")
             time.sleep(5)
         
-        # 2. 启动StreamCap服务
-        streamcap_path = self.base_dir / "StreamCap" / "main.py"
-        if streamcap_path.exists():
-            streamcap_success = self.start_service(
-                "streamcap",
-                [sys.executable, str(streamcap_path), "--web", "--port", "6006"],
-                cwd=self.base_dir / "StreamCap",
-                expected_port=6006
-            )
-            
-            if streamcap_success:
-                self.logger.info("等待StreamCap服务启动...")
-                time.sleep(3)
-        else:
-            self.logger.warning("StreamCap服务未找到，跳过启动")
+        # 2. 启动StreamCap服务（已迁移到 server/modules/streamcap，不再需要独立启动）
+        # StreamCap 功能已集成到主服务中，无需单独启动
+        self.logger.info("StreamCap 功能已集成到主服务，跳过独立启动")
         
         # 3. 启动健康检查
         self.start_health_monitor()
@@ -184,7 +172,7 @@ class ServiceManager:
         """健康检查"""
         services_to_check = [
             ("FastAPI主服务", "http://127.0.0.1:9019/health"),
-            ("StreamCap服务", "http://127.0.0.1:6006/health"),
+            # StreamCap 功能已集成到主服务中，无需单独检查
         ]
         
         for name, url in services_to_check:
@@ -204,9 +192,7 @@ class ServiceManager:
         if "9019" in url and "fastapi_main" in self.services:
             self.logger.info(f"尝试重启 {service_name}...")
             self.restart_service("fastapi_main")
-        elif "6006" in url and "streamcap" in self.services:
-            self.logger.info(f"尝试重启 {service_name}...")
-            self.restart_service("streamcap")
+        # StreamCap 功能已集成到主服务中，无需单独处理
     
     def restart_service(self, name: str):
         """重启指定服务"""
@@ -225,14 +211,8 @@ class ServiceManager:
                     expected_port=9019
                 )
             elif name == "streamcap":
-                streamcap_path = self.base_dir / "StreamCap" / "main.py"
-                if streamcap_path.exists():
-                    self.start_service(
-                        "streamcap",
-                        [sys.executable, str(streamcap_path), "--web", "--port", "6006"],
-                        cwd=self.base_dir / "StreamCap",
-                        expected_port=6006
-                    )
+                # StreamCap 功能已集成到主服务中，无需单独启动
+                self.logger.info("StreamCap 功能已集成到主服务，无需单独启动")
     
     def stop_service(self, name: str):
         """停止指定服务"""

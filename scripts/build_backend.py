@@ -171,7 +171,7 @@ binaries = []
 
 # 主分析
 a = Analysis(
-    [str(BASE_DIR / 'service_launcher.py')],
+    [str(BASE_DIR / 'scripts' / 'service_launcher.py')],
     pathex=[str(BASE_DIR)],
     binaries=binaries,
     datas=datas,

@@ -47,7 +47,7 @@ class IntegratedLauncher {
             'package.json',
             'server/app/main.py',
             'electron/renderer/package.json',
-            'service_launcher.py'
+            'scripts/service_launcher.py'
         ];
         
         console.log('🔍 检查必要文件...');
@@ -222,7 +222,7 @@ class IntegratedLauncher {
     async startAll() {
         try {
             console.log('🎯 开始一体化启动流程');
-            console.log('=' * 60);
+            console.log('='.repeat(60));
             
             // 1. 检查必要文件
             this.checkPrerequisites();
@@ -243,7 +243,7 @@ class IntegratedLauncher {
             console.log('\n📋 第四步: 启动Electron应用');
             await this.startElectron();
             
-            console.log('\n' + '=' * 60);
+            console.log('\n' + '='.repeat(60));
             console.log('🎉 所有服务启动完成！');
             console.log('');
             console.log('📍 服务地址:');
@@ -252,7 +252,7 @@ class IntegratedLauncher {
             console.log('   - 健康检查: http://127.0.0.1:9019/health');
             console.log('');
             console.log('💡 按 Ctrl+C 停止所有服务');
-            console.log('=' * 60);
+            console.log('='.repeat(60));
             
             // 保持运行
             await this.keepAlive();
