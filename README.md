@@ -57,6 +57,7 @@ timao-douyin-live-manager/
 ├── electron/                # 桌面端应用
 │   ├── main.js              # Electron 主进程
 │   └── renderer/            # React + Vite 前端，端口 30013（dev）
+│       └── src/assets/      # 前端资源文件（图标、图片等）
 │
 ├── scripts/                 # 工具脚本
 │   ├── check_db_config.py   # 数据库配置检查
@@ -76,6 +77,11 @@ timao-douyin-live-manager/
 │   └── config/              # 部署配置
 ├── migrations/              # 数据库迁移文件
 ├── tests/                   # 全局测试文件
+├── electron/                # 桌面端应用
+│   ├── main.js              # Electron 主进程
+│   └── renderer/            # React + Vite 前端
+│       └── src/
+│           └── assets/      # 前端资源文件（图标、图片等）
 ├── tools/                   # 开发工具（模型下载、缓存清理等）
 ├── config/                  # 配置文件
 ├── records/                 # 记录文件（日志、数据等）

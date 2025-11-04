@@ -73,15 +73,15 @@ function createWindow() {
     // 创建浏览器窗口
     // Prefer a branded window icon when available
     const iconCandidates = [
-        path.join(__dirname, '..', 'icons', 'app.png'),
-        path.join(__dirname, '..', 'icons', 'app.ico'),
-        path.join(__dirname, '..', 'icons', 'logo.png'),
-        path.join(__dirname, '..', 'icons', 'logo.jpg'),
-        path.join(__dirname, '..', 'icons', 'talkingcat.png'),
-        path.join(__dirname, '..', 'icons', 'talkingcat.jpg'),
+        path.join(__dirname, 'renderer', 'src', 'assets', 'app.png'),
+        path.join(__dirname, 'renderer', 'src', 'assets', 'app.ico'),
+        path.join(__dirname, 'renderer', 'src', 'assets', 'logo.png'),
+        path.join(__dirname, 'renderer', 'src', 'assets', 'logo.jpg'),
+        path.join(__dirname, 'renderer', 'src', 'assets', 'talkingcat.png'),
+        path.join(__dirname, 'renderer', 'src', 'assets', 'talkingcat.jpg'),
         // also allow using packaged build icons
-        path.join(__dirname, '..', 'assets', 'icon.png'),
-        path.join(__dirname, '..', 'assets', 'icon.ico'),
+        path.join(__dirname, 'renderer', 'src', 'assets', 'icon.png'),
+        path.join(__dirname, 'renderer', 'src', 'assets', 'icon.ico'),
     ];
     const iconPath = iconCandidates.find(p => {
         try { return fs.existsSync(p); } catch { return false; }
