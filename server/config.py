@@ -369,6 +369,12 @@ class ConfigManager:
                 'MYSQL_PASSWORD': ('database', 'mysql_password'),
                 'MYSQL_DATABASE': ('database', 'mysql_database'),
                 'MYSQL_ROOT_PASSWORD': ('database', 'mysql_root_password'),
+                # RDS配置（阿里云）
+                'RDS_HOST': ('database', 'mysql_host'),
+                'RDS_PORT': ('database', 'mysql_port', int),
+                'RDS_USER': ('database', 'mysql_user'),
+                'RDS_PASSWORD': ('database', 'mysql_password'),
+                'RDS_DATABASE': ('database', 'mysql_database'),
                 
                 # Redis配置
                 'REDIS_ENABLED': ('redis', 'enabled', bool),

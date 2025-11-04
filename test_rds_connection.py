@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """
 测试阿里云RDS连接
 配置好白名单后运行此脚本
@@ -5,6 +7,12 @@
 import os
 import sys
 from pathlib import Path
+
+# 设置标准输出为UTF-8编码（解决Windows PowerShell GBK编码问题）
+if sys.platform == 'win32':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 try:
     import pymysql
