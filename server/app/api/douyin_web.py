@@ -65,9 +65,12 @@ async def stop_relay():
 async def relay_status():
     relay = get_douyin_web_relay()
     status = relay.get_status()
+    # 🆕 获取健康状态和验证信息
+    health = relay.get_health_status()
     out = {
         "is_running": status.is_running,
         "live_id": status.live_id,
+        "health": health,  # 🆕 添加健康状态
         "room_id": status.room_id,
         "last_error": status.last_error,
     }

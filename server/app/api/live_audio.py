@@ -142,9 +142,12 @@ async def stop_live_audio() -> BaseResp:
 async def live_audio_status() -> dict:
     svc = get_live_audio_service()
     st = svc.status()
+    # 🆕 获取健康状态和验证信息
+    health = svc.get_health_status()
     return {
         "is_running": st.is_running,
         "live_id": st.live_id,
+        "health": health,  # 🆕 添加健康状态
         "live_url": st.live_url,
         "session_id": st.session_id,
         "mode": getattr(svc, "mode", "delta"),

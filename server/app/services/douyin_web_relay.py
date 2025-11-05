@@ -29,6 +29,8 @@ from server.modules.douyin.liveMan import (
 from server.utils.service_logger import log_service_start, log_service_stop
 from .douyin_connection_manager import get_connection_manager, reset_connection_manager
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class RelayStatus:
@@ -67,7 +69,8 @@ class _WebRelayFetcher(DouyinLiveWebFetcher):
             pass
 
     def _wsOnOpen(self, ws):  # noqa: N802
-        self._emit_event("status", {"stage": "connected"})
+        # 🆕 记录WebSocket连接成功
+        self._emit_event("status", {"stage": "connected", "websocket": True})
         super()._wsOnOpen(ws)
 
     def _wsOnError(self, ws, error):  # noqa: N802
@@ -75,18 +78,34 @@ class _WebRelayFetcher(DouyinLiveWebFetcher):
         super()._wsOnError(ws, error)
 
     def _wsOnClose(self, ws, *args):  # noqa: N802
-        self._emit_event("status", {"stage": "closed"})
+        # 🆕 记录WebSocket连接关闭
+        self._emit_event("status", {"stage": "closed", "websocket": False})
         super()._wsOnClose(ws, *args)
 
     def _parseChatMsg(self, payload):  # noqa: N802
         message = ChatMessage().parse(payload)
+        # 🆕 验证弹幕数据有效性
+        content = message.content or ""
+        user_id = message.user.id or ""
+        nickname = message.user.nick_name or ""
+        
+        # 检查是否是假数据：内容为空、用户ID为空、或内容为纯空格
+        if not content.strip() or not user_id or not nickname:
+            logger.debug(f"过滤无效弹幕: content={content[:20]}, user_id={user_id}, nickname={nickname}")
+            return
+        
+        # 检查内容长度是否合理（抖音弹幕通常不超过200字符）
+        if len(content) > 500:
+            logger.warning(f"弹幕内容异常长，可能是假数据: {len(content)}字符")
+            return
+        
         self._emit_event(
             "chat",
             {
-                "user_id": message.user.id,
+                "user_id": user_id,
                 "user_id_str": message.user.id_str,
-                "nickname": message.user.nick_name,
-                "content": message.content,
+                "nickname": nickname,
+                "content": content,
             },
         )
 
@@ -290,6 +309,14 @@ class DouyinWebRelay:
         self._persist_enabled: bool = True
         self._persist_root: Optional[str] = "records/live_logs"
         self._writer = None
+        # 🆕 数据验证和监控
+        self._message_count = 0  # 接收到的消息总数
+        self._valid_message_count = 0  # 有效消息数
+        self._last_message_time: Optional[float] = None  # 最后一条消息时间
+        self._websocket_connected = False  # WebSocket连接状态
+        self._signature_failures = 0  # 签名验证失败次数
+        self._last_signature_check: Optional[float] = None  # 上次签名检查时间
+        self._health_check_task: Optional[asyncio.Task] = None  # 健康检查任务
 
     # ------------------------------------------------------------------
     # 客户端管理
@@ -326,9 +353,36 @@ class DouyinWebRelay:
             def emitter(event: Dict[str, Any]) -> None:
                 if not self._event_loop:
                     return
+                # 🆕 统计和验证消息
+                event_type = event.get("type", "")
+                if event_type in ["chat", "gift", "like", "member", "follow"]:
+                    self._message_count += 1
+                    payload = event.get("payload", {})
+                    # 验证消息有效性
+                    if payload.get("content") or payload.get("nickname") or payload.get("user_id"):
+                        self._valid_message_count += 1
+                    self._last_message_time = time.time()
+                elif event_type == "status":
+                    # 🆕 更新WebSocket连接状态
+                    payload = event.get("payload", {})
+                    if payload.get("websocket") is True:
+                        self._websocket_connected = True
+                    elif payload.get("websocket") is False:
+                        self._websocket_connected = False
+                
                 self._event_loop.call_soon_threadsafe(self._dispatch_event, event)
 
             self._fetcher = _WebRelayFetcher(live_id, emitter)
+            # 🆕 重置监控指标
+            self._message_count = 0
+            self._valid_message_count = 0
+            self._last_message_time = None
+            self._websocket_connected = False
+            self._signature_failures = 0
+            self._last_signature_check = None
+            
+            # 🆕 启动健康检查任务
+            self._health_check_task = asyncio.create_task(self._health_check_loop())
 
             def runner():
                 try:
@@ -340,64 +394,88 @@ class DouyinWebRelay:
                         }
                     )
                     
-                    # 使用智能连接管理器进行重试
+                    # 🔧 修复：按照原始版本的简单流程
+                    # 1. 先尝试获取 room_id（通过属性访问，会自动触发获取逻辑）
+                    # 2. 如果失败，使用重试机制
+                    # 3. 成功获取后直接启动 WebSocket
+                    
                     conn_mgr = get_connection_manager()
-                    conn_mgr.reset()  # 重置状态
+                    conn_mgr.reset()
                     conn_mgr.set_status_callback(emitter)
                     
                     room_id = None
                     
+                    # 重试获取 room_id（最多10次）
                     while conn_mgr.should_retry():
                         attempt = conn_mgr.start_attempt()
                         
                         try:
-                            # 尝试获取房间状态（可能因为 a_bogus 失败）
-                            self._fetcher.get_room_status()
-                            room_id = getattr(self._fetcher, "room_id", None)
+                            # 🔧 修复：直接访问 room_id 属性，不要提前调用 get_room_status()
+                            # room_id 属性会自动触发获取逻辑
+                            room_id = self._fetcher.room_id
                             
-                            # 确保 room_id 是字符串类型
+                            # 确保 room_id 是字符串类型且有效
                             if room_id is not None:
                                 room_id = str(room_id)
-                            
-                            if room_id:
-                                # 成功获取 room_id
-                                conn_mgr.record_success(f"成功获取房间ID: {room_id}")
-                                emitter(
-                                    {
-                                        "type": "status",
-                                        "payload": {
-                                            "stage": "room_ready",
-                                            "room_id": room_id,
-                                            "attempt": attempt,
-                                        },
-                                        "timestamp": time.time(),
-                                    }
-                                )
-                                break
-                            else:
-                                # 未获取到 room_id，但不是异常
-                                if not conn_mgr.record_failure("未能获取到 room_id"):
+                                if room_id and room_id.strip():
+                                    # 成功获取 room_id
+                                    conn_mgr.record_success(f"成功获取房间ID: {room_id}")
+                                    emitter(
+                                        {
+                                            "type": "status",
+                                            "payload": {
+                                                "stage": "room_ready",
+                                                "room_id": room_id,
+                                                "attempt": attempt,
+                                            },
+                                            "timestamp": time.time(),
+                                        }
+                                    )
                                     break
-                                time.sleep(conn_mgr.calculate_delay())
+                            
+                            # 未获取到 room_id
+                            if not conn_mgr.record_failure("未能获取到 room_id"):
+                                break
+                            time.sleep(conn_mgr.calculate_delay())
                                     
                         except (ValueError, ConnectionError, RuntimeError) as exc:
                             # 记录异常并判断是否继续重试
-                            # 这些异常通常是可以重试的（网络问题、API限制等）
+                            error_msg = str(exc)
+                            # 检测签名验证失败（防爬虫算法更新）
+                            if "bogus" in error_msg.lower() or "signature" in error_msg.lower() or "403" in error_msg or "400" in error_msg:
+                                self._signature_failures += 1
+                                self._last_signature_check = time.time()
+                                logger.warning(f"⚠️ 签名验证失败 (累计{self._signature_failures}次): {error_msg}")
+                                if self._signature_failures >= 5:
+                                    logger.error("🚨 检测到可能的防爬虫算法更新！签名验证失败率过高，请检查a_bogus.js和ac_signature.py算法")
+                                    emitter(
+                                        {
+                                            "type": "warning",
+                                            "payload": {
+                                                "message": "检测到可能的防爬虫算法更新，请更新算法文件",
+                                                "signature_failures": self._signature_failures,
+                                                "error": error_msg
+                                            },
+                                            "timestamp": time.time(),
+                                        }
+                                    )
+                            
                             if not conn_mgr.record_failure(exc):
                                 break
                             time.sleep(conn_mgr.calculate_delay())
                         except Exception as exc:
                             # 其他未知异常，记录但继续重试
                             error_msg = str(exc)
-                            # 检查是否是 NoneType 相关错误
                             if "NoneType" in error_msg or "not iterable" in error_msg:
-                                # NoneType 错误通常是 API 响应异常，可以重试
                                 if not conn_mgr.record_failure(f"抖音API响应异常: {error_msg}"):
                                     break
                             else:
-                                # 其他未知错误
-                                if not conn_mgr.record_failure(exc):
-                                    break
+                                if "bogus" in error_msg.lower() or "signature" in error_msg.lower() or "403" in error_msg or "400" in error_msg:
+                                    self._signature_failures += 1
+                                    self._last_signature_check = time.time()
+                            
+                            if not conn_mgr.record_failure(exc):
+                                break
                             time.sleep(conn_mgr.calculate_delay())
                     
                     if not room_id:
@@ -415,7 +493,7 @@ class DouyinWebRelay:
                         )
                         return
                     
-                    # 成功获取 room_id，开始 WebSocket 连接
+                    # 🔧 成功获取 room_id，直接启动 WebSocket 连接（与原始版本一致）
                     emitter(
                         {
                             "type": "status",
@@ -423,6 +501,7 @@ class DouyinWebRelay:
                             "timestamp": time.time(),
                         }
                     )
+                    # 直接调用 start()，内部会自动处理 WebSocket 连接
                     self._fetcher.start()
                     
                 except Exception as exc:
@@ -521,6 +600,14 @@ class DouyinWebRelay:
             except Exception:
                 pass
             self._writer = None
+            # 🆕 停止健康检查任务
+            if self._health_check_task:
+                self._health_check_task.cancel()
+                try:
+                    await self._health_check_task
+                except asyncio.CancelledError:
+                    pass
+                self._health_check_task = None
             return {"success": True}
 
     def _thread_finished(self) -> None:
@@ -577,6 +664,92 @@ class DouyinWebRelay:
 
     def get_status(self) -> RelayStatus:
         return self._status
+    
+    def get_health_status(self) -> Dict[str, Any]:
+        """🆕 获取服务健康状态和监控信息"""
+        now = time.time()
+        # 计算数据质量指标
+        valid_rate = (self._valid_message_count / self._message_count * 100) if self._message_count > 0 else 0.0
+        time_since_last_msg = (now - self._last_message_time) if self._last_message_time else None
+        
+        # 判断是否在接收真实数据
+        is_receiving_data = (
+            self._websocket_connected and
+            self._last_message_time is not None and
+            (time_since_last_msg is None or time_since_last_msg < 60) and  # 60秒内有消息
+            valid_rate > 50  # 有效消息率 > 50%
+        )
+        
+        # 判断是否可能是假数据
+        is_possible_fake_data = (
+            self._message_count > 0 and
+            (valid_rate < 30 or  # 有效消息率过低
+             (time_since_last_msg and time_since_last_msg > 300))  # 5分钟没有消息
+        )
+        
+        # 判断是否检测到算法更新
+        algorithm_updated = (
+            self._signature_failures >= 5 and
+            (self._last_signature_check and (now - self._last_signature_check) < 3600)  # 1小时内
+        )
+        
+        return {
+            "is_receiving_data": is_receiving_data,
+            "is_possible_fake_data": is_possible_fake_data,
+            "algorithm_updated": algorithm_updated,
+            "message_count": self._message_count,
+            "valid_message_count": self._valid_message_count,
+            "valid_rate": round(valid_rate, 2),
+            "last_message_time": self._last_message_time,
+            "time_since_last_msg": round(time_since_last_msg, 2) if time_since_last_msg else None,
+            "websocket_connected": self._websocket_connected,
+            "signature_failures": self._signature_failures,
+            "last_signature_check": self._last_signature_check,
+        }
+    
+    async def _health_check_loop(self):
+        """🆕 定期健康检查，检测数据质量和连接状态"""
+        try:
+            while self._status.is_running:
+                await asyncio.sleep(30)  # 每30秒检查一次
+                
+                if not self._status.is_running:
+                    break
+                
+                health = self.get_health_status()
+                
+                # 检测假数据
+                if health["is_possible_fake_data"]:
+                    msg_time_str = f"{health['time_since_last_msg']:.1f}秒" if health['time_since_last_msg'] else "无消息"
+                    logger.warning(
+                        f"⚠️ 检测到可能的假数据：消息总数={self._message_count}, "
+                        f"有效消息率={health['valid_rate']:.1f}%, "
+                        f"距离最后消息={msg_time_str}"
+                    )
+                    # 发送警告事件
+                    self._emit_status("warning", {
+                        "message": "检测到可能的假数据或数据流中断",
+                        "health": health
+                    })
+                
+                # 检测算法更新
+                if health["algorithm_updated"]:
+                    logger.error(
+                        f"🚨 检测到可能的防爬虫算法更新！签名验证失败{self._signature_failures}次"
+                    )
+                    self._emit_status("warning", {
+                        "message": "检测到可能的防爬虫算法更新，请更新算法文件",
+                        "signature_failures": self._signature_failures
+                    })
+                
+                # 检测WebSocket连接状态
+                if self._status.is_running and not health["websocket_connected"]:
+                    logger.warning("⚠️ WebSocket未连接，但服务显示运行中")
+                
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.error(f"健康检查任务异常: {e}")
 
     def get_persist(self) -> Dict[str, Any]:
         return {

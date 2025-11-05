@@ -75,6 +75,8 @@ try:  # Optional dependency: 本地环境已包含 numpy
 except Exception:  # pragma: no cover - numpy 非必需
     np = None  # type: ignore
 
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
 
 def _now() -> float:
     return time.time()
@@ -157,6 +159,11 @@ class LiveAudioStatus:
     music_last_title: Optional[str] = None
     music_last_score: float = 0.0
     music_last_detected_at: float = 0.0
+    # 🆕 音频流验证指标
+    audio_bytes_received: int = 0  # 接收到的音频字节数
+    last_audio_chunk_time: Optional[float] = None  # 最后接收到音频块的时间
+    audio_chunk_count: int = 0  # 音频块数量
+    is_receiving_audio: bool = False  # 是否正在接收音频流
 
 
 class LiveAudioStreamService:
@@ -641,6 +648,39 @@ class LiveAudioStreamService:
 
     def status(self) -> LiveAudioStatus:
         return self._status
+    
+    def get_health_status(self) -> Dict[str, Any]:
+        """🆕 获取服务健康状态和音频流验证信息"""
+        now = _now()
+        time_since_last_chunk = (now - self._status.last_audio_chunk_time) if self._status.last_audio_chunk_time else None
+        
+        # 判断是否在接收真实音频流
+        is_receiving_real_audio = (
+            self._status.is_running and
+            self._status.is_receiving_audio and
+            self._status.last_audio_chunk_time is not None and
+            (time_since_last_chunk is None or time_since_last_chunk < 5) and  # 5秒内有音频数据
+            self._status.audio_bytes_received > 0  # 已接收到音频数据
+        )
+        
+        # 判断是否可能是假数据或流中断
+        is_possible_fake_stream = (
+            self._status.is_running and
+            (self._status.audio_bytes_received == 0 or  # 没有接收到数据
+             (time_since_last_chunk and time_since_last_chunk > 30))  # 30秒没有数据
+        )
+        
+        return {
+            "is_receiving_real_audio": is_receiving_real_audio,
+            "is_possible_fake_stream": is_possible_fake_stream,
+            "audio_bytes_received": self._status.audio_bytes_received,
+            "audio_chunk_count": self._status.audio_chunk_count,
+            "last_audio_chunk_time": self._status.last_audio_chunk_time,
+            "time_since_last_chunk": round(time_since_last_chunk, 2) if time_since_last_chunk else None,
+            "is_receiving_audio": self._status.is_receiving_audio,
+            "ffmpeg_pid": self._status.ffmpeg_pid,
+            "ffmpeg_running": self._ffmpeg is not None and self._ffmpeg.returncode is None if self._ffmpeg else False,
+        }
 
     # ---------- Profiles ----------
     def apply_profile(self, profile: str) -> None:
@@ -796,6 +836,13 @@ class LiveAudioStreamService:
                         break
                     await asyncio.sleep(0.05)
                     continue
+                
+                # 🆕 验证和统计音频数据
+                self._status.audio_bytes_received += len(data)
+                self._status.audio_chunk_count += 1
+                self._status.last_audio_chunk_time = _now()
+                self._status.is_receiving_audio = True
+                
                 buf.extend(data)
                 while len(buf) >= chunk_bytes:
                     frame = bytes(buf[:chunk_bytes])
