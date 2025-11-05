@@ -16,7 +16,7 @@ import { getSessionStatus, resumeSession, resumePausedSession, type LiveSessionS
 
 // Note: Do not cap transcript items; persist to disk is handled by backend.
 // We keep full in-memory log for current session (may grow large for long sessions).
-const FASTAPI_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9019';
+const FASTAPI_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9030'; // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
 
 const LiveConsolePage = () => {
   const [showSaveInfo, setShowSaveInfo] = useState(false);

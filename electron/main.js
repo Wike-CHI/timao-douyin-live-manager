@@ -41,7 +41,7 @@ const uvicornLogPath = path.join(logsDir, 'uvicorn.log');
 const serviceConfig = {
     main: {
         name: 'FastAPI',
-        port: process.env.BACKEND_PORT || '9019',
+        port: process.env.BACKEND_PORT || '9030', // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
         healthPath: '/health'
     },
     streamcap: {

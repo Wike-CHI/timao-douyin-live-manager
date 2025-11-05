@@ -1,7 +1,7 @@
 import useAuthStore from '../store/useAuthStore';
 import authService from './authService';
 
-const DEFAULT_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9019';
+const DEFAULT_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9030'; // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
 
 /**
  * 构建包含鉴权信息的请求头

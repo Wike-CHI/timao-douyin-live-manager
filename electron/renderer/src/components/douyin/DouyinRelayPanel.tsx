@@ -679,7 +679,7 @@ const DouyinRelayPanel = ({
             实时弹幕
           </h4>
           <div className="flex items-center gap-2">
-            <span className="text-xs timao-support-text">{chatLog.length} 条</span>
+          <span className="text-xs timao-support-text">{chatLog.length} 条</span>
             {chatLog.length > 0 && (
               <button
                 className="timao-outline-btn text-[10px] px-2 py-0.5"

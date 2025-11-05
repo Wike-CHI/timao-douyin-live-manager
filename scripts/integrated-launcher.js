@@ -84,11 +84,13 @@ class IntegratedLauncher {
                 PYTHONUTF8: '1',
             };
             
+            // 合并传入的环境变量选项
+            const finalEnv = { ...spawnEnv, ...(options.env || {}) };
             const childProcess = spawn(command, args, {
                 cwd,
                 stdio: ['ignore', 'pipe', 'pipe'],
                 shell: true,
-                env: spawnEnv,
+                env: finalEnv,
                 ...options
             });
             
@@ -170,16 +172,28 @@ class IntegratedLauncher {
      * 启动后端服务
      */
     async startBackend() {
+        // 使用环境变量 BACKEND_PORT，默认 9030（避免 Windows 端口排除范围 8930-9029）
+        const backendPort = process.env.BACKEND_PORT || '9030';
         const serverPath = path.join(this.projectRoot, 'server');
+        
+        // 将端口号传递给子进程
+        const spawnEnv = {
+            ...process.env,
+            BACKEND_PORT: backendPort,
+            PYTHONIOENCODING: 'utf-8',
+            PYTHONUTF8: '1',
+        };
+        
         await this.startService(
             'Backend',
             'python',
-            ['-m', 'uvicorn', 'app.main:app', '--host', '0.0.0.0', '--port', '9019', '--reload'],
-            serverPath
+            ['-m', 'uvicorn', 'app.main:app', '--host', '0.0.0.0', '--port', backendPort, '--reload'],
+            serverPath,
+            { env: spawnEnv }
         );
         
         // 等待后端服务启动
-        const backendReady = await this.waitForHealthCheck('http://127.0.0.1:9019/health');
+        const backendReady = await this.waitForHealthCheck(`http://127.0.0.1:${backendPort}/health`);
         if (!backendReady) {
             throw new Error('后端服务启动失败');
         }
@@ -243,13 +257,14 @@ class IntegratedLauncher {
             console.log('\n📋 第四步: 启动Electron应用');
             await this.startElectron();
             
+            const backendPort = process.env.BACKEND_PORT || '9030';
             console.log('\n' + '='.repeat(60));
             console.log('🎉 所有服务启动完成！');
             console.log('');
             console.log('📍 服务地址:');
-            console.log('   - 后端API: http://127.0.0.1:9019');
+            console.log(`   - 后端API: http://127.0.0.1:${backendPort}`);
             console.log('   - 前端开发: http://127.0.0.1:10030');
-            console.log('   - 健康检查: http://127.0.0.1:9019/health');
+            console.log(`   - 健康检查: http://127.0.0.1:${backendPort}/health`);
             console.log('');
             console.log('💡 按 Ctrl+C 停止所有服务');
             console.log('='.repeat(60));

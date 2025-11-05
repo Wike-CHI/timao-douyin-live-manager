@@ -1163,7 +1163,7 @@ class LangGraphLiveWorkflow:
         # 从 state 中获取 style_profile 和 vibe（由独立节点生成）
         style_profile = state.get("style_profile") or state.get("persona") or {}
         vibe = state.get("vibe") or {}
-        
+
         return {
             "summary": summary,
             "highlight_points": clean_highlights,

@@ -426,7 +426,7 @@ class AIUsageMonitor:
         self._load_today_records()
         
         logger.info(f"AI 使用量监控器已启动，数据目录: {self.data_dir}")
-        
+    
         # 初始化汇总统计
         self._last_summary_time = time.time()
         self._summary_interval = 300  # 每5分钟显示一次汇总

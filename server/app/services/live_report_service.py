@@ -328,11 +328,11 @@ class LiveReportService:
                 out_dir = session_dir
             else:
                 # 回退到旧方式
-                day_dir = self.records_root / platform / anchor / day
-                existing_sessions = [p for p in day_dir.glob("live_*") if p.is_dir()]
-                session_index = len(existing_sessions) + 1
-                out_dir = day_dir / session_id
-                out_dir.mkdir(parents=True, exist_ok=True)
+            day_dir = self.records_root / platform / anchor / day
+            existing_sessions = [p for p in day_dir.glob("live_*") if p.is_dir()]
+            session_index = len(existing_sessions) + 1
+            out_dir = day_dir / session_id
+            out_dir.mkdir(parents=True, exist_ok=True)
             
             # 🆕 更新统一会话状态
             await session_mgr.update_session(

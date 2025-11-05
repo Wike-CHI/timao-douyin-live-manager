@@ -451,10 +451,10 @@ class DouyinWebRelay:
                             fn = out_dir / f"danmu_{int(time.time())}.jsonl"
                     else:
                         # 旧方式：按日期和live_id存储
-                        day = time.strftime("%Y-%m-%d", time.localtime())
+                    day = time.strftime("%Y-%m-%d", time.localtime())
                         out_dir = root / "live_logs" / (self._status.live_id or "unknown") / day
                         out_dir.mkdir(parents=True, exist_ok=True)
-                        fn = out_dir / f"danmu_{int(time.time())}.jsonl"
+                    fn = out_dir / f"danmu_{int(time.time())}.jsonl"
                     
                     self._writer = JSONLWriter(fn)
                     self._writer.open()

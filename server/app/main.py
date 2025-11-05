@@ -573,11 +573,14 @@ if __name__ == "__main__":
         "**/.git/**",
     ]
 
-    # 使用默认端口 9019，与 Electron 启动配置保持一致
+    # 使用环境变量 BACKEND_PORT，默认 9030（避免 Windows 端口排除范围 8930-9029）
+    # 可以通过环境变量 BACKEND_PORT 覆盖默认端口
+    import os
+    backend_port = int(os.getenv("BACKEND_PORT", "9030"))
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=9019,
+        port=backend_port,
         reload=True,
         reload_exclude=reload_exclude,
         log_level="info"

@@ -29,21 +29,21 @@ const DEFAULT_CONFIG: ApiConfig = {
   services: {
     main: {
       name: 'FastAPI主服务',
-      baseUrl: 'http://127.0.0.1:9019',
+      baseUrl: 'http://127.0.0.1:9030', // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
       healthEndpoint: '/health',
       timeout: 5000,
       retryCount: 3
     },
     streamcap: {
       name: 'StreamCap服务',
-      baseUrl: 'http://127.0.0.1:9019',
+      baseUrl: 'http://127.0.0.1:9030', // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
       healthEndpoint: '/api/streamcap/health',
       timeout: 5000,
       retryCount: 3
     },
     douyin: {
       name: 'Douyin服务',
-      baseUrl: 'http://127.0.0.1:9019',
+      baseUrl: 'http://127.0.0.1:9030', // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
       healthEndpoint: '/api/douyin/health',
       timeout: 5000,
       retryCount: 3

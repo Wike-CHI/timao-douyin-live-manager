@@ -12,7 +12,7 @@
 import authService from './authService';
 import type { Plan, Subscription, Payment } from './payment';
 
-const DEFAULT_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9019';
+const DEFAULT_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9030'; // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
 
 // 优先使用的 API 前缀（建议使用 /api/payment，更语义化）
 const PRIMARY_API_PREFIX = '/api/payment';

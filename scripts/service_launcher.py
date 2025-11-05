@@ -132,12 +132,14 @@ class ServiceManager:
         self.logger.info("[START] 开始启动所有后端服务...")
         
         # 1. 启动主FastAPI服务
+        # 使用环境变量 BACKEND_PORT，默认 9030（避免 Windows 端口排除范围 8930-9029）
+        backend_port = os.getenv("BACKEND_PORT", "9030")
         fastapi_success = self.start_service(
             "fastapi_main",
             [sys.executable, "-m", "uvicorn", "server.app.main:app", 
-             "--host", "127.0.0.1", "--port", "9019", "--log-level", "info"],
+             "--host", "127.0.0.1", "--port", backend_port, "--log-level", "info"],
             cwd=self.base_dir,
-            expected_port=9019
+            expected_port=int(backend_port)
         )
         
         if fastapi_success:
@@ -170,8 +172,10 @@ class ServiceManager:
         
     def health_check(self):
         """健康检查"""
+        # 使用环境变量 BACKEND_PORT，默认 9030（避免 Windows 端口排除范围 8930-9029）
+        backend_port = os.getenv("BACKEND_PORT", "9030")
         services_to_check = [
-            ("FastAPI主服务", "http://127.0.0.1:9019/health"),
+            ("FastAPI主服务", f"http://127.0.0.1:{backend_port}/health"),
             # StreamCap 功能已集成到主服务中，无需单独检查
         ]
         
@@ -189,7 +193,8 @@ class ServiceManager:
     
     def restart_service_by_url(self, service_name: str, url: str):
         """根据URL重启对应服务"""
-        if "9019" in url and "fastapi_main" in self.services:
+        backend_port = os.getenv("BACKEND_PORT", "9030")
+        if backend_port in url and "fastapi_main" in self.services:
             self.logger.info(f"尝试重启 {service_name}...")
             self.restart_service("fastapi_main")
         # StreamCap 功能已集成到主服务中，无需单独处理
@@ -203,12 +208,14 @@ class ServiceManager:
             
             # 根据服务名重新启动
             if name == "fastapi_main":
+                # 使用环境变量 BACKEND_PORT，默认 9030（避免 Windows 端口排除范围 8930-9029）
+                backend_port = os.getenv("BACKEND_PORT", "9030")
                 self.start_service(
                     "fastapi_main",
                     [sys.executable, "-m", "uvicorn", "server.app.main:app", 
-                     "--host", "127.0.0.1", "--port", "9019", "--log-level", "info"],
+                     "--host", "127.0.0.1", "--port", backend_port, "--log-level", "info"],
                     cwd=self.base_dir,
-                    expected_port=9019
+                    expected_port=int(backend_port)
                 )
             elif name == "streamcap":
                 # StreamCap 功能已集成到主服务中，无需单独启动

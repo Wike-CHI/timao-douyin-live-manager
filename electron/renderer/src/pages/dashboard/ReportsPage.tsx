@@ -20,7 +20,7 @@ type Metrics = {
   gifts?: Record<string, number>;
 };
 
-const FASTAPI_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9019';
+const FASTAPI_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9030'; // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
 
 const ReportsPage: React.FC = () => {
   const [liveInput, setLiveInput] = useState('');
