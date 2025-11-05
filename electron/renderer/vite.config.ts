@@ -18,7 +18,8 @@ export default defineConfig({
   base: './',
   server: {
     host: '127.0.0.1',
-    port: 10030,
+    port: 10109, // 改为 10109 避免 Windows 端口排除范围 10009-10108
+    strictPort: false, // 如果端口被占用，自动尝试下一个可用端口
     headers: {
       'Content-Security-Policy': devCsp.join('; '),
     },

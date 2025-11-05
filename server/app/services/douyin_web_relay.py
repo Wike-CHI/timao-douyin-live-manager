@@ -380,10 +380,24 @@ class DouyinWebRelay:
                                     break
                                 time.sleep(conn_mgr.calculate_delay())
                                     
-                        except Exception as exc:
+                        except (ValueError, ConnectionError, RuntimeError) as exc:
                             # 记录异常并判断是否继续重试
+                            # 这些异常通常是可以重试的（网络问题、API限制等）
                             if not conn_mgr.record_failure(exc):
                                 break
+                            time.sleep(conn_mgr.calculate_delay())
+                        except Exception as exc:
+                            # 其他未知异常，记录但继续重试
+                            error_msg = str(exc)
+                            # 检查是否是 NoneType 相关错误
+                            if "NoneType" in error_msg or "not iterable" in error_msg:
+                                # NoneType 错误通常是 API 响应异常，可以重试
+                                if not conn_mgr.record_failure(f"抖音API响应异常: {error_msg}"):
+                                    break
+                            else:
+                                # 其他未知错误
+                                if not conn_mgr.record_failure(exc):
+                                    break
                             time.sleep(conn_mgr.calculate_delay())
                     
                     if not room_id:
@@ -451,10 +465,10 @@ class DouyinWebRelay:
                             fn = out_dir / f"danmu_{int(time.time())}.jsonl"
                     else:
                         # 旧方式：按日期和live_id存储
-                    day = time.strftime("%Y-%m-%d", time.localtime())
+                        day = time.strftime("%Y-%m-%d", time.localtime())
                         out_dir = root / "live_logs" / (self._status.live_id or "unknown") / day
                         out_dir.mkdir(parents=True, exist_ok=True)
-                    fn = out_dir / f"danmu_{int(time.time())}.jsonl"
+                        fn = out_dir / f"danmu_{int(time.time())}.jsonl"
                     
                     self._writer = JSONLWriter(fn)
                     self._writer.open()

@@ -326,13 +326,15 @@ class LiveReportService:
             session_dir = session_mgr.get_session_data_dir(session_id)
             if session_dir:
                 out_dir = session_dir
+                # 使用统一会话时，session_index 默认为 1（因为统一会话管理不需要索引）
+                session_index = 1
             else:
                 # 回退到旧方式
-            day_dir = self.records_root / platform / anchor / day
-            existing_sessions = [p for p in day_dir.glob("live_*") if p.is_dir()]
-            session_index = len(existing_sessions) + 1
-            out_dir = day_dir / session_id
-            out_dir.mkdir(parents=True, exist_ok=True)
+                day_dir = self.records_root / platform / anchor / day
+                existing_sessions = [p for p in day_dir.glob("live_*") if p.is_dir()]
+                session_index = len(existing_sessions) + 1
+                out_dir = day_dir / session_id
+                out_dir.mkdir(parents=True, exist_ok=True)
             
             # 🆕 更新统一会话状态
             await session_mgr.update_session(

@@ -211,10 +211,15 @@ class IntegratedLauncher {
             rendererPath
         );
         
-        // 等待前端服务启动
-        const frontendReady = await this.waitForHealthCheck('http://127.0.0.1:10030');
+        // 等待前端服务启动（端口 10109 避免 Windows 端口排除范围 10009-10108）
+        const frontendPort = process.env.FRONTEND_PORT || '10109';
+        const frontendReady = await this.waitForHealthCheck(`http://127.0.0.1:${frontendPort}`);
         if (!frontendReady) {
-            throw new Error('前端服务启动失败');
+            // 如果 10109 失败，尝试 10030（向后兼容）
+            const fallbackReady = await this.waitForHealthCheck('http://127.0.0.1:10030');
+            if (!fallbackReady) {
+                throw new Error('前端服务启动失败');
+            }
         }
     }
 
@@ -258,12 +263,13 @@ class IntegratedLauncher {
             await this.startElectron();
             
             const backendPort = process.env.BACKEND_PORT || '9030';
+            const frontendPort = process.env.FRONTEND_PORT || '10109';
             console.log('\n' + '='.repeat(60));
             console.log('🎉 所有服务启动完成！');
             console.log('');
             console.log('📍 服务地址:');
             console.log(`   - 后端API: http://127.0.0.1:${backendPort}`);
-            console.log('   - 前端开发: http://127.0.0.1:10030');
+            console.log(`   - 前端开发: http://127.0.0.1:${frontendPort}`);
             console.log(`   - 健康检查: http://127.0.0.1:${backendPort}/health`);
             console.log('');
             console.log('💡 按 Ctrl+C 停止所有服务');

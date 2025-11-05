@@ -70,16 +70,14 @@ def generateSignature(wss, script_file="sign.js"):
     """
     出现gbk编码问题则修改 python模块subprocess.py的源码中Popen类的__init__函数参数encoding值为 "utf-8"
     """
-    params = (
-        "live_id,aid,version_code,webcast_sdk_version,"
-        "room_id,sub_room_id,sub_channel_id,did_rule,"
-        "user_unique_id,device_platform,device_type,ac,"
-        "identity"
-    ).split(",")
-    wss_params = urllib.parse.urlparse(wss).query.split("&")
-    wss_maps = {i.split("=")[0]: i.split("=")[-1] for i in wss_params}
+    params = ("live_id,aid,version_code,webcast_sdk_version,"
+              "room_id,sub_room_id,sub_channel_id,did_rule,"
+              "user_unique_id,device_platform,device_type,ac,"
+              "identity").split(',')
+    wss_params = urllib.parse.urlparse(wss).query.split('&')
+    wss_maps = {i.split('=')[0]: i.split("=")[-1] for i in wss_params}
     tpl_params = [f"{i}={wss_maps.get(i, '')}" for i in params]
-    param = ",".join(tpl_params)
+    param = ','.join(tpl_params)
     md5 = hashlib.md5()
     md5.update(param.encode())
     md5_param = md5.hexdigest()
@@ -112,8 +110,8 @@ def generateMsToken(length=182):
     :param length:字符位数
     :return:msToken
     """
-    random_str = ""
-    base_str = string.ascii_letters + string.digits + "-_"
+    random_str = ''
+    base_str = string.ascii_letters + string.digits + '-_'
     _len = len(base_str) - 1
     for _ in range(length):
         random_str += base_str[random.randint(0, _len)]
@@ -139,7 +137,9 @@ class DouyinLiveWebFetcher:
         self.host = "https://www.douyin.com/"
         self.live_url = "https://live.douyin.com/"
         self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-        self.headers = {"User-Agent": self.user_agent}
+        self.headers = {
+            'User-Agent': self.user_agent
+        }
 
     def start(self):
         self._connectWebSocket()
@@ -165,7 +165,7 @@ class DouyinLiveWebFetcher:
         except Exception as err:
             print("【X】Request the live url error: ", err)
         else:
-            self.__ttwid = response.cookies.get("ttwid")
+            self.__ttwid = response.cookies.get('ttwid')
             return self.__ttwid
 
     @property
@@ -238,11 +238,8 @@ class DouyinLiveWebFetcher:
         if not query:
             params = {}
         else:
-            params = {}
-            for item in query.split("&"):
-                if "=" in item:
-                    key, value = item.split("=", 1)
-                    params[key] = value
+            # 使用更简洁的参数解析方式（新算法）
+            params = {i[0]: i[1] for i in [j.split('=') for j in query.split('&')] if len(i) == 2}
         a_bogus = self.get_a_bogus(params)
         url += f"&a_bogus={a_bogus}"
         headers = self.headers.copy()
@@ -254,8 +251,17 @@ class DouyinLiveWebFetcher:
         )
         resp = self.session.get(url, headers=headers)
         try:
-            data = resp.json().get("data")
-            if data:
+            # 检查响应内容
+            if not resp.text or not resp.text.strip():
+                return None
+            
+            # 解析 JSON
+            json_data = resp.json()
+            if json_data is None or not isinstance(json_data, dict):
+                return None
+            
+            data = json_data.get("data")
+            if data and isinstance(data, dict):
                 room_id_str = (
                     data.get("room_id_str")
                     or (data.get("room") or {}).get("id_str")
@@ -299,27 +305,17 @@ class DouyinLiveWebFetcher:
         msToken = generateMsToken()
         nonce = self.get_ac_nonce()
         signature = self.get_ac_signature(nonce)
-        url = (
-            "https://live.douyin.com/webcast/room/web/enter/?aid=6383"
-            "&app_name=douyin_web&live_id=1&device_platform=web&language=zh-CN&enter_from=page_refresh"
-            "&cookie_enabled=true&screen_width=5120&screen_height=1440&browser_language=zh-CN&browser_platform=Win32"
-            "&browser_name=Edge&browser_version=140.0.0.0"
-            f"&web_rid={self.live_id}"
-            f"&room_id_str={self.room_id}"
-            "&enter_source=&is_need_double_stream=false&insert_task_id=&live_reason=&msToken="
-            + msToken
-        )
+        url = ('https://live.douyin.com/webcast/room/web/enter/?aid=6383'
+               '&app_name=douyin_web&live_id=1&device_platform=web&language=zh-CN&enter_from=page_refresh'
+               '&cookie_enabled=true&screen_width=5120&screen_height=1440&browser_language=zh-CN&browser_platform=Win32'
+               '&browser_name=Edge&browser_version=140.0.0.0'
+               f'&web_rid={self.live_id}'
+               f'&room_id_str={self.room_id}'
+               '&enter_source=&is_need_double_stream=false&insert_task_id=&live_reason=&msToken=' + msToken)
         parsed = parse_url(url)
         query = parsed.query if parsed.query else ""
-        # 安全处理 query 参数解析
-        if not query:
-            params = {}
-        else:
-            params = {}
-            for item in query.split("&"):
-                if "=" in item:
-                    key, value = item.split("=", 1)
-                    params[key] = value
+        # 使用新算法的参数解析方式
+        params = {i[0]: i[1] for i in [j.split('=') for j in query.split('&')] if len(i) == 2}
         
         # 尝试生成 a_bogus，失败时抛出异常以便重试
         try:
@@ -331,12 +327,10 @@ class DouyinLiveWebFetcher:
             raise ValueError(f"a_bogus 生成失败: {str(e)}")
         
         headers = self.headers.copy()
-        headers.update(
-            {
-                "Referer": f"https://live.douyin.com/{self.live_id}",
-                "Cookie": f"ttwid={self.ttwid};__ac_nonce={nonce}; __ac_signature={signature}",
-            }
-        )
+        headers.update({
+            'Referer': f'https://live.douyin.com/{self.live_id}',
+            'Cookie': f'ttwid={self.ttwid};__ac_nonce={nonce}; __ac_signature={signature}',
+        })
         
         try:
             resp = self.session.get(url, headers=headers, timeout=10)
@@ -346,19 +340,33 @@ class DouyinLiveWebFetcher:
             if resp.status_code != 200:
                 raise ValueError(f"请求失败，状态码: {resp.status_code}")
             
+            # 检查响应内容
+            if not resp.text or not resp.text.strip():
+                raise ValueError("响应为空")
+            
             # 解析 JSON 响应，确保数据类型正确
             try:
                 json_data = resp.json()
-            except Exception as e:
+            except ValueError as e:
+                # JSON 解析失败
                 raise ValueError(f"响应不是有效的JSON: {str(e)}")
+            except Exception as e:
+                # 其他解析错误
+                raise ValueError(f"解析响应失败: {str(e)}")
+            
+            # 确保 json_data 不为 None
+            if json_data is None:
+                raise ValueError("JSON 响应为 None")
             
             # 确保 data 字段存在且类型正确
             if not isinstance(json_data, dict):
-                raise ValueError("响应不是字典类型")
+                raise ValueError(f"响应不是字典类型，实际类型: {type(json_data)}")
                 
             data = json_data.get("data")
+            if data is None:
+                raise ValueError("响应中 data 字段为 None")
             if not isinstance(data, dict):
-                raise ValueError("响应中缺少 data 字段或类型错误")
+                raise ValueError(f"响应中 data 字段类型错误，实际类型: {type(data)}")
                 
             room_status = data.get("room_status")
             if room_status is None:
@@ -374,9 +382,7 @@ class DouyinLiveWebFetcher:
             if isinstance(user, dict):
                 user_id = user.get("id_str")
                 nickname = user.get("nickname")
-                print(
-                    f"【{nickname}】[{user_id}]直播间：{['正在直播', '已结束'][bool(room_status)]}."
-                )
+                print(f"【{nickname}】[{user_id}]直播间：{['正在直播', '已结束'][bool(room_status)]}.")
             
             return room_status
         except requests.exceptions.Timeout:
@@ -400,39 +406,35 @@ class DouyinLiveWebFetcher:
         """
         连接抖音直播间websocket服务器，请求直播间数据
         """
-        wss = (
-            "wss://webcast100-ws-web-lq.douyin.com/webcast/im/push/v2/?app_name=douyin_web"
-            "&version_code=180800&webcast_sdk_version=1.0.14-beta.0"
-            "&update_version_code=1.0.14-beta.0&compress=gzip&device_platform=web&cookie_enabled=true"
-            "&screen_width=1536&screen_height=864&browser_language=zh-CN&browser_platform=Win32"
-            "&browser_name=Mozilla"
-            "&browser_version=5.0%20(Windows%20NT%2010.0;%20Win64;%20x64)%20AppleWebKit/537.36%20(KHTML,"
-            "%20like%20Gecko)%20Chrome/126.0.0.0%20Safari/537.36"
-            "&browser_online=true&tz_name=Asia/Shanghai"
-            "&cursor=d-1_u-1_fh-7392091211001140287_t-1721106114633_r-1"
-            f"&internal_ext=internal_src:dim|wss_push_room_id:{self.room_id}|wss_push_did:7319483754668557238"
-            f"|first_req_ms:1721106114541|fetch_time:1721106114633|seq:1|wss_info:0-1721106114633-0-0|"
-            f"wrds_v:7392094459690748497"
-            f"&host=https://live.douyin.com&aid=6383&live_id=1&did_rule=3&endpoint=live_pc&support_wrds=1"
-            f"&user_unique_id=7319483754668557238&im_path=/webcast/im/fetch/&identity=audience"
-            f"&need_persist_msg_count=15&insert_task_id=&live_reason=&room_id={self.room_id}&heartbeatDuration=0"
-        )
+        wss = ("wss://webcast100-ws-web-lq.douyin.com/webcast/im/push/v2/?app_name=douyin_web"
+               "&version_code=180800&webcast_sdk_version=1.0.14-beta.0"
+               "&update_version_code=1.0.14-beta.0&compress=gzip&device_platform=web&cookie_enabled=true"
+               "&screen_width=1536&screen_height=864&browser_language=zh-CN&browser_platform=Win32"
+               "&browser_name=Mozilla"
+               "&browser_version=5.0%20(Windows%20NT%2010.0;%20Win64;%20x64)%20AppleWebKit/537.36%20(KHTML,"
+               "%20like%20Gecko)%20Chrome/126.0.0.0%20Safari/537.36"
+               "&browser_online=true&tz_name=Asia/Shanghai"
+               "&cursor=d-1_u-1_fh-7392091211001140287_t-1721106114633_r-1"
+               f"&internal_ext=internal_src:dim|wss_push_room_id:{self.room_id}|wss_push_did:7319483754668557238"
+               f"|first_req_ms:1721106114541|fetch_time:1721106114633|seq:1|wss_info:0-1721106114633-0-0|"
+               f"wrds_v:7392094459690748497"
+               f"&host=https://live.douyin.com&aid=6383&live_id=1&did_rule=3&endpoint=live_pc&support_wrds=1"
+               f"&user_unique_id=7319483754668557238&im_path=/webcast/im/fetch/&identity=audience"
+               f"&need_persist_msg_count=15&insert_task_id=&live_reason=&room_id={self.room_id}&heartbeatDuration=0")
 
         signature = generateSignature(wss)
         wss += f"&signature={signature}"
 
         headers = {
             "cookie": f"ttwid={self.ttwid}",
-            "user-agent": self.user_agent,
+            'user-agent': self.user_agent,
         }
-        self.ws = websocket.WebSocketApp(
-            wss,
-            header=headers,
-            on_open=self._wsOnOpen,
-            on_message=self._wsOnMessage,
-            on_error=self._wsOnError,
-            on_close=self._wsOnClose,
-        )
+        self.ws = websocket.WebSocketApp(wss,
+                                         header=headers,
+                                         on_open=self._wsOnOpen,
+                                         on_message=self._wsOnMessage,
+                                         on_error=self._wsOnError,
+                                         on_close=self._wsOnClose)
         try:
             self.ws.run_forever()
         except Exception:
@@ -445,7 +447,7 @@ class DouyinLiveWebFetcher:
         """
         while True:
             try:
-                heartbeat = PushFrame(payload_type="hb").SerializeToString()
+                heartbeat = PushFrame(payload_type='hb').SerializeToString()
                 self.ws.send(heartbeat, websocket.ABNF.OPCODE_PING)
                 print("【√】发送心跳包")
             except Exception as e:
@@ -505,13 +507,11 @@ class DouyinLiveWebFetcher:
                     if not internal_ext:
                         internal_ext = b''
                     if isinstance(internal_ext, str):
-                        internal_ext = internal_ext.encode("utf-8")
+                        internal_ext = internal_ext.encode('utf-8')
                     
-                    ack = PushFrame(
-                        log_id=package.log_id,
-                        payload_type="ack",
-                        payload=internal_ext,
-                    ).SerializeToString()
+                    ack = PushFrame(log_id=package.log_id,
+                                    payload_type='ack',
+                                    payload=internal_ext).SerializeToString()
                     ws.send(ack, websocket.ABNF.OPCODE_BINARY)
                 except Exception:
                     # ACK 发送失败不影响主流程
@@ -544,21 +544,21 @@ class DouyinLiveWebFetcher:
                     continue
                 
                 try:
-                    # 获取解析函数
+                    # 获取解析函数（使用新算法的字典格式）
                     parser_func = {
-                        "WebcastChatMessage": self._parseChatMsg,  # 聊天消息
-                        "WebcastGiftMessage": self._parseGiftMsg,  # 礼物消息
-                        "WebcastLikeMessage": self._parseLikeMsg,  # 点赞消息
-                        "WebcastMemberMessage": self._parseMemberMsg,  # 进入直播间消息
-                        "WebcastSocialMessage": self._parseSocialMsg,  # 关注消息
-                        "WebcastRoomUserSeqMessage": self._parseRoomUserSeqMsg,  # 直播间统计
-                        "WebcastFansclubMessage": self._parseFansclubMsg,  # 粉丝团消息
-                        "WebcastControlMessage": self._parseControlMsg,  # 直播间状态消息
-                        "WebcastEmojiChatMessage": self._parseEmojiChatMsg,  # 聊天表情包消息
-                        "WebcastRoomStatsMessage": self._parseRoomStatsMsg,  # 直播间统计信息
-                        "WebcastRoomMessage": self._parseRoomMsg,  # 直播间信息
-                        "WebcastRoomRankMessage": self._parseRankMsg,  # 直播间排行榜信息
-                        "WebcastRoomStreamAdaptationMessage": self._parseRoomStreamAdaptationMsg,  # 直播间流配置
+                        'WebcastChatMessage': self._parseChatMsg,  # 聊天消息
+                        'WebcastGiftMessage': self._parseGiftMsg,  # 礼物消息
+                        'WebcastLikeMessage': self._parseLikeMsg,  # 点赞消息
+                        'WebcastMemberMessage': self._parseMemberMsg,  # 进入直播间消息
+                        'WebcastSocialMessage': self._parseSocialMsg,  # 关注消息
+                        'WebcastRoomUserSeqMessage': self._parseRoomUserSeqMsg,  # 直播间统计
+                        'WebcastFansclubMessage': self._parseFansclubMsg,  # 粉丝团消息
+                        'WebcastControlMessage': self._parseControlMsg,  # 直播间状态消息
+                        'WebcastEmojiChatMessage': self._parseEmojiChatMsg,  # 聊天表情包消息
+                        'WebcastRoomStatsMessage': self._parseRoomStatsMsg,  # 直播间统计信息
+                        'WebcastRoomMessage': self._parseRoomMsg,  # 直播间信息
+                        'WebcastRoomRankMessage': self._parseRankMsg,  # 直播间排行榜信息
+                        'WebcastRoomStreamAdaptationMessage': self._parseRoomStreamAdaptationMsg,  # 直播间流配置
                     }.get(method)
                     
                     if parser_func:
@@ -599,7 +599,7 @@ class DouyinLiveWebFetcher:
         print(f"【礼物msg】{user_name} 送出了 {gift_name}x{gift_cnt}")
 
     def _parseLikeMsg(self, payload):
-        """点赞消息"""
+        '''点赞消息'''
         message = LikeMessage().parse(payload)
         user_name = message.user.nick_name
         count = message.count
