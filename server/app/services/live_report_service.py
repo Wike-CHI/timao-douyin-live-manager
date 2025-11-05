@@ -219,6 +219,11 @@ class LiveReportService:
             self._agg = data.get("aggregates", {})
             self._carry = data.get("carry", "")
             
+            # 🔧 修复：检查 session_data 是否为 None 或无效
+            if not session_data or not isinstance(session_data, dict):
+                logger.warning(f"⚠️ 会话状态数据无效: session_data={session_data}")
+                return None
+            
             # 重建会话对象
             self._session = LiveReportStatus(**session_data)
             
@@ -817,63 +822,170 @@ class LiveReportService:
                 duration_ms = self._session.stopped_at - self._session.started_at
                 duration_seconds = int(duration_ms / 1000)
             
-            # 🆕 读取带时间戳的转写（优先）或降级到纯文本
+            # 🔧 修复：优先读取实时转写的 transcripts.jsonl（来自 live_audio_stream_service）
+            realtime_transcript_path = artifacts_dir / "transcripts.jsonl"
             timestamped_transcript_path = artifacts_dir / "transcript_timestamped.jsonl"
-            if timestamped_transcript_path.exists():
+            transcript_data = None
+            
+            if realtime_transcript_path.exists():
+                # 读取实时转写数据（格式：每行一个JSON对象，包含type、text、timestamp等）
+                realtime_transcripts = []
+                try:
+                    with realtime_transcript_path.open("r", encoding="utf-8") as f:
+                        for line in f:
+                            if line.strip():
+                                entry = json.loads(line)
+                                # 只保留最终的转写结果（is_final=True）
+                                if entry.get("type") == "transcription" and entry.get("is_final", False):
+                                    realtime_transcripts.append({
+                                        "text": entry.get("text", ""),
+                                        "timestamp": entry.get("timestamp", 0),
+                                        "confidence": entry.get("confidence", 0.0),
+                                    })
+                    if realtime_transcripts:
+                        logger.info(f"📊 加载实时转写数据 - {len(realtime_transcripts)} 条转写记录")
+                        transcript_data = realtime_transcripts
+                except Exception as e:
+                    logger.warning(f"⚠️ 读取实时转写数据失败: {e}")
+            
+            # 如果没有实时转写，尝试读取录制分段转写
+            if not transcript_data and timestamped_transcript_path.exists():
                 timestamped_segments = []
-                with timestamped_transcript_path.open("r", encoding="utf-8") as f:
-                    for line in f:
-                        if line.strip():
-                            timestamped_segments.append(json.loads(line))
-                logger.info(f"📊 加载带时间戳转写 - {len(timestamped_segments)} 个分段")
-                transcript_data = timestamped_segments  # List[Dict] 格式
-            else:
-                logger.warning("⚠️ 未找到带时间戳转写文件，使用纯文本格式（精度较低）")
+                try:
+                    with timestamped_transcript_path.open("r", encoding="utf-8") as f:
+                        for line in f:
+                            if line.strip():
+                                timestamped_segments.append(json.loads(line))
+                    if timestamped_segments:
+                        logger.info(f"📊 加载录制分段转写 - {len(timestamped_segments)} 个分段")
+                        transcript_data = timestamped_segments
+                except Exception as e:
+                    logger.warning(f"⚠️ 读取录制分段转写失败: {e}")
+            
+            # 如果都没有，使用纯文本（降级）
+            if not transcript_data:
+                logger.warning("⚠️ 未找到转写数据文件，使用纯文本格式（精度较低）")
                 transcript_data = transcript_txt  # str 格式（降级）
             
-            # 准备复盘数据
+            # 🔧 修复：读取弹幕数据（comments.jsonl）
+            comments_data = self._comments  # 默认使用内存中的评论
+            comments_jsonl_path = artifacts_dir / "comments.jsonl"
+            if comments_jsonl_path.exists():
+                try:
+                    loaded_comments = []
+                    with comments_jsonl_path.open("r", encoding="utf-8") as f:
+                        for line in f:
+                            if line.strip():
+                                loaded_comments.append(json.loads(line))
+                    if loaded_comments:
+                        logger.info(f"📊 加载弹幕数据 - {len(loaded_comments)} 条评论")
+                        comments_data = loaded_comments
+                except Exception as e:
+                    logger.warning(f"⚠️ 读取弹幕数据失败: {e}")
+            
+            # 🔧 修复：读取主播风格记忆（style_profile.json）
+            style_profile_data = None
+            style_profile_path = artifacts_dir / "style_profile.json"
+            if style_profile_path.exists():
+                try:
+                    style_profile_data = json.loads(style_profile_path.read_text(encoding="utf-8"))
+                    logger.info("📊 加载主播风格记忆数据")
+                except Exception as e:
+                    logger.warning(f"⚠️ 读取主播风格记忆失败: {e}")
+            
+            # 🔧 修复：读取直播分析数据（windows目录下的分段分析）
+            analysis_data = []
+            windows_dir = artifacts_dir / "windows"
+            if windows_dir.exists():
+                try:
+                    for seg_file in sorted(windows_dir.glob("seg_*.json")):
+                        seg_data = json.loads(seg_file.read_text(encoding="utf-8"))
+                        analysis_data.append(seg_data)
+                    if analysis_data:
+                        logger.info(f"📊 加载直播分析数据 - {len(analysis_data)} 个分段分析")
+                except Exception as e:
+                    logger.warning(f"⚠️ 读取直播分析数据失败: {e}")
+            
+            # 🔧 修复：整合所有数据到一个JSON文件
+            integrated_data_path = artifacts_dir / "review_data.json"
             review_data = {
                 "session_id": self._session.session_id,
-                "transcript": transcript_data,  # 🔄 传递带时间戳的转写或纯文本
-                "comments": self._comments,
+                "room_id": self._session.room_id,
                 "anchor_name": self._session.anchor_name,
-                "metrics": dict(self._agg) if hasattr(self, '_agg') else {},
+                "started_at": self._session.started_at,
+                "stopped_at": self._session.stopped_at,
                 "duration_seconds": duration_seconds,
+                "pause_count": self._session.pause_count,
+                
+                # 转写数据（优先实时转写）
+                "transcript": transcript_data,
+                
+                # 弹幕和互动数据
+                "comments": comments_data,
+                "comments_count": len(comments_data),
+                
+                # 直播指标
+                "metrics": dict(self._agg) if hasattr(self, '_agg') else {},
                 "viewer_snapshots": self._viewer_snapshots,
+                
+                # 主播风格记忆
+                "style_profile": style_profile_data,
+                
+                # 直播分析数据（分段分析）
+                "analysis": analysis_data,
+                
+                # 用户价值统计
+                "user_gift_values": dict(self._user_gift_values) if hasattr(self, '_user_gift_values') else {},
             }
+            
+            # 保存整合后的数据到JSON文件
+            try:
+                integrated_data_path.write_text(
+                    json.dumps(review_data, ensure_ascii=False, indent=2),
+                    encoding="utf-8"
+                )
+                logger.info(f"✅ 已保存整合数据到: {integrated_data_path}")
+            except Exception as e:
+                logger.warning(f"⚠️ 保存整合数据失败: {e}")
             
             # 🆕 调用增强版 Gemini 生成复盘
             gemini_result = generate_enhanced_review_report(review_data)
             
+            # 🔧 修复：确保 gemini_result 是字典类型，避免前端渲染错误
+            if not isinstance(gemini_result, dict):
+                logger.warning(f"⚠️ Gemini 返回结果格式异常，使用默认值: {type(gemini_result)}")
+                gemini_result = {}
+            
             # 🆕 转换为兼容格式，同时保留增强字段
+            # 🔧 修复：使用安全的 get 方法，确保所有字段都有默认值
             ai_summary = {
                 # 基础字段（兼容旧格式）
-                "summary": gemini_result.get("performance_analysis", {}).get("overall_assessment", ""),
-                "highlight_points": gemini_result.get("key_highlights", []),
-                "risks": gemini_result.get("key_issues", []),
-                "suggestions": gemini_result.get("improvement_suggestions", []),
-                "overall_score": gemini_result.get("overall_score"),
-                "performance_analysis": gemini_result.get("performance_analysis"),
-                "trend_charts": gemini_result.get("trend_charts", {}),
+                "summary": (gemini_result.get("performance_analysis") or {}).get("overall_assessment", "") or "暂无总结",
+                "highlight_points": gemini_result.get("key_highlights") or [],
+                "risks": gemini_result.get("key_issues") or [],
+                "suggestions": gemini_result.get("improvement_suggestions") or [],
+                "overall_score": gemini_result.get("overall_score") or 0,
+                "performance_analysis": gemini_result.get("performance_analysis") or {},
+                "trend_charts": gemini_result.get("trend_charts") or {},
                 
                 # 🆕 增强字段（专注于内容质量）
-                "content_topics": gemini_result.get("content_topics", {}),  # 话题分析
-                "trigger_analysis": gemini_result.get("trigger_analysis", {}),  # 触发点分析
-                "high_value_users": gemini_result.get("high_value_users", []),  # 高价值用户
-                "replicable_scripts": gemini_result.get("replicable_scripts", []),  # 可复制话术
-                "training_points": gemini_result.get("training_points", []),  # 训练要点
-                "event_statistics": gemini_result.get("event_statistics", {}),  # 事件统计
+                "content_topics": gemini_result.get("content_topics") or {},  # 话题分析
+                "trigger_analysis": gemini_result.get("trigger_analysis") or {},  # 触发点分析
+                "high_value_users": gemini_result.get("high_value_users") or [],  # 高价值用户
+                "replicable_scripts": gemini_result.get("replicable_scripts") or [],  # 可复制话术
+                "training_points": gemini_result.get("training_points") or [],  # 训练要点
+                "event_statistics": gemini_result.get("event_statistics") or {},  # 事件统计
                 
                 # 兼容字段
                 "top_questions": [],
-                "scripts": gemini_result.get("replicable_scripts", []),  # 使用新的可复制话术
+                "scripts": gemini_result.get("replicable_scripts") or [],  # 使用新的可复制话术
                 
                 # 元数据
                 "gemini_metadata": {
-                    "model": gemini_result.get("ai_model", "gemini-2.5-flash"),
-                    "cost": gemini_result.get("generation_cost", 0),
-                    "tokens": gemini_result.get("generation_tokens", 0),
-                    "duration": gemini_result.get("generation_duration", 0),
+                    "model": gemini_result.get("ai_model") or "gemini-2.5-flash",
+                    "cost": gemini_result.get("generation_cost") or 0,
+                    "tokens": gemini_result.get("generation_tokens") or 0,
+                    "duration": gemini_result.get("generation_duration") or 0,
                     "analysis_type": "enhanced_content_quality"  # 🆕 标记为增强版分析
                 }
             }
@@ -882,12 +994,18 @@ class LiveReportService:
                 json.dumps(ai_summary, ensure_ascii=False, indent=2), encoding="utf-8"
             )
             
+            # 🔧 修复：安全获取嵌套字段，避免 KeyError
+            content_topics = ai_summary.get("content_topics", {})
+            anchor_topics = content_topics.get("anchor_topics", []) if isinstance(content_topics, dict) else []
+            trigger_analysis = ai_summary.get("trigger_analysis", {})
+            consumption_triggers = trigger_analysis.get("consumption_triggers", []) if isinstance(trigger_analysis, dict) else []
+            
             logger.info(
-                f"✅ 增强版Gemini复盘完成 - 评分: {ai_summary.get('overall_score')}/100, "
-                f"成本: ${ai_summary['gemini_metadata']['cost']:.6f}, "
-                f"耗时: {ai_summary['gemini_metadata']['duration']:.2f}s, "
-                f"话题: {len(ai_summary.get('content_topics', {}).get('anchor_topics', []))}个, "
-                f"触发点: {len(ai_summary.get('trigger_analysis', {}).get('consumption_triggers', []))}个"
+                f"✅ 增强版Gemini复盘完成 - 评分: {ai_summary.get('overall_score', 0)}/100, "
+                f"成本: ${ai_summary['gemini_metadata'].get('cost', 0):.6f}, "
+                f"耗时: {ai_summary['gemini_metadata'].get('duration', 0):.2f}s, "
+                f"话题: {len(anchor_topics)}个, "
+                f"触发点: {len(consumption_triggers)}个"
             )
             
         except Exception as e:
