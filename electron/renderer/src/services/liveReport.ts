@@ -17,7 +17,7 @@ export const startLiveReport = async (
 ): Promise<StartLiveReportResponse> => {
   return apiCall(
     () => fetchJsonWithAuth('main', '/api/report/live/start', {
-      method: 'POST',
+    method: 'POST',
       body: JSON.stringify({ live_url: liveUrl, segment_minutes: segmentMinutes } satisfies StartLiveReportRequest),
     }),
     '启动直播报告'

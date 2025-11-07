@@ -26,8 +26,8 @@ export const startLiveAudio = async (payload: StartLiveAudioRequest) => {
   if (typeof payload.min_sentence_chars === 'number') body.min_sentence_chars = payload.min_sentence_chars;
   return apiCall(
     () => fetchJsonWithAuth('main', '/api/live_audio/start', {
-      method: 'POST',
-      body: JSON.stringify(body),
+    method: 'POST',
+    body: JSON.stringify(body),
     }),
     '启动实时转写'
   );
@@ -36,7 +36,7 @@ export const startLiveAudio = async (payload: StartLiveAudioRequest) => {
 export const stopLiveAudio = async () => {
   return apiCall(
     () => fetchJsonWithAuth('main', '/api/live_audio/stop', {
-      method: 'POST',
+    method: 'POST',
     }),
     '停止实时转写'
   );
@@ -45,7 +45,7 @@ export const stopLiveAudio = async () => {
 export const getLiveAudioStatus = async (): Promise<LiveAudioStatus> => {
   return apiCall(
     () => fetchJsonWithAuth('main', '/api/live_audio/status', {
-      method: 'GET',
+    method: 'GET',
     }),
     '获取实时转写状态'
   );
@@ -71,8 +71,8 @@ export const openLiveAudioWebSocket = (
 export const updateLiveAudioAdvanced = async (settings: LiveAudioAdvancedSettings) => {
   return apiCall(
     () => fetchJsonWithAuth('main', '/api/live_audio/advanced', {
-      method: 'POST',
-      body: JSON.stringify(settings),
+    method: 'POST',
+    body: JSON.stringify(settings),
     }),
     '更新实时转写高级设置'
   );

@@ -32,8 +32,8 @@ export const startAILiveAnalysis = async (
 ) => {
   return apiCall(
     () => fetchJsonWithAuth('main', '/api/ai/live/start', {
-      method: 'POST',
-      body: JSON.stringify(payload),
+    method: 'POST',
+    body: JSON.stringify(payload),
     }),
     '启动 AI 实时分析'
   );
@@ -45,7 +45,7 @@ export const startAILiveAnalysis = async (
 export const stopAILiveAnalysis = async () => {
   return apiCall(
     () => fetchJsonWithAuth('main', '/api/ai/live/stop', {
-      method: 'POST',
+    method: 'POST',
     }),
     '停止 AI 实时分析'
   );
@@ -81,8 +81,8 @@ export const generateOneScript = async (
 ): Promise<GenerateOneScriptResponse> => {
   return apiCall(
     () => fetchJsonWithAuth('main', '/api/ai/scripts/generate_one', {
-      method: 'POST',
-      body: JSON.stringify(payload),
+    method: 'POST',
+    body: JSON.stringify(payload),
     }),
     '生成单条话术'
   );
@@ -93,8 +93,8 @@ export const generateAnswerScripts = async (
 ): Promise<GenerateAnswerScriptsResponse> => {
   return apiCall(
     () => fetchJsonWithAuth('main', '/api/ai/live/answers', {
-      method: 'POST',
-      body: JSON.stringify(payload),
+    method: 'POST',
+    body: JSON.stringify(payload),
     }),
     '生成回答话术'
   );

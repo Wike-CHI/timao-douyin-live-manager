@@ -16,65 +16,48 @@ from sqlalchemy.orm import Session
 from ..database import get_db_session
 from ..services.live_report_service import get_live_report_service
 from server.utils.service_logger import log_service_start, log_service_stop, log_generation_start, log_generation_complete, log_generation_error
+from ..schemas.live_report import (
+    StartLiveReportRequest,
+    StartLiveReportResponse,
+    StopLiveReportResponse,
+    GenerateLiveReportResponse,
+)
+from ..schemas.common import BaseResponse
+from ..utils.api_error_handler import handle_service_errors
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/report/live", tags=["live-report"])
 
 
-class StartReq(BaseModel):
-    live_url: str = Field(..., description="Douyin live URL, e.g., https://live.douyin.com/xxxx")
-    segment_minutes: int = Field(30, ge=5, le=120, description="Segment length in minutes (default 30)")
+@router.post("/start", response_model=StartLiveReportResponse)
+@handle_service_errors
+async def start_live_report(req: StartLiveReportRequest) -> StartLiveReportResponse:
+    """启动直播录制服务"""
+    svc = get_live_report_service()
+    from server.utils.service_logger import log_service_error
+    
+    log_service_start("直播录制服务", live_url=req.live_url, segment_minutes=req.segment_minutes)
+    status = await svc.start(req.live_url, req.segment_minutes)
+    log_service_start("直播录制服务", session_id=status.session_id, recording_pid=status.recording_pid, status="已启动")
+    
+    return StartLiveReportResponse(data={
+        "session_id": status.session_id,
+        "recording_pid": status.recording_pid,
+        "recording_dir": status.recording_dir,
+        "segment_seconds": status.segment_seconds,
+    })
 
 
-class BaseResp(BaseModel):
-    success: bool = True
-    message: str = "ok"
-    data: Optional[Union[dict, list]] = None
-
-
-@router.post("/start")
-async def start_live_report(req: StartReq) -> BaseResp:
+@router.post("/stop", response_model=StopLiveReportResponse)
+@handle_service_errors
+async def stop_live_report() -> StopLiveReportResponse:
+    """停止直播录制服务"""
+    svc = get_live_report_service()
+    
     try:
-        svc = get_live_report_service()
-        log_service_start("直播录制服务", live_url=req.live_url, segment_minutes=req.segment_minutes)
-        status = await svc.start(req.live_url, req.segment_minutes)
-        log_service_start("直播录制服务", session_id=status.session_id, recording_pid=status.recording_pid, status="已启动")
-        return BaseResp(data={
-            "session_id": status.session_id,
-            "recording_pid": status.recording_pid,
-            "recording_dir": status.recording_dir,
-            "segment_seconds": status.segment_seconds,
-        })
-    except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        from server.utils.service_logger import log_service_error
-        log_service_error("直播录制服务", str(e), live_url=req.live_url)
-        logger.error(f"Live report start failed: {type(e).__name__}: {str(e)}", exc_info=True)
-        
-        # 提供更具体的错误信息
-        error_msg = str(e)
-        if "already started" in error_msg.lower():
-            raise HTTPException(status_code=409, detail="直播录制服务已在运行中")
-        elif "unsupported live url" in error_msg.lower():
-            raise HTTPException(status_code=400, detail=f"不支持的直播平台或地址: {error_msg}")
-        elif "未开播" in error_msg or "not live" in error_msg.lower():
-            raise HTTPException(status_code=400, detail=f"直播间未开播: {error_msg}")
-        elif "failed to resolve" in error_msg.lower():
-            raise HTTPException(status_code=400, detail=f"无法解析直播流地址: {error_msg}")
-        elif "ffmpeg" in error_msg.lower():
-            raise HTTPException(status_code=500, detail=f"录制服务启动失败: {error_msg}")
-        else:
-            raise HTTPException(status_code=400, detail=f"启动直播录制服务失败: {error_msg}")
-
-
-@router.post("/stop")
-async def stop_live_report() -> BaseResp:
-    try:
-        svc = get_live_report_service()
         status = await svc.stop()
         log_service_stop("直播录制服务", session_id=status.session_id, segments=status.segments, comments_count=status.comments_count)
-        return BaseResp(data={
+        return StopLiveReportResponse(data={
             "session_id": status.session_id,
             "stopped_at": status.stopped_at,
             "segments": status.segments,
@@ -82,26 +65,21 @@ async def stop_live_report() -> BaseResp:
             "status": status.status,
         })
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Live report stop failed: {type(e).__name__}: {str(e)}", exc_info=True)
-        
-        # 提供更具体的错误信息
         error_msg = str(e)
         if "no active session" in error_msg.lower() or "not started" in error_msg.lower():
             # 没有活跃会话时返回成功响应，而不是404错误
-            return BaseResp(success=True, message="没有正在运行的录制会话", data=None)
-        else:
-            raise HTTPException(status_code=400, detail=f"停止直播录制服务失败: {error_msg}")
+            return StopLiveReportResponse(success=True, message="没有正在运行的录制会话", data=None)
+        raise
 
 
-@router.post("/pause")
-async def pause_live_report() -> BaseResp:
+@router.post("/pause", response_model=BaseResponse[dict])
+@handle_service_errors
+async def pause_live_report() -> BaseResponse[dict]:
     """暂停录制(保留会话状态,可以继续)"""
     try:
         svc = get_live_report_service()
         status = await svc.pause()
-        return BaseResp(data={
+        return BaseResponse(data={
             "session_id": status.session_id,
             "status": status.status,
             "paused_at": status.paused_at,
@@ -110,26 +88,17 @@ async def pause_live_report() -> BaseResp:
             "comments_count": status.comments_count,
         })
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Live report pause failed: {type(e).__name__}: {str(e)}", exc_info=True)
-        
-        error_msg = str(e)
-        if "no active session" in error_msg.lower():
-            raise HTTPException(status_code=404, detail="没有正在运行的录制会话")
-        elif "cannot pause" in error_msg.lower():
-            raise HTTPException(status_code=400, detail=error_msg)
-        else:
-            raise HTTPException(status_code=400, detail=f"暂停录制失败: {error_msg}")
+        raise
 
 
-@router.post("/resume")
-async def resume_live_report() -> BaseResp:
+@router.post("/resume", response_model=BaseResponse[dict])
+@handle_service_errors
+async def resume_live_report() -> BaseResponse[dict]:
     """继续录制(从暂停状态恢复)"""
     try:
         svc = get_live_report_service()
         status = await svc.resume()
-        return BaseResp(data={
+        return BaseResponse(data={
             "session_id": status.session_id,
             "status": status.status,
             "resumed_at": status.resumed_at,
@@ -138,29 +107,18 @@ async def resume_live_report() -> BaseResp:
             "comments_count": status.comments_count,
         })
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Live report resume failed: {type(e).__name__}: {str(e)}", exc_info=True)
-        
-        error_msg = str(e)
-        if "no session" in error_msg.lower():
-            raise HTTPException(status_code=404, detail="没有可以恢复的会话")
-        elif "cannot resume" in error_msg.lower():
-            raise HTTPException(status_code=400, detail=error_msg)
-        elif "未开播" in error_msg or "not live" in error_msg.lower():
-            raise HTTPException(status_code=400, detail=error_msg)
-        else:
-            raise HTTPException(status_code=400, detail=f"恢复录制失败: {error_msg}")
+        raise
 
 
-@router.get("/resumable")
-async def get_resumable_session() -> BaseResp:
+@router.get("/resumable", response_model=BaseResponse[dict])
+@handle_service_errors
+async def get_resumable_session() -> BaseResponse[dict]:
     """检查是否有可恢复的会话(应用启动时调用)"""
     try:
         svc = get_live_report_service()
         session = await svc.get_resumable_session()
         if session:
-            return BaseResp(data={
+            return BaseResponse(data={
                 "session_id": session.session_id,
                 "live_url": session.live_url,
                 "room_id": session.room_id,
@@ -172,12 +130,9 @@ async def get_resumable_session() -> BaseResp:
                 "comments_count": session.comments_count,
             })
         else:
-            return BaseResp(success=True, message="没有可恢复的会话", data=None)
+            return BaseResponse(success=True, message="没有可恢复的会话", data=None)
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Get resumable session failed: {type(e).__name__}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=400, detail=f"获取可恢复会话失败: {str(e)}")
+        raise
 
 
 @router.get("/status")
@@ -188,8 +143,9 @@ async def live_report_status() -> dict:
     return {"active": s is not None, "status": asdict(s) if s else None}
 
 
-@router.post("/generate")
-async def generate_live_report() -> BaseResp:
+@router.post("/generate", response_model=GenerateLiveReportResponse)
+@handle_service_errors
+async def generate_live_report() -> GenerateLiveReportResponse:
     """
     生成直播复盘报告（仅保存到本地，不保存到数据库）
     报告保存在 server/records/ 目录下
@@ -210,17 +166,10 @@ async def generate_live_report() -> BaseResp:
         else:
             logger.info("✅ 复盘报告已生成（本地保存）")
         
-        return BaseResp(data=artifacts)
+        return GenerateLiveReportResponse(data=artifacts)
     except Exception as e:
         log_generation_error("直播报告", "当前会话", str(e))
-        logger.error(f"Live report generate failed: {type(e).__name__}: {str(e)}", exc_info=True)
-        
-        # 提供更具体的错误信息
-        error_msg = str(e)
-        if "no active session" in error_msg.lower() or "not started" in error_msg.lower():
-            raise HTTPException(status_code=404, detail="没有正在运行的录制会话，无法生成报告")
-        else:
-            raise HTTPException(status_code=400, detail=f"生成直播报告失败: {error_msg}")
+        raise
 
 
 async def _save_report_to_database(artifacts: Dict[str, Any], db: Session):
@@ -352,8 +301,9 @@ async def _save_report_to_database(artifacts: Dict[str, Any], db: Session):
     logger.info(f"✅ [保存报告] 数据库事务提交成功！report_id={report.id if 'report' in locals() else existing_report.id}")
 
 
-@router.get("/review/{report_path:path}")
-async def get_review_data(report_path: str) -> BaseResp:
+@router.get("/review/{report_path:path}", response_model=BaseResponse[dict])
+@handle_service_errors
+async def get_review_data(report_path: str) -> BaseResponse[dict]:
     """
     从历史报告的 HTML 路径加载对应的 review_data.json
     report_path: 例如 "D:/project/.../artifacts/report.html"
@@ -375,19 +325,17 @@ async def get_review_data(report_path: str) -> BaseResp:
         
         # 读取 JSON 文件
         review_data = json.loads(review_data_file.read_text(encoding="utf-8"))
-        return BaseResp(data={"review_data": review_data})
+        return BaseResponse(data={"review_data": review_data})
         
     except HTTPException:
         raise
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Load review data failed: {type(e).__name__}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=400, detail=f"加载复盘数据失败: {str(e)}")
+        raise
 
 
-@router.get("/history")
-async def list_local_reports(limit: int = 20) -> BaseResp:
+@router.get("/history", response_model=BaseResponse[List[dict]])
+@handle_service_errors
+async def list_local_reports(limit: int = 20) -> BaseResponse[List[dict]]:
     """
     扫描本地 records 目录，返回最近的复盘报告列表
     
@@ -462,15 +410,15 @@ async def list_local_reports(limit: int = 20) -> BaseResp:
         
         logger.info(f"✅ 找到 {len(reports)} 个本地报告")
         
-        return BaseResp(data=reports)
+        return BaseResponse(data=reports)
         
     except Exception as e:
-        logger.error(f"扫描本地报告失败: {type(e).__name__}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"扫描本地报告失败: {str(e)}")
+        raise
 
 
-@router.delete("/history/{session_id}")
-async def delete_local_report(session_id: str) -> BaseResp:
+@router.delete("/history/{session_id}", response_model=BaseResponse[dict])
+@handle_service_errors
+async def delete_local_report(session_id: str) -> BaseResponse[dict]:
     """
     删除本地报告（包括整个会话目录）
     
@@ -511,7 +459,7 @@ async def delete_local_report(session_id: str) -> BaseResp:
         
         logger.info(f"✅ 成功删除 {deleted_count} 个报告目录")
         
-        return BaseResp(
+        return BaseResponse(
             success=True,
             message=f"成功删除报告 {session_id}",
             data={"deleted_count": deleted_count}
@@ -520,6 +468,5 @@ async def delete_local_report(session_id: str) -> BaseResp:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"删除报告失败: {type(e).__name__}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"删除报告失败: {str(e)}")
+        raise
 

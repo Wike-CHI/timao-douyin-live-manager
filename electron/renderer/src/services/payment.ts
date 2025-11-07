@@ -67,8 +67,8 @@ export const createSubscription = async (
 ): Promise<Subscription> => {
   return apiCall(
     () => fetchJsonWithAuth('main', '/api/payment/subscriptions', {
-      method: 'POST',
-      body: JSON.stringify(request),
+    method: 'POST',
+    body: JSON.stringify(request),
     }),
     '创建订阅'
   );
@@ -123,7 +123,7 @@ export const cancelSubscription = async (
 ): Promise<Subscription> => {
   return apiCall(
     () => fetchJsonWithAuth('main', `/api/payment/subscriptions/${subscriptionId}/cancel`, {
-      method: 'POST',
+    method: 'POST',
     }),
     '取消订阅'
   );
@@ -141,11 +141,11 @@ export const renewSubscription = async (
   if (couponCode) {
     body.coupon_code = couponCode;
   }
-
+  
   return apiCall(
     () => fetchJsonWithAuth('main', `/api/payment/subscriptions/${subscriptionId}/renew`, {
-      method: 'POST',
-      body: JSON.stringify(body),
+    method: 'POST',
+    body: JSON.stringify(body),
     }),
     '续费订阅'
   );
@@ -173,15 +173,15 @@ export const createPayment = async (
 ): Promise<Payment> => {
   return apiCall(
     () => fetchJsonWithAuth('main', '/api/payment/payments', {
-      method: 'POST',
-      body: JSON.stringify({
-        subscription_id: request.subscription_id,
-        amount: request.amount,
-        payment_method: request.payment_method,
-        currency: request.currency || 'CNY',
-        coupon_code: request.coupon_code,
-        return_url: request.return_url,
-      }),
+    method: 'POST',
+    body: JSON.stringify({
+      subscription_id: request.subscription_id,
+      amount: request.amount,
+      payment_method: request.payment_method,
+      currency: request.currency || 'CNY',
+      coupon_code: request.coupon_code,
+      return_url: request.return_url,
+    }),
     }),
     '创建支付'
   );
@@ -227,11 +227,11 @@ export const validateCoupon = async (
 }> => {
   return apiCall(
     () => fetchJsonWithAuth('main', '/api/payment/coupons/validate', {
-      method: 'POST',
-      body: JSON.stringify({
-        code: code,
-        amount: amount,
-      }),
+    method: 'POST',
+    body: JSON.stringify({
+      code: code,
+      amount: amount,
+    }),
     }),
     '验证优惠券'
   );
@@ -253,11 +253,11 @@ export const createAndConfirmPayment = async (
 }> => {
   return apiCall(
     () => fetchJsonWithAuth('main', '/api/subscription/create_payment', {
-      method: 'POST',
-      body: JSON.stringify({
-        plan_id: planId,
-        payment_method: method,
-      }),
+    method: 'POST',
+    body: JSON.stringify({
+      plan_id: planId,
+      payment_method: method,
+    }),
     }),
     '创建并确认支付'
   );
@@ -279,11 +279,11 @@ export const confirmPayment = async (
   if (transactionId) {
     body.transaction_id = transactionId;
   }
-
+  
   return apiCall(
     () => fetchJsonWithAuth('main', '/api/subscription/confirm_payment', {
-      method: 'POST',
-      body: JSON.stringify(body),
+    method: 'POST',
+    body: JSON.stringify(body),
     }),
     '确认支付'
   );
@@ -319,11 +319,11 @@ export const consumePoints = async (
   if (description) {
     body.description = description;
   }
-
+  
   return apiCall(
     () => fetchJsonWithAuth('main', '/api/subscription/consume_points', {
-      method: 'POST',
-      body: JSON.stringify(body),
+    method: 'POST',
+    body: JSON.stringify(body),
     }),
     '消耗积分'
   );

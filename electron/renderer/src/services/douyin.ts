@@ -22,11 +22,11 @@ export const startDouyinRelay = async (
   if (cookie) {
     body.cookie = cookie;
   }
-
+  
   return apiCall(
     () => fetchJsonWithAuth('douyin', '/api/douyin/start', {
-      method: 'POST',
-      body: JSON.stringify(body),
+    method: 'POST',
+    body: JSON.stringify(body),
     }),
     '启动抖音中继'
   );
@@ -35,7 +35,7 @@ export const startDouyinRelay = async (
 export const stopDouyinRelay = async (): Promise<DouyinRelayResponse> => {
   return apiCall(
     () => fetchJsonWithAuth('douyin', '/api/douyin/stop', {
-      method: 'POST',
+    method: 'POST',
     }),
     '停止抖音中继'
   );
@@ -44,7 +44,7 @@ export const stopDouyinRelay = async (): Promise<DouyinRelayResponse> => {
 export const getDouyinRelayStatus = async (): Promise<DouyinRelayStatus> => {
   return apiCall(
     () => fetchJsonWithAuth('douyin', '/api/douyin/status', {
-      method: 'GET',
+    method: 'GET',
     }),
     '获取抖音中继状态'
   );
@@ -81,8 +81,8 @@ export const updateDouyinPersist = async (payload: {
 }) => {
   return apiCall(
     () => fetchJsonWithAuth('douyin', '/api/douyin/web/persist', {
-      method: 'POST',
-      body: JSON.stringify(payload),
+    method: 'POST',
+    body: JSON.stringify(payload),
     }),
     '更新抖音持久化配置'
   );

@@ -17,15 +17,16 @@ from pydantic import BaseModel
 from ..services.douyin_service import get_douyin_service
 from ..services.douyin_web_relay import get_douyin_web_relay
 from server.utils.service_logger import log_service_start, log_service_stop, log_service_error
+from ..schemas.douyin import (
+    StartDouyinMonitoringRequest,
+    StartDouyinMonitoringResponse,
+    StopDouyinMonitoringResponse,
+    DouyinStatusResponse,
+)
+from ..schemas.common import BaseResponse
+from ..utils.api_error_handler import handle_service_errors
 
 router = APIRouter(prefix="/api/douyin", tags=["douyin"])
-
-
-class StartMonitoringRequest(BaseModel):
-    live_id: Optional[str] = None
-    live_url: Optional[str] = None
-    # 可选 cookie 字符串（建议为浏览器导出的 Cookie 字符串）
-    cookie: Optional[str] = None
 
 
 def _parse_live_id(live_url_or_id: Optional[str]) -> Optional[str]:
