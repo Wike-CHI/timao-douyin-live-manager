@@ -7,6 +7,7 @@ import { LoginPage } from './pages/LoginPage';
 import { Dashboard } from './pages/Dashboard';
 import { UserList, UserShow, UserCreate, UserEdit } from './resources/users';
 import { PaymentList, PaymentShow } from './resources/payments';
+import { PlanList, PlanShow, PlanCreate, PlanEdit } from './resources/plans';
 import { AICostStats } from './resources/ai-monitoring';
 
 function App() {
@@ -42,6 +43,14 @@ function App() {
         name="payments"
         list={PaymentList}
         show={PaymentShow}
+      />
+      
+      <Resource
+        name="plans"
+        list={PlanList}
+        show={PlanShow}
+        create={PlanCreate}
+        edit={PlanEdit}
       />
       
       <CustomRoutes>
