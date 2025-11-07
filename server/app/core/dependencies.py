@@ -208,8 +208,9 @@ def require_admin_role(current_user: User = Depends(get_current_active_user)) ->
             return current_user
     except Exception:
         pass
-    user_roles = [role.name for role in current_user.roles]
-    if "admin" not in user_roles and "super_admin" not in user_roles:
+    # User.role是枚举类型,直接获取.value
+    user_role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
+    if user_role not in ["admin", "super_admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin role required"
@@ -224,8 +225,9 @@ def require_super_admin_role(current_user: User = Depends(get_current_active_use
             return current_user
     except Exception:
         pass
-    user_roles = [role.name for role in current_user.roles]
-    if "super_admin" not in user_roles:
+    # User.role是枚举类型,直接获取.value
+    user_role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
+    if user_role != "super_admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Super admin role required"

@@ -12,6 +12,7 @@ import { AICostStats } from './resources/ai-monitoring';
 import { RevenueCharts } from './resources/analytics/RevenueCharts';
 import { SystemMonitor } from './resources/system/SystemMonitor';
 import { AuditLogs } from './resources/audit/AuditLogs';
+import { ProviderList, FunctionList } from './resources/ai-gateway';
 
 function App() {
   return (
@@ -61,6 +62,8 @@ function App() {
         <Route path="/analytics" element={<RevenueCharts />} />
         <Route path="/system-monitor" element={<SystemMonitor />} />
         <Route path="/audit-logs" element={<AuditLogs />} />
+        <Route path="/ai-gateway/providers" element={<ProviderList />} />
+        <Route path="/ai-gateway/functions" element={<FunctionList />} />
       </CustomRoutes>
     </Admin>
   );

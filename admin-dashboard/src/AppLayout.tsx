@@ -7,6 +7,7 @@ import MonitorHeartIcon from '@mui/icons-material/MonitorHeart';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import SecurityIcon from '@mui/icons-material/Security';
 import HealthAndSafetyIcon from '@mui/icons-material/HealthAndSafety';
+import RouterIcon from '@mui/icons-material/Router';
 
 const CustomMenu = () => {
   useSidebarState();
@@ -37,6 +38,16 @@ const CustomMenu = () => {
         to="/ai-monitoring"
         primaryText="AI监控"
         leftIcon={<MonitorHeartIcon />}
+      />
+      <MenuItemLink
+        to="/ai-gateway/providers"
+        primaryText="AI网关 - 服务商"
+        leftIcon={<RouterIcon />}
+      />
+      <MenuItemLink
+        to="/ai-gateway/functions"
+        primaryText="AI网关 - 功能配置"
+        leftIcon={<RouterIcon />}
       />
       <MenuItemLink
         to="/analytics"
