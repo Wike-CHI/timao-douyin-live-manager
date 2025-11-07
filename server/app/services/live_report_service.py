@@ -1248,11 +1248,41 @@ class LiveReportService:
                         logger.warning("⚠️ 无法获取平台处理器，跳过本次刷新")
                         continue
                     
-                    info = await handler.get_stream_info(self._session.live_url)
-                    new_record_url = self._extract_record_url(info)
+                    # 🔧 修复：增加重试机制，提高流地址获取成功率
+                    max_retries = 3
+                    retry_delay = 2  # 秒
+                    new_record_url = None
+                    
+                    for retry in range(max_retries):
+                        try:
+                            info = await handler.get_stream_info(self._session.live_url)
+                            new_record_url = self._extract_record_url(info)
+                            
+                            if new_record_url:
+                                break
+                            
+                            if retry < max_retries - 1:
+                                logger.warning(f"⚠️ 无法获取新的流地址（重试 {retry + 1}/{max_retries}），等待 {retry_delay} 秒后重试...")
+                                await asyncio.sleep(retry_delay)
+                        except Exception as e:
+                            if retry < max_retries - 1:
+                                logger.warning(f"⚠️ 获取流地址异常（重试 {retry + 1}/{max_retries}）: {e}，等待 {retry_delay} 秒后重试...")
+                                await asyncio.sleep(retry_delay)
+                            else:
+                                logger.error(f"❌ 获取流地址失败（已重试 {max_retries} 次）: {e}")
                     
                     if not new_record_url:
-                        logger.warning("⚠️ 无法获取新的流地址，保持当前流")
+                        logger.warning("⚠️ 无法获取新的流地址（已重试），保持当前流")
+                        # 🔧 修复：检查当前流是否仍然有效
+                        if self._ffmpeg_proc:
+                            try:
+                                # 检查 ffmpeg 进程是否还在运行
+                                if self._ffmpeg_proc.returncode is None:
+                                    logger.info("ℹ️ 当前 ffmpeg 进程仍在运行，继续使用当前流")
+                                else:
+                                    logger.warning("⚠️ 当前 ffmpeg 进程已退出，但无法获取新流地址")
+                            except Exception:
+                                pass
                         continue
                     
                     # 2. 检查直播是否仍在进行

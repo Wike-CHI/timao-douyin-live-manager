@@ -1,0 +1,552 @@
+---
+description: 墨菲定律/波特定律 - 任何可能出错的事都会出错，防御性编程
+globs: ["**/*.py", "**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"]
+alwaysApply: true
+---
+
+# 墨菲定律 (Murphy's Law)
+
+## 核心思想
+
+"任何事只要有可能出错，那就一定会出错。" 这是对不确定性的深刻认识。在编程中，它要求我们进行防御性编程：总是检查返回值，总是处理异常，总是假设用户会输入无效数据，网络会中断，磁盘会写满。
+
+## 在本项目中的应用规则
+
+### 1. 输入验证和边界检查
+
+#### 总是验证输入
+
+```python
+# ✅ 好的做法：总是验证输入
+@router.post("/api/live/sessions")
+async def create_session(request: CreateSessionRequest):
+    """创建会话 - 防御性编程"""
+    # 验证房间ID
+    if not request.room_id or not isinstance(request.room_id, str):
+        raise HTTPException(status_code=400, detail="房间ID无效")
+    
+    if len(request.room_id) > 100:
+        raise HTTPException(status_code=400, detail="房间ID过长")
+    
+    # 验证用户ID
+    if not request.user_id or request.user_id <= 0:
+        raise HTTPException(status_code=400, detail="用户ID无效")
+    
+    # 验证其他字段
+    if request.duration_minutes and (request.duration_minutes < 1 or request.duration_minutes > 1440):
+        raise HTTPException(status_code=400, detail="录制时长必须在1-1440分钟之间")
+    
+    # 所有验证通过后才处理
+    return await live_service.create_session(request)
+
+# ❌ 避免：假设输入总是正确的
+@router.post("/api/live/sessions")
+async def create_session(request: CreateSessionRequest):
+    """创建会话 - 没有验证"""
+    # 直接使用，可能出错
+    session = LiveSession(room_id=request.room_id, user_id=request.user_id)
+    db.session.add(session)
+    db.session.commit()
+    return session
+```
+
+#### 检查边界条件
+
+```python
+# ✅ 好的做法：检查所有边界条件
+def process_audio_segments(segments: List[dict]) -> List[str]:
+    """处理音频分段"""
+    if not segments:
+        return []  # 空列表情况
+    
+    if len(segments) > 1000:
+        logger.warning(f"分段数量过多: {len(segments)}，可能影响性能")
+        # 限制处理数量或分批处理
+    
+    results = []
+    for segment in segments:
+        # 检查每个分段的数据
+        if not segment.get("audio_data"):
+            logger.warning("分段缺少音频数据，跳过")
+            continue
+        
+        if len(segment["audio_data"]) == 0:
+            logger.warning("分段音频数据为空，跳过")
+            continue
+        
+        # 检查数据大小
+        if len(segment["audio_data"]) > 100 * 1024 * 1024:  # 100MB
+            logger.error("分段音频数据过大，跳过")
+            continue
+        
+        try:
+            result = transcribe_audio(segment["audio_data"])
+            results.append(result)
+        except Exception as e:
+            logger.error(f"转写失败: {e}")
+            # 继续处理其他分段，而不是整个失败
+            continue
+    
+    return results
+```
+
+### 2. 异常处理和错误恢复
+
+#### 总是处理异常
+
+```python
+# ✅ 好的做法：全面的异常处理
+async def generate_live_report(session_id: int) -> dict:
+    """生成直播报告 - 防御性异常处理"""
+    try:
+        # 获取会话
+        session = await get_session(session_id)
+        if not session:
+            raise ValueError(f"会话不存在: {session_id}")
+        
+        # 生成报告
+        report = await _generate_report_data(session)
+        
+        # 保存报告
+        try:
+            await save_report_to_file(report, session_id)
+        except IOError as e:
+            logger.error(f"保存报告文件失败: {e}")
+            # 报告生成成功，但保存失败，返回报告但不保存
+            # 或者尝试保存到备用位置
+            await save_report_to_backup(report, session_id)
+        
+        return report
+    
+    except ValueError as e:
+        # 业务逻辑错误
+        logger.warning(f"报告生成失败（业务错误）: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    except Exception as e:
+        # 未知错误
+        logger.error(f"报告生成失败（系统错误）: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="报告生成失败")
+
+# ❌ 避免：不处理异常
+async def generate_live_report(session_id: int) -> dict:
+    """生成直播报告 - 没有异常处理"""
+    # 如果任何步骤失败，整个函数崩溃
+    session = await get_session(session_id)
+    report = await _generate_report_data(session)
+    await save_report_to_file(report, session_id)
+    return report
+```
+
+#### 优雅降级
+
+```python
+# ✅ 好的做法：优雅降级
+async def get_live_data_with_fallback(room_id: str) -> dict:
+    """获取直播数据 - 带降级策略"""
+    # 尝试主要数据源
+    try:
+        data = await primary_data_source.get_data(room_id)
+        return data
+    except Exception as e:
+        logger.warning(f"主要数据源失败: {e}，尝试备用数据源")
+    
+    # 降级到备用数据源
+    try:
+        data = await backup_data_source.get_data(room_id)
+        return data
+    except Exception as e:
+        logger.warning(f"备用数据源也失败: {e}，使用缓存数据")
+    
+    # 降级到缓存
+    try:
+        data = await cache.get_data(room_id)
+        if data:
+            logger.info("使用缓存数据")
+            return data
+    except Exception as e:
+        logger.error(f"缓存也失败: {e}")
+    
+    # 所有数据源都失败，返回默认值
+    logger.error("所有数据源都失败，返回默认数据")
+    return {"error": "数据获取失败", "room_id": room_id}
+```
+
+### 3. 资源管理和清理
+
+#### 总是清理资源
+
+```python
+# ✅ 好的做法：使用上下文管理器确保资源清理
+async def process_audio_file(file_path: str) -> str:
+    """处理音频文件 - 确保资源清理"""
+    # 使用上下文管理器确保文件关闭
+    try:
+        with open(file_path, 'rb') as f:
+            audio_data = f.read()
+        
+        # 处理音频
+        result = await transcribe_audio(audio_data)
+        return result
+    
+    except FileNotFoundError:
+        logger.error(f"文件不存在: {file_path}")
+        raise
+    except IOError as e:
+        logger.error(f"文件读取失败: {e}")
+        raise
+    finally:
+        # 即使出错也清理临时文件
+        if os.path.exists(file_path + ".tmp"):
+            os.remove(file_path + ".tmp")
+
+# ✅ 数据库连接管理
+async def save_session_to_db(session: LiveSession) -> None:
+    """保存会话到数据库 - 确保连接清理"""
+    try:
+        db.session.add(session)
+        db.session.commit()
+    except Exception as e:
+        # 总是回滚
+        db.session.rollback()
+        logger.error(f"数据库操作失败: {e}")
+        raise
+    finally:
+        # 确保会话关闭（如果使用连接池）
+        # db.session.close()  # 根据ORM框架调整
+        pass
+```
+
+### 4. 网络请求的防御性处理
+
+#### 处理网络故障
+
+```python
+# ✅ 好的做法：处理所有网络故障情况
+import aiohttp
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10)
+)
+async def fetch_live_stream_url(room_id: str, timeout: int = 10) -> str:
+    """获取直播流URL - 防御性网络请求"""
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as session:
+            async with session.get(f"https://api.example.com/live/{room_id}") as response:
+                # 检查HTTP状态码
+                if response.status == 404:
+                    raise ValueError(f"房间不存在: {room_id}")
+                
+                if response.status >= 500:
+                    raise aiohttp.ClientError(f"服务器错误: {response.status}")
+                
+                if response.status != 200:
+                    raise aiohttp.ClientError(f"请求失败: {response.status}")
+                
+                # 检查响应内容
+                data = await response.json()
+                if not data.get("stream_url"):
+                    raise ValueError("响应中缺少stream_url字段")
+                
+                return data["stream_url"]
+    
+    except asyncio.TimeoutError:
+        logger.error(f"请求超时: room_id={room_id}")
+        raise
+    except aiohttp.ClientError as e:
+        logger.error(f"网络请求失败: {e}")
+        raise
+    except ValueError as e:
+        logger.warning(f"业务逻辑错误: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"未知错误: {e}")
+        raise
+
+# ❌ 避免：不处理网络错误
+async def fetch_live_stream_url(room_id: str) -> str:
+    """获取直播流URL - 没有错误处理"""
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"https://api.example.com/live/{room_id}") as response:
+            data = await response.json()
+            return data["stream_url"]  # 可能各种错误
+```
+
+### 5. 并发和竞态条件
+
+#### 处理并发问题
+
+```python
+# ✅ 好的做法：处理并发和竞态条件
+import asyncio
+from asyncio import Lock
+
+class SessionManager:
+    """会话管理器 - 处理并发"""
+    
+    def __init__(self):
+        self._locks = {}  # 每个会话一个锁
+        self._lock = Lock()  # 保护_locks字典的锁
+    
+    async def update_session(self, session_id: int, updates: dict):
+        """更新会话 - 防止竞态条件"""
+        # 获取会话特定的锁
+        async with self._lock:
+            if session_id not in self._locks:
+                self._locks[session_id] = Lock()
+            session_lock = self._locks[session_id]
+        
+        # 使用会话锁保护更新操作
+        async with session_lock:
+            session = await get_session(session_id)
+            if not session:
+                raise ValueError(f"会话不存在: {session_id}")
+            
+            # 检查会话状态（防止状态不一致）
+            if session.status == "stopped":
+                raise ValueError("会话已停止，无法更新")
+            
+            # 执行更新
+            for key, value in updates.items():
+                setattr(session, key, value)
+            
+            await save_session(session)
+
+# ❌ 避免：不处理并发
+class SessionManager:
+    """会话管理器 - 没有并发保护"""
+    async def update_session(self, session_id: int, updates: dict):
+        """更新会话 - 可能有竞态条件"""
+        session = await get_session(session_id)
+        # 如果多个请求同时更新，可能丢失更新
+        for key, value in updates.items():
+            setattr(session, key, value)
+        await save_session(session)
+```
+
+### 6. 数据一致性和事务
+
+#### 确保数据一致性
+
+```python
+# ✅ 好的做法：使用事务确保数据一致性
+async def create_session_with_initial_data(room_id: str, user_id: int) -> LiveSession:
+    """创建会话并初始化数据 - 使用事务"""
+    async with db.transaction():  # 使用事务
+        try:
+            # 创建会话
+            session = LiveSession(room_id=room_id, user_id=user_id)
+            db.session.add(session)
+            db.session.flush()  # 获取session.id
+            
+            # 创建初始报告记录
+            report = Report(session_id=session.id, status="pending")
+            db.session.add(report)
+            
+            # 创建初始音频记录
+            audio = AudioRecord(session_id=session.id, status="pending")
+            db.session.add(audio)
+            
+            # 提交事务
+            db.session.commit()
+            return session
+        
+        except Exception as e:
+            # 任何错误都回滚
+            db.session.rollback()
+            logger.error(f"创建会话失败: {e}")
+            raise
+
+# ❌ 避免：不使用事务
+async def create_session_with_initial_data(room_id: str, user_id: int) -> LiveSession:
+    """创建会话并初始化数据 - 没有事务"""
+    # 如果中间步骤失败，数据可能不一致
+    session = LiveSession(room_id=room_id, user_id=user_id)
+    db.session.add(session)
+    db.session.commit()
+    
+    report = Report(session_id=session.id, status="pending")
+    db.session.add(report)
+    db.session.commit()  # 如果这里失败，session已创建但report没有
+    
+    audio = AudioRecord(session_id=session.id, status="pending")
+    db.session.add(audio)
+    db.session.commit()  # 如果这里失败，session和report已创建但audio没有
+```
+
+### 7. 日志和监控
+
+#### 记录所有可能的错误
+
+```python
+# ✅ 好的做法：全面的日志记录
+import logging
+import traceback
+
+logger = logging.getLogger(__name__)
+
+async def process_live_data(session_id: int) -> dict:
+    """处理直播数据 - 全面日志"""
+    logger.info(f"开始处理直播数据: session_id={session_id}")
+    
+    try:
+        # 记录关键步骤
+        logger.debug(f"获取会话: session_id={session_id}")
+        session = await get_session(session_id)
+        
+        if not session:
+            logger.warning(f"会话不存在: session_id={session_id}")
+            raise ValueError(f"会话不存在: {session_id}")
+        
+        logger.debug(f"获取音频数据: session_id={session_id}")
+        audio_data = await get_audio_data(session_id)
+        
+        if not audio_data:
+            logger.warning(f"音频数据为空: session_id={session_id}")
+            # 返回部分数据而不是失败
+            return {"session": session, "audio": None}
+        
+        logger.debug(f"转写音频: session_id={session_id}")
+        transcript = await transcribe_audio(audio_data)
+        
+        logger.info(f"处理完成: session_id={session_id}")
+        return {"session": session, "audio": audio_data, "transcript": transcript}
+    
+    except ValueError as e:
+        # 业务错误
+        logger.warning(f"处理失败（业务错误）: session_id={session_id}, error={e}")
+        raise
+    
+    except Exception as e:
+        # 系统错误，记录完整堆栈
+        logger.error(
+            f"处理失败（系统错误）: session_id={session_id}, error={e}",
+            exc_info=True  # 包含堆栈信息
+        )
+        raise
+```
+
+### 8. 配置和环境的防御性处理
+
+#### 检查配置和环境
+
+```python
+# ✅ 好的做法：检查所有配置
+import os
+from typing import Optional
+
+def get_required_env(key: str, default: Optional[str] = None) -> str:
+    """获取必需的环境变量 - 带验证"""
+    value = os.getenv(key, default)
+    
+    if value is None:
+        raise ValueError(f"必需的环境变量未设置: {key}")
+    
+    if not value.strip():
+        raise ValueError(f"环境变量为空: {key}")
+    
+    return value
+
+def get_optional_env(key: str, default: str = "") -> str:
+    """获取可选的环境变量"""
+    return os.getenv(key, default)
+
+# 应用启动时检查所有必需配置
+def validate_config():
+    """验证配置 - 启动时检查"""
+    required_configs = [
+        "DATABASE_URL",
+        "REDIS_URL",
+        "AI_API_KEY"
+    ]
+    
+    missing_configs = []
+    for config in required_configs:
+        try:
+            get_required_env(config)
+        except ValueError:
+            missing_configs.append(config)
+    
+    if missing_configs:
+        error_msg = f"缺少必需配置: {', '.join(missing_configs)}"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+    
+    logger.info("所有配置验证通过")
+```
+
+## 实践建议
+
+### 1. 错误处理清单
+
+```python
+# 在每个函数中检查：
+ERROR_HANDLING_CHECKLIST = [
+    "输入验证",
+    "边界条件检查",
+    "异常处理",
+    "资源清理",
+    "日志记录",
+    "错误恢复",
+    "降级策略"
+]
+```
+
+### 2. 防御性编程模式
+
+```python
+# 模式1：验证-处理-清理
+def process_with_validation(data):
+    # 1. 验证
+    validate_input(data)
+    try:
+        # 2. 处理
+        result = do_process(data)
+        return result
+    finally:
+        # 3. 清理
+        cleanup()
+
+# 模式2：尝试-降级-失败
+def process_with_fallback(data):
+    try:
+        return primary_method(data)
+    except:
+        try:
+            return fallback_method(data)
+        except:
+            return default_value()
+```
+
+## 与项目其他原则的配合
+
+- **与 KISS 配合**：防御性编程不意味着复杂，保持简单但全面
+- **与单一职责配合**：错误处理是每个函数的职责之一
+- **与最小意外配合**：错误应该被明确处理，而不是静默失败
+
+## 代码审查检查点
+
+在代码审查时，检查：
+1. 是否验证了所有输入？
+2. 是否处理了所有可能的异常？
+3. 是否清理了所有资源？
+4. 是否有降级策略？
+5. 是否记录了关键错误？
+6. 是否处理了并发问题？
+7. 是否使用了事务保证一致性？
+
+## 记住
+
+**如果可能出错，它就会出错。**
+
+- 总是验证输入
+- 总是处理异常
+- 总是清理资源
+- 总是检查返回值
+- 总是假设最坏情况
+- 总是有降级策略
+- 总是记录错误
+
+**防御性编程不是悲观，而是对不确定性的理性应对。**

@@ -1,0 +1,179 @@
+---
+description: YAGNI原则 - 你不会需要它的，避免过度工程
+globs: ["**/*.py", "**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"]
+alwaysApply: true
+---
+
+# YAGNI 原则 (You Aren't Gonna Need It)
+
+## 核心思想
+
+你不会需要它的。这是对"过度工程"的精准打击。不要在确切的需求出现之前，就提前编写你认为"将来可能有用"的代码或功能。
+
+## 在本项目中的应用规则
+
+### 1. 功能开发决策
+
+**黄金问题**：在考虑添加一个新功能或抽象时，问自己：
+- "现在的需求明确要求这个吗？"
+- "用户或产品经理明确提出了这个需求吗？"
+- "这个功能在接下来的1-2个迭代中会被使用吗？"
+
+如果答案是否定的，那就别做。
+
+### 2. 避免过早抽象
+
+- **不要**创建"通用"的工具类，除非有至少3个明确的使用场景
+- **不要**设计"可扩展"的架构，除非当前需求明确需要扩展
+- **不要**添加"预留"的接口或方法，除非它们现在就会被使用
+
+```python
+# ❌ 避免：过早抽象
+class BaseReportGenerator:
+    """通用的报告生成器基类，支持多种格式"""
+    def generate(self, format: str, data: dict):
+        if format == "json":
+            return self._generate_json(data)
+        elif format == "xml":
+            return self._generate_xml(data)
+        elif format == "yaml":
+            return self._generate_yaml(data)
+        # ... 但实际上现在只需要 JSON
+
+# ✅ 好的做法：只实现当前需要的
+def generate_report(data: dict) -> dict:
+    """生成 JSON 格式的报告"""
+    return {
+        "summary": data.get("summary"),
+        "details": data.get("details")
+    }
+```
+
+### 3. 数据库设计
+
+- **不要**添加"可能将来会用到的"字段
+- **不要**创建"预留"的表或索引
+- **不要**设计复杂的关联关系，除非当前业务明确需要
+
+在 `server/app/models/` 中的模型应该只包含当前业务需要的字段。
+
+### 4. API 设计
+
+- **不要**创建"通用"的 CRUD API，除非所有操作现在就需要
+- **不要**添加"预留"的查询参数或过滤条件
+- **不要**设计复杂的版本控制，除非明确需要支持多版本
+
+```python
+# ❌ 避免：过早的通用 API
+@router.get("/api/live/sessions")
+async def list_sessions(
+    page: int = 1,
+    page_size: int = 20,
+    sort_by: str = "created_at",
+    sort_order: str = "desc",
+    filter_status: Optional[str] = None,
+    filter_type: Optional[str] = None,
+    filter_date_from: Optional[datetime] = None,
+    filter_date_to: Optional[datetime] = None,
+    # ... 但实际上现在只需要简单的列表
+):
+    pass
+
+# ✅ 好的做法：只实现当前需要的
+@router.get("/api/live/sessions")
+async def list_sessions():
+    """获取当前用户的直播会话列表"""
+    return await session_service.list_user_sessions()
+```
+
+### 5. 配置和特性开关
+
+- **不要**添加"将来可能用到的"配置项
+- **不要**实现复杂的特性开关系统，除非明确需要
+- **不要**创建"环境适配"的抽象，除非现在就需要支持多环境
+
+### 6. 错误处理和日志
+
+- **不要**实现复杂的错误分类系统，除非明确需要
+- **不要**添加"预留"的日志级别或格式
+- **不要**创建通用的错误处理中间件，除非有明确的复用需求
+
+### 7. 测试代码
+
+- **不要**编写"可能将来会用到"的测试用例
+- **不要**创建复杂的测试框架，除非当前测试需求明确需要
+- **不要**添加"预留"的测试数据生成器
+
+### 8. 依赖管理
+
+- **不要**添加"可能将来有用"的第三方库
+- **不要**引入"功能强大但复杂"的库，除非明确需要其功能
+- 在 `requirements.txt` 中只包含当前项目实际使用的依赖
+
+### 9. 前端组件
+
+- **不要**创建"通用"的 UI 组件库，除非有明确的复用需求
+- **不要**实现"可配置"的组件，除非当前页面明确需要不同配置
+- **不要**添加"预留"的样式主题或主题切换功能
+
+### 10. 性能优化
+
+- **不要**过早优化性能，除非明确存在性能问题
+- **不要**实现复杂的缓存策略，除非明确需要
+- **不要**添加"预留"的数据库连接池或查询优化
+
+## 何时可以"提前"实现
+
+以下情况可以考虑提前实现：
+
+1. **明确的短期需求**：产品经理已经确认在下一个迭代中需要
+2. **技术债务会急剧增加**：如果不现在做，将来改造成本会非常高
+3. **架构层面的决策**：影响整体架构的决策需要提前考虑（但要保持简单）
+
+## 与项目其他原则的配合
+
+- **与 KISS 配合**：YAGNI 帮助避免不必要的复杂性
+- **与 DRY 配合**：只有在确实有重复时，才提取公共代码
+- **与单一职责配合**：不要为了"将来可能的功能"而设计复杂的类
+
+## 代码审查检查点
+
+在代码审查时，检查：
+1. 是否有"预留"的代码或注释？
+2. 是否有"可能将来会用到的"抽象？
+3. 是否有未使用的导入或依赖？
+4. 是否有"通用"但当前只有一个使用场景的代码？
+5. 是否有"可扩展"但当前不需要扩展的设计？
+
+## 示例：识别过度工程
+
+```python
+# ❌ 过度工程：创建了复杂的插件系统，但当前只需要一种处理方式
+class ProcessorPlugin:
+    def process(self, data):
+        raise NotImplementedError
+
+class LiveDataProcessor(ProcessorPlugin):
+    def process(self, data):
+        return self._process_live_data(data)
+
+class ProcessorFactory:
+    def create_processor(self, type: str) -> ProcessorPlugin:
+        if type == "live":
+            return LiveDataProcessor()
+        # ... 但实际上只有一种类型
+
+# ✅ 简单版本：只实现当前需要的
+def process_live_data(data: dict) -> dict:
+    """处理直播数据"""
+    return {
+        "processed": True,
+        "result": data
+    }
+```
+
+## 记住
+
+**需求是变化的，但变化的方向是不确定的。** 与其猜测未来需要什么，不如专注于当前的需求，保持代码简单，这样当真正的需求出现时，重构会更容易。
+
+**YAGNI 不是反对规划，而是反对基于假设的过度实现。**

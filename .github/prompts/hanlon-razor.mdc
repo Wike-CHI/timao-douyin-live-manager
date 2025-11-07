@@ -1,0 +1,409 @@
+---
+description: 汉隆的剃刀 - 能解释为愚蠢的不要解释为恶意，减少人际冲突
+globs: ["**/*.py", "**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.md"]
+alwaysApply: true
+---
+
+# 汉隆的剃刀 (Hanlon's Razor)
+
+## 核心思想
+
+"能解释为愚蠢的，就不要解释为恶意。" 在排查 Bug、进行代码审查或团队协作时，当遇到一个看似"故意搞破坏"的行为，首先假设这是由误解、信息缺失或简单的错误导致的。这能极大地减少人际冲突，将焦点集中在解决问题上。
+
+## 在本项目中的应用规则
+
+### 1. 代码审查中的态度
+
+#### 假设善意
+
+```python
+# ✅ 好的做法：代码审查时假设善意
+class CodeReview:
+    """代码审查 - 假设善意"""
+    
+    def review_code(self, pr: PullRequest, author: str):
+        """审查代码"""
+        issues = []
+        
+        for issue in self.find_issues(pr):
+            # 假设是误解或信息缺失，而不是故意犯错
+            if issue.type == "bug":
+                comment = f"这里可能有个问题：{issue.description}。可能是对需求的理解有偏差，建议检查一下业务逻辑。"
+            elif issue.type == "performance":
+                comment = f"这里可能有性能优化的空间：{issue.description}。可能没有注意到这个性能问题，建议考虑优化。"
+            elif issue.type == "style":
+                comment = f"代码风格建议：{issue.description}。可能是对项目规范不熟悉，可以参考项目文档。"
+            
+            issues.append({
+                "type": issue.type,
+                "comment": comment,
+                "suggestion": issue.suggestion
+            })
+        
+        return {
+            "author": author,
+            "issues": issues,
+            "tone": "constructive",  # 建设性的
+            "assumption": "good_intent"  # 假设善意
+        }
+
+# ❌ 避免：假设恶意
+def review_code_bad(pr: PullRequest):
+    """代码审查 - 假设恶意"""
+    issues = []
+    for issue in find_issues(pr):
+        # 假设是故意犯错
+        comment = f"这里明显有问题：{issue.description}。为什么这样写？"
+        issues.append(comment)
+    return issues
+```
+
+### 2. Bug 排查时的假设
+
+#### 假设是错误而非恶意
+
+```python
+# ✅ 好的做法：Bug 排查时假设是错误
+def investigate_bug(bug_report: dict):
+    """调查 Bug - 假设是错误"""
+    logger.info(f"开始调查 Bug: {bug_report['id']}")
+    
+    # 假设可能的原因（按可能性排序）：
+    possible_causes = [
+        "对需求的理解有偏差",
+        "缺少必要的上下文信息",
+        "简单的逻辑错误",
+        "边界情况未考虑",
+        "环境配置问题",
+        "第三方依赖问题",
+        # 最后才考虑：
+        # "故意引入的Bug"  # 几乎不可能
+    ]
+    
+    for cause in possible_causes:
+        logger.debug(f"检查可能原因: {cause}")
+        if check_cause(cause, bug_report):
+            logger.info(f"找到可能原因: {cause}")
+            # 提供帮助性的解决方案
+            return {
+                "cause": cause,
+                "solution": get_solution(cause),
+                "prevention": get_prevention(cause)
+            }
+    
+    return {"cause": "unknown", "need_more_info": True}
+
+# ❌ 避免：假设是恶意
+def investigate_bug_bad(bug_report: dict):
+    """调查 Bug - 假设恶意"""
+    # 首先怀疑是故意引入的
+    if looks_suspicious(bug_report):
+        return {"cause": "intentional", "action": "escalate"}
+    # ...
+```
+
+### 3. 团队协作中的沟通
+
+#### 建设性的反馈
+
+```python
+# ✅ 好的做法：建设性的反馈
+class TeamCommunication:
+    """团队沟通 - 假设善意"""
+    
+    def provide_feedback(self, issue: str, person: str):
+        """提供反馈"""
+        # 假设是误解或信息缺失
+        feedback = {
+            "issue": issue,
+            "assumption": "可能是对需求/规范/上下文的理解有偏差",
+            "suggestion": f"建议：{self.get_suggestion(issue)}",
+            "resources": self.get_helpful_resources(issue),
+            "tone": "helpful"  # 帮助性的
+        }
+        
+        logger.info(f"向 {person} 提供反馈: {feedback}")
+        return feedback
+    
+    def handle_mistake(self, mistake: str, person: str):
+        """处理错误"""
+        # 假设是简单的错误，而不是故意犯错
+        response = {
+            "acknowledgment": f"理解，这可能是由于：{self.get_possible_reasons(mistake)}",
+            "support": "需要帮助的话随时告诉我",
+            "learning": f"建议查看：{self.get_learning_resources(mistake)}",
+            "tone": "supportive"  # 支持性的
+        }
+        
+        return response
+
+# ❌ 避免：指责性的沟通
+def handle_mistake_bad(mistake: str, person: str):
+    """处理错误 - 指责性"""
+    # 假设是故意犯错
+    return {
+        "blame": f"{person} 应该知道这个",
+        "consequence": "需要重新做",
+        "tone": "accusatory"  # 指责性的
+    }
+```
+
+### 4. 代码注释和文档
+
+#### 解释而非指责
+
+```python
+# ✅ 好的做法：解释性的注释
+class LegacyCodeHandler:
+    """处理遗留代码 - 假设有原因"""
+    
+    def process_legacy_code(self, code_block: str):
+        """处理遗留代码"""
+        # 假设这段代码存在是有原因的
+        # 可能的原因：
+        # 1. 处理特定的边界情况
+        # 2. 兼容旧版本
+        # 3. 性能优化（虽然看起来奇怪）
+        # 4. 临时解决方案（但后来忘记改进）
+        
+        # 在修改前，先理解为什么这样写
+        reason = self.investigate_reason(code_block)
+        
+        if reason:
+            logger.info(f"理解代码原因: {reason}")
+            # 基于理解进行改进
+            return self.improve_with_understanding(code_block, reason)
+        else:
+            # 如果确实没有原因，再考虑删除
+            logger.warning("未找到代码存在的原因，考虑删除")
+            return self.remove_if_safe(code_block)
+
+# ❌ 避免：指责性的注释
+def process_legacy_code_bad(code_block: str):
+    """处理遗留代码 - 指责性"""
+    # 这是什么垃圾代码？谁写的？
+    # 明显有问题，应该删除
+    return remove_code(code_block)
+```
+
+### 5. 需求理解偏差
+
+#### 假设是理解问题而非故意
+
+```python
+# ✅ 好的做法：处理需求理解偏差
+class RequirementHandler:
+    """需求处理 - 假设是理解问题"""
+    
+    def handle_mismatch(self, implementation: dict, requirement: dict):
+        """处理实现与需求不匹配"""
+        # 假设是理解偏差，而不是故意不按需求实现
+        mismatches = self.find_mismatches(implementation, requirement)
+        
+        for mismatch in mismatches:
+            # 提供帮助性的解释
+            explanation = {
+                "mismatch": mismatch,
+                "possible_reason": self.get_possible_reason(mismatch),
+                # 可能的原因：
+                # - 需求描述不够清晰
+                # - 缺少必要的上下文
+                # - 对业务逻辑的理解有偏差
+                # - 技术实现的限制
+                "clarification": self.get_clarification(mismatch),
+                "suggestion": self.get_suggestion(mismatch)
+            }
+            
+            logger.info(f"发现不匹配: {explanation}")
+        
+        return {
+            "mismatches": mismatches,
+            "assumption": "understanding_issue",
+            "action": "clarify_and_fix"
+        }
+
+# ❌ 避免：假设是故意
+def handle_mismatch_bad(implementation: dict, requirement: dict):
+    """处理不匹配 - 假设故意"""
+    # 为什么没有按需求实现？
+    return {"action": "reprimand"}
+```
+
+### 6. 性能问题排查
+
+#### 假设是知识缺失
+
+```python
+# ✅ 好的做法：性能问题排查
+def investigate_performance_issue(issue: dict):
+    """调查性能问题 - 假设是知识缺失"""
+    # 假设是：
+    # - 不知道有更好的方法
+    # - 没有意识到性能影响
+    # - 缺少性能测试
+    # 而不是故意写慢代码
+    
+    possible_reasons = [
+        "可能不知道有更高效的算法",
+        "可能没有意识到这个操作的性能影响",
+        "可能缺少性能测试，没有发现这个问题",
+        "可能是从示例代码复制过来的，没有优化"
+    ]
+    
+    for reason in possible_reasons:
+        if self.check_reason(reason, issue):
+            return {
+                "reason": reason,
+                "solution": self.get_solution(reason),
+                "learning": self.get_learning_resources(reason),
+                "tone": "educational"  # 教育性的
+            }
+    
+    return {"need_more_info": True}
+
+# ❌ 避免：假设是故意
+def investigate_performance_issue_bad(issue: dict):
+    """调查性能问题 - 假设故意"""
+    # 为什么写这么慢的代码？
+    return {"action": "blame"}
+```
+
+### 7. 代码审查反馈格式
+
+#### 使用建设性的语言
+
+```python
+# ✅ 好的做法：建设性的反馈格式
+CODE_REVIEW_TEMPLATE = {
+    "positive": "这里做得很好：{positive}",
+    "suggestion": "建议考虑：{suggestion}。可能是{possible_reason}，建议{action}。",
+    "question": "这里有个问题想确认一下：{question}。可能是{possible_reason}，如果是的话，建议{action}。",
+    "learning": "这里有个优化点：{issue}。可以参考{resource}了解更多。"
+}
+
+# 使用示例
+def review_code_example():
+    """代码审查示例"""
+    feedback = {
+        "positive": "错误处理很全面，很好！",
+        "suggestion": "建议考虑使用事务。可能是没有意识到需要保证数据一致性，建议查看数据库事务文档。",
+        "question": "这里为什么使用同步调用？可能是没有意识到可以异步优化，如果是性能考虑，建议添加注释说明。",
+        "learning": "这里有个性能优化点：可以使用批量查询。可以参考ORM批量操作文档了解更多。"
+    }
+    return feedback
+
+# ❌ 避免：指责性的语言
+CODE_REVIEW_TEMPLATE_BAD = {
+    "criticism": "这里明显有问题：{issue}",
+    "blame": "为什么这样写？应该{correct_way}",
+    "demand": "必须改成：{demand}"
+}
+```
+
+### 8. 错误处理中的假设
+
+#### 假设是意外而非故意
+
+```python
+# ✅ 好的做法：错误处理时假设是意外
+class ErrorHandler:
+    """错误处理 - 假设是意外"""
+    
+    def handle_user_error(self, error: dict):
+        """处理用户错误"""
+        # 假设用户是：
+        # - 不理解如何使用
+        # - 缺少必要的信息
+        # - 遇到了意外的错误
+        # 而不是故意输入错误数据
+        
+        if error.type == "invalid_input":
+            return {
+                "message": "输入似乎不符合要求",
+                "help": "请检查输入格式，参考文档：{docs_url}",
+                "example": self.get_example(error.field),
+                "tone": "helpful"
+            }
+        
+        elif error.type == "missing_field":
+            return {
+                "message": "缺少必需字段",
+                "help": "请提供以下字段：{required_fields}",
+                "example": self.get_example_with_fields(),
+                "tone": "helpful"
+            }
+        
+        return {"message": "发生了错误", "help": "请联系支持"}
+
+# ❌ 避免：假设用户故意
+def handle_user_error_bad(error: dict):
+    """处理用户错误 - 假设故意"""
+    # 用户输入错误！
+    return {"message": "输入错误，请重新输入", "tone": "accusatory"}
+```
+
+## 实践建议
+
+### 1. 代码审查清单
+
+```python
+CODE_REVIEW_CHECKLIST = {
+    "assume_good_intent": True,
+    "provide_context": True,
+    "suggest_solutions": True,
+    "share_resources": True,
+    "ask_questions": True,
+    "avoid_blame": True,
+    "focus_on_learning": True
+}
+```
+
+### 2. 沟通模板
+
+```python
+# 建设性的反馈模板
+CONSTRUCTIVE_FEEDBACK_TEMPLATE = """
+我发现了一个可能的问题：{issue}
+
+可能的原因：
+- {possible_reason_1}
+- {possible_reason_2}
+
+建议：
+- {suggestion_1}
+- {suggestion_2}
+
+相关资源：
+- {resource_1}
+- {resource_2}
+
+如果需要帮助，随时告诉我！
+"""
+```
+
+## 与项目其他原则的配合
+
+- **与 KISS 配合**：简单的错误通常来自误解，而不是恶意
+- **与最小意外配合**：如果代码行为不符合预期，可能是理解偏差
+- **与童子军军规配合**：改进代码时假设原作者的善意
+
+## 代码审查检查点
+
+在代码审查时，检查：
+1. 反馈是否假设善意？
+2. 是否提供了建设性的建议？
+3. 是否分享了学习资源？
+4. 语言是否友好和支持性？
+5. 是否避免了指责性的语言？
+
+## 记住
+
+**大多数问题来自误解、信息缺失或简单的错误，而不是恶意。**
+
+- 在代码审查时假设善意
+- 在 Bug 排查时假设是错误
+- 在团队协作中提供建设性反馈
+- 在遇到问题时先理解原因
+- 将焦点集中在解决问题上
+
+**假设善意不仅能减少人际冲突，还能更快地找到问题的根本原因。**

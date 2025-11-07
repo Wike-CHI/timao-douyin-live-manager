@@ -371,15 +371,40 @@ class DouyinLiveWebFetcher:
             if not isinstance(data, dict):
                 raise ValueError(f"响应中 data 字段类型错误，实际类型: {type(data)}")
                 
+            # 🔧 修复：增加容错机制，处理 room_status 字段缺失的情况
             room_status = data.get("room_status")
+            
+            # 如果 room_status 不存在，尝试从其他字段推断
             if room_status is None:
-                raise ValueError("响应中缺少 room_status 字段")
+                # 尝试从 room 对象获取状态
+                room = data.get("room")
+                if isinstance(room, dict):
+                    room_status = room.get("status") or room.get("room_status")
+                
+                # 如果仍然没有，尝试从 stream_url 判断（有流地址说明正在直播）
+                if room_status is None:
+                    stream_url = data.get("stream_url") or (room.get("stream_url") if isinstance(room, dict) else None)
+                    if stream_url:
+                        room_status = 0  # 0 表示正在直播
+                        print("⚠️ 响应中缺少 room_status 字段，根据 stream_url 推断为正在直播")
+                    else:
+                        # 最后尝试从其他状态字段判断
+                        status = data.get("status") or (room.get("status") if isinstance(room, dict) else None)
+                        if status is not None:
+                            room_status = 0 if status == 2 else 2  # 状态2表示直播中，其他表示结束
+                            print(f"⚠️ 响应中缺少 room_status 字段，根据 status={status} 推断 room_status={room_status}")
+                        else:
+                            # 如果所有方法都失败，使用默认值 0（假设正在直播）
+                            room_status = 0
+                            print("⚠️ 响应中缺少 room_status 字段，使用默认值 0（正在直播）")
             
             # 确保 room_status 是数字类型
             try:
                 room_status = int(room_status)
             except (ValueError, TypeError):
-                raise ValueError(f"room_status 类型错误: {type(room_status)}")
+                # 如果转换失败，使用默认值
+                print(f"⚠️ room_status 类型错误: {type(room_status)}，使用默认值 0")
+                room_status = 0
                 
             user = data.get("user")
             if isinstance(user, dict):
@@ -447,15 +472,39 @@ class DouyinLiveWebFetcher:
     def _sendHeartbeat(self):
         """
         发送心跳包
+        🔧 修复：增加连接状态检查，避免在连接关闭时发送心跳包
         """
         while True:
             try:
+                # 🔧 修复：检查 WebSocket 连接状态
+                if not hasattr(self, 'ws') or self.ws is None:
+                    print("【X】WebSocket 对象不存在，停止心跳包")
+                    break
+                
+                # 检查连接状态（websocket-client 库的状态检查）
+                if hasattr(self.ws, 'sock') and self.ws.sock is None:
+                    print("【X】WebSocket 连接已关闭，停止心跳包")
+                    break
+                
+                # 尝试发送心跳包
                 heartbeat = PushFrame(payload_type='hb').SerializeToString()
                 self.ws.send(heartbeat, websocket.ABNF.OPCODE_PING)
                 print("【√】发送心跳包")
-            except Exception as e:
-                print("【X】心跳包检测错误: ", e)
+            except (websocket.WebSocketConnectionClosedException, AttributeError) as e:
+                # websocket-client 库的连接关闭异常或属性不存在
+                print(f"【X】WebSocket 连接已关闭或属性错误，停止心跳包: {type(e).__name__}: {e}")
                 break
+            except Exception as e:
+                error_msg = str(e)
+                # 检查是否是连接关闭相关的错误
+                if "already closed" in error_msg.lower() or "Connection is" in error_msg:
+                    print(f"【X】心跳包检测错误: {e}")
+                    break
+                else:
+                    # 其他错误，记录但继续尝试
+                    print(f"【⚠️】心跳包发送异常: {e}，继续重试...")
+                    time.sleep(1)  # 短暂等待后重试
+                    continue
             else:
                 time.sleep(5)
 
@@ -524,7 +573,20 @@ class DouyinLiveWebFetcher:
         print("WebSocket error: ", error)
 
     def _wsOnClose(self, ws, *args):
-        self.get_room_status()
+        """
+        WebSocket 连接关闭回调
+        🔧 修复：增加容错处理，避免在连接关闭时调用可能失败的 API
+        """
+        try:
+            # 🔧 修复：尝试获取房间状态，但不影响连接关闭流程
+            try:
+                self.get_room_status()
+            except Exception as e:
+                # 如果获取状态失败，记录但不影响关闭流程
+                print(f"⚠️ WebSocket 关闭时获取房间状态失败: {e}")
+        except Exception:
+            pass  # 完全忽略所有异常，确保连接能正常关闭
+        
         print("WebSocket connection closed.")
 
     def _parseChatMsg(self, payload):

@@ -1,0 +1,358 @@
+---
+description: 童子军军规 - 让营地比你来时更干净，持续改进代码质量
+globs: ["**/*.py", "**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"]
+alwaysApply: true
+---
+
+# 童子军军规 (Boy Scout Rule)
+
+## 核心思想
+
+让营地比你来时更干净。这是一种持续改进的文化。每次你接触一段代码（无论是修改 Bug 还是添加功能），都顺便做一些小小的清理，比如修复一个变量名、消除一点重复、写条更清晰的注释。
+
+## 在本项目中的应用规则
+
+### 1. 每次修改代码时的清理清单
+
+在修改任何代码时，检查并改进：
+
+#### 变量和函数命名
+- 是否有模糊的变量名（如 `data`, `temp`, `result`）？
+- 是否有拼写错误？
+- 函数名是否准确描述了功能？
+
+```python
+# ❌ 发现的问题
+def process(data):
+    temp = data.get("items")
+    result = []
+    for item in temp:
+        result.append(item["name"])
+    return result
+
+# ✅ 改进后
+def extract_item_names(items_data: dict) -> List[str]:
+    """从数据中提取商品名称列表"""
+    items = items_data.get("items", [])
+    item_names = []
+    for item in items:
+        item_names.append(item["name"])
+    return item_names
+```
+
+#### 代码重复
+- 是否有重复的代码块？
+- 是否可以提取为函数？
+
+```python
+# ❌ 发现的问题：重复的数据库操作
+def get_session(session_id: int):
+    try:
+        session = db.session.query(LiveSession).filter_by(id=session_id).first()
+        if not session:
+            raise ValueError("Session not found")
+        return session
+    except Exception as e:
+        logger.error(f"Error: {e}")
+        raise
+
+def get_user(user_id: int):
+    try:
+        user = db.session.query(User).filter_by(id=user_id).first()
+        if not user:
+            raise ValueError("User not found")
+        return user
+    except Exception as e:
+        logger.error(f"Error: {e}")
+        raise
+
+# ✅ 改进后：提取公共逻辑
+def get_or_raise(model_class, **filters):
+    """通用的查询方法，不存在时抛出异常"""
+    try:
+        instance = db.session.query(model_class).filter_by(**filters).first()
+        if not instance:
+            raise ValueError(f"{model_class.__name__} not found")
+        return instance
+    except Exception as e:
+        logger.error(f"Error: {e}")
+        raise
+
+def get_session(session_id: int):
+    return get_or_raise(LiveSession, id=session_id)
+
+def get_user(user_id: int):
+    return get_or_raise(User, id=user_id)
+```
+
+#### 注释和文档
+- 是否有过时的注释？
+- 是否有缺少文档字符串的函数？
+- 注释是否准确描述了代码？
+
+```python
+# ❌ 发现的问题：过时的注释
+def calculate_price(items):
+    # 计算总价，使用旧的价格表
+    # TODO: 更新价格计算逻辑
+    total = sum(item.price for item in items)
+    return total
+
+# ✅ 改进后：更新注释
+def calculate_total_price(items: List[Item]) -> float:
+    """
+    计算商品总价
+    
+    Args:
+        items: 商品列表
+    
+    Returns:
+        总价（浮点数）
+    """
+    return sum(item.price for item in items)
+```
+
+#### 未使用的代码
+- 是否有未使用的导入？
+- 是否有未使用的变量？
+- 是否有注释掉的代码？
+
+```python
+# ❌ 发现的问题：未使用的导入和变量
+import json
+import os
+import sys
+from typing import List, Dict, Optional, Tuple  # Tuple 未使用
+
+def process_data(data):
+    temp_var = data.get("temp")  # 未使用的变量
+    result = data.get("result")
+    return result
+
+# ✅ 改进后：清理未使用的代码
+from typing import List, Dict, Optional
+
+def process_data(data: dict) -> dict:
+    """处理数据"""
+    return data.get("result")
+```
+
+#### 代码格式
+- 是否符合项目的代码风格？
+- 是否有不一致的缩进？
+- 行长度是否合理？
+
+### 2. 小改进的示例
+
+#### 改进变量名
+```python
+# 修改前
+def get_data(id):
+    d = db.query(Model).filter_by(id=id).first()
+    return d
+
+# 修改后
+def get_model_by_id(model_id: int) -> Optional[Model]:
+    """根据ID获取模型实例"""
+    model = db.session.query(Model).filter_by(id=model_id).first()
+    return model
+```
+
+#### 改进错误处理
+```python
+# 修改前
+def save_session(session):
+    try:
+        db.session.add(session)
+        db.session.commit()
+    except:
+        pass  # 静默失败
+
+# 修改后
+def save_session(session: LiveSession) -> None:
+    """保存会话到数据库"""
+    try:
+        db.session.add(session)
+        db.session.commit()
+        logger.info(f"会话已保存: {session.id}")
+    except Exception as e:
+        logger.error(f"保存会话失败: {e}")
+        db.session.rollback()
+        raise
+```
+
+#### 改进类型提示
+```python
+# 修改前
+def process_items(items):
+    result = []
+    for item in items:
+        result.append(item.name)
+    return result
+
+# 修改后
+from typing import List
+
+def extract_item_names(items: List[Item]) -> List[str]:
+    """提取商品名称列表"""
+    return [item.name for item in items]
+```
+
+#### 改进魔法数字
+```python
+# 修改前
+def check_session_timeout(session):
+    if time.time() - session.last_active > 1800:  # 1800 是什么？
+        return True
+    return False
+
+# 修改后
+SESSION_TIMEOUT_SECONDS = 1800  # 30分钟
+
+def is_session_timeout(session: LiveSession) -> bool:
+    """检查会话是否超时"""
+    elapsed = time.time() - session.last_active
+    return elapsed > SESSION_TIMEOUT_SECONDS
+```
+
+### 3. 提交代码前的检查
+
+在提交代码前，花几分钟检查：
+
+1. **代码审查自己的改动**
+   - 重新阅读你修改的代码
+   - 检查是否有明显的改进空间
+   - 确保代码符合项目规范
+
+2. **运行静态检查工具**
+   ```bash
+   # Python
+   flake8 server/
+   mypy server/
+   
+   # TypeScript
+   npm run lint
+   npm run type-check
+   ```
+
+3. **检查测试**
+   - 确保现有测试通过
+   - 为新功能添加测试（如果适用）
+
+4. **检查 Git 提交**
+   - 提交信息是否清晰？
+   - 是否包含了不应该提交的文件？
+
+### 4. 持续改进的策略
+
+#### 不要一次性大重构
+- 每次只改进一点点
+- 专注于你正在修改的代码区域
+- 不要为了"完美"而延迟提交
+
+#### 识别技术债务
+在修改代码时，如果发现以下问题，记录下来（可以在代码中添加 TODO 注释）：
+
+```python
+# TODO: 这个函数太长了，应该拆分成多个小函数
+# TODO: 这里的错误处理应该统一
+# TODO: 这个魔法数字应该提取为常量
+# TODO: 这里的重复代码应该提取为函数
+```
+
+#### 逐步改进
+不要试图一次性修复所有问题，而是：
+1. 每次修改时修复 1-2 个小问题
+2. 优先修复影响当前功能的问题
+3. 记录需要大重构的地方，安排专门的时间处理
+
+### 5. 代码审查时的改进
+
+在代码审查时，不仅检查功能，也关注代码质量：
+
+```python
+# 审查时发现的问题
+def process_live_data(data):
+    # 变量名不清晰
+    d = data.get("details")
+    # 缺少类型提示
+    result = {}
+    # 魔法数字
+    if len(d) > 100:
+        result["status"] = "large"
+    return result
+
+# 提出改进建议
+def process_live_data(data: dict) -> dict:
+    """
+    处理直播数据
+    
+    Args:
+        data: 包含直播详情的字典
+    
+    Returns:
+        处理后的数据字典
+    """
+    MAX_DETAIL_LENGTH = 100
+    details = data.get("details", "")
+    result = {}
+    
+    if len(details) > MAX_DETAIL_LENGTH:
+        result["status"] = "large"
+    else:
+        result["status"] = "normal"
+    
+    return result
+```
+
+### 6. 项目特定的改进点
+
+#### Python 后端
+- 使用类型提示（`typing` 模块）
+- 使用 `dataclass` 替代简单的类
+- 使用 `pathlib.Path` 替代字符串路径操作
+- 使用 `f-string` 替代 `%` 格式化
+- 使用上下文管理器处理资源
+
+#### TypeScript 前端
+- 使用类型定义，避免 `any`
+- 使用 `const` 和 `let`，避免 `var`
+- 使用箭头函数保持 `this` 绑定
+- 使用解构赋值
+- 使用可选链 `?.` 和空值合并 `??`
+
+### 7. 改进的优先级
+
+**高优先级**（立即改进）：
+- 明显的 Bug
+- 安全漏洞
+- 性能问题
+- 破坏性的错误处理
+
+**中优先级**（有时间时改进）：
+- 代码重复
+- 命名不清晰
+- 缺少类型提示
+- 过时的注释
+
+**低优先级**（重构时改进）：
+- 代码风格不一致
+- 可以优化的性能（但不影响功能）
+- 可以提取的抽象（但当前工作正常）
+
+## 与项目其他原则的配合
+
+- **与 KISS 配合**：小改进让代码保持简单
+- **与 DRY 配合**：发现重复时立即提取
+- **与单一职责配合**：发现职责不清时立即拆分
+
+## 记住
+
+**代码质量不是一次性的工作，而是持续的过程。**
+
+- 不要等到"有时间"再改进
+- 每次修改代码时，顺便改进一点点
+- 积少成多，代码库的质量会稳步提升
+- 让每个接触代码的人都成为代码质量的守护者
+
+**让代码比你来时更干净，这是每个开发者的责任。**

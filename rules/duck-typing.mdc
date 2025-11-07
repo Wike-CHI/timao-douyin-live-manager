@@ -1,0 +1,467 @@
+---
+description: 鸭式辨型原则 - 关注对象的行为而非类型，灵活的设计
+globs: ["**/*.py", "**/*.ts", "**/*.tsx"]
+alwaysApply: true
+---
+
+# 鸭式辨型 (Duck Typing)
+
+## 核心思想
+
+"当看到一只鸟走起来像鸭子、游泳起来像鸭子、叫起来也像鸭子，那么这只鸟就可以被称为鸭子。"
+
+在多态和接口设计中，一个对象有效的语义，不是由它继承自哪个特定的类或实现了哪个特定的接口决定的，而是由它当前的方法和属性的集合决定的。这鼓励了基于行为而非严格类型的灵活设计。
+
+## 在本项目中的应用规则
+
+### 1. Python 中的鸭式辨型
+
+Python 是动态类型语言，天然支持鸭式辨型。
+
+#### 基于行为而非类型
+
+```python
+# ✅ 好的做法：关注行为而非类型
+def process_audio_source(source):
+    """
+    处理音频源 - 不关心 source 的具体类型
+    只要它有 read() 方法就可以
+    """
+    if hasattr(source, 'read'):
+        audio_data = source.read()
+        return transcribe_audio(audio_data)
+    else:
+        raise TypeError("音频源必须支持 read() 方法")
+
+# 可以传入任何有 read() 方法的对象
+class FileAudioSource:
+    def __init__(self, file_path: str):
+        self.file_path = file_path
+    
+    def read(self) -> bytes:
+        with open(self.file_path, 'rb') as f:
+            return f.read()
+
+class StreamAudioSource:
+    def __init__(self, stream_url: str):
+        self.stream_url = stream_url
+    
+    def read(self) -> bytes:
+        # 从流中读取
+        return fetch_stream_data(self.stream_url)
+
+class MemoryAudioSource:
+    def __init__(self, data: bytes):
+        self.data = data
+    
+    def read(self) -> bytes:
+        return self.data
+
+# 所有这些都可以使用，因为它们都有 read() 方法
+file_source = FileAudioSource("audio.wav")
+stream_source = StreamAudioSource("http://example.com/stream")
+memory_source = MemoryAudioSource(b"audio data")
+
+process_audio_source(file_source)    # ✅ 可以
+process_audio_source(stream_source)   # ✅ 可以
+process_audio_source(memory_source)   # ✅ 可以
+```
+
+#### 使用协议（Protocol）进行类型提示
+
+Python 3.8+ 支持 `Protocol`，可以在保持鸭式辨型的同时提供类型检查。
+
+```python
+from typing import Protocol, runtime_checkable
+
+@runtime_checkable
+class AudioSource(Protocol):
+    """音频源协议 - 定义期望的行为"""
+    def read(self) -> bytes:
+        """读取音频数据"""
+        ...
+    
+    def close(self) -> None:
+        """关闭音频源"""
+        ...
+
+def process_audio_source(source: AudioSource) -> str:
+    """
+    处理音频源 - 使用 Protocol 进行类型提示
+    但运行时仍然基于行为（鸭式辨型）
+    """
+    try:
+        audio_data = source.read()
+        return transcribe_audio(audio_data)
+    finally:
+        if hasattr(source, 'close'):
+            source.close()
+
+# 任何实现了 read() 和 close() 方法的对象都可以使用
+class FileAudioSource:
+    def read(self) -> bytes:
+        # 实现
+        pass
+    
+    def close(self) -> None:
+        # 实现
+        pass
+
+# 类型检查器会验证，但运行时基于行为
+process_audio_source(FileAudioSource("audio.wav"))  # ✅
+```
+
+### 2. 服务接口设计
+
+在 `server/app/services/` 中，使用鸭式辨型设计灵活的服务接口。
+
+#### 可替换的服务实现
+
+```python
+# ✅ 好的做法：基于行为定义服务接口
+class ReportGenerator:
+    """报告生成器 - 不关心具体实现，只要行为一致"""
+    
+    def generate(self, session_id: int) -> dict:
+        """生成报告 - 子类必须实现"""
+        raise NotImplementedError
+    
+    def save(self, report: dict, path: str) -> None:
+        """保存报告 - 子类必须实现"""
+        raise NotImplementedError
+
+class JSONReportGenerator(ReportGenerator):
+    """JSON 格式报告生成器"""
+    
+    def generate(self, session_id: int) -> dict:
+        # 实现 JSON 报告生成
+        return {"format": "json", "data": ...}
+    
+    def save(self, report: dict, path: str) -> None:
+        with open(path, 'w') as f:
+            json.dump(report, f)
+
+class HTMLReportGenerator(ReportGenerator):
+    """HTML 格式报告生成器"""
+    
+    def generate(self, session_id: int) -> dict:
+        # 实现 HTML 报告生成
+        return {"format": "html", "data": ...}
+    
+    def save(self, report: dict, path: str) -> None:
+        with open(path, 'w') as f:
+            f.write(report["html"])
+
+# 使用：不关心具体类型，只要行为一致
+def create_report(session_id: int, generator: ReportGenerator) -> str:
+    """创建报告 - 接受任何 ReportGenerator 实现"""
+    report = generator.generate(session_id)
+    path = f"reports/{session_id}.{report['format']}"
+    generator.save(report, path)
+    return path
+
+# 可以传入任何 ReportGenerator 实现
+json_generator = JSONReportGenerator()
+html_generator = HTMLReportGenerator()
+
+create_report(123, json_generator)  # ✅
+create_report(123, html_generator)  # ✅
+```
+
+#### 使用 Protocol 定义服务接口
+
+```python
+from typing import Protocol
+
+class TranscriptionService(Protocol):
+    """转写服务协议 - 定义期望的行为"""
+    
+    def transcribe(self, audio_data: bytes) -> str:
+        """转写音频数据"""
+        ...
+    
+    def transcribe_batch(self, audio_files: List[bytes]) -> List[str]:
+        """批量转写"""
+        ...
+
+class SenseVoiceService:
+    """SenseVoice 转写服务实现"""
+    
+    def transcribe(self, audio_data: bytes) -> str:
+        # 实现 SenseVoice 转写
+        pass
+    
+    def transcribe_batch(self, audio_files: List[bytes]) -> List[str]:
+        # 实现批量转写
+        pass
+
+class WhisperService:
+    """Whisper 转写服务实现（如果将来需要）"""
+    
+    def transcribe(self, audio_data: bytes) -> str:
+        # 实现 Whisper 转写
+        pass
+    
+    def transcribe_batch(self, audio_files: List[bytes]) -> List[str]:
+        # 实现批量转写
+        pass
+
+# 使用：接受任何 TranscriptionService 实现
+def process_audio(audio_data: bytes, service: TranscriptionService) -> str:
+    """处理音频 - 不关心具体服务类型"""
+    return service.transcribe(audio_data)
+
+# 可以传入任何 TranscriptionService 实现
+sensevoice = SenseVoiceService()
+whisper = WhisperService()
+
+process_audio(audio_data, sensevoice)  # ✅
+process_audio(audio_data, whisper)     # ✅
+```
+
+### 3. 数据源抽象
+
+使用鸭式辨型设计灵活的数据源接口。
+
+```python
+# ✅ 好的做法：基于行为定义数据源
+class DataSource(Protocol):
+    """数据源协议"""
+    
+    def fetch(self) -> dict:
+        """获取数据"""
+        ...
+    
+    def is_available(self) -> bool:
+        """检查数据源是否可用"""
+        ...
+
+class DatabaseDataSource:
+    """数据库数据源"""
+    
+    def fetch(self) -> dict:
+        return db.session.query(LiveSession).all()
+    
+    def is_available(self) -> bool:
+        try:
+            db.session.execute("SELECT 1")
+            return True
+        except:
+            return False
+
+class APIDataSource:
+    """API 数据源"""
+    
+    def __init__(self, api_url: str):
+        self.api_url = api_url
+    
+    def fetch(self) -> dict:
+        response = requests.get(self.api_url)
+        return response.json()
+    
+    def is_available(self) -> bool:
+        try:
+            response = requests.get(self.api_url, timeout=5)
+            return response.status_code == 200
+        except:
+            return False
+
+class FileDataSource:
+    """文件数据源"""
+    
+    def __init__(self, file_path: str):
+        self.file_path = file_path
+    
+    def fetch(self) -> dict:
+        with open(self.file_path) as f:
+            return json.load(f)
+    
+    def is_available(self) -> bool:
+        return os.path.exists(self.file_path)
+
+# 使用：接受任何 DataSource 实现
+def get_data(source: DataSource) -> dict:
+    """获取数据 - 不关心数据源类型"""
+    if not source.is_available():
+        raise RuntimeError("数据源不可用")
+    return source.fetch()
+
+# 可以传入任何 DataSource 实现
+db_source = DatabaseDataSource()
+api_source = APIDataSource("http://api.example.com/data")
+file_source = FileDataSource("data.json")
+
+get_data(db_source)   # ✅
+get_data(api_source)  # ✅
+get_data(file_source) # ✅
+```
+
+### 4. 适配器模式
+
+使用鸭式辨型实现适配器模式，让不兼容的接口可以一起工作。
+
+```python
+# ✅ 好的做法：适配器让不同接口可以一起工作
+class LegacyAudioProcessor:
+    """旧的音频处理类 - 接口不同"""
+    
+    def process_file(self, file_path: str) -> str:
+        """处理文件路径"""
+        # 旧实现
+        pass
+
+class ModernAudioProcessor:
+    """新的音频处理类 - 接口不同"""
+    
+    def process_data(self, audio_data: bytes) -> str:
+        """处理音频数据"""
+        # 新实现
+        pass
+
+# 适配器：让旧接口适配新接口
+class AudioProcessorAdapter:
+    """适配器 - 让 LegacyAudioProcessor 看起来像 ModernAudioProcessor"""
+    
+    def __init__(self, legacy_processor: LegacyAudioProcessor):
+        self.legacy = legacy_processor
+    
+    def process_data(self, audio_data: bytes) -> str:
+        """适配：将 bytes 转换为文件路径"""
+        # 临时保存音频数据到文件
+        temp_file = save_temp_audio(audio_data)
+        try:
+            return self.legacy.process_file(temp_file)
+        finally:
+            os.remove(temp_file)
+
+# 使用：现在两个处理器可以互换使用
+def process_audio(audio_data: bytes, processor: ModernAudioProcessor) -> str:
+    """处理音频 - 接受任何有 process_data() 方法的对象"""
+    return processor.process_data(audio_data)
+
+modern = ModernAudioProcessor()
+legacy_adapter = AudioProcessorAdapter(LegacyAudioProcessor())
+
+process_audio(audio_data, modern)        # ✅
+process_audio(audio_data, legacy_adapter) # ✅ 适配器让它也能工作
+```
+
+### 5. 测试中的鸭式辨型
+
+使用 Mock 对象时，只需要模拟需要的行为。
+
+```python
+# ✅ 好的做法：Mock 只需要实现需要的方法
+from unittest.mock import Mock
+
+def test_process_audio_source():
+    """测试音频处理 - Mock 只需要有 read() 方法"""
+    # 创建 Mock 对象，只需要实现 read() 方法
+    mock_source = Mock()
+    mock_source.read.return_value = b"fake audio data"
+    
+    # 测试：不关心 mock_source 的具体类型
+    result = process_audio_source(mock_source)
+    
+    assert result is not None
+    mock_source.read.assert_called_once()
+
+# 也可以使用真实的测试对象
+class TestAudioSource:
+    """测试用的音频源 - 只需要实现 read() 方法"""
+    def __init__(self, data: bytes):
+        self.data = data
+    
+    def read(self) -> bytes:
+        return self.data
+
+test_source = TestAudioSource(b"test audio data")
+result = process_audio_source(test_source)  # ✅ 可以工作
+```
+
+### 6. TypeScript 中的鸭式辨型
+
+TypeScript 虽然是静态类型，但也支持结构类型（结构子类型），类似于鸭式辨型。
+
+```typescript
+// ✅ TypeScript 的结构类型（类似鸭式辨型）
+interface AudioSource {
+  read(): Uint8Array;
+  close?(): void;  // 可选方法
+}
+
+function processAudioSource(source: AudioSource): string {
+  // 不关心 source 的具体类型，只要结构匹配
+  const data = source.read();
+  if (source.close) {
+    source.close();
+  }
+  return transcribeAudio(data);
+}
+
+// 任何有 read() 方法的对象都可以使用
+class FileAudioSource {
+  read(): Uint8Array {
+    // 实现
+    return new Uint8Array();
+  }
+  
+  close(): void {
+    // 实现
+  }
+}
+
+class StreamAudioSource {
+  read(): Uint8Array {
+    // 实现
+    return new Uint8Array();
+  }
+  // 没有 close() 方法也可以，因为它是可选的
+}
+
+const fileSource = new FileAudioSource();
+const streamSource = new StreamAudioSource();
+
+processAudioSource(fileSource);   // ✅
+processAudioSource(streamSource); // ✅
+```
+
+## 何时使用鸭式辨型
+
+### 适合使用的场景
+
+1. **需要灵活替换实现**：不同的服务实现可以互换
+2. **接口简单**：只需要少量方法，不需要复杂的继承体系
+3. **测试友好**：容易创建 Mock 对象
+4. **渐进式开发**：可以先实现简单版本，后续替换为复杂版本
+
+### 不适合使用的场景
+
+1. **需要严格的类型安全**：某些场景需要编译时类型检查
+2. **复杂的接口**：接口方法很多，需要明确的契约
+3. **需要继承层次**：需要利用继承的多态特性
+
+## 与项目其他原则的配合
+
+- **与 KISS 配合**：鸭式辨型让设计更简单，不需要复杂的继承体系
+- **与 YAGNI 配合**：不需要提前定义复杂的接口，只需要实现需要的方法
+- **与单一职责配合**：基于行为的接口更容易保持单一职责
+
+## 代码审查检查点
+
+在代码审查时，检查：
+1. 是否过度依赖具体类型而非行为？
+2. 是否可以设计更灵活的接口？
+3. 是否可以使用 Protocol 提供类型提示？
+4. 测试是否利用了鸭式辨型的优势？
+
+## 记住
+
+**关注对象能做什么（行为），而不是它是什么（类型）。**
+
+- 设计基于行为的接口，而非严格的类型层次
+- 使用 Protocol 在保持灵活性的同时提供类型提示
+- 让代码更容易测试和扩展
+- 保持简单，避免过度设计
+
+**如果它走起来像鸭子，叫起来像鸭子，那它就是鸭子。**

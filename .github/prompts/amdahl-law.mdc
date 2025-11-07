@@ -1,0 +1,433 @@
+---
+description: 阿姆达尔定律 - 性能优化的理论上限，优化瓶颈而非边缘
+globs: ["**/*.py", "**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"]
+alwaysApply: true
+---
+
+# 阿姆达尔定律 (Amdahl's Law)
+
+## 核心思想
+
+它给出了在部分系统被优化后，整体性能提升的理论上限。在性能优化时，你必须找到系统的瓶颈（即最耗时的部分）。如果你优化了一个只占总时间10%的部分，即使你让它速度无限快，整体性能提升也不会超过10%。要优化热点，而不是边缘。
+
+## 在本项目中的应用规则
+
+### 1. 性能分析优先
+
+#### 先找到瓶颈再优化
+
+```python
+# ✅ 好的做法：先分析性能瓶颈
+import cProfile
+import pstats
+import time
+
+def analyze_performance(func, *args, **kwargs):
+    """分析函数性能 - 找到瓶颈"""
+    profiler = cProfile.Profile()
+    profiler.enable()
+    
+    result = func(*args, **kwargs)
+    
+    profiler.disable()
+    stats = pstats.Stats(profiler)
+    stats.sort_stats('cumulative')
+    
+    # 打印最耗时的函数（前10个）
+    print("性能分析结果（按累计时间排序）：")
+    stats.print_stats(10)
+    
+    # 找出占用时间最多的部分
+    bottlenecks = stats.get_top_callees(10)
+    
+    return {
+        "result": result,
+        "bottlenecks": bottlenecks,
+        "optimization_target": bottlenecks[0] if bottlenecks else None
+    }
+
+# 使用示例
+def generate_live_report(session_id: int):
+    """生成直播报告"""
+    # 1. 获取数据（可能占10%时间）
+    session = get_session(session_id)
+    audio_data = get_audio_data(session_id)
+    
+    # 2. 转写音频（可能占80%时间）<- 瓶颈！
+    transcript = transcribe_audio(audio_data)
+    
+    # 3. 生成报告（可能占10%时间）
+    report = generate_report_text(session, transcript)
+    
+    return report
+
+# 分析性能
+result = analyze_performance(generate_live_report, 123)
+# 发现：transcribe_audio 占用80%的时间
+# 结论：应该优化 transcribe_audio，而不是其他部分
+
+# ❌ 避免：盲目优化
+def optimize_without_analysis():
+    """没有分析的优化"""
+    # 优化了只占10%时间的部分
+    # 即使优化到0，整体性能提升也只有10%
+    optimized_get_session()  # 浪费时间
+```
+
+### 2. 识别性能热点
+
+#### 使用性能分析工具
+
+```python
+# ✅ 好的做法：识别性能热点
+class PerformanceAnalyzer:
+    """性能分析器"""
+    
+    def analyze_service(self, service_name: str) -> dict:
+        """分析服务性能"""
+        # 使用性能分析工具
+        profiler = cProfile.Profile()
+        profiler.enable()
+        
+        # 执行服务
+        service = self.get_service(service_name)
+        result = service.process()
+        
+        profiler.disable()
+        stats = pstats.Stats(profiler)
+        
+        # 分析时间分布
+        time_distribution = self._analyze_time_distribution(stats)
+        
+        # 找出瓶颈（占用时间最多的部分）
+        bottleneck = self._find_bottleneck(time_distribution)
+        
+        return {
+            "service": service_name,
+            "total_time": stats.total_tt,
+            "time_distribution": time_distribution,
+            "bottleneck": bottleneck,
+            "optimization_potential": self._calculate_potential(bottleneck)
+        }
+    
+    def _find_bottleneck(self, distribution: dict) -> dict:
+        """找出瓶颈"""
+        # 找出占用时间最多的部分
+        sorted_items = sorted(distribution.items(), key=lambda x: x[1], reverse=True)
+        top_item = sorted_items[0]
+        
+        return {
+            "function": top_item[0],
+            "time": top_item[1],
+            "percentage": (top_item[1] / sum(distribution.values())) * 100
+        }
+    
+    def _calculate_potential(self, bottleneck: dict) -> float:
+        """计算优化潜力"""
+        # 根据阿姆达尔定律计算
+        # 如果优化瓶颈，整体性能提升的上限
+        percentage = bottleneck["percentage"] / 100
+        # 如果瓶颈优化到0，整体提升 = percentage
+        return percentage
+
+# 使用示例
+analyzer = PerformanceAnalyzer()
+analysis = analyzer.analyze_service("live_report_service")
+# 发现：transcribe_audio 占用80%时间
+# 优化潜力：如果优化到0，整体性能提升80%
+# 结论：应该优化 transcribe_audio
+```
+
+### 3. 优化策略
+
+#### 优先优化瓶颈
+
+```python
+# ✅ 好的做法：优先优化瓶颈
+class OptimizationStrategy:
+    """优化策略"""
+    
+    def optimize_service(self, service_name: str):
+        """优化服务"""
+        # 1. 先分析性能
+        analysis = self.analyze_performance(service_name)
+        bottleneck = analysis["bottleneck"]
+        
+        # 2. 计算优化潜力
+        potential = analysis["optimization_potential"]
+        
+        # 3. 根据阿姆达尔定律决定优化策略
+        if potential > 0.5:  # 瓶颈占用超过50%时间
+            logger.info(f"瓶颈 {bottleneck['function']} 占用 {bottleneck['percentage']:.1f}% 时间")
+            logger.info(f"优化潜力: {potential * 100:.1f}%")
+            logger.info("优先优化瓶颈")
+            
+            # 优化瓶颈
+            self._optimize_bottleneck(bottleneck)
+        else:
+            logger.warning("瓶颈占用时间较少，优化收益有限")
+            logger.info("考虑优化其他部分或重新分析")
+    
+    def _optimize_bottleneck(self, bottleneck: dict):
+        """优化瓶颈"""
+        function_name = bottleneck["function"]
+        
+        if function_name == "transcribe_audio":
+            # 优化音频转写
+            self._optimize_transcription()
+        elif function_name == "database_query":
+            # 优化数据库查询
+            self._optimize_database()
+        # ...
+
+# 使用示例
+strategy = OptimizationStrategy()
+# 分析发现：transcribe_audio 占用80%时间
+# 优化策略：优先优化 transcribe_audio
+strategy.optimize_service("live_report_service")
+```
+
+### 4. 性能测试和验证
+
+#### 验证优化效果
+
+```python
+# ✅ 好的做法：验证优化效果
+def measure_optimization_impact(original_func, optimized_func, *args, **kwargs):
+    """测量优化效果"""
+    # 测量原始函数
+    start = time.time()
+    original_result = original_func(*args, **kwargs)
+    original_time = time.time() - start
+    
+    # 测量优化后的函数
+    start = time.time()
+    optimized_result = optimized_func(*args, **kwargs)
+    optimized_time = time.time() - start
+    
+    # 计算提升
+    improvement = ((original_time - optimized_time) / original_time) * 100
+    
+    # 验证结果一致性
+    assert original_result == optimized_result, "优化后结果不一致"
+    
+    return {
+        "original_time": original_time,
+        "optimized_time": optimized_time,
+        "improvement": improvement,
+        "speedup": original_time / optimized_time
+    }
+
+# 使用示例
+def original_transcribe(audio_data: bytes) -> str:
+    """原始转写函数"""
+    # 串行处理，慢
+    results = []
+    for chunk in split_audio(audio_data):
+        result = transcribe_chunk(chunk)
+        results.append(result)
+    return " ".join(results)
+
+def optimized_transcribe(audio_data: bytes) -> str:
+    """优化后的转写函数"""
+    # 并行处理，快
+    chunks = split_audio(audio_data)
+    results = asyncio.gather(*[transcribe_chunk_async(chunk) for chunk in chunks])
+    return " ".join(results)
+
+# 测量效果
+impact = measure_optimization_impact(original_transcribe, optimized_transcribe, audio_data)
+# 如果转写占用80%时间，优化后提升50%
+# 整体性能提升：80% * 50% = 40%
+```
+
+### 5. 避免无效优化
+
+#### 识别无效优化
+
+```python
+# ✅ 好的做法：识别无效优化
+class OptimizationValidator:
+    """优化验证器"""
+    
+    def validate_optimization(self, optimization: dict) -> dict:
+        """验证优化是否有效"""
+        # 根据阿姆达尔定律计算
+        target_percentage = optimization["target_percentage"]  # 目标函数占用时间百分比
+        optimization_improvement = optimization["improvement"]  # 优化提升（如50%）
+        
+        # 整体性能提升上限
+        overall_improvement = target_percentage * (optimization_improvement / 100)
+        
+        if overall_improvement < 0.1:  # 整体提升小于10%
+            return {
+                "valid": False,
+                "reason": f"优化收益太小（{overall_improvement * 100:.1f}%），不值得投入",
+                "suggestion": "寻找更大的瓶颈"
+            }
+        else:
+            return {
+                "valid": True,
+                "overall_improvement": overall_improvement,
+                "worth_it": True
+            }
+
+# 使用示例
+validator = OptimizationValidator()
+
+# 案例1：优化只占10%时间的函数，提升50%
+optimization1 = {
+    "target_percentage": 0.1,  # 10%
+    "improvement": 50  # 50%
+}
+result1 = validator.validate_optimization(optimization1)
+# 整体提升：10% * 50% = 5%
+# 结论：不值得优化
+
+# 案例2：优化占80%时间的函数，提升50%
+optimization2 = {
+    "target_percentage": 0.8,  # 80%
+    "improvement": 50  # 50%
+}
+result2 = validator.validate_optimization(optimization2)
+# 整体提升：80% * 50% = 40%
+# 结论：值得优化
+```
+
+### 6. 性能优化清单
+
+#### 系统化优化流程
+
+```python
+# ✅ 好的做法：系统化优化流程
+PERFORMANCE_OPTIMIZATION_CHECKLIST = {
+    "step_1_analyze": {
+        "action": "使用性能分析工具找出瓶颈",
+        "tools": ["cProfile", "py-spy", "line_profiler"],
+        "output": "时间分布和瓶颈函数"
+    },
+    "step_2_calculate": {
+        "action": "根据阿姆达尔定律计算优化潜力",
+        "formula": "整体提升上限 = 瓶颈占用时间百分比",
+        "output": "优化潜力评估"
+    },
+    "step_3_prioritize": {
+        "action": "优先优化瓶颈（占用时间最多的部分）",
+        "criteria": "占用时间 > 50% 优先优化",
+        "output": "优化优先级列表"
+    },
+    "step_4_optimize": {
+        "action": "实施优化",
+        "methods": ["算法优化", "并行化", "缓存", "数据库优化"],
+        "output": "优化后的代码"
+    },
+    "step_5_measure": {
+        "action": "测量优化效果",
+        "metrics": ["执行时间", "吞吐量", "资源使用"],
+        "output": "性能提升数据"
+    },
+    "step_6_validate": {
+        "action": "验证优化是否达到预期",
+        "criteria": "整体提升 > 10% 或达到预期",
+        "output": "优化效果报告"
+    }
+}
+
+def optimize_performance(service_name: str):
+    """性能优化流程"""
+    # 1. 分析
+    analysis = analyze_performance(service_name)
+    
+    # 2. 计算潜力
+    potential = calculate_potential(analysis)
+    
+    # 3. 优先化
+    if potential > 0.5:
+        # 4. 优化
+        optimized = optimize_bottleneck(analysis["bottleneck"])
+        
+        # 5. 测量
+        impact = measure_impact(optimized)
+        
+        # 6. 验证
+        if impact["overall_improvement"] > 0.1:
+            logger.info("优化成功")
+            return optimized
+        else:
+            logger.warning("优化效果不明显，需要重新分析")
+            return None
+    else:
+        logger.warning("优化潜力有限，考虑其他优化方向")
+        return None
+```
+
+## 实践建议
+
+### 1. 性能分析工具
+
+```python
+# 推荐的性能分析工具
+PERFORMANCE_TOOLS = {
+    "python": [
+        "cProfile",  # 标准库
+        "py-spy",   # 采样分析器
+        "line_profiler",  # 行级分析
+        "memory_profiler"  # 内存分析
+    ],
+    "typescript": [
+        "Chrome DevTools Performance",
+        "clinic.js",
+        "0x"
+    ]
+}
+```
+
+### 2. 优化决策矩阵
+
+```python
+# 优化决策矩阵
+OPTIMIZATION_DECISION_MATRIX = {
+    "high_impact_low_effort": "立即优化",
+    "high_impact_high_effort": "计划优化",
+    "low_impact_low_effort": "有时间再优化",
+    "low_impact_high_effort": "不优化"
+}
+
+def decide_optimization(impact: float, effort: float) -> str:
+    """决定是否优化"""
+    if impact > 0.5 and effort < 0.3:
+        return "立即优化"
+    elif impact > 0.5 and effort > 0.3:
+        return "计划优化"
+    elif impact < 0.5 and effort < 0.3:
+        return "有时间再优化"
+    else:
+        return "不优化"
+```
+
+## 与项目其他原则的配合
+
+- **与帕累托原则配合**：80%的性能问题来自20%的代码
+- **与 KISS 配合**：优化应该简单直接，不要过度优化
+- **与 YAGNI 配合**：不要优化"将来可能"的性能问题
+
+## 代码审查检查点
+
+在代码审查时，检查：
+1. 是否先分析了性能瓶颈？
+2. 是否计算了优化潜力？
+3. 是否优先优化了瓶颈？
+4. 是否验证了优化效果？
+5. 是否避免了无效优化？
+
+## 记住
+
+**优化瓶颈，而不是边缘。**
+
+- 先分析性能，找到瓶颈
+- 根据阿姆达尔定律计算优化潜力
+- 优先优化占用时间最多的部分
+- 验证优化效果
+- 避免优化只占少量时间的部分
+
+**即使让一个只占10%时间的部分速度无限快，整体性能提升也不会超过10%。**

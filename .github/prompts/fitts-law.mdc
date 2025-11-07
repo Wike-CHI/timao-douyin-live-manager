@@ -1,0 +1,488 @@
+---
+description: 费茨定律 - 指向目标的时间与距离成正比与大小成反比，UI设计黄金法则
+globs: ["**/*.tsx", "**/*.ts", "**/*.jsx", "**/*.js", "**/*.vue", "**/*.html", "**/*.css"]
+alwaysApply: true
+---
+
+# 费茨定律 (Fitts's Law)
+
+## 核心思想
+
+指向一个目标所需的时间，与目标距离成正比，与目标大小成反比。这是 UI 设计的黄金法则。按钮等重要交互元素应该足够大，并且被频繁使用的按钮（如"保存"）应该放在容易点击的位置（如屏幕角落附近）。
+
+## 在本项目中的应用规则
+
+### 1. 按钮大小设计
+
+#### 重要按钮应该足够大
+
+```typescript
+// ✅ 好的做法：重要按钮足够大
+const ActionButtons: React.FC = () => {
+  return (
+    <div className="action-buttons">
+      {/* 主要操作按钮 - 大尺寸 */}
+      <button className="btn-primary btn-large">
+        保存
+      </button>
+      
+      {/* 次要操作按钮 - 中等尺寸 */}
+      <button className="btn-secondary btn-medium">
+        取消
+      </button>
+      
+      {/* 辅助操作按钮 - 小尺寸 */}
+      <button className="btn-tertiary btn-small">
+        更多选项
+      </button>
+    </div>
+  );
+};
+
+// CSS
+.btn-large {
+  min-width: 120px;
+  min-height: 48px;  /* 足够大，容易点击 */
+  font-size: 16px;
+  padding: 12px 24px;
+}
+
+.btn-medium {
+  min-width: 100px;
+  min-height: 40px;
+  font-size: 14px;
+  padding: 10px 20px;
+}
+
+.btn-small {
+  min-width: 80px;
+  min-height: 32px;
+  font-size: 12px;
+  padding: 8px 16px;
+}
+
+// ❌ 避免：按钮太小
+.btn-too-small {
+  min-width: 40px;  /* 太小，难以点击 */
+  min-height: 20px;
+  font-size: 10px;
+  padding: 4px 8px;
+}
+```
+
+#### 触摸目标大小
+
+```typescript
+// ✅ 好的做法：移动端触摸目标足够大
+const MobileButtons: React.FC = () => {
+  return (
+    <div className="mobile-actions">
+      {/* 移动端按钮 - 至少44x44px */}
+      <button className="btn-mobile-primary">
+        开始录制
+      </button>
+    </div>
+  );
+};
+
+// CSS - 移动端
+.btn-mobile-primary {
+  min-width: 120px;  /* 足够大 */
+  min-height: 44px;  /* 最小触摸目标 */
+  font-size: 16px;
+  padding: 12px 24px;
+  /* 增加点击区域 */
+  touch-action: manipulation;
+}
+
+// ❌ 避免：移动端按钮太小
+.btn-mobile-too-small {
+  min-width: 60px;  /* 太小，难以触摸 */
+  min-height: 24px;
+}
+```
+
+### 2. 按钮位置设计
+
+#### 频繁使用的按钮放在容易点击的位置
+
+```typescript
+// ✅ 好的做法：重要按钮放在容易点击的位置
+const ReportPage: React.FC = () => {
+  return (
+    <div className="report-page">
+      <div className="report-content">
+        {/* 报告内容 */}
+      </div>
+      
+      {/* 操作按钮 - 固定在底部，容易点击 */}
+      <div className="fixed-actions">
+        {/* 主要操作在右侧（右手用户） */}
+        <button className="btn-primary btn-large">
+          生成报告
+        </button>
+        
+        {/* 次要操作在左侧 */}
+        <button className="btn-secondary">
+          取消
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// CSS - 固定操作栏
+.fixed-actions {
+  position: fixed;
+  bottom: 0;  /* 底部，容易点击 */
+  right: 0;   /* 右侧，右手用户 */
+  left: 0;
+  padding: 16px;
+  background: white;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: flex-end;  /* 主要按钮在右侧 */
+  gap: 12px;
+}
+
+// ❌ 避免：重要按钮放在难以点击的位置
+.bad-actions {
+  position: absolute;
+  top: 10px;  /* 顶部，需要移动鼠标 */
+  left: 10px;  /* 左侧，距离远 */
+}
+```
+
+#### 屏幕角落的优势
+
+```typescript
+// ✅ 好的做法：利用屏幕角落
+const FloatingActionButton: React.FC = () => {
+  return (
+    <div className="fab-container">
+      {/* 浮动操作按钮 - 右下角，容易点击 */}
+      <button className="fab">
+        <PlusIcon />
+      </button>
+    </div>
+  );
+};
+
+// CSS - 浮动按钮
+.fab {
+  position: fixed;
+  bottom: 24px;  /* 底部 */
+  right: 24px;   /* 右侧 */
+  width: 56px;   /* 足够大 */
+  height: 56px;
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  /* 屏幕角落是"无限大"的目标区域 */
+}
+
+// ❌ 避免：按钮在屏幕中间
+.bad-fab {
+  position: fixed;
+  top: 50%;  /* 中间，需要精确移动 */
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+```
+
+### 3. 菜单和下拉列表
+
+#### 菜单项大小和间距
+
+```typescript
+// ✅ 好的做法：菜单项足够大，有足够间距
+const DropdownMenu: React.FC = () => {
+  return (
+    <div className="dropdown-menu">
+      <MenuItem>编辑</MenuItem>
+      <MenuItem>删除</MenuItem>
+      <MenuItem>分享</MenuItem>
+    </div>
+  );
+};
+
+// CSS
+.menu-item {
+  min-height: 40px;  /* 足够高 */
+  padding: 8px 16px;
+  /* 足够的点击区域 */
+  cursor: pointer;
+}
+
+.menu-item:hover {
+  background: #f5f5f5;
+}
+
+// ❌ 避免：菜单项太小，间距太近
+.bad-menu-item {
+  min-height: 20px;  /* 太小 */
+  padding: 2px 4px;  /* 间距太小，容易误点 */
+}
+```
+
+### 4. 表单输入设计
+
+#### 输入框大小和位置
+
+```typescript
+// ✅ 好的做法：输入框足够大，容易操作
+const LoginForm: React.FC = () => {
+  return (
+    <form className="login-form">
+      <div className="form-group">
+        <label>用户名</label>
+        <input
+          type="text"
+          className="form-input-large"  /* 足够大 */
+          placeholder="请输入用户名"
+        />
+      </div>
+      
+      <div className="form-group">
+        <label>密码</label>
+        <input
+          type="password"
+          className="form-input-large"
+          placeholder="请输入密码"
+        />
+      </div>
+      
+      {/* 提交按钮 - 大且容易点击 */}
+      <button
+        type="submit"
+        className="btn-primary btn-large btn-full-width"
+      >
+        登录
+      </button>
+    </form>
+  );
+};
+
+// CSS
+.form-input-large {
+  width: 100%;
+  min-height: 48px;  /* 足够高 */
+  padding: 12px 16px;
+  font-size: 16px;  /* 移动端至少16px，避免缩放 */
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.btn-full-width {
+  width: 100%;
+  margin-top: 24px;  /* 足够的间距 */
+}
+
+// ❌ 避免：输入框太小
+.bad-form-input {
+  min-height: 24px;  /* 太小 */
+  padding: 4px 8px;
+  font-size: 12px;
+}
+```
+
+### 5. 导航设计
+
+#### 导航项大小和位置
+
+```typescript
+// ✅ 好的做法：导航项足够大，容易点击
+const Navigation: React.FC = () => {
+  return (
+    <nav className="main-nav">
+      <NavItem to="/">首页</NavItem>
+      <NavItem to="/live">直播管理</NavItem>
+      <NavItem to="/reports">报告</NavItem>
+    </nav>
+  );
+};
+
+// CSS
+.nav-item {
+  min-height: 48px;  /* 足够高 */
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  /* 足够的点击区域 */
+}
+
+.nav-item:hover {
+  background: #f5f5f5;
+}
+
+// ❌ 避免：导航项太小
+.bad-nav-item {
+  min-height: 24px;  /* 太小 */
+  padding: 4px 8px;
+}
+```
+
+### 6. 表格操作
+
+#### 操作按钮大小和位置
+
+```typescript
+// ✅ 好的做法：表格操作按钮足够大
+const DataTable: React.FC = () => {
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>会话ID</th>
+          <th>状态</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {sessions.map(session => (
+          <tr key={session.id}>
+            <td>{session.id}</td>
+            <td>{session.status}</td>
+            <td>
+              {/* 操作按钮 - 足够大 */}
+              <button className="btn-action btn-small">
+                查看
+              </button>
+              <button className="btn-action btn-small">
+                编辑
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+};
+
+// CSS
+.btn-action {
+  min-width: 60px;  /* 足够大 */
+  min-height: 32px;
+  padding: 6px 12px;
+  margin: 0 4px;  /* 足够的间距，避免误点 */
+}
+
+// ❌ 避免：操作按钮太小，间距太近
+.bad-btn-action {
+  min-width: 30px;  /* 太小 */
+  min-height: 20px;
+  padding: 2px 4px;
+  margin: 0 1px;  /* 间距太小 */
+}
+```
+
+### 7. 移动端设计
+
+#### 移动端触摸目标
+
+```typescript
+// ✅ 好的做法：移动端触摸目标足够大
+const MobileInterface: React.FC = () => {
+  return (
+    <div className="mobile-interface">
+      {/* 主要操作 - 大按钮 */}
+      <button className="btn-mobile-primary">
+        开始直播
+      </button>
+      
+      {/* 次要操作 - 中等按钮 */}
+      <button className="btn-mobile-secondary">
+        设置
+      </button>
+    </div>
+  );
+};
+
+// CSS - 移动端
+.btn-mobile-primary {
+  width: 100%;
+  min-height: 48px;  /* 移动端最小触摸目标 */
+  font-size: 18px;
+  padding: 14px 24px;
+  margin-bottom: 12px;  /* 足够的间距 */
+  /* 增加点击区域 */
+  touch-action: manipulation;
+}
+
+// 移动端按钮间距
+.mobile-interface button + button {
+  margin-top: 12px;  /* 足够的间距，避免误点 */
+}
+
+// ❌ 避免：移动端按钮太小
+.bad-mobile-btn {
+  min-height: 24px;  /* 太小，难以触摸 */
+  padding: 4px 8px;
+  margin: 2px;  /* 间距太小 */
+}
+```
+
+## 实践建议
+
+### 1. 尺寸指南
+
+```typescript
+// 按钮和触摸目标尺寸指南
+const SIZE_GUIDELINES = {
+  "desktop_button_min": {
+    width: 100,
+    height: 40
+  },
+  "mobile_touch_target": {
+    width: 44,  // iOS 和 Android 推荐
+    height: 44
+  },
+  "important_button": {
+    width: 120,
+    height: 48
+  },
+  "input_field": {
+    minHeight: 48,
+    fontSize: 16  // 移动端至少16px
+  }
+};
+```
+
+### 2. 位置指南
+
+```typescript
+// 按钮位置指南
+const POSITION_GUIDELINES = {
+  "primary_action": "bottom-right",  // 主要操作在右下角
+  "secondary_action": "bottom-left",  // 次要操作在左下角
+  "navigation": "top",  // 导航在顶部
+  "floating_button": "bottom-right"  // 浮动按钮在右下角
+};
+```
+
+## 与项目其他原则的配合
+
+- **与席克定律配合**：减少选择，同时确保选择目标足够大
+- **与最小意外配合**：按钮位置符合用户预期
+- **与雅各布定律配合**：遵循常见的按钮位置模式
+
+## 代码审查检查点
+
+在代码审查时，检查：
+1. 按钮是否足够大？
+2. 重要按钮是否放在容易点击的位置？
+3. 移动端触摸目标是否足够大？
+4. 按钮间距是否足够？
+5. 是否利用了屏幕角落的优势？
+
+## 记住
+
+**目标越大、距离越近，点击越快。**
+
+- 重要按钮应该足够大（至少40x40px，移动端44x44px）
+- 频繁使用的按钮放在容易点击的位置（屏幕角落、底部）
+- 按钮之间要有足够的间距
+- 移动端触摸目标要足够大
+- 利用屏幕角落的"无限大"目标区域
+
+**让用户能够快速、准确地点击目标。**

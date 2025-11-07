@@ -1,0 +1,401 @@
+---
+description: 单一职责原则 - 一个类或函数应该只有一个引起它变化的原因
+globs: ["**/*.py", "**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"]
+alwaysApply: true
+---
+
+# 单一职责原则 (Single Responsibility Principle)
+
+## 核心思想
+
+一个类（或函数、模块）应该只有一个引起它变化的原因。这是 SOLID 原则中的第一个，也是至关重要的一个。它要求将不同的功能分离开来。一个实体只做一件事，并把它做好。
+
+## 在本项目中的应用规则
+
+### 1. 类的单一职责
+
+每个类应该只负责一个业务概念或功能领域。
+
+```python
+# ❌ 违反单一职责：一个类做了太多事情
+class LiveSessionManager:
+    """管理直播会话、生成报告、发送邮件"""
+    
+    def create_session(self, room_id: str):
+        """创建会话"""
+        pass
+    
+    def generate_report(self, session_id: int):
+        """生成报告"""
+        pass
+    
+    def send_report_email(self, session_id: int, email: str):
+        """发送报告邮件"""
+        pass
+    
+    def save_to_database(self, session: LiveSession):
+        """保存到数据库"""
+        pass
+
+# ✅ 好的做法：拆分成多个类，每个类只负责一件事
+class LiveSessionManager:
+    """只负责管理直播会话的生命周期"""
+    
+    def create_session(self, room_id: str) -> LiveSession:
+        """创建会话"""
+        pass
+    
+    def get_session(self, session_id: int) -> Optional[LiveSession]:
+        """获取会话"""
+        pass
+    
+    def update_session(self, session_id: int, updates: dict):
+        """更新会话"""
+        pass
+
+class ReportGenerator:
+    """只负责生成报告"""
+    
+    def generate_report(self, session_id: int) -> dict:
+        """生成报告"""
+        pass
+
+class EmailService:
+    """只负责发送邮件"""
+    
+    def send_report(self, report: dict, email: str):
+        """发送报告邮件"""
+        pass
+```
+
+### 2. 函数的单一职责
+
+每个函数应该只做一件事，并且做好。
+
+```python
+# ❌ 违反单一职责：一个函数做了多件事
+def process_live_session(session_id: int):
+    """处理直播会话：获取数据、生成报告、保存文件、发送通知"""
+    # 1. 获取会话数据
+    session = db.session.query(LiveSession).filter_by(id=session_id).first()
+    
+    # 2. 生成报告
+    report = {
+        "summary": session.summary,
+        "details": session.details
+    }
+    
+    # 3. 保存文件
+    with open(f"reports/{session_id}.json", "w") as f:
+        json.dump(report, f)
+    
+    # 4. 发送通知
+    send_notification(session.user_id, "报告已生成")
+    
+    return report
+
+# ✅ 好的做法：拆分成多个函数，每个函数只做一件事
+def get_session_data(session_id: int) -> LiveSession:
+    """只负责获取会话数据"""
+    return db.session.query(LiveSession).filter_by(id=session_id).first()
+
+def generate_report(session: LiveSession) -> dict:
+    """只负责生成报告"""
+    return {
+        "summary": session.summary,
+        "details": session.details
+    }
+
+def save_report_to_file(report: dict, session_id: int) -> str:
+    """只负责保存报告到文件"""
+    file_path = f"reports/{session_id}.json"
+    with open(file_path, "w") as f:
+        json.dump(report, f)
+    return file_path
+
+def send_report_notification(user_id: int, message: str):
+    """只负责发送通知"""
+    send_notification(user_id, message)
+
+# 组合使用
+def process_live_session(session_id: int):
+    """组合多个单一职责的函数"""
+    session = get_session_data(session_id)
+    report = generate_report(session)
+    save_report_to_file(report, session_id)
+    send_report_notification(session.user_id, "报告已生成")
+    return report
+```
+
+### 3. 服务层的职责划分
+
+在 `server/app/services/` 中，每个服务应该只负责一个业务领域。
+
+```python
+# ✅ 好的做法：服务职责清晰
+# live_session_service.py - 只负责会话管理
+class LiveSessionService:
+    def create_session(self, room_id: str) -> LiveSession:
+        pass
+    
+    def get_session(self, session_id: int) -> Optional[LiveSession]:
+        pass
+
+# live_report_service.py - 只负责报告生成
+class LiveReportService:
+    def generate_report(self, session_id: int) -> dict:
+        pass
+    
+    def save_report(self, report: dict, session_id: int):
+        pass
+
+# live_audio_service.py - 只负责音频处理
+class LiveAudioService:
+    def record_audio(self, session_id: int):
+        pass
+    
+    def transcribe_audio(self, audio_path: str) -> str:
+        pass
+
+# ❌ 避免：一个服务做太多事情
+class LiveService:
+    """管理会话、生成报告、处理音频、发送通知..."""
+    pass
+```
+
+### 4. API 路由的职责
+
+每个 API 路由函数应该只负责处理 HTTP 请求和响应，业务逻辑委托给服务层。
+
+```python
+# ✅ 好的做法：路由只负责 HTTP 处理
+@router.post("/api/live/sessions")
+async def create_session(request: CreateSessionRequest):
+    """创建会话 - 只负责接收请求、调用服务、返回响应"""
+    try:
+        session = await live_session_service.create_session(
+            room_id=request.room_id,
+            user_id=request.user_id
+        )
+        return {"success": True, "data": session}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# ❌ 避免：路由中包含业务逻辑
+@router.post("/api/live/sessions")
+async def create_session(request: CreateSessionRequest):
+    """创建会话 - 但包含了太多业务逻辑"""
+    # 验证房间ID
+    room = db.session.query(Room).filter_by(id=request.room_id).first()
+    if not room:
+        raise HTTPException(status_code=404, detail="房间不存在")
+    
+    # 检查用户权限
+    if not check_user_permission(request.user_id):
+        raise HTTPException(status_code=403, detail="无权限")
+    
+    # 创建会话
+    session = LiveSession(room_id=request.room_id, user_id=request.user_id)
+    db.session.add(session)
+    db.session.commit()
+    
+    # 启动录制
+    start_recording(session.id)
+    
+    # 发送通知
+    send_notification(request.user_id, "会话已创建")
+    
+    return {"success": True, "data": session}
+```
+
+### 5. 数据模型的职责
+
+数据模型应该只负责数据结构和基本的数据操作，不包含业务逻辑。
+
+```python
+# ✅ 好的做法：模型只负责数据结构
+class LiveSession(db.Model):
+    """直播会话数据模型 - 只负责数据定义和基本查询"""
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.String(100))
+    user_id = db.Column(db.Integer)
+    status = db.Column(db.String(50))
+    started_at = db.Column(db.BigInteger)
+    stopped_at = db.Column(db.BigInteger)
+    
+    @classmethod
+    def get_active_sessions(cls, user_id: int):
+        """基本查询方法"""
+        return cls.query.filter_by(user_id=user_id, status="active").all()
+
+# ❌ 避免：模型包含业务逻辑
+class LiveSession(db.Model):
+    """模型不应该包含复杂的业务逻辑"""
+    # ... 字段定义
+    
+    def generate_report(self):
+        """生成报告 - 这是业务逻辑，应该在服务层"""
+        pass
+    
+    def send_notification(self):
+        """发送通知 - 这是业务逻辑，应该在服务层"""
+        pass
+```
+
+### 6. 工具函数的职责
+
+工具函数应该只做一件事，并且是通用的、可复用的。
+
+```python
+# ✅ 好的做法：工具函数职责单一
+def format_timestamp(timestamp: int) -> str:
+    """只负责格式化时间戳"""
+    return datetime.fromtimestamp(timestamp / 1000).strftime("%Y-%m-%d %H:%M:%S")
+
+def validate_room_id(room_id: str) -> bool:
+    """只负责验证房间ID格式"""
+    return bool(re.match(r'^\d+$', room_id))
+
+def calculate_duration(start: int, end: int) -> int:
+    """只负责计算时长（毫秒）"""
+    return end - start
+
+# ❌ 避免：工具函数做多件事
+def process_session_data(session: LiveSession):
+    """格式化、验证、计算、保存... 做了太多事情"""
+    # 格式化时间
+    formatted_time = format_timestamp(session.started_at)
+    
+    # 验证数据
+    if not validate_room_id(session.room_id):
+        raise ValueError("Invalid room ID")
+    
+    # 计算时长
+    duration = calculate_duration(session.started_at, session.stopped_at)
+    
+    # 保存到文件
+    save_to_file(session, formatted_time, duration)
+```
+
+### 7. 前端组件的职责
+
+React 组件应该只负责 UI 渲染和用户交互，业务逻辑应该在 Hook 或服务中。
+
+```typescript
+// ✅ 好的做法：组件只负责 UI
+const LiveSessionList: React.FC = () => {
+  const { sessions, loading, error } = useLiveSessions();
+  
+  if (loading) return <Loading />;
+  if (error) return <Error message={error} />;
+  
+  return (
+    <div>
+      {sessions.map(session => (
+        <SessionCard key={session.id} session={session} />
+      ))}
+    </div>
+  );
+};
+
+// ❌ 避免：组件包含业务逻辑
+const LiveSessionList: React.FC = () => {
+  const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    // 业务逻辑应该在 Hook 中
+    fetch('/api/live/sessions')
+      .then(res => res.json())
+      .then(data => {
+        // 处理数据
+        const processed = data.map(s => ({
+          ...s,
+          formattedTime: formatTimestamp(s.started_at),
+          duration: calculateDuration(s.started_at, s.stopped_at)
+        }));
+        setSessions(processed);
+        setLoading(false);
+      });
+  }, []);
+  
+  // ... UI 渲染
+};
+```
+
+### 8. 如何识别违反单一职责
+
+**判断标准**：如果一个类或函数有多个"变化的原因"，就违反了单一职责。
+
+**变化的原因包括**：
+- 业务规则变化
+- 数据格式变化
+- 外部依赖变化（数据库、API、第三方服务）
+- 用户界面变化
+- 报告格式变化
+
+```python
+# 示例：识别变化的原因
+class LiveReportService:
+    """这个类有多个变化的原因"""
+    
+    def generate_report(self, session_id: int):
+        # 变化原因1：报告格式可能变化（JSON、HTML、PDF）
+        report = {"format": "json", "data": ...}
+        
+        # 变化原因2：数据来源可能变化（数据库、API、文件）
+        session = db.session.query(LiveSession).filter_by(id=session_id).first()
+        
+        # 变化原因3：通知方式可能变化（邮件、短信、推送）
+        send_email(report)
+        
+        # 变化原因4：存储位置可能变化（本地、云存储）
+        save_to_file(report)
+
+# ✅ 拆分后：每个类只有一个变化的原因
+class ReportGenerator:
+    """只负责生成报告格式 - 只有格式变化会影响它"""
+    pass
+
+class SessionDataProvider:
+    """只负责提供会话数据 - 只有数据来源变化会影响它"""
+    pass
+
+class NotificationService:
+    """只负责发送通知 - 只有通知方式变化会影响它"""
+    pass
+
+class ReportStorage:
+    """只负责存储报告 - 只有存储位置变化会影响它"""
+    pass
+```
+
+## 与项目其他原则的配合
+
+- **与 KISS 配合**：单一职责让代码更简单
+- **与 DRY 配合**：单一职责的函数更容易复用
+- **与最小意外配合**：单一职责让函数行为更可预测
+
+## 代码审查检查点
+
+在代码审查时，检查：
+1. 类是否只负责一个业务领域？
+2. 函数是否只做一件事？
+3. 服务是否职责清晰？
+4. API 路由是否只负责 HTTP 处理？
+5. 数据模型是否只负责数据结构？
+6. 工具函数是否职责单一？
+7. 前端组件是否只负责 UI？
+8. 是否有多个"变化的原因"？
+
+## 重构步骤
+
+当发现违反单一职责时：
+
+1. **识别职责**：列出类或函数做的所有事情
+2. **分离职责**：将不同的职责拆分到不同的类或函数
+3. **建立关系**：通过组合或依赖注入建立类之间的关系
+4. **测试验证**：确保重构后功能不变
+5. **更新文档**：更新相关的文档和注释
+
+记住：**单一职责不是要求每个类或函数都极小，而是要求每个类或函数都有清晰、单一的职责。** 职责的粒度应该根据项目的复杂度和团队规模来调整。
