@@ -158,6 +158,7 @@ admin-dashboard/
 - **React Admin 4.15** - 管理后台框架
 - **Material-UI 5** - UI 组件库
 - **React Router 6** - 路由管理
+- **Recharts 2.15** - 数据可视化图表库
 
 ### 数据交互
 - **ra-data-simple-rest** - REST API 适配器
@@ -189,6 +190,13 @@ admin-dashboard/
 - `PUT /api/admin/plans/{id}` - 更新套餐
 - `DELETE /api/admin/plans/{id}` - 删除套餐
 - `GET /api/admin/ai/costs` - AI成本统计
+- `GET /api/admin/charts/revenue` - 收入趋势
+- `GET /api/admin/charts/user-growth` - 用户增长
+- `GET /api/admin/stats/plan-distribution` - 套餐分布
+- `GET /api/admin/stats/payment-methods` - 支付方式统计
+- `GET /api/admin/system/health` - 系统健康状态
+- `GET /api/admin/activities/recent` - 最近活动
+- `GET /api/admin/security/events` - 安全事件
 
 ## 📊 完成度统计
 
@@ -257,6 +265,24 @@ theme={{
 ```
 
 ## 📝 更新日志
+
+### v1.1.0 (2025-11-07)
+- ✅ 新增数据分析模块
+  - 收入趋势折线图
+  - 用户增长柱状图
+  - 套餐分布饼图
+  - 支付方式统计
+  - 7/30/90天时间筛选
+- ✅ 新增系统监控模块
+  - 系统健康状态检查
+  - 安全事件监控
+  - 活动记录展示
+- ✅ 新增审计日志模块
+  - 审计日志查询
+  - 多维度筛选
+  - 分页展示
+- ✅ 安装Recharts图表库
+- ✅ 优化菜单导航结构
 
 ### v1.0.0 (2025-11-07)
 - ✅ 完成用户管理模块
