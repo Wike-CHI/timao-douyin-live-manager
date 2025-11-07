@@ -7,7 +7,6 @@ import {
   FunctionField,
   SearchInput,
   SelectInput,
-  CreateButton,
   ExportButton,
   TopToolbar,
 } from 'react-admin';
@@ -66,7 +65,6 @@ const PaymentMethodField = ({ record }: any) => {
 
 const ListActions = () => (
   <TopToolbar>
-    <CreateButton />
     <ExportButton />
   </TopToolbar>
 );
