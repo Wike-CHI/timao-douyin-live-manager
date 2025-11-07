@@ -653,6 +653,9 @@ class AIGateway:
                 "default_model": config.default_model,
                 "models": config.models,
                 "enabled": config.enabled,
+                "timeout": config.timeout,
+                "max_retries": config.max_retries,
+                "api_key": config.api_key,  # 包含完整API Key（前端会脱敏显示）
             }
             for name, config in self.providers.items()
         }
