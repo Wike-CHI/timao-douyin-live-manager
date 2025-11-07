@@ -869,6 +869,132 @@ async def export_payments(
         raise HTTPException(status_code=500, detail="导出支付数据失败")
 
 
+# ==================== 支付管理接口 ====================
+
+@router.get("/payments")
+async def get_payments(
+    page: int = Query(1, ge=1),
+    size: int = Query(25, ge=1, le=100),
+    search: Optional[str] = Query(None, description="搜索订单号或用户"),
+    status: Optional[str] = Query(None, description="支付状态"),
+    payment_method: Optional[str] = Query(None, description="支付方式"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin_role)
+):
+    """获取支付列表"""
+    try:
+        from server.app.models.payment import Payment
+        from sqlalchemy import or_
+        
+        query = db.query(Payment)
+        
+        # 搜索过滤
+        if search:
+            query = query.join(User, Payment.user_id == User.id).filter(
+                or_(
+                    Payment.order_no.ilike(f"%{search}%"),
+                    User.username.ilike(f"%{search}%"),
+                    User.email.ilike(f"%{search}%")
+                )
+            )
+        
+        # 状态过滤
+        if status:
+            query = query.filter(Payment.status == status)
+        
+        # 支付方式过滤
+        if payment_method:
+            query = query.filter(Payment.payment_method == payment_method)
+        
+        total = query.count()
+        skip = (page - 1) * size
+        payments = query.order_by(Payment.created_at.desc()).offset(skip).limit(size).all()
+        
+        # 转换响应
+        items = []
+        for payment in payments:
+            # 获取用户信息
+            user = db.query(User).filter(User.id == payment.user_id).first()
+            
+            item = {
+                "id": payment.id,
+                "order_no": payment.order_no,
+                "amount": float(payment.amount),
+                "status": payment.status,
+                "payment_method": payment.payment_method,
+                "created_at": payment.created_at,
+                "paid_at": payment.paid_at,
+                "user": {
+                    "id": user.id if user else None,
+                    "username": user.username if user else "未知用户",
+                    "email": user.email if user else None,
+                } if user else None,
+            }
+            items.append(item)
+        
+        return {
+            "data": items,
+            "total": total
+        }
+        
+    except Exception as e:
+        logger.error(f"获取支付列表失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="获取支付列表失败")
+
+
+@router.get("/payments/{payment_id}")
+async def get_payment(
+    payment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin_role)
+):
+    """获取支付详情"""
+    try:
+        from server.app.models.payment import Payment, Subscription
+        
+        payment = db.query(Payment).filter(Payment.id == payment_id).first()
+        if not payment:
+            raise HTTPException(status_code=404, detail="支付记录不存在")
+        
+        # 获取用户信息
+        user = db.query(User).filter(User.id == payment.user_id).first()
+        
+        # 获取关联订阅
+        subscription = None
+        if hasattr(payment, 'subscription_id') and payment.subscription_id:
+            subscription = db.query(Subscription).filter(
+                Subscription.id == payment.subscription_id
+            ).first()
+        
+        return {
+            "data": {
+                "id": payment.id,
+                "order_no": payment.order_no,
+                "amount": float(payment.amount),
+                "status": payment.status,
+                "payment_method": payment.payment_method,
+                "created_at": payment.created_at,
+                "paid_at": payment.paid_at,
+                "user": {
+                    "id": user.id if user else None,
+                    "username": user.username if user else "未知用户",
+                    "email": user.email if user else None,
+                } if user else None,
+                "subscription": {
+                    "id": subscription.id,
+                    "status": subscription.status,
+                    "plan_id": subscription.plan_id,
+                } if subscription else None,
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取支付详情失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="获取支付详情失败")
+
+
 # ==================== 套餐管理接口 ====================
 
 class PlanCreateRequest(BaseModel):

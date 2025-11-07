@@ -19,7 +19,6 @@ const httpClient = (url: string, options: any = {}) => {
 export const dataProvider: DataProvider = {
     getList: async (resource, params) => {
         const { page, perPage } = params.pagination || { page: 1, perPage: 25 };
-        const { field, order } = params.sort || { field: 'id', order: 'DESC' };
         
         // 构建查询参数
         const query = new URLSearchParams({
@@ -32,29 +31,33 @@ export const dataProvider: DataProvider = {
 
         // 添加过滤
         if (params.filter) {
-            // 搜索关键词
-            if (params.filter.search) {
-                query.append('search', params.filter.search);
+            // 搜索关键词 (支持 q 和 search 两种参数名)
+            if (params.filter.q || params.filter.search) {
+                query.append('search', params.filter.q || params.filter.search);
             }
             // 角色过滤
             if (params.filter.role) {
                 query.append('role', params.filter.role);
             }
             // 状态过滤
-            if (params.filter.is_active !== undefined) {
+            if (params.filter.status) {
+                query.append('status', params.filter.status);
+            }
+            // 支付方式过滤
+            if (params.filter.payment_method) {
+                query.append('payment_method', params.filter.payment_method);
+            }
+            // 激活状态过滤
+            if (params.filter.is_active !== undefined && params.filter.is_active !== null && params.filter.is_active !== '') {
                 query.append('is_active', params.filter.is_active.toString());
             }
             // 验证状态过滤
-            if (params.filter.is_verified !== undefined) {
+            if (params.filter.is_verified !== undefined && params.filter.is_verified !== null && params.filter.is_verified !== '') {
                 query.append('is_verified', params.filter.is_verified.toString());
             }
-            // 处理嵌套的filter对象
-            if (params.filter.filter) {
-                Object.entries(params.filter.filter).forEach(([key, value]) => {
-                    if (value !== undefined && value !== null && value !== '') {
-                        query.append(key, value.toString());
-                    }
-                });
+            // 套餐类型过滤
+            if (params.filter.plan_type) {
+                query.append('plan_type', params.filter.plan_type);
             }
         }
 
@@ -96,18 +99,14 @@ export const dataProvider: DataProvider = {
 
   getManyReference: async (resource, params) => {
     const { page, perPage } = params.pagination || { page: 1, perPage: 25 };
-    const { field, order } = params.sort || { field: 'id', order: 'ASC' };
     
     const query = new URLSearchParams({
       page: page.toString(),
-      perPage: perPage.toString(),
-      [`filter[${params.target}]`]: params.id,
+      size: perPage.toString(),
     });
-
-    if (field && order) {
-      const sortField = order === 'ASC' ? field : `-${field}`;
-      query.append('sort', sortField);
-    }
+    
+    // 添加目标字段过滤
+    query.append(params.target, params.id.toString());
 
     const url = `${API_BASE}/api/admin/${resource}?${query.toString()}`;
     const { json } = await httpClient(url);
@@ -176,7 +175,7 @@ export const dataProvider: DataProvider = {
     await Promise.all(promises);
     
     return {
-      data: params.ids.map((id) => ({ id })),
+      data: params.ids,
     };
   },
 };

@@ -5,7 +5,6 @@ import {
   EmailField,
   BooleanField,
   DateField,
-  FilterForm,
   SearchInput,
   SelectInput,
   BooleanInput,
@@ -24,21 +23,21 @@ const roleChoices = [
   { id: 'super_admin', name: '超级管理员' },
 ];
 
-// 状态选项
-const statusChoices = [
-  { id: true, name: '激活' },
-  { id: false, name: '未激活' },
-];
-
 // 自定义过滤器
-const UserFilter = () => (
-  <FilterForm>
-    <SearchInput source="search" alwaysOn placeholder="搜索用户名、邮箱、手机号" />
-    <SelectInput source="role" choices={roleChoices} label="角色" />
-    <SelectInput source="is_active" choices={statusChoices} label="状态" />
-    <BooleanInput source="is_verified" label="已验证" />
-  </FilterForm>
-);
+const userFilters = [
+  <SearchInput key="search" source="search" alwaysOn placeholder="搜索用户名、邮箱、手机号" />,
+  <SelectInput key="role" source="role" choices={roleChoices} label="角色" />,
+  <SelectInput
+    key="is_active"
+    source="is_active"
+    label="状态"
+    choices={[
+      { id: 'true', name: '激活' },
+      { id: 'false', name: '未激活' },
+    ]}
+  />,
+  <BooleanInput key="is_verified" source="is_verified" label="已验证" />,
+];
 
 // 角色显示组件
 const RoleField = ({ record }: any) => {
@@ -78,11 +77,12 @@ const ListActions = () => (
 export const UserList = () => {
   return (
     <List
-      filters={<UserFilter />}
+      filters={userFilters}
       actions={<ListActions />}
       sort={{ field: 'id', order: 'DESC' }}
+      perPage={25}
     >
-      <Datagrid rowClick="show">
+      <Datagrid rowClick="show" bulkActionButtons={false}>
         <TextField source="id" />
         <TextField source="username" label="用户名" />
         <EmailField source="email" />
