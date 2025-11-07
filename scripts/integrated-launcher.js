@@ -176,6 +176,16 @@ class IntegratedLauncher {
         const backendPort = process.env.BACKEND_PORT || '9030';
         const serverPath = path.join(this.projectRoot, 'server');
         
+        // 检测虚拟环境中的Python路径
+        const venvPython = process.platform === 'win32'
+            ? path.join(this.projectRoot, '.venv', 'Scripts', 'python.exe')
+            : path.join(this.projectRoot, '.venv', 'bin', 'python');
+        
+        // 如果虚拟环境存在，使用虚拟环境的Python，否则使用全局Python
+        const pythonCommand = fs.existsSync(venvPython) ? venvPython : 'python';
+        
+        console.log(`📍 使用Python: ${pythonCommand}`);
+        
         // 将端口号传递给子进程
         const spawnEnv = {
             ...process.env,
@@ -186,8 +196,8 @@ class IntegratedLauncher {
         
         await this.startService(
             'Backend',
-            'python',
-            ['-m', 'uvicorn', 'app.main:app', '--host', '0.0.0.0', '--port', backendPort, '--reload'],
+            pythonCommand,
+            ['-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', backendPort, '--reload'],
             serverPath,
             { env: spawnEnv }
         );

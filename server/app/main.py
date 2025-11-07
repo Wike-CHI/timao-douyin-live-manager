@@ -575,15 +575,14 @@ if __name__ == "__main__":
         "**/.git/**",
     ]
 
-    # 从环境变量读取后端端口，默认 10090
+    # 从环境变量读取后端端口，默认 9030
     # 统一端口配置管理: 请在 .env 文件中设置 BACKEND_PORT
     import os
-    backend_port = int(os.getenv("BACKEND_PORT", "10090"))
+    backend_port = int(os.getenv("BACKEND_PORT", "9030"))
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",
+        host="127.0.0.1",  # Windows兼容: 使用127.0.0.1而非0.0.0.0避免权限问题
         port=backend_port,
         reload=True,
-        reload_exclude=reload_exclude,
         log_level="info"
     )
