@@ -20,6 +20,10 @@ _DEFAULTS: Dict[str, str] = {
     "OPENAI_API_KEY": "sk-92045f0a33984350925ce3ccffb3489e",
     "OPENAI_BASE_URL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
     "OPENAI_MODEL": "qwen-plus",
+    # 讯飞星火配置
+    "XUNFEI_API_KEY": "vSVKxhHtIqoQhSruqkeQ:iyfRXCotDrEIDtwdrBuU",
+    "XUNFEI_BASE_URL": "https://spark-api-open.xf-yun.com/v1",
+    "XUNFEI_MODEL": "lite",
 }
 
 
