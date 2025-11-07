@@ -24,7 +24,8 @@ import httpx
 
 # 测试配置
 TEST_DURATION_SECONDS = 300  # 5分钟
-BASE_URL = "http://localhost:10090"
+# 从环境变量读取后端端口,默认9030
+BASE_URL = f"http://localhost:{os.getenv('BACKEND_PORT', '9030')}"
 LIVE_ROOM_URL = "https://live.douyin.com/191495446158"
 ROOM_ID = "7569996511182932786"
 ANCHOR_ID = "58994334334"
