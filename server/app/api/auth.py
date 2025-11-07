@@ -3,14 +3,10 @@
 用户认证API路由
 """
 
-from datetime import datetime
-import secrets
 import logging
 from typing import Optional, Dict, Any
-import re
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, EmailStr, validator
 from sqlalchemy.orm import Session
 
 from server.app.database import get_db_session
@@ -19,6 +15,18 @@ from server.app.services.subscription_service import SubscriptionService
 from server.app.models.user import UserRoleEnum, UserStatusEnum
 from server.config import get_config
 from server.utils.service_logger import log_user_action
+from server.app.schemas import (
+    UserRegisterRequest,
+    UserLoginRequest,
+    UserResponse,
+    LoginResponse,
+    RefreshTokenRequest,
+    ChangePasswordRequest,
+    EmailVerifyRequest,
+    RegisterResponse,
+)
+from server.app.schemas.common import BaseResponse
+from server.app.utils.api import success_response
 
 
 # 创建路由器
@@ -26,105 +34,6 @@ router = APIRouter(prefix="/api/auth", tags=["认证"])
 
 # HTTP Bearer 认证
 security = HTTPBearer()
-
-
-# Pydantic 模型
-class UserRegisterRequest(BaseModel):
-    """用户注册请求"""
-    email: EmailStr
-    password: str
-    nickname: Optional[str] = None
-    username: Optional[str] = None
-    phone: Optional[str] = None
-    
-    @validator('username', pre=True, always=True)
-    def validate_or_generate_username(cls, v, values):
-        candidate = (v or "").strip()
-        email = values.get("email")
-        nickname = (values.get("nickname") or "").strip()
-        
-        if not candidate:
-            if nickname:
-                candidate = nickname
-            elif email:
-                candidate = email.split("@")[0]
-        
-        candidate = re.sub(r"[^A-Za-z0-9_-]", "", candidate or "")
-        if len(candidate) < 3:
-            candidate = f"user_{secrets.token_hex(3)}"
-        candidate = candidate[:50]
-        
-        if len(candidate) < 3 or len(candidate) > 50:
-            raise ValueError('用户名长度必须在3-50个字符之间')
-        if not candidate.replace('_', '').replace('-', '').isalnum():
-            raise ValueError('用户名只能包含字母、数字、下划线和连字符')
-        return candidate
-    
-    @validator('password')
-    def validate_password(cls, v):
-        if len(v) < 6:
-            raise ValueError('密码长度至少6个字符')
-        return v
-
-
-class UserLoginRequest(BaseModel):
-    """用户登录请求"""
-    username_or_email: str
-    password: str
-    remember_me: bool = True  # 默认记住用户
-
-
-class UserResponse(BaseModel):
-    """用户响应"""
-    id: int
-    username: str
-    email: str
-    nickname: Optional[str]
-    avatar_url: Optional[str]
-    role: str
-    status: str
-    email_verified: bool
-    phone_verified: bool
-    created_at: datetime
-    
-    class Config:
-        from_attributes = True
-
-
-class LoginResponse(BaseModel):
-    """登录响应模型"""
-    success: bool = True
-    token: str  # 前端期望的字段名
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-    expires_in: int = 86400  # 24小时
-    user: UserResponse
-    isPaid: bool = False
-    firstFreeUsed: bool = False
-    aiUsage: Optional[Dict[str, Any]] = None
-
-
-class RefreshTokenRequest(BaseModel):
-    """刷新令牌请求"""
-    refresh_token: str
-
-
-class ChangePasswordRequest(BaseModel):
-    """修改密码请求"""
-    old_password: str
-    new_password: str
-    
-    @validator('new_password')
-    def validate_new_password(cls, v):
-        if len(v) < 6:
-            raise ValueError('密码长度至少6个字符')
-        return v
-
-
-class EmailVerifyRequest(BaseModel):
-    """邮箱验证请求"""
-    token: str
 
 
 # 依赖注入：获取当前用户
@@ -212,12 +121,6 @@ async def get_current_user(
             detail="认证失败",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-
-class RegisterResponse(BaseModel):
-    """注册响应模型"""
-    success: bool = True
-    user: UserResponse
 
 
 # API 路由
@@ -433,17 +336,17 @@ async def login_user(
         )
 
 
-@router.get("/demo-status")
+@router.get("/demo-status", response_model=BaseResponse[Dict[str, Any]])
 async def demo_status():
     """检查演示模式状态（开发模式：强制禁用）"""
     # 开发模式：强制禁用演示模式
     logging.info("📊 演示模式状态检查: 强制禁用演示模式（开发模式）")
-    return {
+    return success_response({
         "demo_enabled": False,
         "demo_user_name": None,
         "demo_user_email": None,
-        "demo_user_nickname": None
-    }
+        "demo_user_nickname": None,
+    })
 
 
 @router.post("/demo-login", response_model=LoginResponse)
@@ -547,7 +450,7 @@ async def refresh_token(
         )
 
 
-@router.post("/logout")
+@router.post("/logout", response_model=BaseResponse[Dict[str, Any]])
 async def logout_user(
     current_user: dict = Depends(get_current_user),
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -559,9 +462,8 @@ async def logout_user(
         success = UserService.logout_user(token)
         
         if success:
-            return {"message": "登出成功"}
-        else:
-            return {"message": "登出失败"}
+            return success_response({"logout": True}, message="登出成功")
+        return success_response({"logout": False}, message="登出失败")
             
     except Exception as e:
         raise HTTPException(
@@ -606,7 +508,7 @@ async def get_current_user_info(
         )
 
 
-@router.post("/change-password")
+@router.post("/change-password", response_model=BaseResponse[Dict[str, Any]])
 async def change_password(
     request: ChangePasswordRequest,
     current_user: dict = Depends(get_current_user),
@@ -621,12 +523,11 @@ async def change_password(
         )
         
         if success:
-            return {"message": "密码修改成功，请重新登录"}
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="原密码错误"
-            )
+            return success_response({"password_changed": True}, message="密码修改成功，请重新登录")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="原密码错误"
+        )
             
     except HTTPException:
         raise
@@ -637,7 +538,7 @@ async def change_password(
         )
 
 
-@router.post("/verify-email")
+@router.post("/verify-email", response_model=BaseResponse[Dict[str, Any]])
 async def verify_email(
     request: EmailVerifyRequest,
     db: Session = Depends(get_db_session)
@@ -647,12 +548,11 @@ async def verify_email(
         success = UserService.verify_email(request.token)
         
         if success:
-            return {"message": "邮箱验证成功"}
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="无效的验证令牌"
-            )
+            return success_response({"email_verified": True}, message="邮箱验证成功")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无效的验证令牌"
+        )
             
     except HTTPException:
         raise
@@ -666,7 +566,7 @@ async def verify_email(
 
 
 
-@router.post("/useFree")
+@router.post("/useFree", response_model=BaseResponse[Dict[str, Any]])
 async def use_first_free(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db_session)
@@ -679,12 +579,13 @@ async def use_first_free(
         ai_usage = subscription_info.get("ai_usage", {})
         first_free_used = ai_usage.get('first_free_used', False)
         
-        return {
-            "success": True,
-            "firstFreeUsed": first_free_used,
-            "message": "首次免费额度已使用" if first_free_used else "首次免费额度可用",
-            "aiUsage": ai_usage
-        }
+        return success_response(
+            {
+                "firstFreeUsed": first_free_used,
+                "aiUsage": ai_usage,
+            },
+            message="首次免费额度已使用" if first_free_used else "首次免费额度可用",
+        )
         
     except HTTPException:
         raise
@@ -695,7 +596,7 @@ async def use_first_free(
         )
 
 
-@router.get("/stats")
+@router.get("/stats", response_model=BaseResponse[Dict[str, Any]])
 async def get_user_stats(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db_session)
@@ -703,7 +604,7 @@ async def get_user_stats(
     """获取用户统计信息"""
     try:
         stats = UserService.get_user_stats(current_user["id"])
-        return stats
+        return success_response(stats)
         
     except Exception as e:
         raise HTTPException(

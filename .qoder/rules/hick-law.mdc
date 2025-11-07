@@ -1,0 +1,540 @@
+---
+description: 席克定律 - 选择越多决策时间越长，减少用户选择提升易用性
+globs: ["**/*.tsx", "**/*.ts", "**/*.jsx", "**/*.js", "**/*.vue", "**/*.html", "**/*.css"]
+alwaysApply: true
+---
+
+# 席克定律 (Hick's Law)
+
+## 核心思想
+
+"一个人做决定所需的时间，随着选择的数量和复杂性增加而增加。" 在设计界面、API 或命令行工具时，尽量减少用户需要做出的选择。保持选项的精简和明确，可以极大地提升易用性。
+
+## 在本项目中的应用规则
+
+### 1. UI 界面设计
+
+#### 减少选择数量
+
+```typescript
+// ✅ 好的做法：减少选择数量
+// 报告生成页面 - 简化选项
+const ReportGenerationPage: React.FC = () => {
+  // 默认配置，减少用户选择
+  const defaultConfig = {
+    format: "json",  // 默认格式
+    includeComments: true,  // 默认包含评论
+    includeAudio: false  // 默认不包含音频
+  };
+  
+  // 只提供最常用的选项
+  const [config, setConfig] = useState(defaultConfig);
+  
+  return (
+    <div>
+      <h1>生成报告</h1>
+      
+      {/* 简化：只提供必要的选项 */}
+      <button onClick={() => generateReport(config)}>
+        生成报告（使用默认配置）
+      </button>
+      
+      {/* 高级选项折叠，不默认显示 */}
+      <details>
+        <summary>高级选项</summary>
+        <AdvancedOptions config={config} setConfig={setConfig} />
+      </details>
+    </div>
+  );
+};
+
+// ❌ 避免：太多选择
+const ReportGenerationPageBad: React.FC = () => {
+  // 太多选项，用户需要做很多决定
+  const [format, setFormat] = useState("json");
+  const [includeComments, setIncludeComments] = useState(true);
+  const [includeAudio, setIncludeAudio] = useState(false);
+  const [includeCharts, setIncludeCharts] = useState(false);
+  const [chartType, setChartType] = useState("line");
+  const [exportFormat, setExportFormat] = useState("pdf");
+  const [compression, setCompression] = useState("medium");
+  // ... 更多选项
+  
+  // 用户需要做太多决定
+  return (
+    <div>
+      {/* 太多选择项 */}
+    </div>
+  );
+};
+```
+
+#### 分组和层次化
+
+```typescript
+// ✅ 好的做法：分组和层次化
+const SettingsPage: React.FC = () => {
+  // 将相关选项分组，减少认知负担
+  const settings = {
+    // 基础设置（最常用）
+    basic: {
+      language: "zh-CN",
+      theme: "light"
+    },
+    // 高级设置（较少使用）
+    advanced: {
+      cacheSize: 100,
+      timeout: 30
+    }
+  };
+  
+  return (
+    <div>
+      <h1>设置</h1>
+      
+      {/* 基础设置 - 默认显示 */}
+      <section>
+        <h2>基础设置</h2>
+        <LanguageSelector value={settings.basic.language} />
+        <ThemeSelector value={settings.basic.theme} />
+      </section>
+      
+      {/* 高级设置 - 折叠 */}
+      <details>
+        <summary>高级设置</summary>
+        <AdvancedSettings settings={settings.advanced} />
+      </details>
+    </div>
+  );
+};
+```
+
+### 2. API 设计
+
+#### 简化 API 参数
+
+```python
+# ✅ 好的做法：简化 API 参数
+@router.post("/api/live/reports/generate")
+async def generate_report(
+    session_id: int,
+    # 只提供最常用的参数，其他使用默认值
+    format: str = "json",  # 默认格式
+    include_comments: bool = True  # 默认包含评论
+):
+    """
+    生成报告 - 简化参数
+    
+    只提供最常用的选项，其他使用合理的默认值
+    """
+    return await report_service.generate_report(
+        session_id=session_id,
+        format=format,
+        include_comments=include_comments
+    )
+
+# ❌ 避免：太多参数
+@router.post("/api/live/reports/generate")
+async def generate_report_bad(
+    session_id: int,
+    format: str,
+    include_comments: bool,
+    include_audio: bool,
+    include_charts: bool,
+    chart_type: str,
+    export_format: str,
+    compression: str,
+    # ... 更多参数
+):
+    """生成报告 - 太多参数，用户需要做很多决定"""
+    pass
+```
+
+#### 使用配置对象
+
+```python
+# ✅ 好的做法：使用配置对象减少参数
+from pydantic import BaseModel
+
+class ReportConfig(BaseModel):
+    """报告配置 - 使用对象减少参数数量"""
+    format: str = "json"
+    include_comments: bool = True
+    include_audio: bool = False
+    # 高级选项
+    advanced: dict = {}
+
+@router.post("/api/live/reports/generate")
+async def generate_report(
+    session_id: int,
+    config: ReportConfig = ReportConfig()  # 默认配置
+):
+    """
+    生成报告 - 使用配置对象
+    
+    用户只需要提供需要的配置，其他使用默认值
+    """
+    return await report_service.generate_report(
+        session_id=session_id,
+        config=config
+    )
+
+# 使用示例
+# 简单调用：使用默认配置
+POST /api/live/reports/generate
+{
+  "session_id": 123
+}
+
+# 自定义配置：只提供需要的选项
+POST /api/live/reports/generate
+{
+  "session_id": 123,
+  "config": {
+    "format": "html",
+    "include_comments": false
+  }
+}
+```
+
+### 3. 表单设计
+
+#### 减少表单字段
+
+```typescript
+// ✅ 好的做法：减少表单字段
+const CreateSessionForm: React.FC = () => {
+  // 只提供必需的字段
+  const [formData, setFormData] = useState({
+    roomId: "",  // 必需
+    // 其他字段使用默认值或可选
+  });
+  
+  return (
+    <form>
+      <label>
+        房间ID（必需）
+        <input
+          value={formData.roomId}
+          onChange={(e) => setFormData({...formData, roomId: e.target.value})}
+          required
+        />
+      </label>
+      
+      {/* 可选字段折叠 */}
+      <details>
+        <summary>可选设置</summary>
+        <OptionalFields formData={formData} setFormData={setFormData} />
+      </details>
+      
+      <button type="submit">创建会话</button>
+    </form>
+  );
+};
+
+// ❌ 避免：太多表单字段
+const CreateSessionFormBad: React.FC = () => {
+  // 太多字段，用户需要填写很多信息
+  const [formData, setFormData] = useState({
+    roomId: "",
+    userId: "",
+    duration: "",
+    quality: "",
+    format: "",
+    // ... 更多字段
+  });
+  
+  // 用户需要做很多决定
+  return <form>{/* 太多字段 */}</form>;
+};
+```
+
+### 4. 导航和菜单
+
+#### 简化导航结构
+
+```typescript
+// ✅ 好的做法：简化导航
+const Navigation: React.FC = () => {
+  // 只显示最常用的导航项
+  const mainNavItems = [
+    { label: "首页", path: "/" },
+    { label: "直播管理", path: "/live" },
+    { label: "报告", path: "/reports" }
+  ];
+  
+  // 其他功能放在"更多"菜单中
+  const moreItems = [
+    { label: "设置", path: "/settings" },
+    { label: "帮助", path: "/help" }
+  ];
+  
+  return (
+    <nav>
+      {mainNavItems.map(item => (
+        <NavLink key={item.path} to={item.path}>
+          {item.label}
+        </NavLink>
+      ))}
+      
+      <DropdownMenu label="更多">
+        {moreItems.map(item => (
+          <NavLink key={item.path} to={item.path}>
+            {item.label}
+          </NavLink>
+        ))}
+      </DropdownMenu>
+    </nav>
+  );
+};
+
+// ❌ 避免：太多导航项
+const NavigationBad: React.FC = () => {
+  // 所有功能都显示在导航栏
+  const navItems = [
+    { label: "首页", path: "/" },
+    { label: "直播管理", path: "/live" },
+    { label: "报告", path: "/reports" },
+    { label: "设置", path: "/settings" },
+    { label: "用户管理", path: "/users" },
+    { label: "数据分析", path: "/analytics" },
+    { label: "系统配置", path: "/config" },
+    // ... 更多项
+  ];
+  
+  // 用户需要从太多选项中选择
+  return <nav>{/* 太多导航项 */}</nav>;
+};
+```
+
+### 5. 命令行工具设计
+
+#### 简化命令行选项
+
+```python
+# ✅ 好的做法：简化命令行选项
+import argparse
+
+def create_parser():
+    """创建命令行解析器 - 简化选项"""
+    parser = argparse.ArgumentParser(description="直播管理工具")
+    
+    # 只提供最常用的选项
+    parser.add_argument("room_id", help="房间ID（必需）")
+    parser.add_argument(
+        "--format",
+        default="json",
+        choices=["json", "html"],
+        help="报告格式（默认：json）"
+    )
+    
+    # 高级选项放在单独的命令组
+    advanced = parser.add_argument_group("高级选项")
+    advanced.add_argument("--verbose", action="store_true", help="详细输出")
+    advanced.add_argument("--output", help="输出文件")
+    
+    return parser
+
+# 使用示例
+# 简单使用：只需要房间ID
+python manage.py generate-report 123
+
+# 自定义格式：只需要一个额外选项
+python manage.py generate-report 123 --format html
+
+# ❌ 避免：太多命令行选项
+def create_parser_bad():
+    """创建命令行解析器 - 太多选项"""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("room_id")
+    parser.add_argument("--format")
+    parser.add_argument("--include-comments")
+    parser.add_argument("--include-audio")
+    parser.add_argument("--chart-type")
+    parser.add_argument("--export-format")
+    parser.add_argument("--compression")
+    # ... 更多选项
+    
+    # 用户需要记住和选择太多选项
+    return parser
+```
+
+### 6. 配置界面
+
+#### 使用预设和模板
+
+```typescript
+// ✅ 好的做法：使用预设减少选择
+const ReportConfigPage: React.FC = () => {
+  // 提供预设配置，减少用户选择
+  const presets = {
+    basic: {
+      name: "基础报告",
+      config: {
+        format: "json",
+        includeComments: true,
+        includeAudio: false
+      }
+    },
+    detailed: {
+      name: "详细报告",
+      config: {
+        format: "html",
+        includeComments: true,
+        includeAudio: true,
+        includeCharts: true
+      }
+    },
+    custom: {
+      name: "自定义",
+      config: null  // 用户自定义
+    }
+  };
+  
+  const [selectedPreset, setSelectedPreset] = useState("basic");
+  const [config, setConfig] = useState(presets.basic.config);
+  
+  return (
+    <div>
+      <h1>报告配置</h1>
+      
+      {/* 预设选择 - 减少决策 */}
+      <div>
+        <label>选择预设：</label>
+        {Object.entries(presets).map(([key, preset]) => (
+          <button
+            key={key}
+            onClick={() => {
+              setSelectedPreset(key);
+              if (preset.config) {
+                setConfig(preset.config);
+              }
+            }}
+          >
+            {preset.name}
+          </button>
+        ))}
+      </div>
+      
+      {/* 只有选择"自定义"时才显示详细配置 */}
+      {selectedPreset === "custom" && (
+        <DetailedConfig config={config} setConfig={setConfig} />
+      )}
+    </div>
+  );
+};
+```
+
+### 7. 搜索和过滤
+
+#### 简化搜索选项
+
+```typescript
+// ✅ 好的做法：简化搜索
+const SessionSearch: React.FC = () => {
+  // 只提供最常用的搜索选项
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("all");
+  
+  return (
+    <div>
+      {/* 简单搜索框 */}
+      <input
+        type="text"
+        placeholder="搜索会话..."
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      
+      {/* 快速过滤器 */}
+      <select value={status} onChange={(e) => setStatus(e.target.value)}>
+        <option value="all">全部</option>
+        <option value="active">进行中</option>
+        <option value="completed">已完成</option>
+      </select>
+      
+      {/* 高级搜索折叠 */}
+      <details>
+        <summary>高级搜索</summary>
+        <AdvancedSearch />
+      </details>
+    </div>
+  );
+};
+
+// ❌ 避免：太多搜索选项
+const SessionSearchBad: React.FC = () => {
+  // 太多搜索选项
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [userId, setUserId] = useState("");
+  const [roomId, setRoomId] = useState("");
+  // ... 更多选项
+  
+  // 用户需要填写很多字段
+  return <div>{/* 太多搜索字段 */}</div>;
+};
+```
+
+## 实践建议
+
+### 1. 选项数量指南
+
+```typescript
+// 选项数量建议
+const OPTION_GUIDELINES = {
+  "immediate_choices": 3,  // 立即显示的选择不超过3个
+  "menu_items": 7,  // 菜单项不超过7个
+  "form_fields": 5,  // 表单字段不超过5个（首屏）
+  "api_parameters": 3  // API参数不超过3个（必需参数）
+};
+```
+
+### 2. 渐进式披露
+
+```typescript
+// 渐进式披露：先显示简单选项，高级选项折叠
+const ProgressiveDisclosure: React.FC = () => {
+  return (
+    <div>
+      {/* 基础选项 - 默认显示 */}
+      <BasicOptions />
+      
+      {/* 高级选项 - 折叠 */}
+      <details>
+        <summary>高级选项</summary>
+        <AdvancedOptions />
+      </details>
+    </div>
+  );
+};
+```
+
+## 与项目其他原则的配合
+
+- **与 KISS 配合**：简单的选择，简单的界面
+- **与最小意外配合**：减少选择，减少意外
+- **与雅各布定律配合**：遵循常见的设计模式
+
+## 代码审查检查点
+
+在代码审查时，检查：
+1. 界面选择是否过多？
+2. 是否提供了合理的默认值？
+3. 是否使用了分组和层次化？
+4. 是否使用了预设和模板？
+5. 是否实现了渐进式披露？
+
+## 记住
+
+**选择越多，决策时间越长。**
+
+- 减少用户需要做出的选择
+- 提供合理的默认值
+- 使用分组和层次化
+- 实现渐进式披露
+- 将高级选项折叠或隐藏
+
+**简化选择，提升易用性。**

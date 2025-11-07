@@ -5,52 +5,46 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
 
 from ..services.ai_live_analyzer import get_ai_live_analyzer
+from server.app.schemas import (
+    StartAILiveAnalysisRequest,
+    GenerateLiveAnswersRequest,
+)
+from server.app.schemas.common import BaseResponse
+from server.app.utils.api import success_response, handle_service_error
 
 
 router = APIRouter(prefix="/api/ai/live", tags=["ai-live"])
 
 
-class StartReq(BaseModel):
-    window_sec: int = Field(60, ge=30, le=600)
-    session_id: Optional[str] = Field(None, description="统一会话ID（可选，如果不提供将从统一会话管理器获取）")
-
-
-class AnswerRequest(BaseModel):
-    questions: List[str] = Field(..., min_items=1, description="待回答的弹幕问题列表")
-    transcript: Optional[str] = Field(None, description="可选的口播上下文（多句换行）")
-    style_profile: Optional[Dict[str, Any]] = Field(None, description="可选的主播画像覆盖")
-    vibe: Optional[Dict[str, Any]] = Field(None, description="可选的氛围上下文")
-
-
-@router.post("/start")
-async def start_ai(req: StartReq):
+@router.post("/start", response_model=BaseResponse[Dict[str, Any]])
+async def start_ai(req: StartAILiveAnalysisRequest):
     svc = get_ai_live_analyzer()
     res = await svc.start(req.window_sec, session_id=req.session_id)
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("message", "failed"))
-    return res
+    return success_response(res)
 
 
-@router.post("/stop")
+@router.post("/stop", response_model=BaseResponse[Dict[str, Any]])
 async def stop_ai():
     svc = get_ai_live_analyzer()
-    return await svc.stop()
+    result = await svc.stop()
+    return success_response(result)
 
 
-@router.get("/status")
+@router.get("/status", response_model=BaseResponse[Dict[str, Any]])
 async def ai_status():
     svc = get_ai_live_analyzer()
-    return svc.status()
+    return success_response(svc.status())
 
 
-@router.get("/context")
+@router.get("/context", response_model=BaseResponse[Dict[str, Any]])
 async def ai_context():
     """Expose the latest learned style_profile and vibe for consumers.
 
@@ -59,11 +53,11 @@ async def ai_context():
     """
     svc = get_ai_live_analyzer()
     st = svc.status()
-    return {
+    return success_response({
         "style_profile": st.get("style_profile") or {},
         "vibe": st.get("vibe") or {},
         "updated_from": "ai_live_analyzer:last_result",
-    }
+    })
 
 
 @router.get("/stream")
@@ -84,8 +78,8 @@ async def ai_stream() -> StreamingResponse:
     return StreamingResponse(gen(), media_type="text/event-stream")
 
 
-@router.post("/answers")
-async def generate_live_answers(req: AnswerRequest):
+@router.post("/answers", response_model=BaseResponse[Dict[str, Any]])
+async def generate_live_answers(req: GenerateLiveAnswersRequest):
     svc = get_ai_live_analyzer()
     try:
         result = svc.generate_answer_scripts(
@@ -98,4 +92,4 @@ async def generate_live_answers(req: AnswerRequest):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return {"success": True, "data": result}
+    return success_response(result)

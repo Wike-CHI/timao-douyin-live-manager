@@ -8,23 +8,18 @@ import asyncio
 import json
 import logging
 import time
-from typing import Optional, Dict, Any, AsyncGenerator
+from typing import Dict, Any, AsyncGenerator, Optional
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
 
 # 服务导入
 from ..services.douyin_service import get_douyin_service
 from ..services.douyin_web_relay import get_douyin_web_relay
 from server.utils.service_logger import log_service_start, log_service_stop, log_service_error
-from ..schemas.douyin import (
-    StartDouyinMonitoringRequest,
-    StartDouyinMonitoringResponse,
-    StopDouyinMonitoringResponse,
-    DouyinStatusResponse,
-)
-from ..schemas.common import BaseResponse
-from ..utils.api_error_handler import handle_service_errors
+from server.app.schemas import StartDouyinMonitoringRequest, DouyinStatusResponse
+from server.app.schemas.common import BaseResponse
+from server.app.utils.api import success_response, handle_service_error
 
 router = APIRouter(prefix="/api/douyin", tags=["douyin"])
 
@@ -42,21 +37,8 @@ def _parse_live_id(live_url_or_id: Optional[str]) -> Optional[str]:
     return None
 
 
-class BaseResponse(BaseModel):
-    success: bool
-    message: str
-    data: Optional[Dict[str, Any]] = None
-
-
-class StatusResponse(BaseModel):
-    is_monitoring: bool
-    current_room_id: Optional[str]
-    current_live_id: Optional[str]
-    fetcher_status: Dict[str, Any]
-
-
-@router.post("/start", response_model=BaseResponse)
-async def start_monitoring(request: StartMonitoringRequest):
+@router.post("/start", response_model=BaseResponse[Dict[str, Any]])
+async def start_monitoring(request: StartDouyinMonitoringRequest):
     """
     启动抖音直播监控
     """
@@ -73,17 +55,17 @@ async def start_monitoring(request: StartMonitoringRequest):
         result = await service.start_monitoring(live_id, cookie=request.cookie)
         if result.get("success"):
             log_service_start("抖音直播监控服务", live_id=live_id, status="已启动")
-            return BaseResponse(success=True, message="监控已启动", data=result)
-        
+            return success_response(result, message="监控已启动")
+
         log_service_error("抖音直播监控服务", result.get("error", "监控启动失败"), live_id=live_id)
         return BaseResponse(success=False, message=result.get("error", "监控启动失败"), data=result)
-    except Exception as e:
-        log_service_error("抖音直播监控服务", str(e), live_id=request.live_id, live_url=request.live_url)
+    except Exception as exc:  # pragma: no cover - unexpected failures
+        log_service_error("抖音直播监控服务", str(exc), live_id=request.live_id, live_url=request.live_url)
         logging.exception("启动监控失败")
-        raise HTTPException(status_code=500, detail=str(e))
+        handle_service_error(exc, {}, default_message="启动抖音监控失败", default_status=500)
 
 
-@router.post("/stop", response_model=BaseResponse)
+@router.post("/stop", response_model=BaseResponse[Dict[str, Any]])
 async def stop_monitoring():
     """
     停止抖音直播监控
@@ -105,17 +87,17 @@ async def stop_monitoring():
         
         if result.get("success"):
             log_service_stop("抖音直播监控服务", status="已停止")
-            return BaseResponse(success=True, message="监控已停止", data=result)
-        
+            return success_response(result, message="监控已停止")
+
         log_service_error("抖音直播监控服务", result.get("error", "监控停止失败"))
         return BaseResponse(success=False, message=result.get("error", "监控停止失败"), data=result)
-    except Exception as e:
-        log_service_error("抖音直播监控服务", str(e))
+    except Exception as exc:
+        log_service_error("抖音直播监控服务", str(exc))
         logging.exception("停止监控失败")
-        raise HTTPException(status_code=500, detail=str(e))
+        handle_service_error(exc, {}, default_message="停止抖音监控失败", default_status=500)
 
 
-@router.get("/health")
+@router.get("/health", response_model=BaseResponse[Dict[str, Any]])
 async def health_check():
     """
     抖音服务健康检查
@@ -126,25 +108,24 @@ async def health_check():
         status = service.get_status()
         relay_status = relay.get_status()
         
-        return {
+        return success_response({
             "status": "ok",
             "is_monitoring": status.get("is_monitoring", False) or relay_status.is_running,
             "current_live_id": status.get("current_live_id") or relay_status.live_id,
             "room_id": relay_status.room_id,
-        }
-    except Exception as e:
+        })
+    except Exception as exc:
         logging.exception("健康检查失败")
-        # 健康检查失败时返回服务不可用状态，而不是抛出异常
-        return {
+        return success_response({
             "status": "error",
             "is_monitoring": False,
             "current_live_id": None,
             "room_id": None,
-            "error": str(e),
-        }
+            "error": str(exc),
+        }, message="服务不可用")
 
 
-@router.get("/status")
+@router.get("/status", response_model=BaseResponse[Dict[str, Any]])
 async def get_status():
     """
     获取抖音直播监控状态
@@ -163,20 +144,25 @@ async def get_status():
         if live_id is not None:
             live_id = str(live_id)
         
-        return {
-            "is_running": relay_status.is_running,
-            "live_id": live_id,
-            "room_id": room_id,
-            "last_error": relay_status.last_error,
-        }
-    except Exception as e:
+        return success_response(
+            DouyinStatusResponse(
+                is_monitoring=relay_status.is_running,
+                current_live_id=live_id,
+                current_room_id=room_id,
+                fetcher_status={"last_error": relay_status.last_error},
+            ).dict()
+        )
+    except Exception as exc:
         logging.exception("获取监控状态失败")
-        return {
-            "is_running": False,
-            "live_id": None,
-            "room_id": None,
-            "last_error": str(e),
-        }
+        return success_response(
+            DouyinStatusResponse(
+                is_monitoring=False,
+                current_live_id=None,
+                current_room_id=None,
+                fetcher_status={"last_error": str(exc)},
+            ).dict(),
+            message="监控未运行",
+        )
 
 
 @router.get("/stream")

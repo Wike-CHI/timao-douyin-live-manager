@@ -1,0 +1,361 @@
+---
+description: 最小意外原则 - 代码行为应该符合读者预期
+globs: ["**/*.py", "**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"]
+alwaysApply: true
+---
+
+# 最小意外原则 (Principle of Least Surprise)
+
+## 核心思想
+
+代码的行为应该符合读者的预期。函数、类、API 的命名和行为应该清晰明了，让其他开发者（包括未来的你）在看到它们时，能很容易地猜到它们是做什么的，而不会感到"意外"或困惑。
+
+## 在本项目中的应用规则
+
+### 1. 命名规范
+
+#### 函数命名
+
+函数名应该准确描述其功能，使用动词开头。
+
+```python
+# ✅ 好的命名：清晰表达意图
+def calculate_total_price(items: List[Item]) -> float:
+    """计算商品总价"""
+    pass
+
+def get_user_active_sessions(user_id: int) -> List[LiveSession]:
+    """获取用户的活跃会话列表"""
+    pass
+
+def start_live_recording(room_id: str) -> LiveSession:
+    """启动直播录制"""
+    pass
+
+# ❌ 避免：模糊或误导性的命名
+def process_data(data):
+    """处理数据 - 但处理什么？怎么处理？"""
+    pass
+
+def handle_request(req):
+    """处理请求 - 但处理什么类型的请求？"""
+    pass
+
+def do_stuff(items):
+    """做什么？完全不清楚"""
+    pass
+```
+
+#### 类命名
+
+类名应该是名词，使用大驼峰命名法，清晰表达类的职责。
+
+```python
+# ✅ 好的命名
+class LiveSessionManager:
+    """管理直播会话"""
+    pass
+
+class TranscriptGenerator:
+    """生成转写文本"""
+    pass
+
+class DouyinWebRelay:
+    """抖音 Web 中继服务"""
+    pass
+
+# ❌ 避免
+class Processor:  # 处理什么？
+    pass
+
+class Handler:  # 处理什么？
+    pass
+
+class Util:  # 工具类应该更具体
+    pass
+```
+
+#### 变量命名
+
+变量名应该是名词，清晰表达其含义。
+
+```python
+# ✅ 好的命名
+active_sessions = get_active_sessions()
+transcript_text = generate_transcript()
+room_id = request.room_id
+total_duration = sum(segment.duration for segment in segments)
+
+# ❌ 避免
+data = get_active_sessions()  # data 太泛泛
+temp = generate_transcript()  # temp 没有意义
+id = request.room_id  # id 太短，不清楚是什么的 id
+result = sum(...)  # result 不清楚是什么结果
+```
+
+### 2. 函数行为一致性
+
+相同命名的函数应该有相似的行为。
+
+```python
+# ✅ 好的做法：行为一致
+def get_user_by_id(user_id: int) -> Optional[User]:
+    """根据 ID 获取用户，不存在返回 None"""
+    return db.session.query(User).filter_by(id=user_id).first()
+
+def get_session_by_id(session_id: int) -> Optional[LiveSession]:
+    """根据 ID 获取会话，不存在返回 None"""
+    return db.session.query(LiveSession).filter_by(id=session_id).first()
+
+# ❌ 避免：行为不一致
+def get_user_by_id(user_id: int) -> Optional[User]:
+    """返回 None 如果不存在"""
+    return db.session.query(User).filter_by(id=user_id).first()
+
+def get_session_by_id(session_id: int) -> LiveSession:
+    """抛出异常如果不存在 - 行为不一致！"""
+    session = db.session.query(LiveSession).filter_by(id=session_id).first()
+    if not session:
+        raise ValueError("Session not found")
+    return session
+```
+
+### 3. API 端点命名
+
+API 端点应该遵循 RESTful 约定，行为符合 HTTP 方法语义。
+
+```python
+# ✅ 好的做法：符合 RESTful 约定
+@router.get("/api/live/sessions")  # GET: 获取列表
+async def list_sessions():
+    """获取会话列表"""
+    pass
+
+@router.get("/api/live/sessions/{session_id}")  # GET: 获取单个资源
+async def get_session(session_id: int):
+    """获取单个会话"""
+    pass
+
+@router.post("/api/live/sessions")  # POST: 创建资源
+async def create_session(data: CreateSessionRequest):
+    """创建新会话"""
+    pass
+
+@router.put("/api/live/sessions/{session_id}")  # PUT: 更新整个资源
+async def update_session(session_id: int, data: UpdateSessionRequest):
+    """更新会话"""
+    pass
+
+@router.delete("/api/live/sessions/{session_id}")  # DELETE: 删除资源
+async def delete_session(session_id: int):
+    """删除会话"""
+    pass
+
+# ❌ 避免：不符合约定
+@router.get("/api/live/create_session")  # GET 不应该用于创建
+@router.post("/api/live/get_session")  # POST 不应该用于获取
+@router.get("/api/live/delete_session/{session_id}")  # GET 不应该用于删除
+```
+
+### 4. 返回值一致性
+
+相同类型的函数应该有相似的返回值格式。
+
+```python
+# ✅ 好的做法：返回值格式一致
+def get_active_sessions() -> List[LiveSession]:
+    """返回列表，即使为空也返回 []"""
+    return db.session.query(LiveSession).filter_by(status="active").all()
+
+def get_user_sessions(user_id: int) -> List[LiveSession]:
+    """返回列表，即使为空也返回 []"""
+    return db.session.query(LiveSession).filter_by(user_id=user_id).all()
+
+# ❌ 避免：返回值格式不一致
+def get_active_sessions() -> List[LiveSession]:
+    """返回列表"""
+    return db.session.query(LiveSession).filter_by(status="active").all()
+
+def get_user_sessions(user_id: int) -> Optional[List[LiveSession]]:
+    """有时返回 None，有时返回 [] - 不一致！"""
+    sessions = db.session.query(LiveSession).filter_by(user_id=user_id).all()
+    return sessions if sessions else None
+```
+
+### 5. 参数顺序一致性
+
+相似功能的函数应该有相似的参数顺序。
+
+```python
+# ✅ 好的做法：参数顺序一致
+def create_session(user_id: int, room_id: str, config: dict) -> LiveSession:
+    """创建会话：用户ID、房间ID、配置"""
+    pass
+
+def update_session(session_id: int, user_id: int, config: dict) -> LiveSession:
+    """更新会话：会话ID、用户ID、配置"""
+    pass
+
+# ❌ 避免：参数顺序不一致
+def create_session(user_id: int, room_id: str, config: dict):
+    """用户ID、房间ID、配置"""
+    pass
+
+def update_session(config: dict, session_id: int, user_id: int):
+    """配置、会话ID、用户ID - 顺序不一致！"""
+    pass
+```
+
+### 6. 错误处理一致性
+
+相似的操作应该有相似的错误处理方式。
+
+```python
+# ✅ 好的做法：错误处理一致
+def start_live_session(room_id: str) -> LiveSession:
+    """启动会话，房间不存在时抛出 ValueError"""
+    room = get_room(room_id)
+    if not room:
+        raise ValueError(f"房间不存在: {room_id}")
+    # ...
+
+def stop_live_session(session_id: int) -> LiveSession:
+    """停止会话，会话不存在时抛出 ValueError"""
+    session = get_session(session_id)
+    if not session:
+        raise ValueError(f"会话不存在: {session_id}")
+    # ...
+
+# ❌ 避免：错误处理不一致
+def start_live_session(room_id: str) -> LiveSession:
+    """抛出 ValueError"""
+    room = get_room(room_id)
+    if not room:
+        raise ValueError(f"房间不存在: {room_id}")
+
+def stop_live_session(session_id: int) -> Optional[LiveSession]:
+    """返回 None - 错误处理不一致！"""
+    session = get_session(session_id)
+    if not session:
+        return None
+```
+
+### 7. 副作用明确
+
+函数如果有副作用，应该在命名或文档中明确说明。
+
+```python
+# ✅ 好的做法：副作用明确
+def save_session_to_db(session: LiveSession) -> None:
+    """保存会话到数据库（有副作用：修改数据库）"""
+    db.session.add(session)
+    db.session.commit()
+
+def get_session_from_db(session_id: int) -> Optional[LiveSession]:
+    """从数据库获取会话（无副作用：只读）"""
+    return db.session.query(LiveSession).filter_by(id=session_id).first()
+
+# ❌ 避免：副作用不明确
+def process_session(session: LiveSession):
+    """处理会话 - 但会修改数据库吗？不清楚"""
+    # 实际上会修改数据库，但命名没有体现
+    db.session.add(session)
+    db.session.commit()
+```
+
+### 8. 配置和默认值
+
+配置项应该有合理的默认值，行为符合直觉。
+
+```python
+# ✅ 好的做法：默认值合理
+def generate_report(
+    session_id: int,
+    include_comments: bool = True,  # 默认包含评论，符合直觉
+    format: str = "json"  # 默认 JSON 格式
+) -> dict:
+    """生成报告"""
+    pass
+
+# ❌ 避免：默认值不符合直觉
+def generate_report(
+    session_id: int,
+    include_comments: bool = False,  # 默认不包含？用户可能期望包含
+    format: str = "xml"  # 默认 XML？但项目主要用 JSON
+) -> dict:
+    """生成报告"""
+    pass
+```
+
+### 9. 类型提示
+
+使用类型提示让函数签名更清晰，减少意外。
+
+```python
+# ✅ 好的做法：类型提示清晰
+from typing import List, Optional
+
+def get_user_sessions(
+    user_id: int,
+    status: Optional[str] = None
+) -> List[LiveSession]:
+    """获取用户的会话列表"""
+    query = db.session.query(LiveSession).filter_by(user_id=user_id)
+    if status:
+        query = query.filter_by(status=status)
+    return query.all()
+
+# ❌ 避免：缺少类型提示
+def get_user_sessions(user_id, status=None):
+    """获取用户的会话列表 - 但返回什么类型？参数类型是什么？"""
+    pass
+```
+
+### 10. 文档字符串
+
+为公共函数和类添加清晰的文档字符串。
+
+```python
+# ✅ 好的做法：文档清晰
+def start_live_recording(
+    room_id: str,
+    duration_minutes: int = 30
+) -> LiveSession:
+    """
+    启动直播录制
+    
+    Args:
+        room_id: 抖音直播间房间ID
+        duration_minutes: 录制时长（分钟），默认30分钟
+    
+    Returns:
+        LiveSession: 创建的直播会话对象
+    
+    Raises:
+        ValueError: 当房间ID无效或房间不存在时
+        RuntimeError: 当录制服务不可用时
+    """
+    pass
+```
+
+## 代码审查检查点
+
+在代码审查时，检查：
+1. 函数名是否准确描述了功能？
+2. 变量名是否清晰表达了含义？
+3. API 端点是否符合 RESTful 约定？
+4. 相似功能的函数是否有相似的行为？
+5. 返回值格式是否一致？
+6. 错误处理方式是否一致？
+7. 副作用是否在命名或文档中明确？
+8. 默认值是否符合直觉？
+9. 类型提示是否完整？
+10. 文档字符串是否清晰？
+
+## 与项目其他原则的配合
+
+- **与 KISS 配合**：清晰的命名让代码更简单易懂
+- **与单一职责配合**：单一职责的函数更容易有清晰的命名
+- **与 DRY 配合**：一致的命名模式有助于识别重复代码
+
+记住：**代码是写给人看的，只是偶尔在机器上运行。** 让代码的行为符合读者的预期，减少认知负担。

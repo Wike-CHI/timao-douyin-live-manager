@@ -1,0 +1,462 @@
+---
+description: 坎宁安定律 - 获得正确答案的最佳方法是发布错误答案，利用纠错心理
+globs: ["**/*.py", "**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.md"]
+alwaysApply: true
+---
+
+# 坎宁安定律 (Cunningham's Law)
+
+## 核心思想
+
+"在互联网上获得正确答案的最佳方法不是提问，而是发布一个错误的答案。" 这揭示了人们强烈的纠错心理。在技术论坛或团队内部，如果你对一个技术问题不确定，有时提出一个初步的、可能有瑕疵的方案，能更快地引来大家的讨论和纠正，从而得到最佳方案。
+
+## 在本项目中的应用规则
+
+### 1. 技术方案讨论
+
+#### 提出初步方案引发讨论
+
+```python
+# ✅ 好的做法：提出初步方案引发讨论
+class TechnicalDiscussion:
+    """技术讨论 - 使用坎宁安定律"""
+    
+    def propose_solution(self, problem: str) -> dict:
+        """提出初步方案"""
+        # 即使不确定，也先提出一个方案
+        # 这会引发讨论，从而得到更好的方案
+        
+        preliminary_solution = {
+            "problem": problem,
+            "proposed_solution": self._get_preliminary_solution(problem),
+            "known_issues": [
+                "这个方案可能有性能问题",
+                "可能没有考虑边界情况",
+                "不确定是否是最佳实践"
+            ],
+            "request_feedback": True,
+            "tone": "seeking_input"  # 寻求输入
+        }
+        
+        # 发布到团队讨论区
+        discussion = self._post_to_discussion(preliminary_solution)
+        
+        # 等待反馈和纠正
+        return discussion
+    
+    def _get_preliminary_solution(self, problem: str) -> str:
+        """获取初步方案（可能不完美）"""
+        # 即使不确定，也提供一个起点
+        if "性能优化" in problem:
+            return "可以考虑使用缓存"
+        elif "并发处理" in problem:
+            return "可以使用 asyncio.gather"
+        # ... 可能不是最佳方案，但能引发讨论
+        return "初步方案"
+
+# ❌ 避免：等待完美方案
+def propose_solution_bad(problem: str):
+    """提出方案 - 等待完美"""
+    # 不确定最佳方案，所以不提出任何方案
+    # 结果：讨论无法开始，问题无法解决
+    return None
+```
+
+### 2. 代码审查中的讨论
+
+#### 提出可能的改进引发讨论
+
+```python
+# ✅ 好的做法：在代码审查中提出可能的改进
+class CodeReviewDiscussion:
+    """代码审查讨论"""
+    
+    def review_with_discussion(self, code: str):
+        """审查代码并引发讨论"""
+        # 即使不确定，也提出可能的改进
+        suggestions = [
+            {
+                "code": code,
+                "suggestion": "这里可能可以用更高效的方法",
+                "uncertainty": "不确定是否真的更高效，想听听大家的意见",
+                "alternative": "或者保持现状也可以"
+            },
+            {
+                "code": code,
+                "suggestion": "这里可能缺少错误处理",
+                "uncertainty": "不确定这个场景是否真的需要",
+                "question": "这个场景下会出错吗？"
+            }
+        ]
+        
+        # 这些"可能"的建议会引发讨论
+        # 从而得到更准确的答案
+        return self._post_review(suggestions)
+
+# 使用示例
+def review_example():
+    """审查示例"""
+    # 提出可能的问题
+    comment = """
+    这里可能有个问题：使用同步调用可能影响性能。
+    
+    不确定是否真的需要优化，想听听大家的意见。
+    如果这个函数调用频率不高，可能不需要优化。
+    如果调用频率高，建议考虑异步。
+    """
+    return comment
+```
+
+### 3. 架构设计讨论
+
+#### 提出初步架构引发讨论
+
+```python
+# ✅ 好的做法：提出初步架构
+class ArchitectureDiscussion:
+    """架构设计讨论"""
+    
+    def propose_architecture(self, requirements: dict) -> dict:
+        """提出初步架构"""
+        # 即使不确定，也提出一个架构方案
+        preliminary_architecture = {
+            "requirements": requirements,
+            "proposed_architecture": {
+                "pattern": "微服务架构",  # 可能不是最佳选择
+                "services": ["report-service", "audio-service"],
+                "communication": "HTTP API",  # 可能消息队列更好
+                "database": "MySQL"  # 可能PostgreSQL更好
+            },
+            "uncertainties": [
+                "不确定微服务是否适合当前规模",
+                "不确定HTTP是否比消息队列更适合",
+                "不确定数据库选择是否最优"
+            ],
+            "request_feedback": True
+        }
+        
+        # 发布到架构讨论
+        discussion = self._post_architecture_discussion(preliminary_architecture)
+        
+        # 等待专家纠正和建议
+        return discussion
+
+# 使用示例
+def architecture_discussion_example():
+    """架构讨论示例"""
+    proposal = """
+    我提出了一个初步的架构方案：
+    - 使用微服务架构
+    - 服务间通过HTTP通信
+    - 使用MySQL数据库
+    
+    不确定这是否是最佳选择，想听听大家的意见。
+    特别是：
+    - 当前规模是否适合微服务？
+    - HTTP vs 消息队列？
+    - MySQL vs PostgreSQL？
+    """
+    return proposal
+```
+
+### 4. 问题解决中的讨论
+
+#### 提出可能的解决方案
+
+```python
+# ✅ 好的做法：提出可能的解决方案
+def solve_problem_with_discussion(problem: str) -> dict:
+    """解决问题 - 引发讨论"""
+    # 即使不确定，也提出可能的解决方案
+    possible_solutions = [
+        {
+            "solution": "方案A：使用缓存",
+            "pros": ["简单", "快速"],
+            "cons": ["可能不一致", "需要失效策略"],
+            "uncertainty": "不确定是否适合这个场景"
+        },
+        {
+            "solution": "方案B：使用消息队列",
+            "pros": ["解耦", "可扩展"],
+            "cons": ["复杂", "需要额外基础设施"],
+            "uncertainty": "不确定是否过度设计"
+        },
+        {
+            "solution": "方案C：直接数据库查询",
+            "pros": ["简单", "一致"],
+            "cons": ["可能性能问题", "数据库压力"],
+            "uncertainty": "不确定性能是否可接受"
+        }
+    ]
+    
+    # 发布到讨论区
+    discussion = post_to_discussion({
+        "problem": problem,
+        "possible_solutions": possible_solutions,
+        "request_feedback": True
+    })
+    
+    # 等待专家纠正和讨论
+    return discussion
+
+# ❌ 避免：等待完美方案
+def solve_problem_bad(problem: str):
+    """解决问题 - 等待完美方案"""
+    # 不确定最佳方案，所以不提出任何方案
+    # 结果：问题无法解决
+    return None
+```
+
+### 5. 文档编写中的讨论
+
+#### 提出初步文档引发纠正
+
+```python
+# ✅ 好的做法：提出初步文档
+class DocumentationDiscussion:
+    """文档讨论"""
+    
+    def propose_documentation(self, topic: str) -> dict:
+        """提出初步文档"""
+        # 即使不确定，也写一个初步文档
+        preliminary_doc = {
+            "topic": topic,
+            "content": self._write_preliminary_doc(topic),
+            "uncertainties": [
+                "不确定这个描述是否准确",
+                "不确定是否遗漏了重要信息",
+                "不确定示例是否正确"
+            ],
+            "request_review": True
+        }
+        
+        # 发布到文档审查
+        review = self._post_documentation_review(preliminary_doc)
+        
+        # 等待纠正和补充
+        return review
+    
+    def _write_preliminary_doc(self, topic: str) -> str:
+        """编写初步文档（可能不完整或不准确）"""
+        # 即使不确定，也提供一个起点
+        return f"""
+        # {topic}
+        
+        这是一个初步的文档，可能不完整或不准确。
+        
+        请帮忙纠正和补充。
+        """
+
+# 使用示例
+def documentation_example():
+    """文档示例"""
+    doc = """
+    # API 使用指南
+    
+    这是一个初步的API使用指南，可能不完整或不准确。
+    
+    ## 基本用法
+    
+    ```python
+    # 可能不是最佳实践，请纠正
+    response = requests.get("/api/live/sessions")
+    ```
+    
+    请帮忙：
+    - 纠正错误的用法
+    - 补充遗漏的信息
+    - 改进示例代码
+    """
+    return doc
+```
+
+### 6. 代码重构讨论
+
+#### 提出重构方案引发讨论
+
+```python
+# ✅ 好的做法：提出重构方案
+class RefactoringDiscussion:
+    """重构讨论"""
+    
+    def propose_refactoring(self, code: str) -> dict:
+        """提出重构方案"""
+        # 即使不确定，也提出一个重构方案
+        refactoring_proposal = {
+            "current_code": code,
+            "proposed_refactoring": self._get_refactoring_idea(code),
+            "rationale": "可能可以提高可读性和可维护性",
+            "uncertainties": [
+                "不确定是否真的更好",
+                "不确定是否有副作用",
+                "不确定是否值得重构"
+            ],
+            "request_feedback": True
+        }
+        
+        # 发布到重构讨论
+        discussion = self._post_refactoring_discussion(refactoring_proposal)
+        
+        # 等待专家意见
+        return discussion
+
+# 使用示例
+def refactoring_example():
+    """重构示例"""
+    proposal = """
+    我提出了一个重构方案：
+    
+    当前代码：
+    ```python
+    def process_data(data):
+        result = []
+        for item in data:
+            result.append(process_item(item))
+        return result
+    ```
+    
+    重构方案：
+    ```python
+    def process_data(data):
+        return [process_item(item) for item in data]
+    ```
+    
+    可能的好处：
+    - 更简洁
+    - 更Pythonic
+    
+    不确定：
+    - 是否真的更好？
+    - 是否有性能影响？
+    - 是否值得重构？
+    
+    想听听大家的意见。
+    """
+    return proposal
+```
+
+### 7. 技术选型讨论
+
+#### 提出初步选型引发讨论
+
+```python
+# ✅ 好的做法：提出初步技术选型
+class TechnologySelection:
+    """技术选型讨论"""
+    
+    def propose_technology(self, requirement: str) -> dict:
+        """提出初步技术选型"""
+        # 即使不确定，也提出一个选择
+        preliminary_selection = {
+            "requirement": requirement,
+            "proposed_technology": "FastAPI",  # 可能不是最佳选择
+            "alternatives": ["Flask", "Django", "FastAPI"],
+            "rationale": "FastAPI可能适合，因为支持异步",
+            "uncertainties": [
+                "不确定是否真的最适合",
+                "不确定是否有更好的选择",
+                "不确定团队是否熟悉"
+            ],
+            "request_feedback": True
+        }
+        
+        # 发布到技术选型讨论
+        discussion = self._post_technology_discussion(preliminary_selection)
+        
+        # 等待纠正和建议
+        return discussion
+
+# 使用示例
+def technology_selection_example():
+    """技术选型示例"""
+    proposal = """
+    我提出了一个初步的技术选型：
+    
+    需求：构建RESTful API
+    初步选择：FastAPI
+    
+    理由：
+    - 支持异步
+    - 自动生成文档
+    - 类型提示
+    
+    不确定：
+    - 是否真的最适合？
+    - Flask或Django是否更好？
+    - 团队是否熟悉？
+    
+    想听听大家的意见。
+    """
+    return proposal
+```
+
+## 实践建议
+
+### 1. 讨论模板
+
+```python
+DISCUSSION_TEMPLATE = """
+我提出了一个初步的{type}：
+
+{proposal}
+
+不确定的地方：
+- {uncertainty_1}
+- {uncertainty_2}
+
+想听听大家的意见，特别是：
+- {question_1}
+- {question_2}
+
+请帮忙纠正和补充！
+"""
+```
+
+### 2. 使用场景
+
+```python
+# 适合使用坎宁安定律的场景
+SUITABLE_SCENARIOS = [
+    "技术方案不确定",
+    "架构设计需要讨论",
+    "代码审查需要意见",
+    "问题解决需要方案",
+    "文档需要完善",
+    "重构需要建议",
+    "技术选型需要讨论"
+]
+
+# 不适合的场景
+UNSUITABLE_SCENARIOS = [
+    "已经有明确的最佳实践",
+    "问题已经有标准答案",
+    "时间紧急，需要立即决策",
+    "涉及安全或关键业务逻辑"
+]
+```
+
+## 与项目其他原则的配合
+
+- **与 YAGNI 配合**：提出初步方案，不要等待完美方案
+- **与 KISS 配合**：从简单方案开始，通过讨论改进
+- **与汉隆的剃刀配合**：假设提出的方案是善意的尝试
+
+## 代码审查检查点
+
+在代码审查时，检查：
+1. 是否提出了初步方案引发讨论？
+2. 是否明确表达了不确定性？
+3. 是否请求了反馈？
+4. 是否欢迎纠正和建议？
+
+## 记住
+
+**有时候，提出一个可能不完美的方案，比等待完美方案更有效。**
+
+- 在不确定时，提出初步方案
+- 明确表达不确定性和疑问
+- 欢迎纠正和建议
+- 利用人们的纠错心理
+- 通过讨论得到更好的方案
+
+**不要等待完美，先提出一个起点，然后通过讨论改进。**

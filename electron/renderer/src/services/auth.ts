@@ -73,9 +73,9 @@ export const register = async (payload: RegisterRequest): Promise<RegisterRespon
   
   return apiCall<RegisterResponse>(
     () => fetch(buildAuthUrl('/api/auth/register'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
     }),
     '注册'
   );
@@ -87,9 +87,9 @@ export const uploadPayment = async (file: File) => {
   const authHeaders = await authService.getAuthHeaders();
   return apiCall(
     () => fetch(buildAuthUrl('/api/payment/upload'), {
-      method: 'POST',
-      headers: authHeaders,
-      body: form,
+    method: 'POST',
+    headers: authHeaders,
+    body: form,
     }),
     '上传支付凭证'
   );
@@ -98,7 +98,7 @@ export const uploadPayment = async (file: File) => {
 export const pollPayment = async () => {
   return apiCall(
     () => fetchJsonWithAuth('main', '/api/payment/poll', {
-      method: 'GET',
+    method: 'GET',
     }, getAuthBaseUrl()),
     '查询支付状态'
   );

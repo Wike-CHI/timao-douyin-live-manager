@@ -1,0 +1,588 @@
+---
+description: 雅各布定律 - 用户希望网站像他们已经知道的网站那样工作，遵循设计惯例
+globs: ["**/*.tsx", "**/*.ts", "**/*.jsx", "**/*.js", "**/*.vue", "**/*.html", "**/*.css"]
+alwaysApply: true
+---
+
+# 雅各布定律 (Jakob's Law)
+
+## 核心思想
+
+"用户将大部分时间花在其他网站上。这意味着他们希望你的网站能像他们已经知道的其他网站那样工作。" 遵循设计惯例和用户习惯。不要为了创新而强行改变用户习以为常的交互模式（例如，把购物车图标换成一台拖拉机）。
+
+## 在本项目中的应用规则
+
+### 1. 导航模式
+
+#### 遵循常见的导航模式
+
+```typescript
+// ✅ 好的做法：遵循常见的导航模式
+const Navigation: React.FC = () => {
+  return (
+    <nav className="main-navigation">
+      {/* 顶部导航栏 - 常见模式 */}
+      <div className="nav-header">
+        <Logo /> {/* 左上角 Logo */}
+        <NavMenu /> {/* 中间导航菜单 */}
+        <UserMenu /> {/* 右上角用户菜单 */}
+      </div>
+    </nav>
+  );
+};
+
+// CSS - 常见的导航布局
+.main-navigation {
+  position: fixed;
+  top: 0;  /* 顶部导航 - 用户习惯 */
+  left: 0;
+  right: 0;
+  height: 64px;
+  background: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  z-index: 1000;
+}
+
+.nav-header {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+}
+
+// Logo 在左上角 - 用户习惯
+.logo {
+  margin-right: 32px;
+  cursor: pointer;  /* 可点击返回首页 */
+}
+
+// 导航菜单在中间
+.nav-menu {
+  display: flex;
+  gap: 24px;
+}
+
+// 用户菜单在右上角 - 用户习惯
+.user-menu {
+  margin-left: auto;
+}
+
+// ❌ 避免：创新的导航模式
+const BadNavigation: React.FC = () => {
+  return (
+    <nav className="innovative-nav">
+      {/* 底部导航 - 移动端常见，但桌面端不常见 */}
+      {/* 侧边导航 - 可能不符合用户习惯 */}
+      {/* 圆形导航 - 创新但不符合习惯 */}
+    </nav>
+  );
+};
+```
+
+### 2. 图标和符号
+
+#### 使用常见的图标
+
+```typescript
+// ✅ 好的做法：使用常见的图标
+import {
+  HomeIcon,      // 首页 - 房子图标
+  SettingsIcon,  // 设置 - 齿轮图标
+  UserIcon,      // 用户 - 人像图标
+  SearchIcon,    // 搜索 - 放大镜图标
+  MenuIcon,      // 菜单 - 汉堡图标
+  CloseIcon,     // 关闭 - X 图标
+  EditIcon,      // 编辑 - 铅笔图标
+  DeleteIcon,    // 删除 - 垃圾桶图标
+  SaveIcon,      // 保存 - 磁盘图标
+  DownloadIcon   // 下载 - 向下箭头图标
+} from 'lucide-react';
+
+const IconButtons: React.FC = () => {
+  return (
+    <div>
+      {/* 使用用户熟悉的图标 */}
+      <button>
+        <HomeIcon /> 首页
+      </button>
+      <button>
+        <SettingsIcon /> 设置
+      </button>
+      <button>
+        <SearchIcon /> 搜索
+      </button>
+      <button>
+        <SaveIcon /> 保存
+      </button>
+    </div>
+  );
+};
+
+// ❌ 避免：使用不常见的图标
+const BadIconButtons: React.FC = () => {
+  return (
+    <div>
+      {/* 使用用户不熟悉的图标 */}
+      <button>
+        <TractorIcon /> 购物车  {/* 错误：应该用购物车图标 */}
+      </button>
+      <button>
+        <StarIcon /> 设置  {/* 错误：应该用齿轮图标 */}
+      </button>
+    </div>
+  );
+};
+```
+
+### 3. 表单设计
+
+#### 遵循常见的表单模式
+
+```typescript
+// ✅ 好的做法：遵循常见的表单模式
+const LoginForm: React.FC = () => {
+  return (
+    <form className="login-form">
+      {/* 常见的登录表单布局 */}
+      <h1>登录</h1>
+      
+      <div className="form-group">
+        <label htmlFor="username">用户名</label>
+        <input
+          type="text"
+          id="username"
+          name="username"
+          placeholder="请输入用户名"
+          required
+        />
+      </div>
+      
+      <div className="form-group">
+        <label htmlFor="password">密码</label>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          placeholder="请输入密码"
+          required
+        />
+      </div>
+      
+      <div className="form-options">
+        <label>
+          <input type="checkbox" /> 记住我
+        </label>
+        <a href="/forgot-password">忘记密码？</a>
+      </div>
+      
+      <button type="submit" className="btn-primary btn-full-width">
+        登录
+      </button>
+      
+      <div className="form-footer">
+        没有账号？ <a href="/register">立即注册</a>
+      </div>
+    </form>
+  );
+};
+
+// CSS - 常见的表单样式
+.login-form {
+  max-width: 400px;
+  margin: 0 auto;
+  padding: 32px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+.btn-full-width {
+  width: 100%;
+  margin-top: 24px;
+}
+
+// ❌ 避免：创新的表单设计
+const BadLoginForm: React.FC = () => {
+  return (
+    <form className="innovative-form">
+      {/* 创新的表单布局 - 但用户不熟悉 */}
+      {/* 横向布局 - 不符合习惯 */}
+      {/* 圆形输入框 - 不符合习惯 */}
+      {/* 非标准的提交方式 */}
+    </form>
+  );
+};
+```
+
+### 4. 按钮设计
+
+#### 遵循常见的按钮样式
+
+```typescript
+// ✅ 好的做法：遵循常见的按钮样式
+const Buttons: React.FC = () => {
+  return (
+    <div>
+      {/* 主要按钮 - 蓝色/主题色，用户熟悉 */}
+      <button className="btn-primary">
+        确认
+      </button>
+      
+      {/* 次要按钮 - 灰色/边框，用户熟悉 */}
+      <button className="btn-secondary">
+        取消
+      </button>
+      
+      {/* 危险操作 - 红色，用户熟悉 */}
+      <button className="btn-danger">
+        删除
+      </button>
+      
+      {/* 链接按钮 - 文本样式，用户熟悉 */}
+      <button className="btn-link">
+        了解更多
+      </button>
+    </div>
+  );
+};
+
+// CSS - 常见的按钮样式
+.btn-primary {
+  background: #007bff;  /* 蓝色 - 用户熟悉 */
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-secondary {
+  background: white;
+  color: #333;
+  border: 1px solid #ddd;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-danger {
+  background: #dc3545;  /* 红色 - 用户熟悉 */
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-link {
+  background: none;
+  color: #007bff;
+  border: none;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+// ❌ 避免：创新的按钮样式
+const BadButtons: React.FC = () => {
+  return (
+    <div>
+      {/* 创新的按钮样式 - 但用户不熟悉 */}
+      <button className="btn-innovative">
+        {/* 圆形按钮 - 不符合习惯 */}
+        {/* 非标准颜色 - 不符合习惯 */}
+        {/* 非标准位置 - 不符合习惯 */}
+      </button>
+    </div>
+  );
+};
+```
+
+### 5. 数据表格
+
+#### 遵循常见的表格模式
+
+```typescript
+// ✅ 好的做法：遵循常见的表格模式
+const DataTable: React.FC = () => {
+  return (
+    <div className="table-container">
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>
+              <input type="checkbox" /> 全选
+            </th>
+            <th>ID</th>
+            <th>名称</th>
+            <th>状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map(item => (
+            <tr key={item.id}>
+              <td>
+                <input type="checkbox" />
+              </td>
+              <td>{item.id}</td>
+              <td>{item.name}</td>
+              <td>
+                <span className={`status-badge status-${item.status}`}>
+                  {item.status}
+                </span>
+              </td>
+              <td>
+                <button className="btn-action">编辑</button>
+                <button className="btn-action">删除</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      
+      {/* 分页 - 常见的底部位置 */}
+      <div className="pagination">
+        <button>上一页</button>
+        <span>第 1 页，共 10 页</span>
+        <button>下一页</button>
+      </div>
+    </div>
+  );
+};
+
+// CSS - 常见的表格样式
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th {
+  background: #f5f5f5;
+  padding: 12px;
+  text-align: left;
+  border-bottom: 2px solid #ddd;
+}
+
+.data-table td {
+  padding: 12px;
+  border-bottom: 1px solid #eee;
+}
+
+.data-table tr:hover {
+  background: #f9f9f9;  /* 悬停高亮 - 用户熟悉 */
+}
+
+.pagination {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+}
+```
+
+### 6. 搜索功能
+
+#### 遵循常见的搜索模式
+
+```typescript
+// ✅ 好的做法：遵循常见的搜索模式
+const SearchBar: React.FC = () => {
+  return (
+    <div className="search-container">
+      {/* 搜索框 - 顶部，带图标，用户熟悉 */}
+      <div className="search-box">
+        <SearchIcon className="search-icon" />
+        <input
+          type="search"
+          placeholder="搜索..."
+          className="search-input"
+        />
+        <button className="search-button">搜索</button>
+      </div>
+      
+      {/* 搜索建议 - 下拉列表，用户熟悉 */}
+      <div className="search-suggestions">
+        <div className="suggestion-item">热门搜索</div>
+        <div className="suggestion-item">最近搜索</div>
+      </div>
+    </div>
+  );
+};
+
+// CSS - 常见的搜索样式
+.search-box {
+  display: flex;
+  align-items: center;
+  border: 1px solid #ddd;
+  border-radius: 24px;  /* 圆角搜索框 - 用户熟悉 */
+  padding: 8px 16px;
+  max-width: 600px;
+}
+
+.search-icon {
+  margin-right: 8px;
+  color: #999;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 16px;
+}
+
+.search-button {
+  margin-left: 8px;
+  padding: 6px 16px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+}
+```
+
+### 7. 模态框和对话框
+
+#### 遵循常见的模态框模式
+
+```typescript
+// ✅ 好的做法：遵循常见的模态框模式
+const ConfirmDialog: React.FC = () => {
+  return (
+    <div className="modal-overlay">
+      <div className="modal-dialog">
+        <div className="modal-header">
+          <h2>确认删除</h2>
+          <button className="modal-close">
+            <CloseIcon />
+          </button>
+        </div>
+        
+        <div className="modal-body">
+          <p>确定要删除这个项目吗？此操作不可撤销。</p>
+        </div>
+        
+        <div className="modal-footer">
+          <button className="btn-secondary">取消</button>
+          <button className="btn-danger">删除</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// CSS - 常见的模态框样式
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);  /* 半透明背景 - 用户熟悉 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-dialog {
+  background: white;
+  border-radius: 8px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid #eee;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid #eee;
+}
+```
+
+## 实践建议
+
+### 1. 设计模式库
+
+```typescript
+// 参考常见的设计模式
+const DESIGN_PATTERNS = {
+  "navigation": "顶部导航栏，Logo在左，菜单在中间，用户菜单在右",
+  "forms": "标签在上，输入框在下，提交按钮在底部",
+  "buttons": "主要按钮蓝色，次要按钮灰色，危险操作红色",
+  "tables": "表头灰色背景，行悬停高亮，操作按钮在右侧",
+  "modals": "居中显示，半透明背景，关闭按钮在右上角",
+  "search": "顶部搜索框，圆角，带搜索图标"
+};
+```
+
+### 2. 用户测试
+
+```typescript
+// 测试是否符合用户习惯
+const USER_TESTING_CHECKLIST = {
+  "navigation": "用户能否快速找到导航？",
+  "actions": "用户能否快速找到主要操作？",
+  "forms": "用户能否快速填写表单？",
+  "feedback": "用户能否理解反馈信息？",
+  "errors": "用户能否理解错误信息？"
+};
+```
+
+## 与项目其他原则的配合
+
+- **与最小意外配合**：遵循惯例，减少意外
+- **与席克定律配合**：减少选择，使用熟悉的模式
+- **与费茨定律配合**：按钮位置符合用户习惯
+
+## 代码审查检查点
+
+在代码审查时，检查：
+1. 导航是否符合常见模式？
+2. 图标是否使用用户熟悉的符号？
+3. 表单是否符合常见布局？
+4. 按钮样式是否符合用户习惯？
+5. 交互模式是否遵循惯例？
+
+## 记住
+
+**用户希望你的网站像他们已经知道的网站那样工作。**
+
+- 遵循设计惯例和用户习惯
+- 使用常见的图标和符号
+- 采用常见的布局和交互模式
+- 不要为了创新而改变用户习惯
+- 在熟悉的基础上创新，而不是完全重新设计
+
+**熟悉的设计让用户感到舒适和自信。**

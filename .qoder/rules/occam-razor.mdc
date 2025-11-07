@@ -1,0 +1,570 @@
+---
+description: 奥卡姆剃刀原理 - 如无必要勿增实体，防御过度工程，对抗代码熵增
+globs: ["**/*.py", "**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"]
+alwaysApply: true
+---
+
+# 奥卡姆剃刀原理 (Occam's Razor)
+
+## 核心思想
+
+"如无必要，勿增实体。" 在软件开发中，这意味着：在明确需要之前，不要增加复杂性。最简单的、能解决当前问题的方案，通常就是最好的方案。这是对抗"代码熵增"的"奥卡姆之力"。
+
+## 在本项目中的应用规则
+
+### 1. 防御过度工程
+
+#### 避免不必要的抽象层
+
+```python
+# ✅ 好的做法：直接实现，不增加抽象
+def calculate_total_price(items: List[Item]) -> float:
+    """计算总价 - 简单直接"""
+    total = 0.0
+    for item in items:
+        total += item.price * item.quantity
+    return total
+
+# ❌ 避免：过度抽象
+class PriceCalculatorStrategy:
+    """价格计算策略 - 过度抽象"""
+    def calculate(self, items: List[Item]) -> float:
+        pass
+
+class SimplePriceCalculator(PriceCalculatorStrategy):
+    def calculate(self, items: List[Item]) -> float:
+        # 实际上只是简单计算，不需要策略模式
+        pass
+
+class PriceCalculatorFactory:
+    """价格计算器工厂 - 过度抽象"""
+    def create_calculator(self, type: str) -> PriceCalculatorStrategy:
+        # 只有一个实现，不需要工厂
+        pass
+
+# 使用奥卡姆剃刀：直接使用函数，不需要类、策略、工厂
+```
+
+#### 避免不必要的配置系统
+
+```python
+# ✅ 好的做法：直接使用常量或简单配置
+# config.py
+MAX_RETRY_ATTEMPTS = 3
+REQUEST_TIMEOUT = 30
+DEFAULT_PAGE_SIZE = 20
+
+def fetch_data(url: str):
+    """获取数据 - 使用简单配置"""
+    for attempt in range(MAX_RETRY_ATTEMPTS):
+        try:
+            response = requests.get(url, timeout=REQUEST_TIMEOUT)
+            return response.json()
+        except Exception as e:
+            if attempt == MAX_RETRY_ATTEMPTS - 1:
+                raise
+            time.sleep(1)
+
+# ❌ 避免：过度复杂的配置系统
+class ConfigManager:
+    """配置管理器 - 过度复杂"""
+    def __init__(self):
+        self.config = self._load_from_file()
+        self.env_config = self._load_from_env()
+        self.dynamic_config = self._load_from_database()
+        # 实际上只需要几个常量
+    
+    def get(self, key: str, default=None):
+        # 复杂的配置查找逻辑
+        pass
+
+# 使用奥卡姆剃刀：直接使用常量，不需要配置管理器
+```
+
+### 2. 减少不必要的依赖
+
+#### 优先使用标准库
+
+```python
+# ✅ 好的做法：使用标准库
+import json
+import os
+from pathlib import Path
+from typing import List, Dict, Optional
+
+def load_config(file_path: str) -> dict:
+    """加载配置 - 使用标准库"""
+    with open(file_path, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+# ❌ 避免：引入不必要的第三方库
+import yaml  # 如果只需要 JSON，不需要 YAML
+import toml  # 如果只需要 JSON，不需要 TOML
+import configparser  # 如果只需要 JSON，不需要 ConfigParser
+
+def load_config_complex(file_path: str) -> dict:
+    """加载配置 - 使用多个库"""
+    # 实际上只需要 json 库
+    pass
+
+# 使用奥卡姆剃刀：只使用必要的库
+```
+
+#### 评估依赖的必要性
+
+```python
+# ✅ 好的做法：评估依赖的必要性
+def process_data(data: List[dict]) -> List[dict]:
+    """处理数据 - 使用标准库"""
+    # 使用列表推导式，不需要额外库
+    return [
+        {k: v for k, v in item.items() if v is not None}
+        for item in data
+    ]
+
+# ❌ 避免：引入不必要的库
+import pandas as pd  # 如果只是简单处理，不需要 pandas
+
+def process_data_with_pandas(data: List[dict]) -> pd.DataFrame:
+    """处理数据 - 使用 pandas"""
+    # 如果只是简单过滤，pandas 是过度工程
+    df = pd.DataFrame(data)
+    return df.dropna().to_dict('records')
+
+# 使用奥卡姆剃刀：评估依赖的收益是否大于复杂度成本
+```
+
+### 3. 简化代码结构
+
+#### 优先使用函数而非类
+
+```python
+# ✅ 好的做法：使用函数
+def format_timestamp(timestamp: int) -> str:
+    """格式化时间戳 - 简单函数"""
+    return datetime.fromtimestamp(timestamp / 1000).strftime("%Y-%m-%d %H:%M:%S")
+
+def validate_room_id(room_id: str) -> bool:
+    """验证房间ID - 简单函数"""
+    return bool(re.match(r'^\d+$', room_id))
+
+# ❌ 避免：为简单功能创建类
+class TimestampFormatter:
+    """时间戳格式化器 - 过度设计"""
+    def format(self, timestamp: int) -> str:
+        return datetime.fromtimestamp(timestamp / 1000).strftime("%Y-%m-%d %H:%M:%S")
+
+class RoomIdValidator:
+    """房间ID验证器 - 过度设计"""
+    def validate(self, room_id: str) -> bool:
+        return bool(re.match(r'^\d+$', room_id))
+
+# 使用奥卡姆剃刀：简单功能用函数，不需要类
+```
+
+#### 避免不必要的设计模式
+
+```python
+# ✅ 好的做法：直接实现
+def get_user_sessions(user_id: int) -> List[LiveSession]:
+    """获取用户会话 - 直接实现"""
+    return db.session.query(LiveSession).filter_by(user_id=user_id).all()
+
+# ❌ 避免：使用不必要的设计模式
+class SessionRepository:
+    """会话仓库 - 可能过度设计"""
+    def __init__(self, db_session):
+        self.db = db_session
+    
+    def find_by_user_id(self, user_id: int) -> List[LiveSession]:
+        return self.db.query(LiveSession).filter_by(user_id=user_id).all()
+
+class SessionService:
+    """会话服务 - 可能过度设计"""
+    def __init__(self, repository: SessionRepository):
+        self.repository = repository
+    
+    def get_user_sessions(self, user_id: int) -> List[LiveSession]:
+        return self.repository.find_by_user_id(user_id)
+
+# 使用奥卡姆剃刀：如果只有一个数据源，不需要仓库模式
+```
+
+### 4. 减少代码行数
+
+#### 保持代码简洁
+
+```python
+# ✅ 好的做法：简洁的代码
+def get_active_sessions(user_id: int) -> List[LiveSession]:
+    """获取活跃会话 - 简洁实现"""
+    return db.session.query(LiveSession).filter_by(
+        user_id=user_id,
+        status="active"
+    ).all()
+
+# ❌ 避免：冗长的代码
+def get_active_sessions_verbose(user_id: int) -> List[LiveSession]:
+    """获取活跃会话 - 冗长实现"""
+    query = db.session.query(LiveSession)
+    query = query.filter_by(user_id=user_id)
+    query = query.filter_by(status="active")
+    sessions = query.all()
+    return sessions
+
+# 使用奥卡姆剃刀：代码行数尽可能少，同时保证可读性
+```
+
+#### 使用 Pythonic 写法
+
+```python
+# ✅ 好的做法：Pythonic 写法
+def filter_active_sessions(sessions: List[LiveSession]) -> List[LiveSession]:
+    """过滤活跃会话 - Pythonic"""
+    return [s for s in sessions if s.status == "active"]
+
+# ❌ 避免：冗长的写法
+def filter_active_sessions_verbose(sessions: List[LiveSession]) -> List[LiveSession]:
+    """过滤活跃会话 - 冗长"""
+    active_sessions = []
+    for session in sessions:
+        if session.status == "active":
+            active_sessions.append(session)
+    return active_sessions
+
+# 使用奥卡姆剃刀：使用语言特性，减少代码量
+```
+
+### 5. 简化 API 设计
+
+#### 避免过度设计的 API
+
+```python
+# ✅ 好的做法：简单的 API
+@router.get("/api/live/sessions/{session_id}")
+async def get_session(session_id: int):
+    """获取会话 - 简单 API"""
+    session = db.session.query(LiveSession).filter_by(id=session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    return session
+
+# ❌ 避免：过度设计的 API
+@router.get("/api/live/sessions/{session_id}")
+async def get_session(
+    session_id: int,
+    include_details: bool = False,
+    include_audio: bool = False,
+    include_comments: bool = False,
+    format: str = "json",
+    version: str = "v1"
+):
+    """获取会话 - 过度设计"""
+    # 太多参数，可能不需要
+    session = get_session_with_options(
+        session_id,
+        include_details,
+        include_audio,
+        include_comments,
+        format,
+        version
+    )
+    return session
+
+# 使用奥卡姆剃刀：只提供当前需要的参数
+```
+
+### 6. 简化数据模型
+
+#### 避免过度设计的数据模型
+
+```python
+# ✅ 好的做法：简单的数据模型
+class LiveSession(db.Model):
+    """直播会话 - 简单模型"""
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.String(100))
+    user_id = db.Column(db.Integer)
+    status = db.Column(db.String(50))
+    started_at = db.Column(db.BigInteger)
+    stopped_at = db.Column(db.BigInteger)
+
+# ❌ 避免：过度设计的数据模型
+class LiveSessionComplex(db.Model):
+    """直播会话 - 过度设计"""
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.String(100))
+    user_id = db.Column(db.Integer)
+    status = db.Column(db.String(50))
+    started_at = db.Column(db.BigInteger)
+    stopped_at = db.Column(db.BigInteger)
+    # 可能不需要的字段
+    metadata = db.Column(db.JSON)  # 如果当前不需要
+    tags = db.Column(db.JSON)  # 如果当前不需要
+    analytics = db.Column(db.JSON)  # 如果当前不需要
+    # 可能不需要的关联
+    reports = db.relationship('Report', backref='session', lazy='dynamic')
+    comments = db.relationship('Comment', backref='session', lazy='dynamic')
+    # 可能不需要的索引
+    __table_args__ = (
+        db.Index('idx_room_status', 'room_id', 'status'),
+        db.Index('idx_user_status', 'user_id', 'status'),
+    )
+
+# 使用奥卡姆剃刀：只包含当前需要的字段和关联
+```
+
+### 7. 简化服务层
+
+#### 避免不必要的服务层
+
+```python
+# ✅ 好的做法：直接使用，或简单的服务层
+@router.post("/api/live/sessions")
+async def create_session(request: CreateSessionRequest):
+    """创建会话 - 直接实现"""
+    session = LiveSession(
+        room_id=request.room_id,
+        user_id=request.user_id
+    )
+    db.session.add(session)
+    db.session.commit()
+    return session
+
+# 或者简单的服务层
+class LiveSessionService:
+    """会话服务 - 简单服务层"""
+    def create_session(self, room_id: str, user_id: int) -> LiveSession:
+        session = LiveSession(room_id=room_id, user_id=user_id)
+        db.session.add(session)
+        db.session.commit()
+        return session
+
+# ❌ 避免：过度复杂的服务层
+class LiveSessionServiceComplex:
+    """会话服务 - 过度复杂"""
+    def __init__(self):
+        self.repository = SessionRepository()
+        self.validator = SessionValidator()
+        self.event_publisher = EventPublisher()
+        self.cache_manager = CacheManager()
+        self.logger = Logger()
+    
+    def create_session(self, room_id: str, user_id: int) -> LiveSession:
+        # 太多层，可能不需要
+        self.validator.validate(room_id, user_id)
+        session = self.repository.create(room_id, user_id)
+        self.event_publisher.publish('session_created', session)
+        self.cache_manager.invalidate(f'user_{user_id}_sessions')
+        self.logger.info(f'Session created: {session.id}')
+        return session
+
+# 使用奥卡姆剃刀：只在需要时添加服务层
+```
+
+## 与 AI 协作时的应用
+
+### 1. 给 AI 的 Prompt 设计
+
+```python
+# ✅ 好的 Prompt 示例
+AI_PROMPT_TEMPLATE = """
+请用最简化的方案实现{feature}功能。优先考虑：
+
+1. 不使用额外的第三方库，除非绝对必要
+2. 创建一个函数/方法来完成，而不是急于创建一个新的类
+3. 代码行数尽可能少，同时保证可读性
+4. 遵循 YAGNI 原则——"你不会需要它"
+5. 遵循奥卡姆剃刀原理——"如无必要，勿增实体"
+
+请避免：
+- 过度抽象
+- 不必要的设计模式
+- 复杂的配置系统
+- 多余的依赖
+"""
+
+# 使用示例
+prompt = AI_PROMPT_TEMPLATE.format(feature="报告生成功能")
+# 发送给 AI
+```
+
+### 2. 审查 AI 生成代码的检查清单
+
+```python
+# ✅ 代码审查检查清单
+CODE_REVIEW_CHECKLIST = {
+    "abstraction": "这个抽象层是必须的吗？没有它，核心逻辑能否同样清晰？",
+    "configuration": "这个配置项是真的需要动态调整，还是写死在代码里更简单直接？",
+    "design_pattern": "这个设计模式在这里是解决了实际问题，还是仅仅让代码'看起来'更专业？",
+    "dependency": "这个新引入的依赖，带来的收益是否远大于其复杂度成本？",
+    "class_vs_function": "这个功能真的需要一个类，还是一个函数就够了？",
+    "code_length": "这段代码能否更简洁？能否减少代码行数？",
+    "complexity": "这个复杂度是必要的，还是可以简化？"
+}
+
+def review_ai_code(code: str) -> dict:
+    """审查 AI 生成的代码"""
+    issues = []
+    
+    for check, question in CODE_REVIEW_CHECKLIST.items():
+        # 检查每个方面
+        if needs_simplification(code, check):
+            issues.append({
+                "check": check,
+                "question": question,
+                "suggestion": get_simplification_suggestion(code, check)
+            })
+    
+    return {
+        "code": code,
+        "issues": issues,
+        "can_simplify": len(issues) > 0
+    }
+```
+
+### 3. 对抗代码熵增
+
+```python
+# ✅ 好的做法：定期审查和简化
+class CodeEntropyFighter:
+    """代码熵增对抗者 - 奥卡姆之力"""
+    
+    def review_codebase(self, codebase_path: str) -> dict:
+        """审查代码库，找出可以简化的地方"""
+        issues = []
+        
+        # 1. 查找未使用的代码
+        unused_code = self._find_unused_code(codebase_path)
+        if unused_code:
+            issues.append({
+                "type": "unused_code",
+                "items": unused_code,
+                "action": "删除未使用的代码"
+            })
+        
+        # 2. 查找过度抽象
+        over_abstraction = self._find_over_abstraction(codebase_path)
+        if over_abstraction:
+            issues.append({
+                "type": "over_abstraction",
+                "items": over_abstraction,
+                "action": "简化抽象层"
+            })
+        
+        # 3. 查找不必要的依赖
+        unnecessary_deps = self._find_unnecessary_dependencies(codebase_path)
+        if unnecessary_deps:
+            issues.append({
+                "type": "unnecessary_dependencies",
+                "items": unnecessary_deps,
+                "action": "移除不必要的依赖"
+            })
+        
+        # 4. 查找重复代码
+        duplicate_code = self._find_duplicate_code(codebase_path)
+        if duplicate_code:
+            issues.append({
+                "type": "duplicate_code",
+                "items": duplicate_code,
+                "action": "提取公共代码"
+            })
+        
+        return {
+            "issues": issues,
+            "simplification_potential": self._calculate_potential(issues)
+        }
+    
+    def simplify_codebase(self, codebase_path: str):
+        """简化代码库 - 应用奥卡姆剃刀"""
+        review = self.review_codebase(codebase_path)
+        
+        for issue in review["issues"]:
+            logger.info(f"简化: {issue['action']}")
+            self._apply_simplification(issue)
+        
+        logger.info("代码库已简化，复杂度降低")
+```
+
+## 实践建议
+
+### 1. 简化决策流程
+
+```python
+# 简化决策流程
+SIMPLIFICATION_DECISION_TREE = {
+    "question": "这个实体（类、函数、配置、依赖）是必要的吗？",
+    "if_yes": "保留",
+    "if_no": {
+        "question": "没有它，核心逻辑能否同样清晰？",
+        "if_yes": "删除",
+        "if_no": "保留，但考虑简化"
+    }
+}
+
+def should_add_complexity(feature: str, complexity: dict) -> bool:
+    """是否应该增加复杂度"""
+    # 1. 当前需求明确要求这个吗？
+    if not is_explicitly_required(feature, complexity):
+        return False
+    
+    # 2. 没有它，核心逻辑能否同样清晰？
+    if can_achieve_same_clarity_without(feature, complexity):
+        return False
+    
+    # 3. 复杂度成本是否大于收益？
+    if complexity_cost(complexity) > complexity_benefit(complexity):
+        return False
+    
+    return True
+```
+
+### 2. 定期简化
+
+```python
+# 定期简化代码
+SIMPLIFICATION_SCHEDULE = {
+    "daily": "每次提交前检查：是否可以简化？",
+    "weekly": "每周回顾：是否有过度工程？",
+    "monthly": "每月审查：是否有不必要的抽象？",
+    "quarterly": "每季度重构：简化整体架构"
+}
+
+def daily_simplification_check(code_changes: List[str]):
+    """每日简化检查"""
+    for change in code_changes:
+        # 检查是否可以简化
+        if can_simplify(change):
+            logger.info(f"发现可简化代码: {change}")
+            suggest_simplification(change)
+```
+
+## 与项目其他原则的配合
+
+- **与 KISS 配合**：奥卡姆剃刀是 KISS 的理论基础
+- **与 YAGNI 配合**：两者都强调不要提前增加复杂度
+- **与 DRY 配合**：简化代码时保持 DRY
+- **与单一职责配合**：简化后的代码更容易保持单一职责
+
+## 代码审查检查点
+
+在代码审查时，检查：
+1. 这个抽象层是必须的吗？
+2. 这个配置项真的需要动态调整吗？
+3. 这个设计模式解决了实际问题吗？
+4. 这个依赖的收益大于复杂度成本吗？
+5. 这个功能真的需要一个类吗？
+6. 代码能否更简洁？
+7. 这个复杂度是必要的吗？
+
+## 记住
+
+**如无必要，勿增实体。**
+
+- 最简单的、能解决当前问题的方案，通常就是最好的方案
+- 防御过度工程，不要为了"未来可能的需求"增加复杂性
+- 减少不必要的依赖、抽象、配置和设计模式
+- 定期审查和简化代码，对抗"代码熵增"
+- 在与 AI 协作时，明确要求简化方案
+
+**你是对抗"代码熵增"的"奥卡姆之力"，手持"剃刀"，不断剃除不必要的复杂性。**

@@ -1,0 +1,130 @@
+---
+description: KISS原则 - 保持简单，避免不必要的复杂性
+globs: ["**/*.py", "**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"]
+alwaysApply: true
+---
+
+# KISS 原则 (Keep It Simple, Stupid)
+
+## 核心思想
+
+保持简单，甚至有点"笨"。这是奥卡姆剃刀的近亲，主张设计要尽可能简单，避免不必要的复杂性。简单的系统更健壮、更易于调试和维护。
+
+## 在本项目中的应用规则
+
+### 1. 代码实现优先级
+
+- **优先选择直白的 if/else** 而不是复杂的设计模式
+- **优先使用标准库和项目已有的工具**，而不是引入新的抽象层
+- **避免过度抽象**：除非能带来明确且必要的优势，否则不要创建额外的抽象层
+
+### 2. 函数设计
+
+- 函数应该做一件事，并且做得简单直接
+- 避免嵌套过深（建议不超过3层）
+- 优先使用列表推导式、字典推导式等 Pythonic 写法，但不要为了炫技而牺牲可读性
+
+```python
+# ✅ 好的做法：简单直接
+def calculate_total_price(items):
+    total = 0
+    for item in items:
+        total += item.price * item.quantity
+    return total
+
+# ❌ 避免：过度设计
+def calculate_total_price(items):
+    return reduce(lambda acc, item: acc + item.price * item.quantity, items, 0)
+```
+
+### 3. 类设计
+
+- 避免创建不必要的基类或接口
+- 优先使用 dataclass 或简单的类，而不是复杂的继承体系
+- 在 `server/app/services/` 中的服务类应该保持简单，专注于单一功能
+
+### 4. API 设计
+
+- FastAPI 路由函数应该直接调用服务层，避免中间层
+- 响应结构保持扁平，避免过度嵌套
+- 错误处理使用简单的 try/except，而不是复杂的异常处理链
+
+```python
+# ✅ 好的做法：简单直接
+@router.post("/api/live/start")
+async def start_live(request: StartLiveRequest):
+    try:
+        result = await live_service.start_live(request.room_id)
+        return {"success": True, "data": result}
+    except Exception as e:
+        logger.error(f"启动直播失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+```
+
+### 5. 配置管理
+
+- 使用简单的 JSON 配置文件（如 `config/app.json`），而不是复杂的配置系统
+- 环境变量优先于配置文件，但保持简单
+- 避免动态配置加载和热重载等复杂机制
+
+### 6. 数据库操作
+
+- 优先使用简单的 SQLAlchemy ORM 查询，而不是复杂的查询构建器
+- 避免过度使用数据库事务，只在必要时使用
+- 批量操作保持简单，使用 `bulk_insert_mappings` 等标准方法
+
+### 7. 异步处理
+
+- 使用 `asyncio` 和 `async/await`，但不要过度嵌套
+- 优先使用 `asyncio.gather()` 进行并发，而不是复杂的任务管理
+- 在 `server/app/services/` 中的异步服务保持简单
+
+### 8. 错误判断标准
+
+**如果你的解决方案看起来复杂，那它很可能就是错的。**
+
+在实现功能时，问自己：
+- 这个实现是否比最简单的方案复杂？
+- 增加的复杂性是否带来了明确且必要的优势？
+- 其他开发者能否快速理解这段代码？
+
+如果答案是否定的，选择更简单的方案。
+
+## 与项目其他原则的配合
+
+- **与 YAGNI 配合**：不要为了"将来可能有用"而增加复杂性
+- **与 DRY 配合**：提取重复代码时，保持提取后的代码简单
+- **与单一职责配合**：简单的类更容易保持单一职责
+
+## 代码审查检查点
+
+在代码审查时，检查：
+1. 是否有不必要的抽象层？
+2. 是否有过度使用的设计模式？
+3. 函数是否过于复杂（圈复杂度 > 10）？
+4. 是否有可以简化的条件判断？
+5. 是否有可以移除的中间变量或临时对象？
+
+## 示例：重构复杂代码
+
+```python
+# ❌ 复杂版本
+class LiveSessionManagerFactory:
+    def __init__(self, config):
+        self.config = config
+        self._managers = {}
+    
+    def get_manager(self, session_type):
+        if session_type not in self._managers:
+            if session_type == "live":
+                self._managers[session_type] = LiveSessionManager(self.config)
+            elif session_type == "recorded":
+                self._managers[session_type] = RecordedSessionManager(self.config)
+        return self._managers[session_type]
+
+# ✅ 简单版本（如果只需要一种类型）
+def get_session_manager():
+    return LiveSessionManager()
+```
+
+记住：**简单是终极的复杂**。保持代码简单，让未来的你（和其他开发者）感谢现在的你。
