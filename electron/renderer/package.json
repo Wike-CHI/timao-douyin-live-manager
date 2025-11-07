@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:live-audio": "vitest run src/services/__tests__/liveAudio.test.ts",
-    "test:service-urls": "vitest run src/services/__tests__/serviceUrls.test.ts"
+    "test:service-urls": "vitest run src/services/__tests__/serviceUrls.test.ts",
+    "test:http": "vitest run src/services/__tests__/http.test.ts"
   },
   "dependencies": {
     "chart.js": "^4.5.1",

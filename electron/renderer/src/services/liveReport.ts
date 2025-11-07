@@ -1,19 +1,13 @@
 import useAuthStore from '../store/useAuthStore';
-import authService from './authService';
 import { buildServiceUrl } from './apiConfig';
+import { buildJsonAuthHeaders } from './http';
 import { apiCall } from '../utils/error-handler';
 import type { ReviewData, ReportArtifacts } from '../types/report';
 
 // 导出类型供其他模块使用
 export type { ReviewData, ReportArtifacts } from '../types/report';
 
-const buildHeaders = async () => {
-  const authHeaders = await authService.getAuthHeaders();
-  return {
-    'Content-Type': 'application/json',
-    ...authHeaders,
-  };
-};
+const buildHeaders = buildJsonAuthHeaders;
 
 const buildReportUrl = (path: string, baseUrl?: string) =>
   buildServiceUrl('main', path, baseUrl);

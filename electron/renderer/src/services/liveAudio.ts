@@ -1,15 +1,9 @@
 import useAuthStore from '../store/useAuthStore';
-import authService from './authService';
 import { buildServiceUrl } from './apiConfig';
+import { buildJsonAuthHeaders } from './http';
 import { apiCall } from '../utils/error-handler';
 
-const buildHeaders = async () => {
-  const authHeaders = await authService.getAuthHeaders();
-  return {
-    'Content-Type': 'application/json',
-    ...authHeaders,
-  };
-};
+const buildHeaders = buildJsonAuthHeaders;
 
 
 export interface StartLiveAudioPayload {

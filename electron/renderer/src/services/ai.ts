@@ -1,6 +1,7 @@
 import useAuthStore from '../store/useAuthStore';
 import authService from './authService';
 import { buildServiceUrl } from './apiConfig';
+import { buildJsonAuthHeaders } from './http';
 import { apiCall } from '../utils/error-handler';
 
 const DEFAULT_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9030'; // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
@@ -8,13 +9,7 @@ const DEFAULT_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://
 /**
  * 构建包含鉴权信息的请求头
  */
-const buildHeaders = async (): Promise<Record<string, string>> => {
-  const authHeaders = await authService.getAuthHeaders();
-  return {
-    'Content-Type': 'application/json',
-    ...authHeaders,
-  };
-};
+const buildHeaders = buildJsonAuthHeaders;
 
 /**
  * 构建包含 token 的 URL（用于 EventSource，因为它不支持自定义 headers）
@@ -32,12 +27,8 @@ const buildAuthUrl = async (url: string): Promise<string> => {
  * 统一的 fetch 包装函数，自动添加鉴权头
  */
 const authFetch = async (path: string, options?: RequestInit, baseUrl?: string): Promise<Response> => {
-  const headers = {
-    ...(await buildHeaders()),
-    ...(options?.headers || {}),
-  };
-
-  const url = buildServiceUrl('main', path, baseUrl);
+  const headers = await buildJsonAuthHeaders(options?.headers as Record<string, string> | undefined);
+  const url = buildServiceUrl('main', path, baseUrl ?? DEFAULT_BASE_URL);
 
   return fetch(url, {
     ...options,

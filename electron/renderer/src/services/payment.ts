@@ -1,35 +1,12 @@
-import authService from './authService';
 import { buildServiceUrl } from './apiConfig';
+import { fetchJsonWithAuth, buildJsonAuthHeaders } from './http';
 import { SubscriptionPlan, CreateSubscriptionRequest } from '../types/api-types';
 import { apiCall } from '../utils/error-handler';
 
-/**
- * 构建包含鉴权信息的请求头
- */
-const buildHeaders = async (): Promise<Record<string, string>> => {
-  const authHeaders = await authService.getAuthHeaders();
-  return {
-    'Content-Type': 'application/json',
-    ...authHeaders,
-  };
-};
+const buildHeaders = buildJsonAuthHeaders;
 
-/**
- * 统一的 fetch 包装函数，自动添加鉴权头
- */
-const authFetch = async (path: string, options?: RequestInit, baseUrl?: string): Promise<Response> => {
-  const headers = {
-    ...(await buildHeaders()),
-    ...(options?.headers || {}),
-  };
-
-  const url = buildServiceUrl('main', path, baseUrl);
-
-  return fetch(url, {
-    ...options,
-    headers,
-  });
-};
+const authFetch = (path: string, options?: RequestInit, baseUrl?: string) =>
+  fetchJsonWithAuth('main', path, options, baseUrl);
 
 /**
  * 处理响应（保留用于兼容性）
