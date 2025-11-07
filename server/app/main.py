@@ -70,12 +70,12 @@ if os.name == 'nt':  # Windows系统
     os.environ['PYTHONIOENCODING'] = 'utf-8'
     # 设置控制台编码为UTF-8
     try:
-        if hasattr(sys.stdout, 'reconfigure'):
+        if hasattr(sys.stdout, 'reconfigure') and callable(getattr(sys.stdout, 'reconfigure', None)):
             sys.stdout.reconfigure(encoding='utf-8')
     except Exception:
         pass
     try:
-        if hasattr(sys.stderr, 'reconfigure'):
+        if hasattr(sys.stderr, 'reconfigure') and callable(getattr(sys.stderr, 'reconfigure', None)):
             sys.stderr.reconfigure(encoding='utf-8')
     except Exception:
         pass
