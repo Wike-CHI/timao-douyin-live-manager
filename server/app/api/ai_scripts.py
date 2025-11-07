@@ -9,36 +9,20 @@ Requires Qwen Max credentials to be configured via environment variables.
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
 
 from ..services.ai_live_analyzer import get_ai_live_analyzer
+from server.app.schemas import GenerateOneScriptRequest, SubmitScriptFeedbackRequest
+from server.app.schemas.common import BaseResponse
+from server.app.utils.api import success_response, handle_service_error
 
 router = APIRouter(prefix="/api/ai/scripts", tags=["ai-scripts"])
 
 
-class GenOneReq(BaseModel):
-    script_type: str = Field("interaction", description="welcome/product/interaction/closing/question/emotion 等")
-    include_context: bool = Field(True, description="是否注入 style_profile/vibe")
-    # 可选直传热词或其他上下文
-    context: Optional[Dict[str, Any]] = Field(None, description="额外上下文，覆盖/补充生成上下文")
-
-
-class FeedbackReq(BaseModel):
-    script_id: str = Field(..., description="AI 生成结果的唯一标识")
-    script_text: str = Field(..., description="AI 输出的原始话术内容")
-    score: int = Field(..., ge=1, le=5, description="人工评分，1-2 视为负面，4-5 视为正面")
-    tags: List[str] = Field(default_factory=list, description="可选标签，如语气、风险等")
-    anchor_id: Optional[str] = Field(None, description="主播或房间ID，用于区分记忆")
-    metadata: Optional[Dict[str, Any]] = Field(
-        None, description="额外上下文，如style_profile/vibe等，便于后端记录"
-    )
-
-
-@router.post("/generate_one")
-def generate_one(req: GenOneReq) -> Dict[str, Any]:
+@router.post("/generate_one", response_model=BaseResponse[Dict[str, Any]])
+def generate_one(req: GenerateOneScriptRequest):
     try:
         # 1) 收集上下文（从实时分析服务获取最新风格与氛围）
         ctx: Dict[str, Any] = {}
@@ -84,13 +68,13 @@ def generate_one(req: GenOneReq) -> Dict[str, Any]:
 
         # 3) 生成单条话术（若未配置 API Key 会抛出异常）
         script = gen.generate_script(script_type=req.script_type, context=ctx)
-        return {"success": True, "data": script.to_dict()}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return success_response(script.to_dict())
+    except Exception as exc:
+        handle_service_error(exc, {}, default_message="生成话术失败", default_status=500)
 
 
-@router.post("/feedback")
-def submit_feedback(req: FeedbackReq) -> Dict[str, Any]:
+@router.post("/feedback", response_model=BaseResponse[Dict[str, Any]])
+def submit_feedback(req: SubmitScriptFeedbackRequest):
     try:
         from ...ai.feedback_memory import get_feedback_manager  # lazy import
     except Exception as exc:  # pragma: no cover
@@ -121,4 +105,4 @@ def submit_feedback(req: FeedbackReq) -> Dict[str, Any]:
             # 如果写入失败不影响主流程
             pass
 
-    return {"success": True}
+    return success_response({"accepted": True})

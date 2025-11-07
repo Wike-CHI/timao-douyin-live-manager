@@ -1,0 +1,364 @@
+---
+description: 帕累托原则 - 80%的结果来自20%的原因，优先处理重要的事情
+globs: ["**/*.py", "**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"]
+alwaysApply: true
+---
+
+# 帕累托原则 (Pareto Principle / 80-20 Rule)
+
+## 核心思想
+
+80% 的结果来自于 20% 的原因。在软件开发中，这意味着：
+- 80% 的性能损耗可能来自 20% 的代码
+- 80% 的 Bug 可能存在于 20% 的模块中
+- 80% 的用户使用 20% 的功能
+- 80% 的开发时间花在 20% 的功能上
+
+## 在本项目中的应用规则
+
+### 1. 性能优化策略
+
+#### 识别性能瓶颈
+
+优先优化那 20% 导致 80% 性能问题的代码。
+
+```python
+# ✅ 好的做法：先找到瓶颈，再优化
+import cProfile
+import pstats
+
+def profile_function(func):
+    """性能分析装饰器"""
+    def wrapper(*args, **kwargs):
+        profiler = cProfile.Profile()
+        profiler.enable()
+        result = func(*args, **kwargs)
+        profiler.disable()
+        stats = pstats.Stats(profiler)
+        stats.sort_stats('cumulative')
+        stats.print_stats(10)  # 打印前10个最耗时的函数
+        return result
+    return wrapper
+
+# 使用示例：找到真正的瓶颈
+@profile_function
+def generate_live_report(session_id: int):
+    """生成直播报告 - 先分析，再优化"""
+    # 如果发现 80% 的时间花在数据库查询上，优化查询
+    # 如果发现 80% 的时间花在 AI 处理上，优化 AI 调用
+    pass
+```
+
+#### 优化重点
+
+在 `server/app/services/` 中，重点关注：
+
+1. **数据库查询优化**
+   - 使用索引优化慢查询
+   - 避免 N+1 查询问题
+   - 使用批量操作替代循环查询
+
+```python
+# ❌ 性能问题：N+1 查询
+def get_user_sessions_with_details(user_id: int):
+    """获取用户的会话及详情 - 每个会话都查询一次详情"""
+    sessions = db.session.query(LiveSession).filter_by(user_id=user_id).all()
+    for session in sessions:
+        # 每个会话都查询一次 - 如果有100个会话，就是100次查询
+        session.details = db.session.query(SessionDetail).filter_by(
+            session_id=session.id
+        ).first()
+    return sessions
+
+# ✅ 优化后：使用 JOIN 或批量查询
+def get_user_sessions_with_details(user_id: int):
+    """获取用户的会话及详情 - 一次查询完成"""
+    sessions = db.session.query(LiveSession).join(
+        SessionDetail
+    ).filter_by(user_id=user_id).all()
+    return sessions
+```
+
+2. **AI 服务调用优化**
+   - 批量处理替代单个调用
+   - 缓存常见结果
+   - 异步处理耗时操作
+
+```python
+# ❌ 性能问题：串行调用 AI 服务
+async def process_transcripts(transcripts: List[str]):
+    """处理转写文本 - 串行调用，很慢"""
+    results = []
+    for transcript in transcripts:
+        # 每个都等待，如果有100个，就是100次等待
+        result = await ai_service.analyze(transcript)
+        results.append(result)
+    return results
+
+# ✅ 优化后：并发处理
+async def process_transcripts(transcripts: List[str]):
+    """处理转写文本 - 并发调用，快很多"""
+    tasks = [ai_service.analyze(transcript) for transcript in transcripts]
+    results = await asyncio.gather(*tasks)
+    return results
+```
+
+3. **文件 I/O 优化**
+   - 批量读写替代频繁的小操作
+   - 使用异步 I/O
+   - 缓存文件内容
+
+### 2. Bug 修复优先级
+
+#### 识别问题模块
+
+优先修复那 20% 包含 80% Bug 的模块。
+
+```python
+# 使用错误日志分析
+def analyze_error_logs():
+    """分析错误日志，找出问题最多的模块"""
+    error_counts = {}
+    with open("logs/error.log") as f:
+        for line in f:
+            # 解析错误来源
+            module = extract_module_from_error(line)
+            error_counts[module] = error_counts.get(module, 0) + 1
+    
+    # 按错误数量排序
+    sorted_modules = sorted(error_counts.items(), key=lambda x: x[1], reverse=True)
+    
+    # 前20%的模块可能包含80%的错误
+    top_modules = sorted_modules[:len(sorted_modules) // 5]
+    print("需要重点关注的模块：")
+    for module, count in top_modules:
+        print(f"  {module}: {count} 个错误")
+```
+
+#### 测试重点
+
+优先测试那 20% 最复杂、最容易出错的功能。
+
+```python
+# ✅ 好的做法：重点测试核心功能
+# tests/test_services/test_live_report_service.py
+# 这是核心服务，应该重点测试
+
+def test_generate_report():
+    """测试报告生成 - 核心功能，重点测试"""
+    pass
+
+def test_audio_transcription():
+    """测试音频转写 - 核心功能，重点测试"""
+    pass
+
+# 次要功能可以简化测试
+def test_format_timestamp():
+    """测试时间格式化 - 简单功能，基础测试即可"""
+    pass
+```
+
+### 3. 功能开发优先级
+
+#### 识别核心功能
+
+优先实现那 20% 满足 80% 用户需求的核心功能。
+
+在抖音直播管理系统中，核心功能可能包括：
+1. 直播录制（`live_report_service.py`）
+2. 音频转写（`live_audio_service.py`）
+3. 报告生成（`live_report_service.py`）
+4. 会话管理（`live_session_manager.py`）
+
+次要功能可以后续迭代：
+- 高级数据分析
+- 自定义报告模板
+- 批量导出功能
+
+#### MVP 开发策略
+
+```python
+# ✅ MVP 版本：只实现核心功能
+class LiveReportService:
+    """MVP 版本：只实现核心的报告生成功能"""
+    
+    def generate_basic_report(self, session_id: int) -> dict:
+        """生成基础报告 - 核心功能"""
+        # 只包含最必要的信息
+        return {
+            "summary": self._generate_summary(session_id),
+            "duration": self._calculate_duration(session_id)
+        }
+    
+    # 高级功能留到后续迭代
+    # def generate_advanced_report(self, session_id: int, options: dict):
+    #     """生成高级报告 - 后续实现"""
+    #     pass
+```
+
+### 4. 代码审查重点
+
+#### 审查核心模块
+
+优先审查那 20% 最重要的代码：
+
+1. **核心服务**（`server/app/services/` 中的主要服务）
+2. **API 路由**（`server/app/api/` 中的核心端点）
+3. **数据模型**（`server/app/models/` 中的核心模型）
+4. **工具函数**（`server/utils/` 中广泛使用的工具）
+
+#### 审查检查清单
+
+对于核心代码，重点检查：
+- 错误处理是否完善？
+- 性能是否有问题？
+- 安全性是否有漏洞？
+- 测试是否充分？
+
+对于次要代码，基础检查即可：
+- 功能是否正确？
+- 代码风格是否一致？
+
+### 5. 重构策略
+
+#### 识别技术债务
+
+优先重构那 20% 造成 80% 维护成本的代码。
+
+```python
+# 使用代码复杂度分析工具
+# 找出最复杂的函数，优先重构
+
+# ❌ 高复杂度函数：需要重构
+def process_live_session(session_id: int):
+    """这个函数太复杂，包含太多逻辑"""
+    # 100+ 行代码
+    # 多个嵌套的 if/else
+    # 多个职责
+    pass
+
+# ✅ 重构后：拆分成多个简单函数
+def process_live_session(session_id: int):
+    """组合多个简单函数"""
+    session = get_session(session_id)
+    validate_session(session)
+    process_audio(session)
+    generate_report(session)
+    update_status(session)
+```
+
+### 6. 依赖管理
+
+#### 识别关键依赖
+
+优先关注那 20% 最重要的依赖：
+
+1. **核心框架**：FastAPI, SQLAlchemy
+2. **AI 服务**：SenseVoice, Gemini
+3. **数据处理**：ffmpeg, streamget
+
+次要依赖可以简化管理：
+- 工具库
+- 开发依赖
+- 可选功能依赖
+
+### 7. 监控和日志
+
+#### 监控重点
+
+优先监控那 20% 最关键的业务指标：
+
+```python
+# ✅ 好的做法：重点监控核心指标
+class LiveReportService:
+    """监控核心业务指标"""
+    
+    def generate_report(self, session_id: int):
+        start_time = time.time()
+        try:
+            # 核心业务逻辑
+            report = self._generate_report(session_id)
+            
+            # 记录核心指标
+            duration = time.time() - start_time
+            logger.info(f"报告生成成功: session_id={session_id}, duration={duration:.2f}s")
+            
+            # 监控核心指标
+            metrics.record("report_generation_success", duration)
+            
+            return report
+        except Exception as e:
+            # 记录核心错误
+            logger.error(f"报告生成失败: session_id={session_id}, error={e}")
+            metrics.record("report_generation_failure")
+            raise
+```
+
+### 8. 学习和技术提升
+
+#### 学习重点
+
+优先学习那 20% 最常用的技术：
+
+1. **项目核心技术栈**：Python, FastAPI, SQLAlchemy, TypeScript, React
+2. **项目特定技术**：ffmpeg, SenseVoice, 抖音 API
+3. **通用技能**：Git, 测试, 代码审查
+
+次要技术可以按需学习：
+- 新框架和工具
+- 实验性技术
+- 特定场景的技术
+
+## 实践建议
+
+### 1. 使用数据分析
+
+- 使用性能分析工具找出瓶颈
+- 使用错误日志分析找出问题模块
+- 使用代码复杂度分析找出需要重构的代码
+
+### 2. 建立优先级清单
+
+```python
+# 优先级清单示例
+PRIORITY_TASKS = {
+    "P0": [
+        "优化数据库查询性能（影响80%的请求）",
+        "修复核心服务的 Bug",
+        "完善核心功能的测试"
+    ],
+    "P1": [
+        "优化次要功能的性能",
+        "改进代码质量",
+        "添加辅助功能"
+    ],
+    "P2": [
+        "代码风格统一",
+        "文档完善",
+        "可选功能开发"
+    ]
+}
+```
+
+### 3. 定期回顾
+
+- 每周回顾：哪些模块问题最多？
+- 每月回顾：哪些优化带来最大收益？
+- 每季度回顾：是否需要调整优先级？
+
+## 与项目其他原则的配合
+
+- **与 KISS 配合**：优先简化最复杂的 20% 代码
+- **与 YAGNI 配合**：优先实现那 20% 核心功能
+- **与 DRY 配合**：优先消除那 20% 最重复的代码
+
+## 记住
+
+**不是所有代码都同等重要。**
+
+- 识别那 20% 最重要的代码
+- 优先优化、测试、审查核心代码
+- 次要代码可以适当简化处理
+- 定期回顾和调整优先级
+
+**用 20% 的努力获得 80% 的收益，这是高效开发的关键。**

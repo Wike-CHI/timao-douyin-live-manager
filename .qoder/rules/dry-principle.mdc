@@ -1,0 +1,276 @@
+---
+description: DRY原则 - 不要重复你自己，消除代码重复
+globs: ["**/*.py", "**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"]
+alwaysApply: true
+---
+
+# DRY 原则 (Don't Repeat Yourself)
+
+## 核心思想
+
+系统中的每一处知识或逻辑，都必须有单一、明确、权威的表示。重复是万恶之源，它会导致代码臃肿，并在修改时极易产生不一致的 Bug。
+
+## 在本项目中的应用规则
+
+### 1. 识别重复代码
+
+**重复的三种类型**：
+- **代码重复**：相同的代码块出现在多个地方
+- **逻辑重复**：相同的业务逻辑用不同的代码实现
+- **数据重复**：相同的数据定义出现在多个地方
+
+### 2. 提取公共函数
+
+当相同的代码出现**2次或以上**时，应该提取为函数。
+
+```python
+# ❌ 重复代码
+def start_live_session(room_id: str):
+    try:
+        session = LiveSession(room_id=room_id)
+        session.status = "active"
+        session.started_at = int(time.time() * 1000)
+        db.session.add(session)
+        db.session.commit()
+        logger.info(f"直播会话已启动: {room_id}")
+    except Exception as e:
+        logger.error(f"启动失败: {e}")
+        db.session.rollback()
+        raise
+
+def stop_live_session(room_id: str):
+    try:
+        session = db.session.query(LiveSession).filter_by(room_id=room_id).first()
+        session.status = "stopped"
+        session.stopped_at = int(time.time() * 1000)
+        db.session.commit()
+        logger.info(f"直播会话已停止: {room_id}")
+    except Exception as e:
+        logger.error(f"停止失败: {e}")
+        db.session.rollback()
+        raise
+
+# ✅ 提取公共逻辑
+def _update_session_status(room_id: str, status: str, timestamp_field: str):
+    """更新会话状态的公共方法"""
+    try:
+        session = db.session.query(LiveSession).filter_by(room_id=room_id).first()
+        if not session:
+            raise ValueError(f"会话不存在: {room_id}")
+        session.status = status
+        setattr(session, timestamp_field, int(time.time() * 1000))
+        db.session.commit()
+        logger.info(f"直播会话状态已更新: {room_id} -> {status}")
+    except Exception as e:
+        logger.error(f"更新失败: {e}")
+        db.session.rollback()
+        raise
+
+def start_live_session(room_id: str):
+    session = LiveSession(room_id=room_id)
+    db.session.add(session)
+    _update_session_status(room_id, "active", "started_at")
+
+def stop_live_session(room_id: str):
+    _update_session_status(room_id, "stopped", "stopped_at")
+```
+
+### 3. 提取公共类和方法
+
+在 `server/app/services/` 中，如果多个服务有相同的逻辑，应该提取到基类或工具模块。
+
+```python
+# ✅ 好的做法：提取公共基类
+class BaseService:
+    """服务基类，提供公共方法"""
+    
+    def __init__(self, db_session):
+        self.db = db_session
+        self.logger = logging.getLogger(self.__class__.__name__)
+    
+    def handle_db_error(self, operation: str):
+        """统一的数据库错误处理"""
+        try:
+            self.db.commit()
+        except Exception as e:
+            self.logger.error(f"{operation} 数据库操作失败: {e}")
+            self.db.rollback()
+            raise
+
+class LiveReportService(BaseService):
+    def generate_report(self, session_id: str):
+        # 使用 self.handle_db_error() 而不是重复错误处理逻辑
+        pass
+```
+
+### 4. 配置和常量集中管理
+
+- 将配置集中在 `config/app.json` 或 `server/config.py`
+- 将常量定义在 `server/utils/` 中的专门模块
+- 避免在多个文件中硬编码相同的值
+
+```python
+# ❌ 重复的配置
+# 在 live_report_service.py 中
+MAX_SEGMENT_DURATION = 1800  # 30分钟
+
+# 在 live_audio_service.py 中
+SEGMENT_LENGTH = 1800  # 30分钟
+
+# ✅ 集中管理
+# 在 server/utils/config.py 中
+class LiveConfig:
+    MAX_SEGMENT_DURATION_SECONDS = 1800
+    SEGMENT_LENGTH_SECONDS = 1800
+```
+
+### 5. 数据模型和 Schema 复用
+
+- 在 `server/app/models/` 中定义数据模型，避免在多个地方重复定义
+- 使用 Pydantic Schema 统一 API 请求/响应格式
+- 避免在多个 API 端点中重复定义相同的数据结构
+
+```python
+# ✅ 好的做法：复用 Schema
+from server.app.schemas.live import LiveSessionSchema, LiveSessionCreateSchema
+
+@router.post("/api/live/start")
+async def start_live(data: LiveSessionCreateSchema):
+    # 使用统一的 Schema
+    pass
+
+@router.get("/api/live/sessions")
+async def list_sessions() -> List[LiveSessionSchema]:
+    # 使用统一的 Schema
+    pass
+```
+
+### 6. 工具函数集中管理
+
+- 将通用的工具函数放在 `server/utils/` 中
+- 避免在多个服务文件中重复实现相同的工具函数
+- 使用 `server/utils/helpers.py` 存放通用的辅助函数
+
+### 7. 错误处理和日志模式
+
+- 统一错误处理模式，使用装饰器或中间件
+- 统一日志格式和级别，在 `server/utils/logger.py` 中配置
+- 避免在每个函数中重复相同的错误处理代码
+
+```python
+# ✅ 好的做法：使用装饰器统一错误处理
+from functools import wraps
+
+def handle_service_errors(func):
+    """统一的服务错误处理装饰器"""
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except ValueError as e:
+            logger.warning(f"{func.__name__}: {e}")
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            logger.error(f"{func.__name__} 失败: {e}")
+            raise HTTPException(status_code=500, detail="内部服务器错误")
+    return wrapper
+
+@router.post("/api/live/start")
+@handle_service_errors
+async def start_live(data: LiveSessionCreateSchema):
+    # 不需要重复的错误处理代码
+    return await live_service.start_live(data)
+```
+
+### 8. 前端组件复用
+
+- 在 `admin-dashboard/src/` 中创建可复用的组件
+- 避免在多个页面中重复相同的 UI 逻辑
+- 提取公共的 Hook 和工具函数
+
+### 9. 数据库查询模式
+
+- 将常用的查询提取为模型方法或查询构建器
+- 避免在多个地方重复相同的查询逻辑
+- 使用 SQLAlchemy 的 `hybrid_property` 和 `hybrid_method` 复用查询逻辑
+
+```python
+# ✅ 好的做法：在模型中定义查询方法
+class LiveSession(db.Model):
+    # ... 字段定义
+    
+    @classmethod
+    def get_active_sessions(cls, user_id: int):
+        """获取用户的活跃会话"""
+        return cls.query.filter_by(
+            user_id=user_id,
+            status="active"
+        ).all()
+    
+    @classmethod
+    def get_recent_sessions(cls, user_id: int, days: int = 7):
+        """获取用户最近 N 天的会话"""
+        since = datetime.now() - timedelta(days=days)
+        return cls.query.filter(
+            cls.user_id == user_id,
+            cls.created_at >= since
+        ).all()
+```
+
+### 10. API 响应格式统一
+
+- 统一 API 响应格式，使用统一的响应包装器
+- 避免在每个端点中重复相同的响应结构
+
+```python
+# ✅ 好的做法：统一的响应格式
+from typing import Generic, TypeVar
+
+T = TypeVar('T')
+
+class APIResponse(Generic[T]):
+    success: bool
+    data: Optional[T] = None
+    message: Optional[str] = None
+    error: Optional[str] = None
+
+def success_response(data: T, message: str = None) -> APIResponse[T]:
+    return APIResponse(success=True, data=data, message=message)
+
+def error_response(error: str, message: str = None) -> APIResponse:
+    return APIResponse(success=False, error=error, message=message)
+```
+
+## 何时不应该 DRY
+
+以下情况**不应该**过度 DRY：
+
+1. **一次性代码**：只在一个地方使用的代码，提取反而增加复杂性
+2. **相似但不同**：看起来相似但实际逻辑不同的代码，强制 DRY 会导致复杂的条件判断
+3. **过早抽象**：只有2处使用但未来不确定是否会增加，遵循 YAGNI 原则
+
+## 与项目其他原则的配合
+
+- **与 KISS 配合**：提取重复代码时，保持提取后的代码简单
+- **与 YAGNI 配合**：只有在确实有重复时，才提取公共代码
+- **与单一职责配合**：提取的函数或类应该保持单一职责
+
+## 代码审查检查点
+
+在代码审查时，检查：
+1. 是否有重复的代码块（可以使用工具如 `jscpd` 检测）？
+2. 是否有重复的业务逻辑？
+3. 是否有重复的配置或常量？
+4. 是否有可以提取为工具函数的重复代码？
+5. 是否有重复的错误处理模式？
+
+## 重构重复代码的步骤
+
+1. **识别重复**：找到重复的代码块
+2. **理解差异**：分析重复代码之间的差异
+3. **提取公共部分**：将公共逻辑提取为函数或类
+4. **参数化差异**：将差异部分作为参数传入
+5. **替换调用**：用新函数替换所有重复代码
+6. **测试验证**：确保重构后功能不变
+
+记住：**DRY 的目标是减少维护成本，而不是为了 DRY 而 DRY。** 如果提取代码会增加复杂性，保持重复可能是更好的选择。

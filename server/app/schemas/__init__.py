@@ -1,20 +1,74 @@
-# -*- coding: utf-8 -*-
-"""
-统一的数据模型定义（Schemas）
+"""Unified Pydantic schema exports for FastAPI routes."""
 
-所有 Pydantic 模型定义统一在此目录，按模块组织。
-API 文件只导入类型，不定义类型。
-"""
-
-from .common import (
-    BaseResponse,
-    PaginationParams,
-    PaginatedResponse,
+from .common import BaseResponse, ErrorResponse, PaginationParams, PaginatedResponse, success_response
+from .auth import (
+    UserRegisterRequest,
+    UserLoginRequest,
+    RefreshTokenRequest,
+    ChangePasswordRequest,
+    EmailVerifyRequest,
+    UserResponse,
+    LoginResponse,
+    RegisterResponse,
+)
+from .subscription import (
+    SubscriptionPlanResponse,
+    UserSubscriptionResponse,
+    PaymentRecordResponse,
+    CreatePaymentRequest,
+    ConfirmPaymentRequest,
+    UpdateSubscriptionRequest,
+    CreateSubscriptionRequest,
+    CancelSubscriptionRequest,
+)
+from .live_audio import (
+    StartLiveAudioRequest,
+    LiveAudioAdvancedRequest,
+    LiveAudioPreloadRequest,
+)
+from .live_report import StartLiveReportRequest
+from .douyin import (
+    StartDouyinMonitoringRequest,
+    DouyinStatusResponse,
+)
+from .ai import (
+    StartAILiveAnalysisRequest,
+    GenerateLiveAnswersRequest,
+    GenerateOneScriptRequest,
+    SubmitScriptFeedbackRequest,
 )
 
 __all__ = [
-    'BaseResponse',
-    'PaginationParams',
-    'PaginatedResponse',
+    "BaseResponse",
+    "ErrorResponse",
+    "PaginationParams",
+    "PaginatedResponse",
+    "success_response",
+    "UserRegisterRequest",
+    "UserLoginRequest",
+    "RefreshTokenRequest",
+    "ChangePasswordRequest",
+    "EmailVerifyRequest",
+    "UserResponse",
+    "LoginResponse",
+    "RegisterResponse",
+    "SubscriptionPlanResponse",
+    "UserSubscriptionResponse",
+    "PaymentRecordResponse",
+    "CreatePaymentRequest",
+    "ConfirmPaymentRequest",
+    "UpdateSubscriptionRequest",
+    "CreateSubscriptionRequest",
+    "CancelSubscriptionRequest",
+    "StartLiveAudioRequest",
+    "LiveAudioAdvancedRequest",
+    "LiveAudioPreloadRequest",
+    "StartLiveReportRequest",
+    "StartDouyinMonitoringRequest",
+    "DouyinStatusResponse",
+    "StartAILiveAnalysisRequest",
+    "GenerateLiveAnswersRequest",
+    "GenerateOneScriptRequest",
+    "SubmitScriptFeedbackRequest",
 ]
 

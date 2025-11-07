@@ -3,93 +3,34 @@
 订阅和支付API路由
 """
 
+import json
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from pydantic import BaseModel, validator
 from sqlalchemy.orm import Session
 
 from server.app.database import get_db_session
 from server.app.api.auth import get_current_user
 from server.app.services.subscription_service import SubscriptionService
-from server.app.models.subscription import SubscriptionPlanTypeEnum, PaymentMethodEnum
 from server.utils.service_logger import log_subscription_event
+from server.app.schemas import (
+    SubscriptionPlanResponse,
+    UserSubscriptionResponse,
+    PaymentRecordResponse,
+    CreatePaymentRequest,
+    ConfirmPaymentRequest,
+    UpdateSubscriptionRequest,
+)
+from server.app.schemas.common import BaseResponse
+from server.app.utils.api import success_response, handle_service_error
 
 
 # 创建路由器
 router = APIRouter(prefix="/api/subscription", tags=["订阅"])
 
 
-# Pydantic 模型
-class SubscriptionPlanResponse(BaseModel):
-    """订阅套餐响应"""
-    id: int
-    name: str
-    description: Optional[str]
-    plan_type: str
-    price: float
-    duration_days: int
-    features: dict
-    usage_limits: dict
-    is_active: bool
-    created_at: datetime
-    
-    class Config:
-        from_attributes = True
-
-
-class UserSubscriptionResponse(BaseModel):
-    """用户订阅响应"""
-    id: int
-    plan: SubscriptionPlanResponse
-    status: str
-    start_date: datetime
-    end_date: datetime
-    auto_renew: bool
-    usage_stats: dict
-    created_at: datetime
-    
-    class Config:
-        from_attributes = True
-
-
-class PaymentRecordResponse(BaseModel):
-    """支付记录响应"""
-    id: int
-    amount: float
-    currency: str
-    payment_method: str
-    status: str
-    transaction_id: Optional[str]
-    payment_data: dict
-    created_at: datetime
-    
-    class Config:
-        from_attributes = True
-
-
-class CreatePaymentRequest(BaseModel):
-    """创建支付请求"""
-    plan_id: int
-    payment_method: PaymentMethodEnum
-    return_url: Optional[str] = None
-    cancel_url: Optional[str] = None
-
-
-class ConfirmPaymentRequest(BaseModel):
-    """确认支付请求"""
-    payment_id: int
-    transaction_id: str
-    payment_data: Optional[dict] = None
-
-
-class UpdateSubscriptionRequest(BaseModel):
-    """更新订阅请求"""
-    auto_renew: Optional[bool] = None
-
-
 # API 路由
-@router.get("/plans", response_model=List[SubscriptionPlanResponse])
+@router.get("/plans", response_model=BaseResponse[List[SubscriptionPlanResponse]])
 async def get_subscription_plans(
     active_only: bool = True,
     db: Session = Depends(get_db_session)
@@ -106,26 +47,37 @@ async def get_subscription_plans(
         
         plans = query.order_by(SubscriptionPlan.price).all()
         
-        return [
-            SubscriptionPlanResponse(
-                id=plan.id,
-                name=plan.name,
-                description=plan.description,
-                plan_type=plan.plan_type.value,
-                price=float(plan.price),
-                duration_days=plan.billing_cycle,  # 使用 billing_cycle 作为 duration_days
-                features=json.loads(plan.features) if plan.features else {},  # 解析JSON字符串
-                usage_limits={  # 构造 usage_limits 字典
-                    "max_streams": plan.max_streams,
-                    "max_storage_gb": plan.max_storage_gb,
-                    "max_ai_requests": plan.max_ai_requests,
-                    "max_export_count": plan.max_export_count
-                },
-                is_active=plan.is_active,
-                created_at=plan.created_at
+        responses = []
+        for plan in plans:
+            usage_limits = {
+                "max_streams": plan.max_streams,
+                "max_storage_gb": plan.max_storage_gb,
+                "max_ai_requests": plan.max_ai_requests,
+                "max_export_count": plan.max_export_count,
+            }
+            if isinstance(plan.features, str):
+                try:
+                    features = json.loads(plan.features)
+                except json.JSONDecodeError:
+                    features = {}
+            else:
+                features = plan.features or {}
+            responses.append(
+                SubscriptionPlanResponse(
+                    id=plan.id,
+                    name=plan.name,
+                    description=plan.description,
+                    plan_type=plan.plan_type,
+                    price=plan.price,
+                    duration_days=plan.billing_cycle,
+                    features=features,
+                    usage_limits=usage_limits,
+                    is_active=plan.is_active,
+                    created_at=plan.created_at,
+                )
             )
-            for plan in plans
-        ]
+
+        return success_response(responses)
         
     except Exception as e:
         import logging
@@ -136,8 +88,8 @@ async def get_subscription_plans(
         )
 
 
-@router.get("/my-subscription", response_model=Optional[UserSubscriptionResponse])
-@router.get("/current", response_model=Optional[UserSubscriptionResponse])  # 别名端点
+@router.get("/my-subscription", response_model=BaseResponse[Optional[UserSubscriptionResponse]])
+@router.get("/current", response_model=BaseResponse[Optional[UserSubscriptionResponse]])  # 别名端点
 async def get_my_subscription(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db_session)
@@ -145,31 +97,44 @@ async def get_my_subscription(
     """获取当前用户的订阅信息"""
     try:
         subscription = SubscriptionService.get_user_subscription(current_user["id"])
-        
+
         if not subscription:
-            return None
-        
-        return UserSubscriptionResponse(
+            return success_response(None, message="暂无订阅")
+
+        plan = subscription.plan
+        if isinstance(plan.features, str):
+            try:
+                plan_features = json.loads(plan.features)
+            except json.JSONDecodeError:
+                plan_features = {}
+        else:
+            plan_features = plan.features or {}
+
+        plan_response = SubscriptionPlanResponse(
+            id=plan.id,
+            name=plan.name,
+            description=plan.description,
+            plan_type=plan.plan_type,
+            price=plan.price,
+            duration_days=getattr(plan, "duration_days", getattr(plan, "billing_cycle", 0)),
+            features=plan_features,
+            usage_limits=plan.usage_limits or {},
+            is_active=plan.is_active,
+            created_at=plan.created_at,
+        )
+
+        response = UserSubscriptionResponse(
             id=subscription.id,
-            plan=SubscriptionPlanResponse(
-                id=subscription.plan.id,
-                name=subscription.plan.name,
-                description=subscription.plan.description,
-                plan_type=subscription.plan.plan_type.value,
-                price=subscription.plan.price,
-                duration_days=subscription.plan.duration_days,
-                features=subscription.plan.features,
-                usage_limits=subscription.plan.usage_limits,
-                is_active=subscription.plan.is_active,
-                created_at=subscription.plan.created_at
-            ),
-            status=subscription.status.value,
+            plan=plan_response,
+            status=subscription.status,
             start_date=subscription.start_date,
             end_date=subscription.end_date,
             auto_renew=subscription.auto_renew,
-            usage_stats=subscription.usage_stats,
-            created_at=subscription.created_at
+            usage_stats=subscription.usage_stats or {},
+            created_at=subscription.created_at,
         )
+
+        return success_response(response)
         
     except Exception as e:
         raise HTTPException(
@@ -178,7 +143,7 @@ async def get_my_subscription(
         )
 
 
-@router.post("/create-payment")
+@router.post("/create-payment", response_model=BaseResponse[Dict[str, Any]])
 async def create_payment(
     request: CreatePaymentRequest,
     req: Request,
@@ -202,29 +167,26 @@ async def create_payment(
         log_subscription_event("创建支付订单", user_id=current_user["id"], plan_id=request.plan_id, 
                                payment_id=payment.id, amount=payment.amount, payment_method=request.payment_method.value)
         
-        return {
-            "payment_id": payment.id,
-            "amount": payment.amount,
-            "currency": payment.currency,
-            "payment_method": payment.payment_method.value,
-            "payment_url": payment.payment_data.get("payment_url"),
-            "qr_code": payment.payment_data.get("qr_code"),
-            "expires_at": payment.payment_data.get("expires_at")
-        }
-        
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="创建支付订单失败"
+        return success_response(
+            {
+                "payment_id": payment.id,
+                "amount": payment.amount,
+                "currency": payment.currency,
+                "payment_method": payment.payment_method.value,
+                "payment_url": payment.payment_data.get("payment_url"),
+                "qr_code": payment.payment_data.get("qr_code"),
+                "expires_at": payment.payment_data.get("expires_at"),
+            },
+            message="支付订单创建成功",
         )
 
+    except ValueError as exc:
+        handle_service_error(exc, {}, default_message=str(exc), default_status=status.HTTP_400_BAD_REQUEST)
+    except Exception as exc:
+        handle_service_error(exc, {}, default_message="创建支付订单失败", default_status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-@router.post("/confirm-payment")
+
+@router.post("/confirm-payment", response_model=BaseResponse[Dict[str, Any]])
 async def confirm_payment(
     request: ConfirmPaymentRequest,
     current_user: dict = Depends(get_current_user),
@@ -239,32 +201,30 @@ async def confirm_payment(
         )
         
         if success:
-            # 获取支付信息以便记录
             from server.app.models.payment import Payment
             payment = db.query(Payment).filter(Payment.id == request.payment_id).first()
             if payment:
-                log_subscription_event("支付确认成功", user_id=payment.user_id, payment_id=payment.id, 
-                                       transaction_id=request.transaction_id, amount=payment.amount)
-            return {"message": "支付确认成功"}
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="支付确认失败"
-            )
-            
-    except ValueError as e:
+                log_subscription_event(
+                    "支付确认成功",
+                    user_id=payment.user_id,
+                    payment_id=payment.id,
+                    transaction_id=request.transaction_id,
+                    amount=payment.amount,
+                )
+            return success_response({"payment_id": request.payment_id}, message="支付确认成功")
+
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="支付确认失败"
+            detail="支付确认失败",
         )
 
+    except ValueError as exc:
+        handle_service_error(exc, {}, default_message=str(exc), default_status=status.HTTP_400_BAD_REQUEST)
+    except Exception as exc:
+        handle_service_error(exc, {}, default_message="支付确认失败", default_status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-@router.get("/payment-history", response_model=List[PaymentRecordResponse])
+
+@router.get("/payment-history", response_model=BaseResponse[List[PaymentRecordResponse]])
 async def get_payment_history(
     current_user: dict = Depends(get_current_user),
     limit: int = 20,
@@ -279,19 +239,21 @@ async def get_payment_history(
             offset=offset
         )
         
-        return [
+        records = [
             PaymentRecordResponse(
                 id=payment.id,
                 amount=payment.amount,
                 currency=payment.currency,
-                payment_method=payment.payment_method.value,
-                status=payment.status.value,
+                payment_method=payment.payment_method,
+                status=payment.status,
                 transaction_id=payment.transaction_id,
                 payment_data=payment.payment_data,
-                created_at=payment.created_at
+                created_at=payment.created_at,
             )
             for payment in payments
         ]
+
+        return success_response(records)
         
     except Exception as e:
         raise HTTPException(
@@ -300,7 +262,7 @@ async def get_payment_history(
         )
 
 
-@router.put("/update-subscription")
+@router.put("/update-subscription", response_model=BaseResponse[Dict[str, Any]])
 async def update_subscription(
     request: UpdateSubscriptionRequest,
     current_user: dict = Depends(get_current_user),
@@ -324,7 +286,7 @@ async def update_subscription(
             log_subscription_event("更新订阅设置", user_id=current_user["id"], subscription_id=subscription.id, 
                                    auto_renew=request.auto_renew)
         
-        return {"message": "订阅设置更新成功"}
+        return success_response({"auto_renew": request.auto_renew}, message="订阅设置更新成功")
         
     except HTTPException:
         raise
@@ -335,7 +297,7 @@ async def update_subscription(
         )
 
 
-@router.post("/cancel-subscription")
+@router.post("/cancel-subscription", response_model=BaseResponse[Dict[str, Any]])
 async def cancel_subscription(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db_session)
@@ -353,14 +315,18 @@ async def cancel_subscription(
         success = SubscriptionService.cancel_subscription(subscription.id)
         
         if success:
-            log_subscription_event("取消订阅", user_id=current_user["id"], subscription_id=subscription.id, 
-                                   plan_name=subscription.plan.name)
-            return {"message": "订阅取消成功"}
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="订阅取消失败"
+            log_subscription_event(
+                "取消订阅",
+                user_id=current_user["id"],
+                subscription_id=subscription.id,
+                plan_name=subscription.plan.name,
             )
+            return success_response({"cancelled": True}, message="订阅取消成功")
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="订阅取消失败",
+        )
             
     except HTTPException:
         raise
@@ -371,7 +337,7 @@ async def cancel_subscription(
         )
 
 
-@router.get("/usage-stats")
+@router.get("/usage-stats", response_model=BaseResponse[Dict[str, Any]])
 async def get_usage_stats(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db_session)
@@ -379,7 +345,7 @@ async def get_usage_stats(
     """获取使用统计"""
     try:
         stats = SubscriptionService.get_usage_stats(current_user["id"])
-        return stats
+        return success_response(stats)
         
     except Exception as e:
         raise HTTPException(
@@ -388,7 +354,7 @@ async def get_usage_stats(
         )
 
 
-@router.post("/webhook/payment")
+@router.post("/webhook/payment", response_model=BaseResponse[Dict[str, Any]])
 async def payment_webhook(
     request: Request,
     db: Session = Depends(get_db_session)
@@ -404,11 +370,8 @@ async def payment_webhook(
             body=body,
             headers=headers
         )
-        
-        return {"status": "success", "message": "Webhook processed"}
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="处理支付回调失败"
-        )
+
+        return success_response({"webhook": "processed", "result": result})
+
+    except Exception as exc:
+        handle_service_error(exc, {}, default_message="处理支付回调失败", default_status=status.HTTP_500_INTERNAL_SERVER_ERROR)

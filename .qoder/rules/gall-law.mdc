@@ -1,0 +1,467 @@
+---
+description: 盖尔定律 - 复杂系统必须从简单系统演化而来，从小处着手逐步迭代
+globs: ["**/*.py", "**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.md"]
+alwaysApply: true
+---
+
+# 盖尔定律 (Gall's Law)
+
+## 核心思想
+
+"一个复杂系统如果是从一个简单系统演化而来，那么它就能正常工作。而从零开始设计的复杂系统永远无法工作，也无法通过修补让它工作。你必须从头开始，从一个简单的系统开始。" 这是对"从小处着手，逐步迭代"开发模式的强力支持。不要试图一开始就设计出终极架构。先构建一个可以工作的简单版本（MVP），然后在此基础上逐步扩展和复杂化。
+
+## 在本项目中的应用规则
+
+### 1. MVP 开发策略
+
+#### 从简单版本开始
+
+```python
+# ✅ 好的做法：从简单版本开始
+class LiveReportService:
+    """直播报告服务 - MVP 版本"""
+    
+    def __init__(self):
+        # MVP: 最简单的实现
+        self.db = get_database()
+        self.logger = logging.getLogger(__name__)
+    
+    def generate_report(self, session_id: int) -> dict:
+        """
+        生成报告 - MVP 版本
+        
+        MVP 功能：
+        - 获取会话数据
+        - 生成简单文本报告
+        - 返回 JSON 格式
+        
+        不包含：
+        - 复杂的图表生成
+        - 多格式导出
+        - 自定义模板
+        - AI 分析
+        """
+        # 1. 获取数据（简单查询）
+        session = self.db.query(LiveSession).filter_by(id=session_id).first()
+        if not session:
+            raise ValueError(f"会话不存在: {session_id}")
+        
+        # 2. 生成简单报告（直接拼接）
+        report = {
+            "session_id": session.id,
+            "room_id": session.room_id,
+            "duration": self._calculate_duration(session),
+            "summary": f"直播会话 {session.id} 的报告"
+        }
+        
+        # 3. 返回 JSON（最简单格式）
+        return report
+    
+    def _calculate_duration(self, session: LiveSession) -> int:
+        """计算时长 - 简单实现"""
+        if session.stopped_at and session.started_at:
+            return (session.stopped_at - session.started_at) // 1000
+        return 0
+
+# ❌ 避免：一开始就设计复杂系统
+class LiveReportServiceComplex:
+    """直播报告服务 - 过度设计"""
+    
+    def __init__(self):
+        # 一开始就设计复杂的架构
+        self.report_generators = {
+            "json": JSONReportGenerator(),
+            "html": HTMLReportGenerator(),
+            "pdf": PDFReportGenerator(),
+            "excel": ExcelReportGenerator()
+        }
+        self.chart_generators = {
+            "line": LineChartGenerator(),
+            "bar": BarChartGenerator(),
+            "pie": PieChartGenerator()
+        }
+        self.ai_analyzers = {
+            "sentiment": SentimentAnalyzer(),
+            "topic": TopicAnalyzer(),
+            "summary": SummaryAnalyzer()
+        }
+        # ... 太多复杂性，可能无法工作
+    
+    def generate_report(self, session_id: int, options: dict) -> dict:
+        """生成报告 - 复杂实现"""
+        # 太多功能，可能无法正常工作
+        pass
+```
+
+### 2. 迭代开发流程
+
+#### 逐步添加功能
+
+```python
+# ✅ 好的做法：逐步迭代
+class LiveReportServiceEvolution:
+    """直播报告服务 - 逐步演化"""
+    
+    # 版本 1: MVP
+    def generate_report_v1(self, session_id: int) -> dict:
+        """版本1: 最简单的报告"""
+        session = get_session(session_id)
+        return {
+            "session_id": session.id,
+            "summary": "基础报告"
+        }
+    
+    # 版本 2: 添加数据
+    def generate_report_v2(self, session_id: int) -> dict:
+        """版本2: 添加更多数据"""
+        session = get_session(session_id)
+        return {
+            "session_id": session.id,
+            "room_id": session.room_id,
+            "duration": calculate_duration(session),
+            "summary": "包含数据的报告"
+        }
+    
+    # 版本 3: 添加格式支持
+    def generate_report_v3(self, session_id: int, format: str = "json") -> dict:
+        """版本3: 支持多种格式"""
+        session = get_session(session_id)
+        report_data = {
+            "session_id": session.id,
+            "room_id": session.room_id,
+            "duration": calculate_duration(session)
+        }
+        
+        if format == "json":
+            return report_data
+        elif format == "html":
+            return self._format_as_html(report_data)
+        else:
+            return report_data
+    
+    # 版本 4: 添加图表
+    def generate_report_v4(self, session_id: int, include_charts: bool = False) -> dict:
+        """版本4: 添加图表支持"""
+        report = self.generate_report_v3(session_id)
+        
+        if include_charts:
+            report["charts"] = self._generate_charts(session_id)
+        
+        return report
+    
+    # 当前版本：基于前面的版本演化
+    def generate_report(self, session_id: int, **options) -> dict:
+        """当前版本：基于前面版本的演化"""
+        # 基于 v4，添加更多功能
+        report = self.generate_report_v4(session_id, options.get("include_charts", False))
+        
+        # 添加新功能
+        if options.get("include_ai_analysis"):
+            report["ai_analysis"] = self._generate_ai_analysis(session_id)
+        
+        return report
+
+# ❌ 避免：一次性实现所有功能
+def generate_report_all_at_once(session_id: int, options: dict) -> dict:
+    """一次性实现所有功能 - 可能无法工作"""
+    # 尝试实现所有功能
+    # 结果：太复杂，可能无法正常工作
+    pass
+```
+
+### 3. 架构演化
+
+#### 从简单架构开始
+
+```python
+# ✅ 好的做法：从简单架构开始
+# 阶段1: 单体应用
+class SimpleApplication:
+    """简单应用 - 所有功能在一个模块"""
+    
+    def __init__(self):
+        self.db = Database()
+        self.report_service = ReportService(self.db)
+        self.audio_service = AudioService(self.db)
+    
+    def process_live_session(self, session_id: int):
+        """处理直播会话 - 简单直接"""
+        session = self.db.get_session(session_id)
+        audio = self.audio_service.get_audio(session_id)
+        report = self.report_service.generate_report(session, audio)
+        return report
+
+# 阶段2: 模块化（当需要时）
+class ModularApplication:
+    """模块化应用 - 从简单应用演化而来"""
+    
+    def __init__(self):
+        # 基于简单应用，拆分成模块
+        self.services = {
+            "report": ReportService(),
+            "audio": AudioService(),
+            "session": SessionService()
+        }
+    
+    def process_live_session(self, session_id: int):
+        """处理直播会话 - 模块化"""
+        session = self.services["session"].get_session(session_id)
+        audio = self.services["audio"].get_audio(session_id)
+        report = self.services["report"].generate_report(session, audio)
+        return report
+
+# 阶段3: 微服务（当需要时）
+class MicroservicesApplication:
+    """微服务应用 - 从模块化应用演化而来"""
+    
+    def __init__(self):
+        # 基于模块化应用，拆分成微服务
+        self.report_service = ReportServiceClient("http://report-service")
+        self.audio_service = AudioServiceClient("http://audio-service")
+        self.session_service = SessionServiceClient("http://session-service")
+    
+    def process_live_session(self, session_id: int):
+        """处理直播会话 - 微服务"""
+        session = self.session_service.get_session(session_id)
+        audio = self.audio_service.get_audio(session_id)
+        report = self.report_service.generate_report(session, audio)
+        return report
+
+# ❌ 避免：一开始就设计微服务
+class MicroservicesFromScratch:
+    """从零开始的微服务 - 可能无法工作"""
+    # 一开始就设计复杂的微服务架构
+    # 结果：太复杂，可能无法正常工作
+    pass
+```
+
+### 4. 数据库设计演化
+
+#### 从简单表结构开始
+
+```python
+# ✅ 好的做法：从简单表结构开始
+# 阶段1: 简单表
+class LiveSessionV1(db.Model):
+    """直播会话 - 版本1: 最简单的表"""
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.String(100))
+    status = db.Column(db.String(50))
+    created_at = db.Column(db.DateTime)
+
+# 阶段2: 添加字段（当需要时）
+class LiveSessionV2(db.Model):
+    """直播会话 - 版本2: 添加必要字段"""
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.String(100))
+    status = db.Column(db.String(50))
+    created_at = db.Column(db.DateTime)
+    # 添加新字段
+    started_at = db.Column(db.DateTime)
+    stopped_at = db.Column(db.DateTime)
+    user_id = db.Column(db.Integer)
+
+# 阶段3: 添加关联（当需要时）
+class LiveSessionV3(db.Model):
+    """直播会话 - 版本3: 添加关联"""
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.String(100))
+    status = db.Column(db.String(50))
+    created_at = db.Column(db.DateTime)
+    started_at = db.Column(db.DateTime)
+    stopped_at = db.Column(db.DateTime)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    # 添加关联
+    user = db.relationship('User', backref='sessions')
+    reports = db.relationship('Report', backref='session')
+
+# 当前版本：基于前面版本演化
+class LiveSession(db.Model):
+    """直播会话 - 当前版本：基于前面版本演化"""
+    # 基于 v3，添加更多功能
+    # ...
+
+# ❌ 避免：一开始就设计复杂表结构
+class LiveSessionComplex(db.Model):
+    """直播会话 - 过度设计"""
+    # 一开始就设计包含所有可能字段的表
+    # 结果：太复杂，可能无法正常工作
+    pass
+```
+
+### 5. API 设计演化
+
+#### 从简单 API 开始
+
+```python
+# ✅ 好的做法：从简单 API 开始
+# 阶段1: 简单 API
+@router.get("/api/sessions/{session_id}")
+async def get_session(session_id: int):
+    """获取会话 - 简单 API"""
+    session = db.session.query(LiveSession).filter_by(id=session_id).first()
+    return {"id": session.id, "room_id": session.room_id}
+
+# 阶段2: 添加参数（当需要时）
+@router.get("/api/sessions/{session_id}")
+async def get_session(session_id: int, include_details: bool = False):
+    """获取会话 - 添加可选参数"""
+    session = db.session.query(LiveSession).filter_by(id=session_id).first()
+    result = {"id": session.id, "room_id": session.room_id}
+    
+    if include_details:
+        result["details"] = get_session_details(session_id)
+    
+    return result
+
+# 阶段3: 添加过滤和分页（当需要时）
+@router.get("/api/sessions")
+async def list_sessions(
+    page: int = 1,
+    page_size: int = 20,
+    status: Optional[str] = None
+):
+    """列出会话 - 添加过滤和分页"""
+    query = db.session.query(LiveSession)
+    
+    if status:
+        query = query.filter_by(status=status)
+    
+    sessions = query.paginate(page, page_size).items
+    return [{"id": s.id, "room_id": s.room_id} for s in sessions]
+
+# 当前版本：基于前面版本演化
+@router.get("/api/sessions")
+async def list_sessions_advanced(
+    page: int = 1,
+    page_size: int = 20,
+    status: Optional[str] = None,
+    user_id: Optional[int] = None,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None
+):
+    """列出会话 - 当前版本：基于前面版本演化"""
+    # 基于前面的版本，添加更多过滤选项
+    # ...
+
+# ❌ 避免：一开始就设计复杂 API
+@router.get("/api/sessions")
+async def list_sessions_complex(
+    # 一开始就包含所有可能的参数
+    # 结果：太复杂，可能无法正常工作
+    pass
+)
+```
+
+### 6. 功能开发流程
+
+#### MVP -> 迭代 -> 完善
+
+```python
+# ✅ 好的做法：MVP -> 迭代 -> 完善
+DEVELOPMENT_PHASES = {
+    "phase_1_mvp": {
+        "goal": "实现核心功能，让系统可以工作",
+        "features": [
+            "基础会话管理",
+            "简单报告生成",
+            "基础用户认证"
+        ],
+        "timeline": "2周"
+    },
+    "phase_2_iteration_1": {
+        "goal": "基于 MVP 添加重要功能",
+        "features": [
+            "报告格式支持",
+            "数据导出",
+            "基础数据分析"
+        ],
+        "timeline": "2周"
+    },
+    "phase_3_iteration_2": {
+        "goal": "基于迭代1添加增强功能",
+        "features": [
+            "图表生成",
+            "AI 分析",
+            "高级过滤"
+        ],
+        "timeline": "2周"
+    },
+    "phase_4_polish": {
+        "goal": "完善和优化",
+        "features": [
+            "性能优化",
+            "用户体验改进",
+            "文档完善"
+        ],
+        "timeline": "1周"
+    }
+}
+
+def develop_feature(feature_name: str, phase: str):
+    """开发功能 - 按阶段进行"""
+    if phase == "phase_1_mvp":
+        # MVP: 最简单的实现
+        return implement_mvp(feature_name)
+    elif phase == "phase_2_iteration_1":
+        # 迭代1: 基于 MVP 添加功能
+        return enhance_from_mvp(feature_name)
+    elif phase == "phase_3_iteration_2":
+        # 迭代2: 基于迭代1添加功能
+        return enhance_from_iteration1(feature_name)
+    elif phase == "phase_4_polish":
+        # 完善: 优化和改进
+        return polish_feature(feature_name)
+```
+
+## 实践建议
+
+### 1. 开发流程
+
+```python
+DEVELOPMENT_WORKFLOW = {
+    "step_1": "构建最简单的可工作版本（MVP）",
+    "step_2": "测试 MVP，确保可以工作",
+    "step_3": "基于 MVP 添加下一个最重要的功能",
+    "step_4": "测试新功能，确保系统仍然可以工作",
+    "step_5": "重复步骤3-4，逐步演化",
+    "step_6": "当需要时，重构和优化"
+}
+```
+
+### 2. 复杂度管理
+
+```python
+COMPLEXITY_MANAGEMENT = {
+    "rule": "只在当前需要时添加复杂度",
+    "check": "这个功能现在真的需要吗？",
+    "principle": "简单系统 -> 添加功能 -> 测试 -> 演化"
+}
+```
+
+## 与项目其他原则的配合
+
+- **与 YAGNI 配合**：不要提前添加复杂度
+- **与 KISS 配合**：从简单开始，保持简单
+- **与 MVP 配合**：先构建可工作的简单版本
+
+## 代码审查检查点
+
+在代码审查时，检查：
+1. 是否从简单版本开始？
+2. 是否逐步添加功能？
+3. 是否避免了过度设计？
+4. 系统是否可以工作？
+5. 复杂度是否必要？
+
+## 记住
+
+**复杂系统必须从简单系统演化而来。**
+
+- 从最简单的可工作版本开始（MVP）
+- 逐步添加功能，每次确保系统可以工作
+- 不要一开始就设计复杂架构
+- 只在需要时添加复杂度
+- 让系统自然演化
+
+**从简单开始，逐步演化，而不是从复杂开始。**

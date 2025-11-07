@@ -9,102 +9,107 @@ and stream results over WebSocket with delta/full messages, plus input level.
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel, Field
 from pathlib import Path
 
 from ..services.live_audio_stream_service import get_live_audio_service
 from server.utils.service_logger import log_service_start, log_service_stop, log_service_error
-from ..schemas.live_audio import (
+from server.app.schemas import (
     StartLiveAudioRequest,
-    UpdateAdvancedSettingsRequest,
-    PreloadModelsRequest,
-    StartLiveAudioResponse,
-    StopLiveAudioResponse,
+    LiveAudioAdvancedRequest,
+    LiveAudioPreloadRequest,
 )
-from ..schemas.common import BaseResponse
-from ..utils.api_error_handler import handle_service_errors, normalize_error_message
+from server.app.schemas.common import BaseResponse
+from server.app.utils.api import success_response, handle_service_error
 
 
 router = APIRouter(prefix="/api/live_audio", tags=["live-audio"])
 
 
-@router.post("/start", response_model=StartLiveAudioResponse)
-@handle_service_errors
-async def start_live_audio(req: StartLiveAudioRequest) -> StartLiveAudioResponse:
-    """启动实时音频转写服务"""
+@router.post("/start", response_model=BaseResponse[Dict[str, Any]])
+async def start_live_audio(req: StartLiveAudioRequest):
     svc = get_live_audio_service()
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    log_service_start("实时音频转写服务", live_url=req.live_url, session_id=req.session_id)
-    
-    # Apply profile first; subsequent explicit params override the preset
-    if req.profile:
-        svc.apply_profile(req.profile)
-    if req.chunk_duration is not None:
-        svc.chunk_seconds = float(req.chunk_duration)
-    # Hard-lock mode/model regardless of inputs
-    svc.mode = "vad"
-    svc.set_model_size("small")
-    if req.vad_min_silence_sec is not None:
-        svc.vad_min_silence_sec = float(req.vad_min_silence_sec)
-    if req.vad_min_speech_sec is not None:
-        svc.vad_min_speech_sec = float(req.vad_min_speech_sec)
-    if req.vad_hangover_sec is not None:
-        svc.vad_hangover_sec = float(req.vad_hangover_sec)
-    if req.vad_rms is not None:
-        svc.vad_min_rms = float(req.vad_rms)
-    if req.vad_force_flush_sec is not None:
-        svc.vad_force_flush_sec = float(req.vad_force_flush_sec)
-    if req.vad_force_flush_overlap_sec is not None:
-        svc.vad_force_flush_overlap_sec = float(req.vad_force_flush_overlap_sec)
-    # sentence assembler params
-    if req.max_wait is not None:
-        svc._assembler.max_wait = float(req.max_wait)
-    if req.max_chars is not None:
-        svc._assembler.max_chars = int(req.max_chars)
-    if req.silence_flush is not None:
-        svc._assembler.silence_flush = int(req.silence_flush)
-    if req.min_sentence_chars is not None:
-        svc.min_sentence_chars = int(req.min_sentence_chars)
-    
-    st = await svc.start(req.live_url, req.session_id)
-    log_service_start("实时音频转写服务", live_id=st.live_id, session_id=st.session_id, ffmpeg_pid=st.ffmpeg_pid)
-    
-    return StartLiveAudioResponse(data={
-        "session_id": st.session_id,
-        "live_id": st.live_id,
-        "live_url": st.live_url,
-        "ffmpeg_pid": st.ffmpeg_pid,
-        "mode": "vad",
-        "model": "small",
-        "profile": getattr(svc, "profile", "fast"),
-    })
+    try:
+        log_service_start("实时音频转写服务", live_url=req.live_url, session_id=req.session_id)
+        # Apply profile first; subsequent explicit params override the preset
+        if req.profile:
+            svc.apply_profile(req.profile)
+        if req.chunk_duration is not None:
+            svc.chunk_seconds = float(req.chunk_duration)
+        # Hard-lock mode/model regardless of inputs
+        svc.mode = "vad"
+        svc.set_model_size("small")
+        if req.vad_min_silence_sec is not None:
+            svc.vad_min_silence_sec = float(req.vad_min_silence_sec)
+        if req.vad_min_speech_sec is not None:
+            svc.vad_min_speech_sec = float(req.vad_min_speech_sec)
+        if req.vad_hangover_sec is not None:
+            svc.vad_hangover_sec = float(req.vad_hangover_sec)
+        if req.vad_rms is not None:
+            svc.vad_min_rms = float(req.vad_rms)
+        if req.vad_force_flush_sec is not None:
+            svc.vad_force_flush_sec = float(req.vad_force_flush_sec)
+        if req.vad_force_flush_overlap_sec is not None:
+            svc.vad_force_flush_overlap_sec = float(req.vad_force_flush_overlap_sec)
+        # sentence assembler params
+        if req.max_wait is not None:
+            svc._assembler.max_wait = float(req.max_wait)
+        if req.max_chars is not None:
+            svc._assembler.max_chars = int(req.max_chars)
+        if req.silence_flush is not None:
+            svc._assembler.silence_flush = int(req.silence_flush)
+        if req.min_sentence_chars is not None:
+            svc.min_sentence_chars = int(req.min_sentence_chars)
+        st = await svc.start(req.live_url, req.session_id)
+        log_service_start("实时音频转写服务", live_id=st.live_id, session_id=st.session_id, ffmpeg_pid=st.ffmpeg_pid)
+        return success_response({
+            "session_id": st.session_id,
+            "live_id": st.live_id,
+            "live_url": st.live_url,
+            "ffmpeg_pid": st.ffmpeg_pid,
+            "mode": "vad",
+            "model": "small",
+            "profile": getattr(svc, "profile", "fast"),
+        })
+    except Exception as exc:  # pragma: no cover - mapped via helper
+        log_service_error("实时音频转写服务", str(exc), live_url=req.live_url, session_id=req.session_id)
+        import logging
+        logging.getLogger(__name__).error("Live audio start failed", exc_info=True)
+        handle_service_error(
+            exc,
+            {
+                "already running": (409, "实时音频转写服务已在运行中"),
+                "invalid": (400, "无效的直播地址或ID"),
+                "未开播": (400, "直播间未开播"),
+                "not live": (400, "直播间未开播"),
+                "sensevoice": (500, "语音识别服务初始化失败"),
+                "initialize failed": (500, "语音识别服务初始化失败"),
+                "ffmpeg": (500, "音频流处理失败"),
+            },
+            default_message="启动实时音频转写服务失败",
+        )
 
 
-@router.post("/stop", response_model=StopLiveAudioResponse)
-@handle_service_errors
-async def stop_live_audio() -> StopLiveAudioResponse:
-    """停止实时音频转写服务"""
+@router.post("/stop", response_model=BaseResponse[Dict[str, Any]])
+async def stop_live_audio():
     svc = get_live_audio_service()
     st = await svc.stop()
     log_service_stop("实时音频转写服务", session_id=st.session_id, live_id=st.live_id)
-    return StopLiveAudioResponse(data={
+    return success_response({
         "is_running": st.is_running,
         "session_id": st.session_id,
     })
 
 
-@router.get("/status")
-async def live_audio_status() -> dict:
+@router.get("/status", response_model=BaseResponse[Dict[str, Any]])
+async def live_audio_status():
     svc = get_live_audio_service()
     st = svc.status()
     # 🆕 获取健康状态和验证信息
     health = svc.get_health_status()
-    return {
+    return success_response({
         "is_running": st.is_running,
         "live_id": st.live_id,
         "health": health,  # 🆕 添加健康状态
@@ -136,11 +141,11 @@ async def live_audio_status() -> dict:
             "failed_transcriptions": st.failed_transcriptions,
             "average_confidence": st.average_confidence,
         },
-    }
+    })
 
 
-@router.get("/health")
-async def live_audio_health() -> dict:
+@router.get("/health", response_model=BaseResponse[Dict[str, Any]])
+async def live_audio_health():
     """Preflight health check for local ASR assets (Small + VAD) and init status.
     - Validates local model/VAD directories under models/models/iic/
     - Attempts a lazy init; returns current status and suggestions
@@ -169,18 +174,17 @@ async def live_audio_health() -> dict:
         suggestions.append("Run: python3 server/server/tools/download_sensevoice.py")
     if not present["vad_present"]:
         suggestions.append("Run: python3 tools/download_vad_model.py")
-    return {
-        "success": bool(present["model_present"] and present["vad_present"] and init_ok),
+    return success_response({
         "assets": present,
         "initialized": init_ok,
         "error": init_error,
         "suggestions": suggestions,
-    }
+        "ready": bool(present["model_present"] and present["vad_present"] and init_ok),
+    })
 
 
-@router.post("/advanced", response_model=BaseResponse[dict])
-@handle_service_errors
-async def update_advanced(req: UpdateAdvancedSettingsRequest) -> BaseResponse[dict]:
+@router.post("/advanced", response_model=BaseResponse[Dict[str, Any]])
+async def update_advanced(req: LiveAudioAdvancedRequest):
     svc = get_live_audio_service()
     # Only persist toggles
     conf: dict = {}
@@ -195,12 +199,13 @@ async def update_advanced(req: UpdateAdvancedSettingsRequest) -> BaseResponse[di
             )
             if adv:
                 conf = {**conf, **adv}
-    return BaseResponse(data=conf or {"message": "updated"})
+    except Exception as exc:
+        handle_service_error(exc, {}, default_message="更新高级设置失败")
+    return success_response(conf or {"message": "updated"})
 
 
-@router.post("/preload_models", response_model=BaseResponse[dict])
-@handle_service_errors
-async def preload_models(req: PreloadModelsRequest) -> BaseResponse[dict]:
+@router.post("/preload_models", response_model=BaseResponse[Dict[str, Any]])
+async def preload_models(req: LiveAudioPreloadRequest):
     svc = get_live_audio_service()
     ok = []
     fail = []
@@ -213,17 +218,17 @@ async def preload_models(req: PreloadModelsRequest) -> BaseResponse[dict]:
             ok.append(sz)
         except Exception as e:
             fail.append({"size": sz, "error": str(e)})
-    return BaseResponse(data={"ok": ok, "fail": fail})
+    return success_response({"ok": ok, "fail": fail})
 
 
-@router.get("/models")
-async def get_model_status() -> dict:
+@router.get("/models", response_model=BaseResponse[Dict[str, Any]])
+async def get_model_status():
     svc = get_live_audio_service()
-    return {
+    return success_response({
         "busy": svc.get_preload_busy(),
         "cache": svc.get_model_cache_status(),
         "current_model": svc.get_model_size(),
-    }
+    })
 
 
 # WebSocket: stream transcription and level messages

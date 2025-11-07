@@ -1,0 +1,389 @@
+---
+description: 康威定律 - 系统结构反映组织沟通结构，架构变更需要组织调整
+globs: ["**/*.py", "**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.md"]
+alwaysApply: true
+---
+
+# 康威定律 (Conway's Law)
+
+## 核心思想
+
+"任何组织设计出的系统，其结构都是该组织沟通结构的副本。" 如果你想改变系统架构（比如从单体服务转向微服务），你必须首先调整团队的沟通结构和组织架构。这是一个非常强大的社会学洞察。
+
+## 在本项目中的应用规则
+
+### 1. 代码组织结构反映团队结构
+
+#### 模块划分与团队对应
+
+```python
+# ✅ 好的做法：代码结构反映团队沟通结构
+# 如果团队分为以下小组：
+# - 后端服务组（负责 server/app/services/）
+# - API 接口组（负责 server/app/api/）
+# - 前端开发组（负责 admin-dashboard/）
+# - AI 服务组（负责 server/ai/）
+
+# 代码结构应该对应：
+server/
+├── app/
+│   ├── services/        # 后端服务组负责
+│   │   ├── live_report_service.py
+│   │   ├── live_audio_service.py
+│   │   └── live_session_manager.py
+│   ├── api/             # API 接口组负责
+│   │   ├── live_report.py
+│   │   ├── live_audio.py
+│   │   └── live_session.py
+│   └── models/          # 共享，但由后端服务组维护
+├── ai/                  # AI 服务组负责
+│   ├── ai_gateway.py
+│   ├── gemini_adapter.py
+│   └── knowledge_service.py
+└── utils/               # 共享工具
+
+admin-dashboard/         # 前端开发组负责
+├── src/
+│   ├── components/
+│   ├── pages/
+│   └── services/
+```
+
+#### 跨模块通信模式
+
+```python
+# ✅ 好的做法：模块间通信反映团队沟通模式
+# 如果团队是集中式沟通（所有决策通过一个负责人）
+# 代码结构应该是：
+class CentralCoordinator:
+    """中央协调器 - 反映集中式沟通"""
+    def __init__(self):
+        self.services = {
+            "report": LiveReportService(),
+            "audio": LiveAudioService(),
+            "session": LiveSessionManager()
+        }
+    
+    def process_request(self, request_type: str, data: dict):
+        """所有请求都通过中央协调器"""
+        service = self.services.get(request_type)
+        return service.process(data)
+
+# 如果团队是分布式沟通（各小组独立决策）
+# 代码结构应该是：
+class LiveReportService:
+    """独立服务 - 反映分布式沟通"""
+    def __init__(self):
+        # 服务自己管理依赖
+        self.audio_service = LiveAudioService()
+        self.session_manager = LiveSessionManager()
+    
+    def generate_report(self, session_id: int):
+        """服务独立处理，不通过中央协调"""
+        # 直接调用其他服务
+        audio_data = self.audio_service.get_audio(session_id)
+        session = self.session_manager.get_session(session_id)
+        return self._generate_report(audio_data, session)
+```
+
+### 2. 架构变更需要组织调整
+
+#### 从单体到微服务的组织变化
+
+```python
+# ❌ 问题：想改成微服务，但团队结构没变
+# 代码结构：
+server/
+├── app/
+│   ├── services/
+│   │   ├── live_report_service.py  # 一个团队负责所有服务
+│   │   ├── live_audio_service.py
+│   │   └── live_session_service.py
+│   └── api/
+│       └── all_routes.py  # 所有路由在一个文件
+
+# 结果：虽然代码分成了多个服务，但团队还是集中式管理
+# 导致：服务间耦合严重，无法独立部署
+
+# ✅ 解决方案：先调整团队结构
+# 1. 将团队分成独立的小组：
+#    - 报告服务组（2-3人）
+#    - 音频服务组（2-3人）
+#    - 会话管理组（2-3人）
+
+# 2. 然后调整代码结构：
+server/
+├── services/
+│   ├── report-service/      # 报告服务组独立维护
+│   │   ├── app/
+│   │   ├── tests/
+│   │   └── README.md
+│   ├── audio-service/       # 音频服务组独立维护
+│   │   ├── app/
+│   │   ├── tests/
+│   │   └── README.md
+│   └── session-service/     # 会话管理组独立维护
+│       ├── app/
+│       ├── tests/
+│       └── README.md
+```
+
+### 3. 接口设计反映沟通边界
+
+#### API 接口作为团队边界
+
+```python
+# ✅ 好的做法：API 接口定义团队边界
+# 如果报告服务组和音频服务组是独立团队
+# 它们之间的通信应该通过明确的 API 接口
+
+# 报告服务组定义的接口
+class ReportServiceAPI:
+    """报告服务 API - 定义与其他服务的通信接口"""
+    
+    @router.get("/api/report/{session_id}")
+    async def get_report(self, session_id: int):
+        """获取报告 - 其他服务通过这个接口调用"""
+        # 报告服务组负责实现
+        return await self._generate_report(session_id)
+
+# 音频服务组定义的接口
+class AudioServiceAPI:
+    """音频服务 API - 定义与其他服务的通信接口"""
+    
+    @router.get("/api/audio/{session_id}")
+    async def get_audio_data(self, session_id: int):
+        """获取音频数据 - 其他服务通过这个接口调用"""
+        # 音频服务组负责实现
+        return await self._get_audio(session_id)
+
+# 服务间通过 HTTP API 通信，而不是直接导入
+# 这反映了团队间的沟通方式：通过明确的接口，而不是直接访问内部实现
+```
+
+### 4. 数据模型反映组织边界
+
+#### 数据库设计反映团队职责
+
+```python
+# ✅ 好的做法：数据库设计反映团队职责边界
+# 如果团队分为：
+# - 用户管理组（负责用户相关数据）
+# - 直播服务组（负责直播相关数据）
+# - 报告分析组（负责报告相关数据）
+
+# 数据库设计应该对应：
+class UserModel(db.Model):
+    """用户模型 - 用户管理组负责"""
+    # 用户管理组拥有这个模型的定义和修改权
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(100))
+    email = db.Column(db.String(100))
+
+class LiveSessionModel(db.Model):
+    """直播会话模型 - 直播服务组负责"""
+    # 直播服务组拥有这个模型的定义和修改权
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.String(100))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    status = db.Column(db.String(50))
+
+class ReportModel(db.Model):
+    """报告模型 - 报告分析组负责"""
+    # 报告分析组拥有这个模型的定义和修改权
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('live_session.id'))
+    content = db.Column(db.Text)
+
+# ❌ 避免：一个团队拥有所有模型
+# 这会导致：
+# 1. 模型变更需要多个团队协调
+# 2. 团队职责不清
+# 3. 沟通成本高
+```
+
+### 5. 文档和沟通结构
+
+#### 文档组织反映团队结构
+
+```python
+# ✅ 好的做法：文档结构反映团队结构
+docs/
+├── services/
+│   ├── report-service/      # 报告服务组的文档
+│   │   ├── README.md
+│   │   ├── API.md
+│   │   └── ARCHITECTURE.md
+│   ├── audio-service/       # 音频服务组的文档
+│   │   ├── README.md
+│   │   ├── API.md
+│   │   └── ARCHITECTURE.md
+│   └── session-service/     # 会话管理组的文档
+│       ├── README.md
+│       ├── API.md
+│       └── ARCHITECTURE.md
+├── shared/                  # 跨团队共享文档
+│   ├── database-schema.md
+│   └── deployment.md
+└── team-structure.md        # 团队结构说明
+```
+
+### 6. 代码审查流程反映组织沟通
+
+#### 审查流程对应团队沟通
+
+```python
+# ✅ 好的做法：代码审查流程反映团队沟通
+class CodeReviewProcess:
+    """代码审查流程 - 反映团队沟通结构"""
+    
+    def review_code(self, pr: PullRequest):
+        """审查代码"""
+        # 如果团队是集中式（所有PR由技术负责人审查）
+        if self.team_structure == "centralized":
+            return self._centralized_review(pr)
+        
+        # 如果团队是分布式（各小组独立审查）
+        elif self.team_structure == "distributed":
+            return self._distributed_review(pr)
+    
+    def _centralized_review(self, pr):
+        """集中式审查 - 所有PR由技术负责人审查"""
+        # 技术负责人审查所有代码
+        tech_lead = self.get_tech_lead()
+        return tech_lead.review(pr)
+    
+    def _distributed_review(self, pr):
+        """分布式审查 - 各小组独立审查"""
+        # 根据代码所属的服务，由对应小组审查
+        service_group = self.get_service_group(pr.files)
+        return service_group.review(pr)
+```
+
+### 7. 部署和运维结构
+
+#### 部署结构反映团队职责
+
+```python
+# ✅ 好的做法：部署结构反映团队职责
+# 如果团队分为独立的小组，每个小组负责自己的服务部署
+
+deploy/
+├── report-service/          # 报告服务组负责部署
+│   ├── Dockerfile
+│   ├── docker-compose.yml
+│   └── deploy.sh
+├── audio-service/           # 音频服务组负责部署
+│   ├── Dockerfile
+│   ├── docker-compose.yml
+│   └── deploy.sh
+└── session-service/         # 会话管理组负责部署
+    ├── Dockerfile
+    ├── docker-compose.yml
+    └── deploy.sh
+
+# 每个小组可以独立部署自己的服务
+# 这反映了团队的独立性和自主性
+```
+
+### 8. 测试策略反映团队结构
+
+#### 测试组织对应团队
+
+```python
+# ✅ 好的做法：测试结构反映团队结构
+tests/
+├── services/
+│   ├── report-service/     # 报告服务组负责测试
+│   │   ├── test_report_generation.py
+│   │   └── test_report_api.py
+│   ├── audio-service/       # 音频服务组负责测试
+│   │   ├── test_audio_processing.py
+│   │   └── test_audio_api.py
+│   └── session-service/    # 会话管理组负责测试
+│       ├── test_session_management.py
+│       └── test_session_api.py
+└── integration/            # 跨团队集成测试
+    ├── test_report_audio_integration.py
+    └── test_end_to_end.py
+```
+
+## 实践建议
+
+### 1. 识别当前组织结构
+
+```python
+# 分析当前团队沟通模式
+TEAM_STRUCTURE = {
+    "communication_pattern": "centralized",  # 或 "distributed"
+    "teams": [
+        {
+            "name": "后端服务组",
+            "members": 3,
+            "responsibilities": ["services/", "models/"]
+        },
+        {
+            "name": "API 接口组",
+            "members": 2,
+            "responsibilities": ["api/"]
+        },
+        {
+            "name": "前端开发组",
+            "members": 2,
+            "responsibilities": ["admin-dashboard/"]
+        }
+    ]
+}
+```
+
+### 2. 调整代码结构匹配组织
+
+```python
+# 如果组织是集中式，代码应该是：
+# - 所有决策通过中央协调器
+# - 模块间紧密耦合
+# - 统一的接口和规范
+
+# 如果组织是分布式，代码应该是：
+# - 各服务独立决策
+# - 模块间通过 API 通信
+# - 每个服务有自己的规范和接口
+```
+
+### 3. 架构变更时先调整组织
+
+```python
+# 步骤：
+# 1. 确定目标架构（如：微服务）
+# 2. 调整团队结构（分成独立的小组）
+# 3. 调整代码结构（分成独立的服务）
+# 4. 建立服务间通信机制（API、消息队列等）
+# 5. 建立跨团队协作机制（文档、会议、工具）
+```
+
+## 与项目其他原则的配合
+
+- **与单一职责配合**：团队职责清晰，代码职责也清晰
+- **与 KISS 配合**：简单的组织沟通结构，简单的代码结构
+- **与 DRY 配合**：跨团队共享的代码需要明确的沟通机制
+
+## 代码审查检查点
+
+在代码审查时，检查：
+1. 代码结构是否反映了团队结构？
+2. 模块边界是否对应团队边界？
+3. 接口设计是否反映了团队沟通方式？
+4. 架构变更是否伴随组织调整？
+5. 跨模块通信是否通过明确的接口？
+
+## 记住
+
+**系统架构是组织沟通结构的镜像。**
+
+- 如果你想改变系统架构，先改变组织沟通结构
+- 代码结构应该反映团队结构
+- 模块边界应该对应团队边界
+- 接口设计应该反映团队沟通方式
+- 架构变更必须伴随组织调整
+
+**组织结构和系统架构必须保持一致，否则系统会变得难以维护。**

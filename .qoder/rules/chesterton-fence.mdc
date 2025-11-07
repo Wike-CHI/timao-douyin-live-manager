@@ -1,0 +1,491 @@
+---
+description: Chesterton's Fence - 在理解为什么存在之前不要移除，理解遗留代码的原因
+globs: ["**/*.py", "**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"]
+alwaysApply: true
+---
+
+# Chesterton's Fence
+
+## 核心思想
+
+"在你不理解一件事为何以某种方式存在之前，永远不要轻易地将其移除。" 在重构或删除一段看似无用的"遗留代码"时，必须首先理解它被写下的原因。它可能是在处理一个你尚未遇到的极端边界情况。拆除"栅栏"前，先搞清楚为什么当初要立起它。
+
+## 在本项目中的应用规则
+
+### 1. 遗留代码处理
+
+#### 理解代码存在的原因
+
+```python
+# ✅ 好的做法：先理解再删除
+class LegacyCodeHandler:
+    """遗留代码处理 - 遵循 Chesterton's Fence"""
+    
+    def investigate_legacy_code(self, code_block: str) -> dict:
+        """调查遗留代码"""
+        # 1. 理解代码的作用
+        purpose = self._understand_purpose(code_block)
+        
+        # 2. 查找相关文档和注释
+        documentation = self._find_documentation(code_block)
+        
+        # 3. 查找 Git 历史
+        git_history = self._check_git_history(code_block)
+        
+        # 4. 查找相关 Issue 和 PR
+        related_issues = self._find_related_issues(code_block)
+        
+        # 5. 测试边界情况
+        edge_cases = self._test_edge_cases(code_block)
+        
+        return {
+            "purpose": purpose,
+            "documentation": documentation,
+            "git_history": git_history,
+            "related_issues": related_issues,
+            "edge_cases": edge_cases,
+            "safe_to_remove": self._assess_safety(purpose, edge_cases)
+        }
+    
+    def _understand_purpose(self, code: str) -> str:
+        """理解代码的目的"""
+        # 分析代码逻辑
+        # 查找注释
+        # 查找相关函数调用
+        pass
+    
+    def _test_edge_cases(self, code: str) -> List[str]:
+        """测试边界情况"""
+        # 测试各种边界情况
+        # 确保理解代码处理的所有场景
+        pass
+
+# 使用示例
+def handle_legacy_code():
+    """处理遗留代码"""
+    handler = LegacyCodeHandler()
+    
+    # 发现一段看似无用的代码
+    legacy_code = """
+    # 这个检查看起来多余
+    if data and len(data) > 0:
+        process_data(data)
+    """
+    
+    # 先调查
+    investigation = handler.investigate_legacy_code(legacy_code)
+    
+    # 如果确实理解了原因，再决定是否删除
+    if investigation["safe_to_remove"]:
+        logger.info("理解了代码原因，可以安全删除")
+        # 删除代码
+    else:
+        logger.warning("未完全理解代码原因，保留代码")
+        # 保留代码，添加注释说明原因
+
+# ❌ 避免：直接删除
+def handle_legacy_code_bad():
+    """处理遗留代码 - 直接删除"""
+    # 这段代码看起来没用，直接删除
+    # 结果：可能破坏了某个边界情况的处理
+    pass
+```
+
+### 2. 配置和设置
+
+#### 理解配置存在的原因
+
+```python
+# ✅ 好的做法：理解配置的原因
+class ConfigInvestigator:
+    """配置调查器"""
+    
+    def investigate_config(self, config_key: str) -> dict:
+        """调查配置项"""
+        # 1. 查找配置的使用位置
+        usage_locations = self._find_usage(config_key)
+        
+        # 2. 查找配置的历史
+        config_history = self._check_config_history(config_key)
+        
+        # 3. 测试移除配置的影响
+        impact = self._test_removal_impact(config_key)
+        
+        return {
+            "usage_locations": usage_locations,
+            "config_history": config_history,
+            "removal_impact": impact,
+            "safe_to_remove": len(usage_locations) == 0 and impact == "none"
+        }
+
+# 使用示例
+def handle_config_cleanup():
+    """处理配置清理"""
+    investigator = ConfigInvestigator()
+    
+    # 发现一个看似无用的配置
+    config_key = "LEGACY_FEATURE_FLAG"
+    
+    # 先调查
+    investigation = investigator.investigate_config(config_key)
+    
+    if investigation["safe_to_remove"]:
+        logger.info("配置未被使用，可以安全删除")
+        # 删除配置
+    else:
+        logger.warning("配置仍在使用或有关键影响，保留配置")
+        # 保留配置，添加注释说明原因
+
+# ❌ 避免：直接删除配置
+def handle_config_cleanup_bad():
+    """处理配置清理 - 直接删除"""
+    # 这个配置看起来没用，直接删除
+    # 结果：可能破坏了某个功能的开关
+    pass
+```
+
+### 3. 依赖和库
+
+#### 理解依赖存在的原因
+
+```python
+# ✅ 好的做法：理解依赖的原因
+class DependencyInvestigator:
+    """依赖调查器"""
+    
+    def investigate_dependency(self, package_name: str) -> dict:
+        """调查依赖"""
+        # 1. 查找依赖的使用位置
+        usage = self._find_package_usage(package_name)
+        
+        # 2. 查找依赖的引入原因
+        introduction_reason = self._check_introduction_reason(package_name)
+        
+        # 3. 测试移除依赖的影响
+        impact = self._test_removal_impact(package_name)
+        
+        return {
+            "usage": usage,
+            "introduction_reason": introduction_reason,
+            "removal_impact": impact,
+            "safe_to_remove": len(usage) == 0 and impact == "none"
+        }
+
+# 使用示例
+def handle_dependency_cleanup():
+    """处理依赖清理"""
+    investigator = DependencyInvestigator()
+    
+    # 发现一个看似无用的依赖
+    package = "legacy-package"
+    
+    # 先调查
+    investigation = investigator.investigate_dependency(package)
+    
+    if investigation["safe_to_remove"]:
+        logger.info("依赖未被使用，可以安全删除")
+        # 从 requirements.txt 删除
+    else:
+        logger.warning("依赖仍在使用或有关键影响，保留依赖")
+        # 保留依赖，添加注释说明原因
+
+# ❌ 避免：直接删除依赖
+def handle_dependency_cleanup_bad():
+    """处理依赖清理 - 直接删除"""
+    # 这个依赖看起来没用，直接删除
+    # 结果：可能破坏了某个功能的导入
+    pass
+```
+
+### 4. 数据库字段和表
+
+#### 理解数据库结构的原因
+
+```python
+# ✅ 好的做法：理解数据库结构的原因
+class DatabaseInvestigator:
+    """数据库调查器"""
+    
+    def investigate_column(self, table_name: str, column_name: str) -> dict:
+        """调查数据库列"""
+        # 1. 查找列的使用位置
+        usage = self._find_column_usage(table_name, column_name)
+        
+        # 2. 查找列的创建原因
+        creation_reason = self._check_migration_history(table_name, column_name)
+        
+        # 3. 检查是否有数据依赖
+        data_dependency = self._check_data_dependency(table_name, column_name)
+        
+        return {
+            "usage": usage,
+            "creation_reason": creation_reason,
+            "data_dependency": data_dependency,
+            "safe_to_remove": len(usage) == 0 and not data_dependency
+        }
+
+# 使用示例
+def handle_database_cleanup():
+    """处理数据库清理"""
+    investigator = DatabaseInvestigator()
+    
+    # 发现一个看似无用的列
+    table = "live_sessions"
+    column = "legacy_field"
+    
+    # 先调查
+    investigation = investigator.investigate_column(table, column)
+    
+    if investigation["safe_to_remove"]:
+        logger.info("列未被使用，可以安全删除")
+        # 创建迁移删除列
+    else:
+        logger.warning("列仍在使用或有数据依赖，保留列")
+        # 保留列，添加注释说明原因
+
+# ❌ 避免：直接删除列
+def handle_database_cleanup_bad():
+    """处理数据库清理 - 直接删除"""
+    # 这个列看起来没用，直接删除
+    # 结果：可能破坏了某个查询或功能
+    pass
+```
+
+### 5. API 端点
+
+#### 理解 API 存在的原因
+
+```python
+# ✅ 好的做法：理解 API 的原因
+class APIInvestigator:
+    """API 调查器"""
+    
+    def investigate_endpoint(self, endpoint: str) -> dict:
+        """调查 API 端点"""
+        # 1. 查找端点的使用位置
+        usage = self._find_endpoint_usage(endpoint)
+        
+        # 2. 查找端点的创建原因
+        creation_reason = self._check_endpoint_history(endpoint)
+        
+        # 3. 检查是否有外部依赖
+        external_dependencies = self._check_external_dependencies(endpoint)
+        
+        return {
+            "usage": usage,
+            "creation_reason": creation_reason,
+            "external_dependencies": external_dependencies,
+            "safe_to_remove": len(usage) == 0 and len(external_dependencies) == 0
+        }
+
+# 使用示例
+def handle_api_cleanup():
+    """处理 API 清理"""
+    investigator = APIInvestigator()
+    
+    # 发现一个看似无用的端点
+    endpoint = "/api/legacy/endpoint"
+    
+    # 先调查
+    investigation = investigator.investigate_endpoint(endpoint)
+    
+    if investigation["safe_to_remove"]:
+        logger.info("端点未被使用，可以安全删除")
+        # 删除端点
+    else:
+        logger.warning("端点仍在使用或有外部依赖，保留端点")
+        # 保留端点，添加注释说明原因
+        # 或者标记为 deprecated，逐步迁移
+
+# ❌ 避免：直接删除端点
+def handle_api_cleanup_bad():
+    """处理 API 清理 - 直接删除"""
+    # 这个端点看起来没用，直接删除
+    # 结果：可能破坏了外部系统的集成
+    pass
+```
+
+### 6. 测试代码
+
+#### 理解测试存在的原因
+
+```python
+# ✅ 好的做法：理解测试的原因
+class TestInvestigator:
+    """测试调查器"""
+    
+    def investigate_test(self, test_name: str) -> dict:
+        """调查测试"""
+        # 1. 理解测试的目的
+        test_purpose = self._understand_test_purpose(test_name)
+        
+        # 2. 查找测试覆盖的场景
+        covered_scenarios = self._analyze_test_coverage(test_name)
+        
+        # 3. 检查是否有相关 Bug
+        related_bugs = self._find_related_bugs(test_name)
+        
+        return {
+            "test_purpose": test_purpose,
+            "covered_scenarios": covered_scenarios,
+            "related_bugs": related_bugs,
+            "safe_to_remove": False  # 测试通常不应该删除
+        }
+
+# 使用示例
+def handle_test_cleanup():
+    """处理测试清理"""
+    investigator = TestInvestigator()
+    
+    # 发现一个看似重复的测试
+    test_name = "test_edge_case_legacy"
+    
+    # 先调查
+    investigation = investigator.investigate_test(test_name)
+    
+    # 理解测试的目的
+    if investigation["test_purpose"] == "覆盖边界情况":
+        logger.info("测试覆盖重要的边界情况，保留测试")
+        # 保留测试，可能改进测试名称和注释
+    else:
+        logger.warning("未完全理解测试目的，保留测试")
+        # 保留测试，添加注释说明原因
+
+# ❌ 避免：直接删除测试
+def handle_test_cleanup_bad():
+    """处理测试清理 - 直接删除"""
+    # 这个测试看起来重复，直接删除
+    # 结果：可能失去了重要的测试覆盖
+    pass
+```
+
+### 7. 重构流程
+
+#### 系统化的重构流程
+
+```python
+# ✅ 好的做法：系统化的重构流程
+class RefactoringProcess:
+    """重构流程"""
+    
+    REFACTORING_STEPS = [
+        "1. 理解代码的当前状态",
+        "2. 查找代码的历史和原因",
+        "3. 测试代码的所有使用场景",
+        "4. 理解代码的依赖关系",
+        "5. 评估重构的风险",
+        "6. 制定重构计划",
+        "7. 实施重构",
+        "8. 验证重构结果"
+    ]
+    
+    def refactor_code(self, code_block: str) -> dict:
+        """重构代码"""
+        # 1. 理解
+        understanding = self._understand_code(code_block)
+        
+        if not understanding["complete"]:
+            logger.warning("未完全理解代码，暂停重构")
+            return {"status": "paused", "reason": "incomplete_understanding"}
+        
+        # 2. 调查
+        investigation = self._investigate_code(code_block)
+        
+        # 3. 测试
+        test_results = self._test_all_scenarios(code_block)
+        
+        # 4. 评估
+        risk_assessment = self._assess_risk(code_block, investigation, test_results)
+        
+        if risk_assessment["risk"] == "high":
+            logger.warning("重构风险高，需要更多准备")
+            return {"status": "needs_preparation", "risk": risk_assessment}
+        
+        # 5. 重构
+        refactored = self._refactor(code_block, understanding, investigation)
+        
+        # 6. 验证
+        verification = self._verify_refactoring(refactored, test_results)
+        
+        return {
+            "status": "completed",
+            "refactored_code": refactored,
+            "verification": verification
+        }
+```
+
+## 实践建议
+
+### 1. 调查清单
+
+```python
+INVESTIGATION_CHECKLIST = {
+    "code": [
+        "查找 Git 历史",
+        "查找相关 Issue 和 PR",
+        "查找文档和注释",
+        "测试所有使用场景",
+        "理解依赖关系"
+    ],
+    "config": [
+        "查找使用位置",
+        "查找配置历史",
+        "测试移除影响"
+    ],
+    "dependency": [
+        "查找包的使用",
+        "查找引入原因",
+        "测试移除影响"
+    ]
+}
+```
+
+### 2. 安全删除的条件
+
+```python
+SAFE_REMOVAL_CRITERIA = {
+    "code": [
+        "完全理解代码的目的",
+        "确认代码未被使用",
+        "测试所有边界情况",
+        "确认没有副作用"
+    ],
+    "config": [
+        "确认配置未被使用",
+        "确认移除无影响",
+        "有回滚计划"
+    ],
+    "dependency": [
+        "确认包未被使用",
+        "确认移除无影响",
+        "有替代方案"
+    ]
+}
+```
+
+## 与项目其他原则的配合
+
+- **与 YAGNI 配合**：不要删除"将来可能有用"的代码，除非完全理解
+- **与 KISS 配合**：理解后再简化，而不是盲目删除
+- **与童子军军规配合**：改进代码时先理解原因
+
+## 代码审查检查点
+
+在代码审查时，检查：
+1. 是否理解了代码存在的原因？
+2. 是否调查了代码的历史？
+3. 是否测试了所有使用场景？
+4. 是否评估了删除的风险？
+5. 是否有回滚计划？
+
+## 记住
+
+**在理解为什么存在之前，不要移除任何东西。**
+
+- 先理解代码的目的和历史
+- 调查代码的使用和依赖
+- 测试所有边界情况
+- 评估删除的风险
+- 只有在完全理解后才删除
+
+**拆除"栅栏"前，先搞清楚为什么当初要立起它。**
