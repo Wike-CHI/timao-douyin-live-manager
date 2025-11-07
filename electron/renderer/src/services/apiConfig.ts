@@ -353,6 +353,16 @@ export const requestWithRetry = <T>(
   retryCount?: number
 ) => apiConfig.requestWithRetry<T>(serviceName, path, options, retryCount);
 
+export const buildServiceUrl = (
+  serviceName: keyof ApiConfig['services'],
+  path: string,
+  overrideBaseUrl?: string
+) => {
+  const base = (overrideBaseUrl ?? apiConfig.getServiceUrl(serviceName)).replace(/\/$/, '');
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${base}${cleanPath}`;
+};
+
 // 自动启动健康检查
 if (typeof window !== 'undefined') {
   // 页面加载完成后启动健康检查

@@ -1,9 +1,7 @@
-import useAuthStore from '../store/useAuthStore';
 import authService from './authService';
+import { buildServiceUrl } from './apiConfig';
 import { SubscriptionPlan, CreateSubscriptionRequest } from '../types/api-types';
 import { apiCall } from '../utils/error-handler';
-
-const DEFAULT_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9030'; // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
 
 /**
  * 构建包含鉴权信息的请求头
@@ -19,12 +17,14 @@ const buildHeaders = async (): Promise<Record<string, string>> => {
 /**
  * 统一的 fetch 包装函数，自动添加鉴权头
  */
-const authFetch = async (url: string, options?: RequestInit): Promise<Response> => {
+const authFetch = async (path: string, options?: RequestInit, baseUrl?: string): Promise<Response> => {
   const headers = {
     ...(await buildHeaders()),
     ...(options?.headers || {}),
   };
-  
+
+  const url = buildServiceUrl('main', path, baseUrl);
+
   return fetch(url, {
     ...options,
     headers,
@@ -143,9 +143,9 @@ export interface SubscriptionStatistics {
  * 获取所有可用套餐
  * 注意：统一使用 /api/subscription/plans（废弃 /api/payment/plans）
  */
-export const getPlans = async (baseUrl: string = DEFAULT_BASE_URL): Promise<Plan[]> => {
+export const getPlans = async (baseUrl?: string): Promise<Plan[]> => {
   const data = await apiCall<any[]>(
-    () => authFetch(`${baseUrl}/api/subscription/plans`),
+    () => authFetch('/api/subscription/plans', undefined, baseUrl),
     '获取套餐列表'
   );
   
@@ -177,9 +177,9 @@ export const getPlans = async (baseUrl: string = DEFAULT_BASE_URL): Promise<Plan
 /**
  * 获取单个套餐详情
  */
-export const getPlan = async (planId: string, baseUrl: string = DEFAULT_BASE_URL): Promise<Plan> => {
+export const getPlan = async (planId: string, baseUrl?: string): Promise<Plan> => {
   return apiCall(
-    () => authFetch(`${baseUrl}/api/payment/plans/${planId}`),
+    () => authFetch(`/api/payment/plans/${planId}`, undefined, baseUrl),
     '获取套餐详情'
   );
 };
@@ -191,13 +191,13 @@ export const getPlan = async (planId: string, baseUrl: string = DEFAULT_BASE_URL
  */
 export const createSubscription = async (
   request: CreateSubscriptionRequest,
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl?: string
 ): Promise<Subscription> => {
   return apiCall(
-    () => authFetch(`${baseUrl}/api/payment/subscriptions`, {
+    () => authFetch('/api/payment/subscriptions', {
       method: 'POST',
       body: JSON.stringify(request),
-    }),
+    }, baseUrl),
     '创建订阅'
   );
 };
@@ -206,10 +206,10 @@ export const createSubscription = async (
  * 获取用户当前订阅
  * 注意：统一使用 /api/subscription/current
  */
-export const getCurrentSubscription = async (baseUrl: string = DEFAULT_BASE_URL): Promise<Subscription | null> => {
+export const getCurrentSubscription = async (baseUrl?: string): Promise<Subscription | null> => {
   try {
     const data = await apiCall<any>(
-      () => authFetch(`${baseUrl}/api/subscription/current`),
+      () => authFetch('/api/subscription/current', undefined, baseUrl),
       '获取当前订阅'
     );
     
@@ -236,10 +236,10 @@ export const getCurrentSubscription = async (baseUrl: string = DEFAULT_BASE_URL)
 export const getSubscriptionHistory = async (
   skip: number = 0,
   limit: number = 10,
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl?: string
 ): Promise<Subscription[]> => {
   return apiCall(
-    () => authFetch(`${baseUrl}/api/payment/subscriptions?skip=${skip}&limit=${limit}`),
+    () => authFetch(`/api/payment/subscriptions?skip=${skip}&limit=${limit}`, undefined, baseUrl),
     '获取订阅历史'
   );
 };
@@ -249,12 +249,12 @@ export const getSubscriptionHistory = async (
  */
 export const cancelSubscription = async (
   subscriptionId: string,
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl?: string
 ): Promise<Subscription> => {
   return apiCall(
-    () => authFetch(`${baseUrl}/api/payment/subscriptions/${subscriptionId}/cancel`, {
+    () => authFetch(`/api/payment/subscriptions/${subscriptionId}/cancel`, {
       method: 'POST',
-    }),
+    }, baseUrl),
     '取消订阅'
   );
 };
@@ -266,7 +266,7 @@ export const renewSubscription = async (
   subscriptionId: string,
   planId: string,
   couponCode?: string,
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl?: string
 ): Promise<Subscription> => {
   const body: any = { plan_id: planId };
   if (couponCode) {
@@ -274,10 +274,10 @@ export const renewSubscription = async (
   }
 
   return apiCall(
-    () => authFetch(`${baseUrl}/api/payment/subscriptions/${subscriptionId}/renew`, {
+    () => authFetch(`/api/payment/subscriptions/${subscriptionId}/renew`, {
       method: 'POST',
       body: JSON.stringify(body),
-    }),
+    }, baseUrl),
     '续费订阅'
   );
 };
@@ -301,10 +301,10 @@ export interface CreatePaymentRequest {
  */
 export const createPayment = async (
   request: CreatePaymentRequest,
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl?: string
 ): Promise<Payment> => {
   return apiCall(
-    () => authFetch(`${baseUrl}/api/payment/payments`, {
+    () => authFetch('/api/payment/payments', {
       method: 'POST',
       body: JSON.stringify({
         subscription_id: request.subscription_id,
@@ -314,7 +314,7 @@ export const createPayment = async (
         coupon_code: request.coupon_code,
         return_url: request.return_url,
       }),
-    }),
+    }, baseUrl),
     '创建支付'
   );
 };
@@ -322,9 +322,9 @@ export const createPayment = async (
 /**
  * 获取支付详情
  */
-export const getPayment = async (paymentId: string, baseUrl: string = DEFAULT_BASE_URL): Promise<Payment> => {
+export const getPayment = async (paymentId: string, baseUrl?: string): Promise<Payment> => {
   return apiCall(
-    () => authFetch(`${baseUrl}/api/payment/payments/${paymentId}`),
+    () => authFetch(`/api/payment/payments/${paymentId}`, undefined, baseUrl),
     '获取支付详情'
   );
 };
@@ -335,10 +335,10 @@ export const getPayment = async (paymentId: string, baseUrl: string = DEFAULT_BA
 export const getPaymentHistory = async (
   skip: number = 0,
   limit: number = 10,
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl?: string
 ): Promise<Payment[]> => {
   return apiCall(
-    () => authFetch(`${baseUrl}/api/payment/payments?skip=${skip}&limit=${limit}`),
+    () => authFetch(`/api/payment/payments?skip=${skip}&limit=${limit}`, undefined, baseUrl),
     '获取支付历史'
   );
 };
@@ -351,7 +351,7 @@ export const getPaymentHistory = async (
 export const validateCoupon = async (
   code: string,
   amount: string,  // 修改为 string（PAY-001）
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl?: string
 ): Promise<{
   valid: boolean;
   coupon?: Coupon;
@@ -360,13 +360,13 @@ export const validateCoupon = async (
   message?: string;
 }> => {
   return apiCall(
-    () => authFetch(`${baseUrl}/api/payment/coupons/validate`, {
+    () => authFetch('/api/payment/coupons/validate', {
       method: 'POST',
       body: JSON.stringify({
         code: code,
         amount: amount,
       }),
-    }),
+    }, baseUrl),
     '验证优惠券'
   );
 };
@@ -379,7 +379,7 @@ export const validateCoupon = async (
 export const createAndConfirmPayment = async (
   planId: string,
   method: 'alipay' | 'wechat' | 'bank_transfer',
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl?: string
 ): Promise<{
   success: boolean;
   subscription?: Subscription;
@@ -387,13 +387,13 @@ export const createAndConfirmPayment = async (
   message?: string;
 }> => {
   return apiCall(
-    () => authFetch(`${baseUrl}/api/subscription/create_payment`, {
+    () => authFetch('/api/subscription/create_payment', {
       method: 'POST',
       body: JSON.stringify({
         plan_id: planId,
         payment_method: method,
       }),
-    }),
+    }, baseUrl),
     '创建并确认支付'
   );
 };
@@ -404,7 +404,7 @@ export const createAndConfirmPayment = async (
 export const confirmPayment = async (
   paymentId: string,
   transactionId?: string,
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl?: string
 ): Promise<{
   success: boolean;
   subscription?: Subscription;
@@ -417,10 +417,10 @@ export const confirmPayment = async (
   }
 
   return apiCall(
-    () => authFetch(`${baseUrl}/api/subscription/confirm_payment`, {
+    () => authFetch('/api/subscription/confirm_payment', {
       method: 'POST',
       body: JSON.stringify(body),
-    }),
+    }, baseUrl),
     '确认支付'
   );
 };
@@ -431,10 +431,10 @@ export const confirmPayment = async (
 export const getSubscriptionPaymentHistory = async (
   skip: number = 0,
   limit: number = 10,
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl?: string
 ): Promise<Payment[]> => {
   return apiCall(
-    () => authFetch(`${baseUrl}/api/subscription/payment_history?skip=${skip}&limit=${limit}`),
+    () => authFetch(`/api/subscription/payment_history?skip=${skip}&limit=${limit}`, undefined, baseUrl),
     '获取订阅支付历史'
   );
 };
@@ -447,7 +447,7 @@ export const getSubscriptionPaymentHistory = async (
 export const consumePoints = async (
   points: number,
   description?: string,
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl?: string
 ): Promise<{
   success: boolean;
   remaining_points: number;
@@ -459,10 +459,10 @@ export const consumePoints = async (
   }
 
   return apiCall(
-    () => authFetch(`${baseUrl}/api/subscription/consume_points`, {
+    () => authFetch('/api/subscription/consume_points', {
       method: 'POST',
       body: JSON.stringify(body),
-    }),
+    }, baseUrl),
     '消耗积分'
   );
 };
@@ -472,7 +472,7 @@ export const consumePoints = async (
  */
 export const checkPointsAvailable = async (
   points: number,
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl?: string
 ): Promise<{
   available: boolean;
   current_points: number;
@@ -480,7 +480,7 @@ export const checkPointsAvailable = async (
   message?: string;
 }> => {
   return apiCall(
-    () => authFetch(`${baseUrl}/api/subscription/check_points?points=${points}`),
+    () => authFetch(`/api/subscription/check_points?points=${points}`, undefined, baseUrl),
     '检查积分'
   );
 };

@@ -1,26 +1,13 @@
 import useAuthStore from '../store/useAuthStore';
 import authService from './authService';
-import { apiConfig, buildApiUrl, requestWithRetry } from './apiConfig';
+import { buildServiceUrl } from './apiConfig';
 import { AIUsage } from '../types/api-types';
 import { apiCall } from '../utils/error-handler';
 
-// 使用统一的API配置管理
-const getAuthBaseUrl = () => {
-  // 优先使用环境变量配置的认证服务地址
-  const authUrl = import.meta.env?.VITE_AUTH_BASE_URL?.trim();
-  if (authUrl) {
-    return authUrl;
-  }
-  
-  // 回退到主服务地址
-  return apiConfig.getServiceUrl('main');
-};
+const getAuthBaseUrl = () => import.meta.env?.VITE_AUTH_BASE_URL?.trim() || undefined;
 
-const joinUrl = (path: string) => {
-  const base = getAuthBaseUrl().replace(/\/$/, '');
-  const p = path.startsWith('/') ? path : `/${path}`;
-  return `${base}${p}`;
-};
+const buildAuthUrl = (path: string) =>
+  buildServiceUrl('main', path, getAuthBaseUrl());
 
 /**
  * 用户信息（修复 PAY-004）
@@ -89,7 +76,7 @@ export const login = async (payload: LoginPayload): Promise<LoginResponse> => {
   
   // 使用统一的错误处理
   return apiCall<LoginResponse>(
-    () => fetch(joinUrl('/api/auth/login'), {
+    () => fetch(buildAuthUrl('/api/auth/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody),
@@ -135,7 +122,7 @@ export const register = async (payload: RegisterPayload): Promise<RegisterRespon
     }
   }
   
-  const resp = await fetch(joinUrl('/api/auth/register'), {
+  const resp = await fetch(buildAuthUrl('/api/auth/register'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -151,7 +138,7 @@ export const uploadPayment = async (file: File) => {
   const form = new FormData();
   form.append('file', file);
   const authHeaders = await authService.getAuthHeaders();
-  const resp = await fetch(joinUrl('/api/payment/upload'), {
+  const resp = await fetch(buildAuthUrl('/api/payment/upload'), {
     method: 'POST',
     headers: authHeaders,
     body: form,
@@ -169,7 +156,7 @@ export const pollPayment = async () => {
     'Content-Type': 'application/json',
     ...authHeaders
   };
-  const resp = await fetch(joinUrl('/api/payment/poll'), {
+  const resp = await fetch(buildAuthUrl('/api/payment/poll'), {
     method: 'GET',
     headers,
   });

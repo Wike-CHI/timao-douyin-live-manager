@@ -1,19 +1,10 @@
 import useAuthStore from '../store/useAuthStore';
 import authService from './authService';
+import { buildServiceUrl } from './apiConfig';
 import { apiCall } from '../utils/error-handler';
 
-const DEFAULT_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9030'; // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
-
-const resolveBaseUrl = (baseUrl?: string) => {
-  const value = baseUrl && baseUrl.trim() ? baseUrl : DEFAULT_BASE_URL;
-  return value;
-};
-
-const joinUrl = (baseUrl: string | undefined, path: string) => {
-  const normalizedBase = resolveBaseUrl(baseUrl).replace(/\/$/, '');
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return `${normalizedBase}${normalizedPath}`;
-};
+const buildDouyinUrl = (path: string, baseUrl?: string) =>
+  buildServiceUrl('douyin', path, baseUrl);
 
 const buildHeaders = async () => {
   const authHeaders = await authService.getAuthHeaders();
@@ -60,7 +51,7 @@ export const startDouyinRelay = async (
   }
 
   return apiCall(
-    () => fetch(joinUrl(baseUrl, '/api/douyin/start'), {
+    () => fetch(buildDouyinUrl('/api/douyin/start', baseUrl), {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
@@ -74,7 +65,7 @@ export const stopDouyinRelay = async (
 ): Promise<DouyinRelayResponse> => {
   const headers = await buildHeaders();
   return apiCall(
-    () => fetch(joinUrl(baseUrl, '/api/douyin/stop'), {
+    () => fetch(buildDouyinUrl('/api/douyin/stop', baseUrl), {
       method: 'POST',
       headers,
     }),
@@ -87,7 +78,7 @@ export const getDouyinRelayStatus = async (
 ): Promise<DouyinRelayStatus> => {
   const headers = await buildHeaders();
   return apiCall(
-    () => fetch(joinUrl(baseUrl, '/api/douyin/status'), {
+    () => fetch(buildDouyinUrl('/api/douyin/status', baseUrl), {
       method: 'GET',
       headers,
     }),
@@ -105,7 +96,7 @@ export const openDouyinStream = (
   handlers: DouyinStreamHandlers,
   baseUrl?: string
 ): EventSource => {
-  const streamUrl = joinUrl(baseUrl, '/api/douyin/stream');
+  const streamUrl = buildDouyinUrl('/api/douyin/stream', baseUrl);
   const source = new EventSource(streamUrl);
 
   if (handlers.onOpen) {
@@ -135,7 +126,7 @@ export const updateDouyinPersist = async (
 ) => {
   const headers = await buildHeaders();
   return apiCall(
-    () => fetch(joinUrl(baseUrl, '/api/douyin/web/persist'), {
+    () => fetch(buildDouyinUrl('/api/douyin/web/persist', baseUrl), {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),

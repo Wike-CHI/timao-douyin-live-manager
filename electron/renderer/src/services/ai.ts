@@ -1,5 +1,6 @@
 import useAuthStore from '../store/useAuthStore';
 import authService from './authService';
+import { buildServiceUrl } from './apiConfig';
 import { apiCall } from '../utils/error-handler';
 
 const DEFAULT_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9030'; // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
@@ -30,12 +31,14 @@ const buildAuthUrl = async (url: string): Promise<string> => {
 /**
  * 统一的 fetch 包装函数，自动添加鉴权头
  */
-const authFetch = async (url: string, options?: RequestInit): Promise<Response> => {
+const authFetch = async (path: string, options?: RequestInit, baseUrl?: string): Promise<Response> => {
   const headers = {
     ...(await buildHeaders()),
     ...(options?.headers || {}),
   };
-  
+
+  const url = buildServiceUrl('main', path, baseUrl);
+
   return fetch(url, {
     ...options,
     headers,
@@ -54,13 +57,13 @@ export interface StartAILiveAnalysisPayload {
  */
 export const startAILiveAnalysis = async (
   payload: StartAILiveAnalysisPayload = {},
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl?: string
 ) => {
   return apiCall(
-    () => authFetch(`${baseUrl}/api/ai/live/start`, {
+    () => authFetch('/api/ai/live/start', {
       method: 'POST',
       body: JSON.stringify(payload),
-    }),
+    }, baseUrl ?? DEFAULT_BASE_URL),
     '启动 AI 实时分析'
   );
 };
@@ -68,11 +71,11 @@ export const startAILiveAnalysis = async (
 /**
  * 停止 AI 实时分析
  */
-export const stopAILiveAnalysis = async (baseUrl: string = DEFAULT_BASE_URL) => {
+export const stopAILiveAnalysis = async (baseUrl?: string) => {
   return apiCall(
-    () => authFetch(`${baseUrl}/api/ai/live/stop`, {
+    () => authFetch('/api/ai/live/stop', {
       method: 'POST',
-    }),
+    }, baseUrl ?? DEFAULT_BASE_URL),
     '停止 AI 实时分析'
   );
 };
@@ -83,10 +86,10 @@ export const stopAILiveAnalysis = async (baseUrl: string = DEFAULT_BASE_URL) => 
 export const openAILiveStream = async (
   onMessage: (event: MessageEvent) => void,
   onError?: (event: Event) => void,
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl?: string
 ): Promise<EventSource> => {
   // EventSource 不支持自定义 headers，需要通过 URL 参数传递 token
-  const url = await buildAuthUrl(`${baseUrl}/api/ai/live/stream`);
+  const url = await buildAuthUrl(buildServiceUrl('main', '/api/ai/live/stream', baseUrl ?? DEFAULT_BASE_URL));
   const eventSource = new EventSource(url);
   
   eventSource.onmessage = onMessage;
@@ -120,13 +123,13 @@ export interface GenerateOneScriptResponse {
  */
 export const generateOneScript = async (
   payload: GenerateOneScriptPayload,
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl?: string
 ): Promise<GenerateOneScriptResponse> => {
   return apiCall(
-    () => authFetch(`${baseUrl}/api/ai/scripts/generate_one`, {
+    () => authFetch('/api/ai/scripts/generate_one', {
       method: 'POST',
       body: JSON.stringify(payload),
-    }),
+    }, baseUrl ?? DEFAULT_BASE_URL),
     '生成单条话术'
   );
 };
@@ -148,13 +151,13 @@ export interface GenerateAnswerScriptsResponse {
 
 export const generateAnswerScripts = async (
   payload: GenerateAnswerScriptsPayload,
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl?: string
 ): Promise<GenerateAnswerScriptsResponse> => {
   return apiCall(
-    () => authFetch(`${baseUrl}/api/ai/live/answers`, {
+    () => authFetch('/api/ai/live/answers', {
       method: 'POST',
       body: JSON.stringify(payload),
-    }),
+    }, baseUrl ?? DEFAULT_BASE_URL),
     '生成回答话术'
   );
 };

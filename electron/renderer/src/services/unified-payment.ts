@@ -10,10 +10,9 @@
  */
 
 import authService from './authService';
+import { buildServiceUrl } from './apiConfig';
 import { apiCall } from '../utils/error-handler';
 import type { Plan, Subscription, Payment } from './payment';
-
-const DEFAULT_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9030'; // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
 
 // 优先使用的 API 前缀（建议使用 /api/payment，更语义化）
 const PRIMARY_API_PREFIX = '/api/payment';
@@ -38,13 +37,12 @@ async function smartFetch<T>(
   fallbackPath?: string,
   options?: RequestInit
 ): Promise<T> {
-  const baseUrl = DEFAULT_BASE_URL;
   const headers = await buildHeaders();
   
   try {
     // 尝试主 API
     return await apiCall<T>(
-      () => fetch(`${baseUrl}${primaryPath}`, {
+      () => fetch(buildServiceUrl('main', primaryPath), {
         ...options,
         headers: {
           ...headers,
@@ -61,7 +59,7 @@ async function smartFetch<T>(
     // 降级到备用 API
     console.warn(`主 API ${primaryPath} 失败，尝试备用 API ${fallbackPath}`);
     return apiCall<T>(
-      () => fetch(`${baseUrl}${fallbackPath}`, {
+      () => fetch(buildServiceUrl('main', fallbackPath), {
         ...options,
         headers: {
           ...headers,

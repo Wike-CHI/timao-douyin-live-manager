@@ -1,8 +1,7 @@
 import useAuthStore from '../store/useAuthStore';
 import authService from './authService';
+import { buildServiceUrl } from './apiConfig';
 import { apiCall } from '../utils/error-handler';
-
-const DEFAULT_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9030'; // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
 
 const buildHeaders = async () => {
   const authHeaders = await authService.getAuthHeaders();
@@ -66,7 +65,7 @@ export interface LiveAudioMessage {
 
 export const startLiveAudio = async (
   payload: StartLiveAudioPayload,
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl?: string
 ) => {
   const body: Record<string, unknown> = {
     live_url: payload.live_url,
@@ -86,7 +85,7 @@ export const startLiveAudio = async (
   return apiCall(
     async () => {
       const headers = await buildHeaders();
-      return fetch(`${baseUrl}/api/live_audio/start`, {
+      return fetch(buildServiceUrl('main', '/api/live_audio/start', baseUrl), {
         method: 'POST',
         headers,
         body: JSON.stringify(body),
@@ -96,11 +95,11 @@ export const startLiveAudio = async (
   );
 };
 
-export const stopLiveAudio = async (baseUrl: string = DEFAULT_BASE_URL) => {
+export const stopLiveAudio = async (baseUrl?: string) => {
   return apiCall(
     async () => {
       const headers = await buildHeaders();
-      return fetch(`${baseUrl}/api/live_audio/stop`, {
+      return fetch(buildServiceUrl('main', '/api/live_audio/stop', baseUrl), {
         method: 'POST',
         headers,
       });
@@ -110,12 +109,12 @@ export const stopLiveAudio = async (baseUrl: string = DEFAULT_BASE_URL) => {
 };
 
 export const getLiveAudioStatus = async (
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl?: string
 ): Promise<LiveAudioStatus> => {
   return apiCall(
     async () => {
       const headers = await buildHeaders();
-      return fetch(`${baseUrl}/api/live_audio/status`, {
+      return fetch(buildServiceUrl('main', '/api/live_audio/status', baseUrl), {
         method: 'GET',
         headers,
       });
@@ -126,9 +125,10 @@ export const getLiveAudioStatus = async (
 
 export const openLiveAudioWebSocket = (
   onMessage: (message: LiveAudioMessage) => void,
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl?: string
 ): WebSocket => {
-  const wsUrl = baseUrl.replace(/^http/i, 'ws').replace(/\/$/, '') + '/api/live_audio/ws';
+  const resolved = buildServiceUrl('main', '/api/live_audio/ws', baseUrl).replace(/^http/i, 'ws');
+  const wsUrl = resolved.replace(/\/$/, '');
   const socket = new WebSocket(wsUrl);
   socket.onmessage = (ev) => {
     try {
@@ -171,11 +171,11 @@ export interface LiveAudioAdvancedSettings {
 
 export const updateLiveAudioAdvanced = async (
   settings: LiveAudioAdvancedSettings,  // 修复 AUDIO-003: 使用具体类型
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl?: string
 ) => {
   const headers = await buildHeaders();
   return apiCall(
-    () => fetch(`${baseUrl}/api/live_audio/advanced`, {
+    () => fetch(buildServiceUrl('main', '/api/live_audio/advanced', baseUrl), {
       method: 'POST',
       headers,
       body: JSON.stringify(settings),

@@ -1,12 +1,11 @@
 import useAuthStore from '../store/useAuthStore';
 import authService from './authService';
+import { buildServiceUrl } from './apiConfig';
 import { apiCall } from '../utils/error-handler';
 import type { ReviewData, ReportArtifacts } from '../types/report';
 
 // 导出类型供其他模块使用
 export type { ReviewData, ReportArtifacts } from '../types/report';
-
-const DEFAULT_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9030'; // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
 
 const buildHeaders = async () => {
   const authHeaders = await authService.getAuthHeaders();
@@ -15,6 +14,9 @@ const buildHeaders = async () => {
     ...authHeaders,
   };
 };
+
+const buildReportUrl = (path: string, baseUrl?: string) =>
+  buildServiceUrl('main', path, baseUrl);
 
 
 export interface LiveReportStartReq { 
@@ -41,10 +43,10 @@ export interface LiveReportGenResp {
   data?: ReportArtifacts;
 }
 
-export const startLiveReport = async (liveUrl: string, segmentMinutes = 30, baseUrl: string = DEFAULT_BASE_URL) => {
+export const startLiveReport = async (liveUrl: string, segmentMinutes = 30, baseUrl?: string) => {
   const headers = await buildHeaders();
   return apiCall(
-    () => fetch(`${baseUrl}/api/report/live/start`, {
+    () => fetch(buildReportUrl('/api/report/live/start', baseUrl), {
       method: 'POST',
       headers,
       body: JSON.stringify({ live_url: liveUrl, segment_minutes: segmentMinutes } satisfies LiveReportStartReq),
@@ -53,50 +55,50 @@ export const startLiveReport = async (liveUrl: string, segmentMinutes = 30, base
   );
 };
 
-export const stopLiveReport = async (baseUrl: string = DEFAULT_BASE_URL) => {
+export const stopLiveReport = async (baseUrl?: string) => {
   const headers = await buildHeaders();
   return apiCall(
-    () => fetch(`${baseUrl}/api/report/live/stop`, { method: 'POST', headers }),
+    () => fetch(buildReportUrl('/api/report/live/stop', baseUrl), { method: 'POST', headers }),
     '停止直播报告'
   );
 };
 
-export const pauseLiveReport = async (baseUrl: string = DEFAULT_BASE_URL) => {
+export const pauseLiveReport = async (baseUrl?: string) => {
   const headers = await buildHeaders();
   return apiCall(
-    () => fetch(`${baseUrl}/api/report/live/pause`, { method: 'POST', headers }),
+    () => fetch(buildReportUrl('/api/report/live/pause', baseUrl), { method: 'POST', headers }),
     '暂停直播报告'
   );
 };
 
-export const resumeLiveReport = async (baseUrl: string = DEFAULT_BASE_URL) => {
+export const resumeLiveReport = async (baseUrl?: string) => {
   const headers = await buildHeaders();
   return apiCall(
-    () => fetch(`${baseUrl}/api/report/live/resume`, { method: 'POST', headers }),
+    () => fetch(buildReportUrl('/api/report/live/resume', baseUrl), { method: 'POST', headers }),
     '恢复直播报告'
   );
 };
 
-export const getResumableSession = async (baseUrl: string = DEFAULT_BASE_URL) => {
+export const getResumableSession = async (baseUrl?: string) => {
   const headers = await buildHeaders();
   return apiCall(
-    () => fetch(`${baseUrl}/api/report/live/resumable`, { headers }),
+    () => fetch(buildReportUrl('/api/report/live/resumable', baseUrl), { headers }),
     '获取可恢复会话'
   );
 };
 
-export const getLiveReportStatus = async (baseUrl: string = DEFAULT_BASE_URL) => {
+export const getLiveReportStatus = async (baseUrl?: string) => {
   const headers = await buildHeaders();
   return apiCall(
-    () => fetch(`${baseUrl}/api/report/live/status`, { headers }),
+    () => fetch(buildReportUrl('/api/report/live/status', baseUrl), { headers }),
     '获取直播报告状态'
   );
 };
 
-export const generateLiveReport = async (baseUrl: string = DEFAULT_BASE_URL) => {
+export const generateLiveReport = async (baseUrl?: string) => {
   const headers = await buildHeaders();
   return apiCall(
-    () => fetch(`${baseUrl}/api/report/live/generate`, { method: 'POST', headers }),
+    () => fetch(buildReportUrl('/api/report/live/generate', baseUrl), { method: 'POST', headers }),
     '生成直播报告'
   );
 };

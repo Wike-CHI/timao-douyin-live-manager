@@ -8,7 +8,8 @@
     "dev": "vite --host 127.0.0.1 --port 10109",
     "build": "vite build",
     "preview": "vite preview",
-    "test:live-audio": "vitest run src/services/__tests__/liveAudio.test.ts"
+    "test:live-audio": "vitest run src/services/__tests__/liveAudio.test.ts",
+    "test:service-urls": "vitest run src/services/__tests__/serviceUrls.test.ts"
   },
   "dependencies": {
     "chart.js": "^4.5.1",
