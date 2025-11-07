@@ -280,8 +280,8 @@ async def create_user(
 async def get_users(
     search: Optional[str] = Query(None, description="搜索关键词"),
     role: Optional[UserRoleEnum] = Query(None, description="用户角色"),
-    is_active: Optional[bool] = Query(None, description="是否活跃"),
-    is_verified: Optional[bool] = Query(None, description="是否已验证"),
+    is_active: Optional[str] = Query(None, description="是否活跃"),
+    is_verified: Optional[str] = Query(None, description="是否已验证"),
     page: int = Query(1, ge=1, description="页码"),
     size: int = Query(20, ge=1, le=100, description="每页数量"),
     db: Session = Depends(get_db),
@@ -292,12 +292,21 @@ async def get_users(
         admin_service = AdminService(db)
         audit_service = AuditService(db)
         
+        # 转换字符串布尔值
+        is_active_bool = None
+        if is_active is not None:
+            is_active_bool = is_active.lower() in ('true', '1', 'yes')
+        
+        is_verified_bool = None
+        if is_verified is not None:
+            is_verified_bool = is_verified.lower() in ('true', '1', 'yes')
+        
         skip = (page - 1) * size
         users, total = admin_service.get_users(
             search=search,
             role=role,
-            is_active=is_active,
-            is_verified=is_verified,
+            is_active=is_active_bool,
+            is_verified=is_verified_bool,
             skip=skip,
             limit=size
         )

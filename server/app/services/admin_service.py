@@ -34,16 +34,18 @@ class AdminService:
         limit: int = 100
     ) -> Tuple[List[User], int]:
         """获取用户列表"""
+        from ..models.user import UserStatusEnum
         query = self.db.query(User)
         
-        # 搜索条件
+        # 搜索条件 - SQLAlchemy会自动处理NULL值
         if search:
             search_pattern = f"%{search}%"
             query = query.filter(
                 or_(
                     User.username.ilike(search_pattern),
                     User.email.ilike(search_pattern),
-                    User.full_name.ilike(search_pattern)
+                    User.nickname.ilike(search_pattern),
+                    User.phone.ilike(search_pattern)
                 )
             )
         
@@ -51,9 +53,14 @@ class AdminService:
         if role:
             query = query.filter(User.role == role)
         if is_active is not None:
-            query = query.filter(User.is_active == is_active)
+            # is_active是property,实际查询status字段
+            if is_active:
+                query = query.filter(User.status == UserStatusEnum.ACTIVE)
+            else:
+                query = query.filter(User.status != UserStatusEnum.ACTIVE)
         if is_verified is not None:
-            query = query.filter(User.is_verified == is_verified)
+            # is_verified是property,实际查询email_verified字段
+            query = query.filter(User.email_verified == is_verified)
         
         # 获取总数
         total = query.count()
