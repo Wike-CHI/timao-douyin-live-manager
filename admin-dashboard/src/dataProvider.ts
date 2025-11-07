@@ -2,7 +2,50 @@ import { DataProvider, fetchUtils } from 'react-admin';
 
 const API_BASE = import.meta.env.VITE_FASTAPI_URL || 'http://127.0.0.1:9019';
 
-const httpClient = (url: string, options: any = {}) => {
+// 刷新token的标志，防止多个请求同时刷新
+let isRefreshing = false;
+let refreshPromise: Promise<string> | null = null;
+
+// 刷新token的函数
+const refreshAccessToken = async (): Promise<string> => {
+  const refreshToken = localStorage.getItem('refresh_token');
+  
+  if (!refreshToken) {
+    throw new Error('No refresh token available');
+  }
+  
+  const response = await fetch(`${API_BASE}/api/auth/refresh`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+  
+  if (!response.ok) {
+    // 刷新失败，清除所有token并跳转到登录页
+    localStorage.removeItem('token');
+    localStorage.removeItem('refresh_token');
+    window.location.href = '/#/login';
+    throw new Error('Token refresh failed');
+  }
+  
+  const data = await response.json();
+  const newToken = data.access_token || data.token;
+  const newRefreshToken = data.refresh_token || data.refreshToken;
+  
+  if (newToken) {
+    localStorage.setItem('token', newToken);
+  }
+  
+  if (newRefreshToken) {
+    localStorage.setItem('refresh_token', newRefreshToken);
+  }
+  
+  return newToken;
+};
+
+const httpClient = async (url: string, options: any = {}) => {
   const token = localStorage.getItem('token');
   
   if (!options.headers) {
@@ -13,7 +56,41 @@ const httpClient = (url: string, options: any = {}) => {
     options.headers.set('Authorization', `Bearer ${token}`);
   }
   
-  return fetchUtils.fetchJson(url, options);
+  try {
+    return await fetchUtils.fetchJson(url, options);
+  } catch (error: any) {
+    // 如果是401错误，尝试刷新token
+    if (error.status === 401) {
+      try {
+        // 如果正在刷新，等待刷新完成
+        if (isRefreshing && refreshPromise) {
+          const newToken = await refreshPromise;
+          options.headers.set('Authorization', `Bearer ${newToken}`);
+          return await fetchUtils.fetchJson(url, options);
+        }
+        
+        // 开始刷新token
+        isRefreshing = true;
+        refreshPromise = refreshAccessToken();
+        
+        const newToken = await refreshPromise;
+        isRefreshing = false;
+        refreshPromise = null;
+        
+        // 使用新token重试请求
+        options.headers.set('Authorization', `Bearer ${newToken}`);
+        return await fetchUtils.fetchJson(url, options);
+      } catch (refreshError) {
+        isRefreshing = false;
+        refreshPromise = null;
+        // 刷新失败，重新抛出原始错误
+        throw error;
+      }
+    }
+    
+    // 其他错误直接抛出
+    throw error;
+  }
 };
 
 export const dataProvider: DataProvider = {
