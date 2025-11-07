@@ -1,10 +1,13 @@
-import { Admin, Resource } from 'react-admin';
+import { Admin, Resource, CustomRoutes } from 'react-admin';
+import { Route } from 'react-router-dom';
 import { authProvider } from './authProvider';
 import { dataProvider } from './dataProvider';
 import { AppLayout } from './AppLayout';
 import { LoginPage } from './pages/LoginPage';
 import { Dashboard } from './pages/Dashboard';
 import { UserList, UserShow, UserCreate, UserEdit } from './resources/users';
+import { PaymentList, PaymentShow } from './resources/payments';
+import { AICostStats } from './resources/ai-monitoring';
 
 function App() {
   return (
@@ -34,6 +37,16 @@ function App() {
         create={UserCreate}
         edit={UserEdit}
       />
+      
+      <Resource
+        name="payments"
+        list={PaymentList}
+        show={PaymentShow}
+      />
+      
+      <CustomRoutes>
+        <Route path="/ai-monitoring" element={<AICostStats />} />
+      </CustomRoutes>
     </Admin>
   );
 }
