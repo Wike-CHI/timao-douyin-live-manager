@@ -1,5 +1,6 @@
 import useAuthStore from '../store/useAuthStore';
 import authService from './authService';
+import { apiCall } from '../utils/error-handler';
 
 const DEFAULT_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9030'; // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
 
@@ -11,14 +12,6 @@ const buildHeaders = async () => {
   };
 };
 
-const handleResponse = async <T>(response: Response): Promise<T> => {
-  const data = await response.json().catch(() => null);
-  if (!response.ok) {
-    const detail = (data as any)?.detail || response.statusText || '请求失败';
-    throw new Error(detail);
-  }
-  return data as T;
-};
 
 export interface StartLiveAudioPayload {
   live_url: string; // 支持完整 URL 或 直播间 ID
@@ -90,30 +83,45 @@ export const startLiveAudio = async (
   if (typeof payload.max_chars === 'number') body.max_chars = payload.max_chars;
   if (typeof payload.silence_flush === 'number') body.silence_flush = payload.silence_flush;
   if (typeof payload.min_sentence_chars === 'number') body.min_sentence_chars = payload.min_sentence_chars;
-  const response = await fetch(`${baseUrl}/api/live_audio/start`, {
-    method: 'POST',
-    headers: await buildHeaders(),
-    body: JSON.stringify(body),
-  });
-  return handleResponse(response);
+  return apiCall(
+    async () => {
+      const headers = await buildHeaders();
+      return fetch(`${baseUrl}/api/live_audio/start`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+    },
+    '启动实时转写'
+  );
 };
 
 export const stopLiveAudio = async (baseUrl: string = DEFAULT_BASE_URL) => {
-  const response = await fetch(`${baseUrl}/api/live_audio/stop`, {
-    method: 'POST',
-    headers: await buildHeaders(),
-  });
-  return handleResponse(response);
+  return apiCall(
+    async () => {
+      const headers = await buildHeaders();
+      return fetch(`${baseUrl}/api/live_audio/stop`, {
+        method: 'POST',
+        headers,
+      });
+    },
+    '停止实时转写'
+  );
 };
 
 export const getLiveAudioStatus = async (
   baseUrl: string = DEFAULT_BASE_URL
 ): Promise<LiveAudioStatus> => {
-  const response = await fetch(`${baseUrl}/api/live_audio/status`, {
-    method: 'GET',
-    headers: await buildHeaders(),
-  });
-  return handleResponse(response);
+  return apiCall(
+    async () => {
+      const headers = await buildHeaders();
+      return fetch(`${baseUrl}/api/live_audio/status`, {
+        method: 'GET',
+        headers,
+      });
+    },
+    '获取实时转写状态'
+  );
 };
 
 export const openLiveAudioWebSocket = (
@@ -166,10 +174,12 @@ export const updateLiveAudioAdvanced = async (
   baseUrl: string = DEFAULT_BASE_URL
 ) => {
   const headers = await buildHeaders();
-  const response = await fetch(`${baseUrl}/api/live_audio/advanced`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(settings),
-  });
-  return handleResponse(response);
+  return apiCall(
+    () => fetch(`${baseUrl}/api/live_audio/advanced`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(settings),
+    }),
+    '更新实时转写高级设置'
+  );
 };

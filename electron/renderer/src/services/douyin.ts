@@ -1,5 +1,6 @@
 import useAuthStore from '../store/useAuthStore';
 import authService from './authService';
+import { apiCall } from '../utils/error-handler';
 
 const DEFAULT_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9030'; // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
 
@@ -22,14 +23,6 @@ const buildHeaders = async () => {
   };
 };
 
-const handleResponse = async <T>(response: Response): Promise<T> => {
-  const data = await response.json().catch(() => null);
-  if (!response.ok) {
-    const detail = (data as { detail?: string } | null)?.detail || response.statusText || '请求失败';
-    throw new Error(detail);
-  }
-  return data as T;
-};
 
 export interface DouyinRelayStatus {
   is_running: boolean;
@@ -65,35 +58,41 @@ export const startDouyinRelay = async (
   if (cookie) {
     body.cookie = cookie;
   }
-  
-  const response = await fetch(joinUrl(baseUrl, '/api/douyin/start'), {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
-  return handleResponse<DouyinRelayResponse>(response);
+
+  return apiCall(
+    () => fetch(joinUrl(baseUrl, '/api/douyin/start'), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    }),
+    '启动抖音中继'
+  );
 };
 
 export const stopDouyinRelay = async (
   baseUrl?: string
 ): Promise<DouyinRelayResponse> => {
   const headers = await buildHeaders();
-  const response = await fetch(joinUrl(baseUrl, '/api/douyin/stop'), {
-    method: 'POST',
-    headers,
-  });
-  return handleResponse<DouyinRelayResponse>(response);
+  return apiCall(
+    () => fetch(joinUrl(baseUrl, '/api/douyin/stop'), {
+      method: 'POST',
+      headers,
+    }),
+    '停止抖音中继'
+  );
 };
 
 export const getDouyinRelayStatus = async (
   baseUrl?: string
 ): Promise<DouyinRelayStatus> => {
   const headers = await buildHeaders();
-  const response = await fetch(joinUrl(baseUrl, '/api/douyin/status'), {
-    method: 'GET',
-    headers,
-  });
-  return handleResponse<DouyinRelayStatus>(response);
+  return apiCall(
+    () => fetch(joinUrl(baseUrl, '/api/douyin/status'), {
+      method: 'GET',
+      headers,
+    }),
+    '获取抖音中继状态'
+  );
 };
 
 export interface DouyinStreamHandlers {
@@ -135,10 +134,12 @@ export const updateDouyinPersist = async (
   baseUrl?: string
 ) => {
   const headers = await buildHeaders();
-  const response = await fetch(joinUrl(baseUrl, '/api/douyin/web/persist'), {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload),
-  });
-  return handleResponse(response);
+  return apiCall(
+    () => fetch(joinUrl(baseUrl, '/api/douyin/web/persist'), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    }),
+    '更新抖音持久化配置'
+  );
 };

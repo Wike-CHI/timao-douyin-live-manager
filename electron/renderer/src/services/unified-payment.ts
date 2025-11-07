@@ -10,6 +10,7 @@
  */
 
 import authService from './authService';
+import { apiCall } from '../utils/error-handler';
 import type { Plan, Subscription, Payment } from './payment';
 
 const DEFAULT_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9030'; // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
@@ -30,18 +31,6 @@ const buildHeaders = async (): Promise<Record<string, string>> => {
 };
 
 /**
- * 处理响应
- */
-const handleResponse = async <T>(response: Response): Promise<T> => {
-  const data = await response.json().catch(() => null);
-  if (!response.ok) {
-    const detail = (data as any)?.detail || response.statusText || '请求失败';
-    throw new Error(detail);
-  }
-  return data as T;
-};
-
-/**
  * 智能 API 调用：优先使用主 API，失败后降级到备用 API
  */
 async function smartFetch<T>(
@@ -54,14 +43,16 @@ async function smartFetch<T>(
   
   try {
     // 尝试主 API
-    const response = await fetch(`${baseUrl}${primaryPath}`, {
-      ...options,
-      headers: {
-        ...headers,
-        ...(options?.headers || {}),
-      },
-    });
-    return handleResponse<T>(response);
+    return await apiCall<T>(
+      () => fetch(`${baseUrl}${primaryPath}`, {
+        ...options,
+        headers: {
+          ...headers,
+          ...(options?.headers || {}),
+        },
+      }),
+      `请求 ${primaryPath}`
+    );
   } catch (error) {
     if (!fallbackPath) {
       throw error;
@@ -69,14 +60,16 @@ async function smartFetch<T>(
     
     // 降级到备用 API
     console.warn(`主 API ${primaryPath} 失败，尝试备用 API ${fallbackPath}`);
-    const response = await fetch(`${baseUrl}${fallbackPath}`, {
-      ...options,
-      headers: {
-        ...headers,
-        ...(options?.headers || {}),
-      },
-    });
-    return handleResponse<T>(response);
+    return apiCall<T>(
+      () => fetch(`${baseUrl}${fallbackPath}`, {
+        ...options,
+        headers: {
+          ...headers,
+          ...(options?.headers || {}),
+        },
+      }),
+      `请求 ${fallbackPath}`
+    );
   }
 }
 

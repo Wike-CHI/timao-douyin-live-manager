@@ -1,5 +1,6 @@
 import useAuthStore from '../store/useAuthStore';
 import authService from './authService';
+import { apiCall } from '../utils/error-handler';
 
 const DEFAULT_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9030'; // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
 
@@ -11,14 +12,6 @@ const buildHeaders = async () => {
   };
 };
 
-const handleResponse = async <T>(response: Response): Promise<T> => {
-  const data = await response.json().catch(() => null);
-  if (!response.ok) {
-    const detail = (data as any)?.detail || response.statusText || '请求失败';
-    throw new Error(detail);
-  }
-  return data as T;
-};
 
 export interface LiveSessionState {
   session_id: string;
@@ -56,11 +49,13 @@ export interface SessionStatusResponse {
  */
 export const getSessionStatus = async (baseUrl: string = DEFAULT_BASE_URL): Promise<SessionStatusResponse> => {
   const headers = await buildHeaders();
-  const response = await fetch(`${baseUrl}/api/live_session/status`, {
-    method: 'GET',
-    headers,
-  });
-  return handleResponse<SessionStatusResponse>(response);
+  return apiCall(
+    () => fetch(`${baseUrl}/api/live_session/status`, {
+      method: 'GET',
+      headers,
+    }),
+    '获取会话状态'
+  );
 };
 
 /**
@@ -68,11 +63,13 @@ export const getSessionStatus = async (baseUrl: string = DEFAULT_BASE_URL): Prom
  */
 export const resumeSession = async (baseUrl: string = DEFAULT_BASE_URL): Promise<SessionStatusResponse> => {
   const headers = await buildHeaders();
-  const response = await fetch(`${baseUrl}/api/live_session/resume`, {
-    method: 'POST',
-    headers,
-  });
-  return handleResponse<SessionStatusResponse>(response);
+  return apiCall(
+    () => fetch(`${baseUrl}/api/live_session/resume`, {
+      method: 'POST',
+      headers,
+    }),
+    '恢复会话'
+  );
 };
 
 /**
@@ -80,11 +77,13 @@ export const resumeSession = async (baseUrl: string = DEFAULT_BASE_URL): Promise
  */
 export const pauseSession = async (baseUrl: string = DEFAULT_BASE_URL): Promise<SessionStatusResponse> => {
   const headers = await buildHeaders();
-  const response = await fetch(`${baseUrl}/api/live_session/pause`, {
-    method: 'POST',
-    headers,
-  });
-  return handleResponse<SessionStatusResponse>(response);
+  return apiCall(
+    () => fetch(`${baseUrl}/api/live_session/pause`, {
+      method: 'POST',
+      headers,
+    }),
+    '暂停会话'
+  );
 };
 
 /**
@@ -92,11 +91,13 @@ export const pauseSession = async (baseUrl: string = DEFAULT_BASE_URL): Promise<
  */
 export const resumePausedSession = async (baseUrl: string = DEFAULT_BASE_URL): Promise<SessionStatusResponse> => {
   const headers = await buildHeaders();
-  const response = await fetch(`${baseUrl}/api/live_session/resume_paused`, {
-    method: 'POST',
-    headers,
-  });
-  return handleResponse<SessionStatusResponse>(response);
+  return apiCall(
+    () => fetch(`${baseUrl}/api/live_session/resume_paused`, {
+      method: 'POST',
+      headers,
+    }),
+    '恢复暂停会话'
+  );
 };
 
 /**

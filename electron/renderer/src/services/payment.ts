@@ -34,14 +34,6 @@ const authFetch = async (url: string, options?: RequestInit): Promise<Response> 
 /**
  * 处理响应（保留用于兼容性）
  */
-const handleResponse = async <T>(response: Response): Promise<T> => {
-  const data = await response.json().catch(() => null);
-  if (!response.ok) {
-    const detail = (data as any)?.detail || response.statusText || '请求失败';
-    throw new Error(detail);
-  }
-  return data as T;
-};
 
 // ========== 类型定义 ==========
 
@@ -152,8 +144,10 @@ export interface SubscriptionStatistics {
  * 注意：统一使用 /api/subscription/plans（废弃 /api/payment/plans）
  */
 export const getPlans = async (baseUrl: string = DEFAULT_BASE_URL): Promise<Plan[]> => {
-  const response = await authFetch(`${baseUrl}/api/subscription/plans`);
-  const data = await handleResponse<any[]>(response);
+  const data = await apiCall<any[]>(
+    () => authFetch(`${baseUrl}/api/subscription/plans`),
+    '获取套餐列表'
+  );
   
   // 转换 subscription_plans 格式为前端 Plan 接口
   return data.map(plan => ({
@@ -184,8 +178,10 @@ export const getPlans = async (baseUrl: string = DEFAULT_BASE_URL): Promise<Plan
  * 获取单个套餐详情
  */
 export const getPlan = async (planId: string, baseUrl: string = DEFAULT_BASE_URL): Promise<Plan> => {
-  const response = await authFetch(`${baseUrl}/api/payment/plans/${planId}`);
-  return handleResponse(response);
+  return apiCall(
+    () => authFetch(`${baseUrl}/api/payment/plans/${planId}`),
+    '获取套餐详情'
+  );
 };
 
 // ========== 订阅管理 API ==========
@@ -197,11 +193,13 @@ export const createSubscription = async (
   request: CreateSubscriptionRequest,
   baseUrl: string = DEFAULT_BASE_URL
 ): Promise<Subscription> => {
-  const response = await authFetch(`${baseUrl}/api/payment/subscriptions`, {
-    method: 'POST',
-    body: JSON.stringify(request),
-  });
-  return handleResponse(response);
+  return apiCall(
+    () => authFetch(`${baseUrl}/api/payment/subscriptions`, {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }),
+    '创建订阅'
+  );
 };
 
 /**
@@ -210,8 +208,10 @@ export const createSubscription = async (
  */
 export const getCurrentSubscription = async (baseUrl: string = DEFAULT_BASE_URL): Promise<Subscription | null> => {
   try {
-    const response = await authFetch(`${baseUrl}/api/subscription/current`);
-    const data = await handleResponse<any>(response);
+    const data = await apiCall<any>(
+      () => authFetch(`${baseUrl}/api/subscription/current`),
+      '获取当前订阅'
+    );
     
     if (!data) return null;
     
@@ -238,8 +238,10 @@ export const getSubscriptionHistory = async (
   limit: number = 10,
   baseUrl: string = DEFAULT_BASE_URL
 ): Promise<Subscription[]> => {
-  const response = await authFetch(`${baseUrl}/api/payment/subscriptions?skip=${skip}&limit=${limit}`);
-  return handleResponse(response);
+  return apiCall(
+    () => authFetch(`${baseUrl}/api/payment/subscriptions?skip=${skip}&limit=${limit}`),
+    '获取订阅历史'
+  );
 };
 
 /**
@@ -249,10 +251,12 @@ export const cancelSubscription = async (
   subscriptionId: string,
   baseUrl: string = DEFAULT_BASE_URL
 ): Promise<Subscription> => {
-  const response = await authFetch(`${baseUrl}/api/payment/subscriptions/${subscriptionId}/cancel`, {
-    method: 'POST',
-  });
-  return handleResponse(response);
+  return apiCall(
+    () => authFetch(`${baseUrl}/api/payment/subscriptions/${subscriptionId}/cancel`, {
+      method: 'POST',
+    }),
+    '取消订阅'
+  );
 };
 
 /**
@@ -268,12 +272,14 @@ export const renewSubscription = async (
   if (couponCode) {
     body.coupon_code = couponCode;
   }
-  
-  const response = await authFetch(`${baseUrl}/api/payment/subscriptions/${subscriptionId}/renew`, {
-    method: 'POST',
-    body: JSON.stringify(body),
-  });
-  return handleResponse(response);
+
+  return apiCall(
+    () => authFetch(`${baseUrl}/api/payment/subscriptions/${subscriptionId}/renew`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+    '续费订阅'
+  );
 };
 
 // ========== 支付管理 API ==========
@@ -297,26 +303,30 @@ export const createPayment = async (
   request: CreatePaymentRequest,
   baseUrl: string = DEFAULT_BASE_URL
 ): Promise<Payment> => {
-  const response = await authFetch(`${baseUrl}/api/payment/payments`, {
-    method: 'POST',
-    body: JSON.stringify({
-      subscription_id: request.subscription_id,
-      amount: request.amount,
-      payment_method: request.payment_method,
-      currency: request.currency || 'CNY',
-      coupon_code: request.coupon_code,
-      return_url: request.return_url,
+  return apiCall(
+    () => authFetch(`${baseUrl}/api/payment/payments`, {
+      method: 'POST',
+      body: JSON.stringify({
+        subscription_id: request.subscription_id,
+        amount: request.amount,
+        payment_method: request.payment_method,
+        currency: request.currency || 'CNY',
+        coupon_code: request.coupon_code,
+        return_url: request.return_url,
+      }),
     }),
-  });
-  return handleResponse(response);
+    '创建支付'
+  );
 };
 
 /**
  * 获取支付详情
  */
 export const getPayment = async (paymentId: string, baseUrl: string = DEFAULT_BASE_URL): Promise<Payment> => {
-  const response = await authFetch(`${baseUrl}/api/payment/payments/${paymentId}`);
-  return handleResponse(response);
+  return apiCall(
+    () => authFetch(`${baseUrl}/api/payment/payments/${paymentId}`),
+    '获取支付详情'
+  );
 };
 
 /**
@@ -327,8 +337,10 @@ export const getPaymentHistory = async (
   limit: number = 10,
   baseUrl: string = DEFAULT_BASE_URL
 ): Promise<Payment[]> => {
-  const response = await authFetch(`${baseUrl}/api/payment/payments?skip=${skip}&limit=${limit}`);
-  return handleResponse(response);
+  return apiCall(
+    () => authFetch(`${baseUrl}/api/payment/payments?skip=${skip}&limit=${limit}`),
+    '获取支付历史'
+  );
 };
 
 // ========== 优惠券管理 API ==========
@@ -347,14 +359,16 @@ export const validateCoupon = async (
   final_amount?: string;  // 修改为 string（PAY-001）
   message?: string;
 }> => {
-  const response = await authFetch(`${baseUrl}/api/payment/coupons/validate`, {
-    method: 'POST',
-    body: JSON.stringify({
-      code: code,
-      amount: amount,
+  return apiCall(
+    () => authFetch(`${baseUrl}/api/payment/coupons/validate`, {
+      method: 'POST',
+      body: JSON.stringify({
+        code: code,
+        amount: amount,
+      }),
     }),
-  });
-  return handleResponse(response);
+    '验证优惠券'
+  );
 };
 
 // ========== 订阅专用 API (来自 /api/subscription) ==========
@@ -372,14 +386,16 @@ export const createAndConfirmPayment = async (
   payment?: Payment;
   message?: string;
 }> => {
-  const response = await authFetch(`${baseUrl}/api/subscription/create_payment`, {
-    method: 'POST',
-    body: JSON.stringify({
-      plan_id: planId,
-      payment_method: method,
+  return apiCall(
+    () => authFetch(`${baseUrl}/api/subscription/create_payment`, {
+      method: 'POST',
+      body: JSON.stringify({
+        plan_id: planId,
+        payment_method: method,
+      }),
     }),
-  });
-  return handleResponse(response);
+    '创建并确认支付'
+  );
 };
 
 /**
@@ -399,12 +415,14 @@ export const confirmPayment = async (
   if (transactionId) {
     body.transaction_id = transactionId;
   }
-  
-  const response = await authFetch(`${baseUrl}/api/subscription/confirm_payment`, {
-    method: 'POST',
-    body: JSON.stringify(body),
-  });
-  return handleResponse(response);
+
+  return apiCall(
+    () => authFetch(`${baseUrl}/api/subscription/confirm_payment`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+    '确认支付'
+  );
 };
 
 /**
@@ -415,8 +433,10 @@ export const getSubscriptionPaymentHistory = async (
   limit: number = 10,
   baseUrl: string = DEFAULT_BASE_URL
 ): Promise<Payment[]> => {
-  const response = await authFetch(`${baseUrl}/api/subscription/payment_history?skip=${skip}&limit=${limit}`);
-  return handleResponse(response);
+  return apiCall(
+    () => authFetch(`${baseUrl}/api/subscription/payment_history?skip=${skip}&limit=${limit}`),
+    '获取订阅支付历史'
+  );
 };
 
 // ========== 积分消耗 API ==========
@@ -437,12 +457,14 @@ export const consumePoints = async (
   if (description) {
     body.description = description;
   }
-  
-  const response = await authFetch(`${baseUrl}/api/subscription/consume_points`, {
-    method: 'POST',
-    body: JSON.stringify(body),
-  });
-  return handleResponse(response);
+
+  return apiCall(
+    () => authFetch(`${baseUrl}/api/subscription/consume_points`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+    '消耗积分'
+  );
 };
 
 /**
@@ -457,8 +479,10 @@ export const checkPointsAvailable = async (
   required_points: number;
   message?: string;
 }> => {
-  const response = await authFetch(`${baseUrl}/api/subscription/check_points?points=${points}`);
-  return handleResponse(response);
+  return apiCall(
+    () => authFetch(`${baseUrl}/api/subscription/check_points?points=${points}`),
+    '检查积分'
+  );
 };
 
 /**

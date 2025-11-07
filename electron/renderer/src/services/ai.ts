@@ -1,5 +1,6 @@
 import useAuthStore from '../store/useAuthStore';
 import authService from './authService';
+import { apiCall } from '../utils/error-handler';
 
 const DEFAULT_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9030'; // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
 
@@ -41,17 +42,6 @@ const authFetch = async (url: string, options?: RequestInit): Promise<Response> 
   });
 };
 
-/**
- * 处理响应
- */
-const handleResponse = async <T>(response: Response): Promise<T> => {
-  const data = await response.json().catch(() => null);
-  if (!response.ok) {
-    const detail = (data as any)?.detail || response.statusText || '请求失败';
-    throw new Error(detail);
-  }
-  return data as T;
-};
 
 // ========== AI 实时分析接口 ==========
 
@@ -66,21 +56,25 @@ export const startAILiveAnalysis = async (
   payload: StartAILiveAnalysisPayload = {},
   baseUrl: string = DEFAULT_BASE_URL
 ) => {
-  const response = await authFetch(`${baseUrl}/api/ai/live/start`, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-  return handleResponse(response);
+  return apiCall(
+    () => authFetch(`${baseUrl}/api/ai/live/start`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+    '启动 AI 实时分析'
+  );
 };
 
 /**
  * 停止 AI 实时分析
  */
 export const stopAILiveAnalysis = async (baseUrl: string = DEFAULT_BASE_URL) => {
-  const response = await authFetch(`${baseUrl}/api/ai/live/stop`, {
-    method: 'POST',
-  });
-  return handleResponse(response);
+  return apiCall(
+    () => authFetch(`${baseUrl}/api/ai/live/stop`, {
+      method: 'POST',
+    }),
+    '停止 AI 实时分析'
+  );
 };
 
 /**
@@ -128,11 +122,13 @@ export const generateOneScript = async (
   payload: GenerateOneScriptPayload,
   baseUrl: string = DEFAULT_BASE_URL
 ): Promise<GenerateOneScriptResponse> => {
-  const response = await authFetch(`${baseUrl}/api/ai/scripts/generate_one`, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-  return handleResponse(response);
+  return apiCall(
+    () => authFetch(`${baseUrl}/api/ai/scripts/generate_one`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+    '生成单条话术'
+  );
 };
 
 export interface GenerateAnswerScriptsPayload {
@@ -154,11 +150,13 @@ export const generateAnswerScripts = async (
   payload: GenerateAnswerScriptsPayload,
   baseUrl: string = DEFAULT_BASE_URL
 ): Promise<GenerateAnswerScriptsResponse> => {
-  const response = await authFetch(`${baseUrl}/api/ai/live/answers`, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-  return handleResponse(response);
+  return apiCall(
+    () => authFetch(`${baseUrl}/api/ai/live/answers`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+    '生成回答话术'
+  );
 };
 
 /**
