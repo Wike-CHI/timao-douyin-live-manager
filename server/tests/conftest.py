@@ -11,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
 
-from server.app.database import get_db, Base
+from server.app.database import get_db, get_db_session, Base
 from server.app.main import app
 from server.app.models.user import User, UserStatusEnum
 from server.app.models.payment import Plan, Subscription, Payment, Invoice, Coupon
@@ -70,6 +70,7 @@ def override_get_db(db_session):
             pass
     
     app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[get_db_session] = _override_get_db
     yield
     app.dependency_overrides.clear()
 

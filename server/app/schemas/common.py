@@ -28,21 +28,21 @@ class ErrorResponse(BaseModel):
 
 
 class PaginationParams(BaseModel):
-    """Shared pagination parameters."""
+    """统一的分页参数"""
 
-    skip: int = Field(0, ge=0)
-    limit: int = Field(100, ge=1, le=1000)
+    skip: int = Field(0, ge=0, description="跳过的记录数")
+    limit: int = Field(100, ge=1, le=1000, description="返回的记录数")
 
 
 class PaginatedResponse(BaseModel, Generic[T]):
-    """Standard paginated response container."""
+    """统一的分页响应容器"""
 
     success: bool = True
     message: str = "ok"
-    items: List[T]
-    total: int
-    skip: int
-    limit: int
+    items: List[T] = Field(description="数据项列表")
+    total: int = Field(description="总记录数")
+    skip: int = Field(description="跳过的记录数")
+    limit: int = Field(description="返回的记录数")
 
 
 def success_response(data: Optional[T] = None, message: str = "ok") -> BaseResponse[T]:

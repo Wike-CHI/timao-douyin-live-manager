@@ -43,7 +43,7 @@ def test_get_subscription_plans_returns_wrapped_response(client: TestClient, db_
     assert len(payload["data"]) == 1
 
     plan = payload["data"][0]
-    assert plan["name"] == "Pro Plan"
+    assert plan["name"] == "pro"  # name 字段是内部名称
     assert plan["plan_type"] == "basic"
     assert plan["is_active"] is True
 

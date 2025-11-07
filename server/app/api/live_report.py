@@ -381,7 +381,7 @@ async def get_review_data(report_path: str):
 
 
 @router.get("/history", response_model=BaseResponse[List[Dict[str, Any]]])
-async def list_local_reports(limit: int = 20):
+async def list_local_reports(skip: int = 0, limit: int = 20):
     """
     扫描本地 records 目录，返回最近的复盘报告列表
     
@@ -451,10 +451,11 @@ async def list_local_reports(limit: int = 20):
         # 按生成时间倒序排序
         reports.sort(key=lambda x: x["generated_at"], reverse=True)
         
-        # 限制返回数量
-        reports = reports[:limit]
+        # 应用分页参数
+        total_count = len(reports)
+        reports = reports[skip:skip + limit]
 
-        logger.info(f"✅ 找到 {len(reports)} 个本地报告")
+        logger.info(f"✅ 找到 {total_count} 个本地报告，返回 {len(reports)} 个（skip={skip}, limit={limit}）")
 
         return success_response(reports)
         

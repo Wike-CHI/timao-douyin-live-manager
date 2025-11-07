@@ -13,6 +13,8 @@ import io
 from server.app.core.dependencies import require_admin_role, get_current_active_user
 from server.app.services.audit_service import audit_service, AuditLevel, AuditCategory
 from server.app.models import User
+from server.app.schemas.common import BaseResponse, PaginationParams
+from server.app.utils.api import success_response
 
 router = APIRouter(prefix="/audit", tags=["审计日志"])
 
@@ -112,11 +114,15 @@ async def get_audit_logs(
     start_time: Optional[datetime] = Query(None, description="开始时间"),
     end_time: Optional[datetime] = Query(None, description="结束时间"),
     ip_address: Optional[str] = Query(None, description="IP地址"),
-    page: int = Query(1, ge=1, description="页码"),
-    page_size: int = Query(50, ge=1, le=200, description="每页大小"),
+    skip: int = Query(0, ge=0, description="跳过记录数"),
+    limit: int = Query(50, ge=1, le=200, description="返回记录数"),
     current_user: User = Depends(require_admin_role)
 ):
     """获取审计日志（管理员）"""
+    # 将skip/limit转换为page/page_size（audit_service仍使用旧参数）
+    page = (skip // limit) + 1 if limit > 0 else 1
+    page_size = limit
+    
     result = await audit_service.get_audit_logs(
         user_id=user_id,
         action=action,

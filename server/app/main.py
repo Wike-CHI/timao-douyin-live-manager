@@ -69,16 +69,10 @@ import sys
 if os.name == 'nt':  # Windows系统
     os.environ['PYTHONIOENCODING'] = 'utf-8'
     # 设置控制台编码为UTF-8
-    try:
-        if hasattr(sys.stdout, 'reconfigure') and callable(getattr(sys.stdout, 'reconfigure', None)):
-            sys.stdout.reconfigure(encoding='utf-8')
-    except Exception:
-        pass
-    try:
-        if hasattr(sys.stderr, 'reconfigure') and callable(getattr(sys.stderr, 'reconfigure', None)):
-            sys.stderr.reconfigure(encoding='utf-8')
-    except Exception:
-        pass
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+    if hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(encoding='utf-8')
 
 # 配置日志处理器，确保中文正确显示
 import logging
@@ -160,24 +154,97 @@ except Exception:
         exc_info=True,
     )
 
+_ALLOWED_ORIGIN_SET = set(allowed_origins)
+_LOCALHOST_PREFIXES = (
+    "http://localhost",
+    "http://127.0.0.1",
+    "https://localhost",
+    "https://127.0.0.1",
+)
+_CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"]
+_CORS_ALLOW_HEADERS = [
+    "Content-Type",
+    "Authorization",
+    "Accept",
+    "Origin",
+    "X-Requested-With",
+    "Access-Control-Request-Method",
+    "Access-Control-Request-Headers",
+]
+_CORS_EXPOSE_HEADERS = ["*"]
+_CORS_MAX_AGE = 3600
+
+
+def _origin_allowed(origin: str) -> bool:
+    if not origin:
+        return False
+    if origin in _ALLOWED_ORIGIN_SET:
+        return True
+    for prefix in _LOCALHOST_PREFIXES:
+        if origin.startswith(prefix):
+            return True
+    try:
+        parsed = urlparse(origin)
+    except Exception:
+        return False
+    return (parsed.hostname or "") in {"localhost", "127.0.0.1"}
+
+
+def _ensure_vary_header(response: Response, value: str) -> None:
+    current = response.headers.get("Vary")
+    if not current:
+        response.headers["Vary"] = value
+        return
+    items = [v.strip() for v in current.split(",") if v.strip()]
+    if value not in items:
+        items.append(value)
+        response.headers["Vary"] = ", ".join(items)
+
+
+@app.middleware("http")
+async def cors_preflight_guard(request: Request, call_next):
+    origin = request.headers.get("origin", "")
+    origin_allowed = _origin_allowed(origin)
+
+    if request.method == "OPTIONS":
+        logging.info(
+            "CORS preflight - origin=%s path=%s",
+            origin or "n/a",
+            request.url.path,
+        )
+        response = Response(status_code=200)
+        if origin_allowed:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = ", ".join(_CORS_ALLOW_METHODS)
+        response.headers["Access-Control-Allow-Headers"] = ", ".join(_CORS_ALLOW_HEADERS)
+        response.headers["Access-Control-Max-Age"] = str(_CORS_MAX_AGE)
+        response.headers["Access-Control-Expose-Headers"] = ", ".join(_CORS_EXPOSE_HEADERS)
+        if origin_allowed:
+            _ensure_vary_header(response, "Origin")
+        return response
+
+    response = await call_next(request)
+
+    if origin_allowed:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers.setdefault(
+            "Access-Control-Expose-Headers", ", ".join(_CORS_EXPOSE_HEADERS)
+        )
+        _ensure_vary_header(response, "Origin")
+    return response
+
 # 直接使用CORSMiddleware处理CORS，包括OPTIONS预检请求
 # CORSMiddleware会自动处理OPTIONS请求，不需要自定义中间件
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
-    allow_headers=[
-        "Content-Type",
-        "Authorization",
-        "Accept",
-        "Origin",
-        "X-Requested-With",
-        "Access-Control-Request-Method",
-        "Access-Control-Request-Headers",
-    ],
-    expose_headers=["*"],  # 允许前端访问所有响应头
-    max_age=3600,  # 预检请求缓存时间
+    allow_methods=_CORS_ALLOW_METHODS,
+    allow_headers=_CORS_ALLOW_HEADERS,
+    expose_headers=_CORS_EXPOSE_HEADERS,  # 允许前端访问所有响应头
+    max_age=_CORS_MAX_AGE,  # 预检请求缓存时间
 )
 
 # 日志输出CORS配置（启动时）
@@ -187,6 +254,34 @@ logging.info(f"   允许的来源: {len(allowed_origins)} 个")
 for origin in allowed_origins:
     logging.info(f"   - {origin}")
 logging.info("=" * 60)
+
+# OPTIONS路由处理器（作为备用，正常情况下CORSMiddleware会处理）
+@app.options("/{full_path:path}")
+async def options_handler_fallback(request: Request, full_path: str):
+    """OPTIONS请求备用处理器"""
+    origin = request.headers.get("origin", "")
+    logging.info(f"🌐 [OPTIONS路由] 预检请求 - Origin: {origin}, Path: /{full_path}")
+    
+    # 确定允许的origin
+    if origin and origin in allowed_origins:
+        allow_origin = origin
+    elif origin and ("localhost" in origin or "127.0.0.1" in origin):
+        allow_origin = origin
+    else:
+        allow_origin = origin if origin else "*"
+    
+    logging.info(f"✅ [OPTIONS路由] 返回200 - Allow-Origin: {allow_origin}")
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": allow_origin,
+            "Access-Control-Allow-Methods": ", ".join(_CORS_ALLOW_METHODS),
+            "Access-Control-Allow-Headers": ", ".join(_CORS_ALLOW_HEADERS),
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": str(_CORS_MAX_AGE),
+            "Access-Control-Expose-Headers": ", ".join(_CORS_EXPOSE_HEADERS),
+        }
+    )
 
 # 添加CORS测试端点（用于验证CORS配置）
 @app.get("/api/cors-test")
@@ -237,7 +332,7 @@ _include_router_safe("AI 使用监控", "server.app.api.ai_usage")
 _include_router_safe("AI 网关管理", "server.app.api.ai_gateway_api")
 _include_router_safe("用户认证", "server.app.api.auth")
 _include_router_safe("订阅管理", "server.app.api.subscription")
-_include_router_safe("支付管理", "server.app.api.payment")
+# payment.py 已移除，统一使用 subscription.py
 _include_router_safe("管理员", "server.app.api.admin")
 _include_router_safe("直播评论管理", "server.app.api.live_comments")
 
@@ -264,63 +359,64 @@ async def root():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>🐱 提猫直播助手</title>
+        <title>🐱 提猫直播助手 · TalkingCat</title>
         <meta charset="UTF-8">
         <style>
             body {
                 font-family: Arial, sans-serif;
                 text-align: center;
-                padding: 30px;
-                background: #f5f5f5;
-                color: #333;
+                padding: 50px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
                 min-height: 100vh;
                 margin: 0;
             }
             .container {
-                background: white;
-                padding: 30px;
-                border-radius: 10px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                max-width: 500px;
-                margin: 20px auto;
+                background: rgba(255,255,255,0.1);
+                padding: 40px;
+                border-radius: 20px;
+                backdrop-filter: blur(10px);
+                max-width: 600px;
+                margin: 0 auto;
             }
-            h1 { font-size: 1.8em; margin-bottom: 15px; }
-            .cat { font-size: 3em; margin-bottom: 15px; }
-            .status { margin: 15px 0; }
+            h1 { font-size: 2.5em; margin-bottom: 20px; }
+            .cat { font-size: 4em; margin-bottom: 20px; animation: bounce 2s infinite; }
+            @keyframes bounce {
+                0%, 100% { transform: translateY(0); }
+                50% { transform: translateY(-10px); }
+            }
+            .status { margin: 20px 0; }
             .link {
-                display: block;
-                color: #007bff;
+                color: #ffd700;
                 text-decoration: none;
-                margin: 10px 0;
-                padding: 10px;
-                border: 1px solid #007bff;
-                border-radius: 5px;
+                font-weight: bold;
+                margin: 0 10px;
             }
-            .link:hover { 
-                background: #007bff;
-                color: white;
-            }
+            .link:hover { text-decoration: underline; }
         </style>
     </head>
     <body>
         <div class="container">
             <div class="cat">🐱</div>
-            <h1>提猫直播助手</h1>
-            <p>本地语音转写 + 抖音直播互动</p>
+            <h1>提猫直播助手 · TalkingCat</h1>
+            <p>本地语音转写 + 抖音直播互动 · 隐私不出机</p>
 
             <div class="status">
-                <h3>服务状态</h3>
-                <p>API服务: 运行中</p>
+                <h3>🚀 服务状态</h3>
+                <p>API服务: ✅ 运行中</p>
+                <p>转录服务: 🔄 待启动</p>
             </div>
 
             <div>
-                <a href="/docs" class="link">API文档</a>
-                <a href="/api/live_audio/status" class="link">转写状态</a>
-                <a href="/static/index.html" class="link">Web界面</a>
+                <a href="/docs" class="link">📚 API文档</a>
+                <a href="/api/live_audio/status" class="link">💚 转写状态</a>
+                <a href="/static/index.html" class="link">🎯 Web 界面</a>
+                <a href="/static/douyin_test.html" class="link">🧪 Douyin 测试面板</a>
+                <a href="/static/live_test.html" class="link">🧪 联合测试面板</a>
             </div>
 
-            <div style="margin-top: 20px; font-size: 0.8em; color: #666;">
-                <p>版本 v1.0</p>
+            <div style="margin-top: 30px; font-size: 0.9em; opacity: 0.8;">
+                <p>MVP版本 v1.0 | 提猫直播助手 · TalkingCat</p>
             </div>
         </div>
     </body>
@@ -468,6 +564,17 @@ if __name__ == "__main__":
     import uvicorn
     from pathlib import Path
 
+    # 排除脚本目录、日志目录等，避免自动重载导致的频繁重启
+    reload_exclude = [
+        "**/scripts/**",
+        "**/logs/**",
+        "**/*.pyc",
+        "**/__pycache__/**",
+        "**/node_modules/**",
+        "**/.venv/**",
+        "**/.git/**",
+    ]
+
     # 使用环境变量 BACKEND_PORT，默认 9030（避免 Windows 端口排除范围 8930-9029）
     # 可以通过环境变量 BACKEND_PORT 覆盖默认端口
     import os
@@ -477,5 +584,6 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=backend_port,
         reload=True,
+        reload_exclude=reload_exclude,
         log_level="info"
     )
