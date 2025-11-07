@@ -506,3 +506,390 @@ export function isErrorMessage(msg: AudioWSMessageUnion): msg is ErrorMessage {
   return msg.type === 'error';
 }
 
+// ============================================
+// 支付模块类型（统一类型定义，修复问题7、11）
+// ============================================
+
+/**
+ * 套餐信息
+ * 对应后端: PlanResponse
+ * 
+ * 注意: 统一使用 MoneyString 类型避免精度丢失
+ */
+export interface Plan {
+  id: number;
+  name: string;
+  description?: string;
+  plan_type: string;
+  duration: string;
+  price: MoneyString;
+  original_price?: MoneyString;
+  currency: string;
+  features: Record<string, any>;
+  limits: Record<string, any>;
+  is_active: boolean;
+  is_popular?: boolean;
+  sort_order: number;
+  created_at: DateTimeString;
+  updated_at: DateTimeString;
+}
+
+/**
+ * 订阅信息
+ * 对应后端: SubscriptionResponse
+ */
+export interface Subscription {
+  id: number;
+  user_id: number;
+  plan_id: number;
+  status: SubscriptionStatus;
+  start_date: DateTimeString;
+  end_date: DateTimeString;
+  auto_renew: boolean;
+  trial_end_date?: DateTimeString;
+  cancelled_at?: DateTimeString;
+  cancel_reason?: string;
+  is_active: boolean;
+  is_trial: boolean;
+  days_remaining: number;
+  plan?: Plan;
+  plan_name?: string;
+  expires_at?: DateTimeString;
+  created_at: DateTimeString;
+  updated_at: DateTimeString;
+}
+
+/**
+ * 支付信息
+ */
+export interface Payment {
+  id: number;
+  user_id: number;
+  subscription_id?: number;
+  amount: MoneyString;
+  method: PaymentMethod;
+  status: PaymentStatus;
+  transaction_id?: string;
+  created_at: DateTimeString;
+  updated_at: DateTimeString;
+}
+
+/**
+ * 优惠券信息
+ */
+export interface Coupon {
+  id: string;
+  code: string;
+  discount_type: 'percentage' | 'fixed';
+  discount_value: MoneyString;
+  min_amount?: MoneyString;
+  max_uses?: number;
+  used_count: number;
+  expires_at?: DateTimeString;
+  is_active: boolean;
+}
+
+/**
+ * 支付统计信息
+ */
+export interface PaymentStatistics {
+  total_revenue: MoneyString;
+  total_payments: number;
+  successful_payments: number;
+  failed_payments: number;
+  average_payment: MoneyString;
+}
+
+/**
+ * 订阅统计信息
+ */
+export interface SubscriptionStatistics {
+  total_subscriptions: number;
+  active_subscriptions: number;
+  expired_subscriptions: number;
+  cancelled_subscriptions: number;
+  total_points_sold: number;
+  total_points_used: number;
+}
+
+// ============================================
+// 认证模块类型（统一类型定义）
+// ============================================
+
+/**
+ * 用户信息
+ * 对应后端: UserResponse
+ */
+export interface UserInfo {
+  id: number;
+  username: string;
+  email: string;
+  nickname?: string;
+  avatar_url?: string;
+  role: UserRole;
+  status: UserStatus;
+  email_verified: boolean;
+  phone_verified: boolean;
+  created_at: DateTimeString;
+}
+
+/**
+ * 登录响应
+ */
+export interface LoginResponse {
+  success: boolean;
+  token: string;
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  user: UserInfo;
+  isPaid: boolean;
+  firstFreeUsed?: boolean;
+  aiUsage?: AIUsage;
+}
+
+/**
+ * 用户响应（用于注册）
+ */
+export interface UserResponse extends UserInfo {}
+
+/**
+ * 登录请求
+ */
+export interface LoginRequest {
+  email: string;
+  password: string;
+  remember_me?: boolean;
+}
+
+/**
+ * 注册请求
+ */
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  nickname: string;
+  username?: string;
+  phone?: string;
+}
+
+/**
+ * 注册响应
+ */
+export interface RegisterResponse {
+  success: boolean;
+  user: UserResponse;
+}
+
+// ============================================
+// 抖音模块类型（统一类型定义）
+// ============================================
+
+/**
+ * 抖音中继状态
+ */
+export interface DouyinRelayStatus {
+  is_running: boolean;
+  live_id: string | null;
+  room_id: string | null;
+  last_error: string | null;
+  persist_enabled?: boolean;
+  persist_root?: string | null;
+  fetcher_status?: Record<string, any>;
+}
+
+/**
+ * 抖音中继响应
+ */
+export interface DouyinRelayResponse {
+  success: boolean;
+  message?: string;
+  live_id?: string;
+}
+
+/**
+ * 抖音流事件
+ */
+export interface DouyinStreamEvent {
+  type: string;
+  payload?: Record<string, unknown> | null;
+  timestamp?: number;
+}
+
+// ============================================
+// 直播音频模块类型（统一类型定义，修复问题10）
+// ============================================
+
+/**
+ * 启动实时转写请求
+ */
+export interface StartLiveAudioRequest {
+  live_url: string;
+  session_id?: string;
+  chunk_duration?: number;
+  profile?: 'fast' | 'stable';
+  vad_min_silence_sec?: number;
+  vad_min_speech_sec?: number;
+  vad_hangover_sec?: number;
+  vad_rms?: number;
+  max_wait?: number;
+  max_chars?: number;
+  silence_flush?: number;
+  min_sentence_chars?: number;
+}
+
+/**
+ * 实时转写状态
+ */
+export interface LiveAudioStatus {
+  is_running: boolean;
+  live_id: string | null;
+  live_url: string | null;
+  session_id: string | null;
+  mode?: 'delta' | 'sentence' | 'vad' | string;
+  profile?: 'fast' | 'stable' | string;
+  model?: string;
+  advanced?: {
+    music_filter?: boolean;
+    music_detection_enabled?: boolean;
+    music_guard_active?: boolean;
+    music_guard_score?: number;
+    persist_enabled?: boolean;
+    persist_root?: string;
+    agc_enabled?: boolean;
+    agc_gain?: number;
+    diarizer_active?: boolean;
+    max_speakers?: number;
+    last_speaker?: string;
+  };
+  stats: {
+    total_audio_chunks?: number;
+    successful_transcriptions?: number;
+    failed_transcriptions?: number;
+    average_confidence?: number;
+  };
+}
+
+/**
+ * 实时转写消息
+ */
+export interface LiveAudioMessage {
+  type: 'transcription' | 'transcription_delta' | 'level' | 'status' | 'pong' | 'error' | string;
+  data?: any;
+}
+
+/**
+ * 音频高级设置
+ */
+export interface LiveAudioAdvancedSettings {
+  persist_enabled?: boolean;
+  persist_root?: string;
+  agc?: boolean;
+  agc_target_level?: number;
+  diarization?: boolean;
+  max_speakers?: number;
+  music_detection_enabled?: boolean;
+  music_filter?: boolean;
+  vad_min_silence_sec?: number;
+  vad_min_speech_sec?: number;
+  vad_hangover_sec?: number;
+  vad_rms?: number;
+  max_wait?: number;
+  max_chars?: number;
+  silence_flush?: number;
+  min_sentence_chars?: number;
+}
+
+// ============================================
+// 直播报告模块类型（统一类型定义，修复问题10）
+// ============================================
+
+/**
+ * 启动直播报告请求
+ */
+export interface StartLiveReportRequest {
+  live_url: string;
+  segment_minutes?: number;
+}
+
+/**
+ * 启动直播报告响应
+ */
+export interface StartLiveReportResponse {
+  success: boolean;
+  data?: {
+    session_id: string;
+    recording_dir: string;
+    segment_seconds: number;
+  };
+}
+
+/**
+ * 直播报告状态响应
+ */
+export interface LiveReportStatusResponse {
+  active: boolean;
+  status: any;
+}
+
+/**
+ * 生成直播报告响应
+ */
+export interface GenerateLiveReportResponse {
+  success: boolean;
+  data?: any;
+}
+
+// ============================================
+// AI 模块类型（统一类型定义，修复问题10）
+// ============================================
+
+/**
+ * 启动 AI 实时分析请求
+ */
+export interface StartAILiveAnalysisRequest {
+  window_sec?: number;
+}
+
+/**
+ * 生成单条话术请求
+ */
+export interface GenerateOneScriptRequest {
+  script_type: string;
+  include_context?: boolean;
+}
+
+/**
+ * 生成单条话术响应
+ */
+export interface GenerateOneScriptResponse {
+  success: boolean;
+  data?: {
+    content: string;
+    type: string;
+    timestamp: number;
+  };
+  message?: string;
+}
+
+/**
+ * 生成回答话术请求
+ */
+export interface GenerateAnswerScriptsRequest {
+  questions: string[];
+  transcript?: string;
+  style_profile?: Record<string, unknown>;
+  vibe?: Record<string, unknown>;
+}
+
+/**
+ * 生成回答话术响应
+ */
+export interface GenerateAnswerScriptsResponse {
+  success: boolean;
+  data?: {
+    scripts: Array<{ question: string; line: string; notes?: string }>;
+  };
+  message?: string;
+}
+

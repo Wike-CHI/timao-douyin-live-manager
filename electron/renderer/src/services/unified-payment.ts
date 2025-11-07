@@ -9,25 +9,13 @@
  * 解决方案：创建统一入口，优先使用主 API，失败后降级到备用 API
  */
 
-import authService from './authService';
-import { buildServiceUrl } from './apiConfig';
+import { fetchJsonWithAuth } from './http';
 import { apiCall } from '../utils/error-handler';
-import type { Plan, Subscription, Payment } from './payment';
+import type { Plan, Subscription, Payment } from '../types/api-types';
 
 // 优先使用的 API 前缀（建议使用 /api/payment，更语义化）
 const PRIMARY_API_PREFIX = '/api/payment';
 const FALLBACK_API_PREFIX = '/api/subscription';
-
-/**
- * 构建鉴权请求头
- */
-const buildHeaders = async (): Promise<Record<string, string>> => {
-  const authHeaders = await authService.getAuthHeaders();
-  return {
-    'Content-Type': 'application/json',
-    ...authHeaders,
-  };
-};
 
 /**
  * 智能 API 调用：优先使用主 API，失败后降级到备用 API
@@ -37,18 +25,10 @@ async function smartFetch<T>(
   fallbackPath?: string,
   options?: RequestInit
 ): Promise<T> {
-  const headers = await buildHeaders();
-  
   try {
     // 尝试主 API
     return await apiCall<T>(
-      () => fetch(buildServiceUrl('main', primaryPath), {
-        ...options,
-        headers: {
-          ...headers,
-          ...(options?.headers || {}),
-        },
-      }),
+      () => fetchJsonWithAuth('main', primaryPath, options),
       `请求 ${primaryPath}`
     );
   } catch (error) {
@@ -59,13 +39,7 @@ async function smartFetch<T>(
     // 降级到备用 API
     console.warn(`主 API ${primaryPath} 失败，尝试备用 API ${fallbackPath}`);
     return apiCall<T>(
-      () => fetch(buildServiceUrl('main', fallbackPath), {
-        ...options,
-        headers: {
-          ...headers,
-          ...(options?.headers || {}),
-        },
-      }),
+      () => fetchJsonWithAuth('main', fallbackPath, options),
       `请求 ${fallbackPath}`
     );
   }

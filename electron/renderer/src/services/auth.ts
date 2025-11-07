@@ -1,80 +1,29 @@
-import useAuthStore from '../store/useAuthStore';
 import authService from './authService';
 import { buildServiceUrl } from './apiConfig';
-import { AIUsage } from '../types/api-types';
+import { fetchJsonWithAuth } from './http';
 import { apiCall } from '../utils/error-handler';
+import type {
+  UserInfo,
+  LoginResponse,
+  UserResponse,
+  LoginRequest,
+  RegisterRequest,
+  RegisterResponse,
+} from '../types/api-types';
 
 const getAuthBaseUrl = () => import.meta.env?.VITE_AUTH_BASE_URL?.trim() || undefined;
 
 const buildAuthUrl = (path: string) =>
   buildServiceUrl('main', path, getAuthBaseUrl());
 
-/**
- * 用户信息（修复 PAY-004）
- * 对应后端: UserResponse (server/app/api/auth.py:76-90)
- * 
- * 注意: created_at 是 ISO 8601 格式的日期时间字符串
- * 示例: "2025-11-02T15:30:00Z"
- */
-export interface UserInfo {
-  id: number;
-  username: string;
-  email: string;
-  nickname?: string;
-  avatar_url?: string;
-  role: string;
-  status: string;
-  email_verified: boolean;
-  phone_verified: boolean;
-  created_at: string;  // ISO 8601 日期时间字符串
-}
-
-// 定义与后端LoginResponse模型一致的接口（修复 AUTH-001, AUTH-002）
-export interface LoginResponse {
-  success: boolean;
-  token: string;
-  access_token: string;
-  refresh_token: string;
-  expires_in: number;
-  user: UserInfo;
-  isPaid: boolean;
-  /** 是否已使用首次免费额度 */
-  firstFreeUsed?: boolean;
-  /** AI 使用统计信息 */
-  aiUsage?: AIUsage;
-}
-
-// 定义与后端UserResponse模型一致的接口（用于注册响应）
-export interface UserResponse extends UserInfo {}
-
-export interface LoginPayload {
-  email: string;
-  password: string;
-  remember_me?: boolean;  // 是否记住登录状态
-}
-
-export interface RegisterPayload {
-  email: string;
-  password: string;
-  nickname: string;
-  username?: string;
-  phone?: string;
-}
-
-export interface RegisterResponse {
-  success: boolean;
-  user: UserResponse;
-}
-
-export const login = async (payload: LoginPayload): Promise<LoginResponse> => {
+export const login = async (payload: LoginRequest): Promise<LoginResponse> => {
   // 转换前端字段名到后端期望的字段名
   const requestBody = {
     username_or_email: payload.email,
     password: payload.password,
-    remember_me: payload.remember_me !== undefined ? payload.remember_me : true  // 默认记住
+    remember_me: payload.remember_me !== undefined ? payload.remember_me : true
   };
   
-  // 使用统一的错误处理
   return apiCall<LoginResponse>(
     () => fetch(buildAuthUrl('/api/auth/login'), {
       method: 'POST',
@@ -85,11 +34,11 @@ export const login = async (payload: LoginPayload): Promise<LoginResponse> => {
   );
 };
 
-export const register = async (payload: RegisterPayload): Promise<RegisterResponse> => {
+export const register = async (payload: RegisterRequest): Promise<RegisterResponse> => {
   // 导入验证器（修复 AUTH-004）
   const { UserValidator } = await import('../utils/validators');
   
-  const body: RegisterPayload = { ...payload };
+  const body: RegisterRequest = { ...payload };
   
   // 生成或验证用户名
   if (!body.username) {
@@ -122,47 +71,35 @@ export const register = async (payload: RegisterPayload): Promise<RegisterRespon
     }
   }
   
-  const resp = await fetch(buildAuthUrl('/api/auth/register'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!resp.ok) {
-    const txt = await resp.text().catch(() => '注册失败');
-    throw new Error(txt || '注册失败');
-  }
-  return resp.json();
+  return apiCall<RegisterResponse>(
+    () => fetch(buildAuthUrl('/api/auth/register'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+    '注册'
+  );
 };
 
 export const uploadPayment = async (file: File) => {
   const form = new FormData();
   form.append('file', file);
   const authHeaders = await authService.getAuthHeaders();
-  const resp = await fetch(buildAuthUrl('/api/payment/upload'), {
-    method: 'POST',
-    headers: authHeaders,
-    body: form,
-  });
-  if (!resp.ok) {
-    const txt = await resp.text().catch(() => '上传失败');
-    throw new Error(txt || '上传失败');
-  }
-  return resp.json();
+  return apiCall(
+    () => fetch(buildAuthUrl('/api/payment/upload'), {
+      method: 'POST',
+      headers: authHeaders,
+      body: form,
+    }),
+    '上传支付凭证'
+  );
 };
 
 export const pollPayment = async () => {
-  const authHeaders = await authService.getAuthHeaders();
-  const headers = { 
-    'Content-Type': 'application/json',
-    ...authHeaders
-  };
-  const resp = await fetch(buildAuthUrl('/api/payment/poll'), {
-    method: 'GET',
-    headers,
-  });
-  if (!resp.ok) {
-    const txt = await resp.text().catch(() => '查询支付状态失败');
-    throw new Error(txt || '查询支付状态失败');
-  }
-  return resp.json();
+  return apiCall(
+    () => fetchJsonWithAuth('main', '/api/payment/poll', {
+      method: 'GET',
+    }, getAuthBaseUrl()),
+    '查询支付状态'
+  );
 };

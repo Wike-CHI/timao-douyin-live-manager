@@ -47,25 +47,25 @@ describe('服务调用统一使用 buildServiceUrl', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:9030/api/payment/plans/42');
   });
 
-  it('douyin.startDouyinRelay 支持外部覆盖 baseUrl', async () => {
+  it('douyin.startDouyinRelay 使用统一 URL 构建', async () => {
     const { startDouyinRelay } = await import('../douyin');
 
-    await startDouyinRelay('LIVE123', 'cookie', 'https://relay.example');
+    await startDouyinRelay('LIVE123', 'cookie');
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('https://relay.example/api/douyin/start');
+    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:9030/api/douyin/start');
   });
 
-  it('liveReport.startLiveReport 支持外部覆盖 baseUrl', async () => {
+  it('liveReport.startLiveReport 使用统一 URL 构建', async () => {
     const { startLiveReport } = await import('../liveReport');
 
-    await startLiveReport('https://douyin.example/live', 15, 'https://report.example');
+    await startLiveReport('https://douyin.example/live', 15);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('https://report.example/api/report/live/start');
+    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:9030/api/report/live/start');
   });
 
-  it('liveSession.getSessionStatus 默认使用主服务域名', async () => {
+  it('liveSession.getSessionStatus 使用统一 URL 构建', async () => {
     const { getSessionStatus } = await import('../liveSession');
 
     await getSessionStatus();
@@ -74,13 +74,13 @@ describe('服务调用统一使用 buildServiceUrl', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:9030/api/live_session/status');
   });
 
-  it('ai.startAILiveAnalysis 支持覆盖 baseUrl', async () => {
+  it('ai.startAILiveAnalysis 使用统一 URL 构建', async () => {
     const { startAILiveAnalysis } = await import('../ai');
 
-    await startAILiveAnalysis({}, 'https://ai.example');
+    await startAILiveAnalysis({});
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('https://ai.example/api/ai/live/start');
+    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:9030/api/ai/live/start');
   });
 });
 

@@ -1,84 +1,12 @@
-import useAuthStore from '../store/useAuthStore';
 import { buildServiceUrl } from './apiConfig';
-import { buildJsonAuthHeaders } from './http';
+import { fetchJsonWithAuth } from './http';
 import { apiCall } from '../utils/error-handler';
-
-const buildDouyinUrl = (path: string, baseUrl?: string) =>
-  buildServiceUrl('douyin', path, baseUrl);
-
-const buildHeaders = buildJsonAuthHeaders;
-
-
-export interface DouyinRelayStatus {
-  is_running: boolean;
-  live_id: string | null;
-  room_id: string | null;
-  last_error: string | null;
-  persist_enabled?: boolean;
-  persist_root?: string | null;
-  fetcher_status?: Record<string, any>;  // 修复 DY-003: 添加抓取器详细状态
-}
-
-export interface DouyinRelayResponse {
-  success: boolean;
-  message?: string;
-  live_id?: string;
-}
-
-export interface DouyinStreamEvent {
-  type: string;
-  payload?: Record<string, unknown> | null;
-  timestamp?: number;
-}
-
-export const startDouyinRelay = async (
-  liveId: string,
-  cookie?: string,  // 修复 DY-001: 添加 Cookie 参数
-  baseUrl?: string
-): Promise<DouyinRelayResponse> => {
-  const headers = await buildHeaders();
-  const body: any = { live_id: liveId };
-  
-  // 修复 DY-001: 支持可选的 Cookie
-  if (cookie) {
-    body.cookie = cookie;
-  }
-
-  return apiCall(
-    () => fetch(buildDouyinUrl('/api/douyin/start', baseUrl), {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-    }),
-    '启动抖音中继'
-  );
-};
-
-export const stopDouyinRelay = async (
-  baseUrl?: string
-): Promise<DouyinRelayResponse> => {
-  const headers = await buildHeaders();
-  return apiCall(
-    () => fetch(buildDouyinUrl('/api/douyin/stop', baseUrl), {
-      method: 'POST',
-      headers,
-    }),
-    '停止抖音中继'
-  );
-};
-
-export const getDouyinRelayStatus = async (
-  baseUrl?: string
-): Promise<DouyinRelayStatus> => {
-  const headers = await buildHeaders();
-  return apiCall(
-    () => fetch(buildDouyinUrl('/api/douyin/status', baseUrl), {
-      method: 'GET',
-      headers,
-    }),
-    '获取抖音中继状态'
-  );
-};
+import type {
+  DouyinRelayStatus,
+  DouyinRelayResponse,
+  DouyinStreamEvent,
+  StartDouyinRequest,
+} from '../types/api-types';
 
 export interface DouyinStreamHandlers {
   onEvent?: (event: DouyinStreamEvent) => void;
@@ -86,11 +14,44 @@ export interface DouyinStreamHandlers {
   onOpen?: (event: Event) => void;
 }
 
-export const openDouyinStream = (
-  handlers: DouyinStreamHandlers,
-  baseUrl?: string
-): EventSource => {
-  const streamUrl = buildDouyinUrl('/api/douyin/stream', baseUrl);
+export const startDouyinRelay = async (
+  liveId: string,
+  cookie?: string
+): Promise<DouyinRelayResponse> => {
+  const body: StartDouyinRequest = { live_id: liveId };
+  if (cookie) {
+    body.cookie = cookie;
+  }
+
+  return apiCall(
+    () => fetchJsonWithAuth('douyin', '/api/douyin/start', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+    '启动抖音中继'
+  );
+};
+
+export const stopDouyinRelay = async (): Promise<DouyinRelayResponse> => {
+  return apiCall(
+    () => fetchJsonWithAuth('douyin', '/api/douyin/stop', {
+      method: 'POST',
+    }),
+    '停止抖音中继'
+  );
+};
+
+export const getDouyinRelayStatus = async (): Promise<DouyinRelayStatus> => {
+  return apiCall(
+    () => fetchJsonWithAuth('douyin', '/api/douyin/status', {
+      method: 'GET',
+    }),
+    '获取抖音中继状态'
+  );
+};
+
+export const openDouyinStream = (handlers: DouyinStreamHandlers): EventSource => {
+  const streamUrl = buildServiceUrl('douyin', '/api/douyin/stream');
   const source = new EventSource(streamUrl);
 
   if (handlers.onOpen) {
@@ -114,15 +75,13 @@ export const openDouyinStream = (
   return source;
 };
 
-export const updateDouyinPersist = async (
-  payload: { persist_enabled?: boolean; persist_root?: string },
-  baseUrl?: string
-) => {
-  const headers = await buildHeaders();
+export const updateDouyinPersist = async (payload: {
+  persist_enabled?: boolean;
+  persist_root?: string;
+}) => {
   return apiCall(
-    () => fetch(buildDouyinUrl('/api/douyin/web/persist', baseUrl), {
+    () => fetchJsonWithAuth('douyin', '/api/douyin/web/persist', {
       method: 'POST',
-      headers,
       body: JSON.stringify(payload),
     }),
     '更新抖音持久化配置'

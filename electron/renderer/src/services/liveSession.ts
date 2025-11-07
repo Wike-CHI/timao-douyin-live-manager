@@ -1,10 +1,5 @@
-import useAuthStore from '../store/useAuthStore';
-import { buildServiceUrl } from './apiConfig';
-import { buildJsonAuthHeaders } from './http';
+import { fetchJsonWithAuth } from './http';
 import { apiCall } from '../utils/error-handler';
-
-const buildHeaders = buildJsonAuthHeaders;
-
 
 export interface LiveSessionState {
   session_id: string;
@@ -40,12 +35,10 @@ export interface SessionStatusResponse {
 /**
  * 获取当前会话状态
  */
-export const getSessionStatus = async (baseUrl?: string): Promise<SessionStatusResponse> => {
-  const headers = await buildHeaders();
+export const getSessionStatus = async (): Promise<SessionStatusResponse> => {
   return apiCall(
-    () => fetch(buildServiceUrl('main', '/api/live_session/status', baseUrl), {
+    () => fetchJsonWithAuth('main', '/api/live_session/status', {
       method: 'GET',
-      headers,
     }),
     '获取会话状态'
   );
@@ -54,12 +47,10 @@ export const getSessionStatus = async (baseUrl?: string): Promise<SessionStatusR
 /**
  * 恢复之前的会话
  */
-export const resumeSession = async (baseUrl?: string): Promise<SessionStatusResponse> => {
-  const headers = await buildHeaders();
+export const resumeSession = async (): Promise<SessionStatusResponse> => {
   return apiCall(
-    () => fetch(buildServiceUrl('main', '/api/live_session/resume', baseUrl), {
+    () => fetchJsonWithAuth('main', '/api/live_session/resume', {
       method: 'POST',
-      headers,
     }),
     '恢复会话'
   );
@@ -68,12 +59,10 @@ export const resumeSession = async (baseUrl?: string): Promise<SessionStatusResp
 /**
  * 暂停当前会话
  */
-export const pauseSession = async (baseUrl?: string): Promise<SessionStatusResponse> => {
-  const headers = await buildHeaders();
+export const pauseSession = async (): Promise<SessionStatusResponse> => {
   return apiCall(
-    () => fetch(buildServiceUrl('main', '/api/live_session/pause', baseUrl), {
+    () => fetchJsonWithAuth('main', '/api/live_session/pause', {
       method: 'POST',
-      headers,
     }),
     '暂停会话'
   );
@@ -82,12 +71,10 @@ export const pauseSession = async (baseUrl?: string): Promise<SessionStatusRespo
 /**
  * 恢复暂停的会话
  */
-export const resumePausedSession = async (baseUrl?: string): Promise<SessionStatusResponse> => {
-  const headers = await buildHeaders();
+export const resumePausedSession = async (): Promise<SessionStatusResponse> => {
   return apiCall(
-    () => fetch(buildServiceUrl('main', '/api/live_session/resume_paused', baseUrl), {
+    () => fetchJsonWithAuth('main', '/api/live_session/resume_paused', {
       method: 'POST',
-      headers,
     }),
     '恢复暂停会话'
   );
