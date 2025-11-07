@@ -867,3 +867,393 @@ async def export_payments(
     except Exception as e:
         logger.error(f"导出支付数据失败: {str(e)}")
         raise HTTPException(status_code=500, detail="导出支付数据失败")
+
+
+# ==================== 套餐管理接口 ====================
+
+class PlanCreateRequest(BaseModel):
+    """创建套餐请求"""
+    name: str = Field(..., min_length=1, max_length=100)
+    description: Optional[str] = None
+    plan_type: str = Field(..., description="套餐类型: free, basic, professional, enterprise")
+    billing_cycle: str = Field(..., description="计费周期: monthly, quarterly, yearly, lifetime")
+    price: float = Field(..., ge=0)
+    original_price: Optional[float] = Field(None, ge=0)
+    duration_days: int = Field(..., gt=0)
+    ai_quota: Optional[int] = Field(0, ge=0)
+    recording_duration: Optional[int] = Field(0, ge=0)
+    storage_quota: Optional[int] = Field(0, ge=0)
+    max_concurrent_streams: Optional[int] = Field(1, ge=1)
+    is_active: bool = True
+    features: Optional[Dict[str, Any]] = None
+    limits: Optional[Dict[str, Any]] = None
+
+
+class PlanUpdateRequest(BaseModel):
+    """更新套餐请求"""
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = None
+    plan_type: Optional[str] = None
+    billing_cycle: Optional[str] = None
+    price: Optional[float] = Field(None, ge=0)
+    original_price: Optional[float] = Field(None, ge=0)
+    duration_days: Optional[int] = Field(None, gt=0)
+    ai_quota: Optional[int] = Field(None, ge=0)
+    recording_duration: Optional[int] = Field(None, ge=0)
+    storage_quota: Optional[int] = Field(None, ge=0)
+    max_concurrent_streams: Optional[int] = Field(None, ge=1)
+    is_active: Optional[bool] = None
+    features: Optional[Dict[str, Any]] = None
+    limits: Optional[Dict[str, Any]] = None
+
+
+class PlanResponse(BaseModel):
+    """套餐响应"""
+    id: int
+    name: str
+    description: Optional[str]
+    plan_type: str
+    duration: str
+    price: float
+    original_price: Optional[float]
+    currency: str
+    features: Optional[Dict[str, Any]]
+    limits: Optional[Dict[str, Any]]
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    
+    # 额外字段(从duration和其他字段计算)
+    billing_cycle: Optional[str] = None
+    duration_days: Optional[int] = None
+    ai_quota: Optional[int] = None
+    recording_duration: Optional[int] = None
+    storage_quota: Optional[int] = None
+    max_concurrent_streams: Optional[int] = None
+    
+    class Config:
+        from_attributes = True
+
+
+@router.get("/plans")
+async def get_plans(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    search: Optional[str] = Query(None, description="搜索套餐名称"),
+    plan_type: Optional[str] = Query(None, description="套餐类型"),
+    is_active: Optional[bool] = Query(None, description="是否启用"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin_role)
+):
+    """获取套餐列表"""
+    try:
+        from server.app.models.payment import Plan
+        from sqlalchemy import and_, or_
+        
+        query = db.query(Plan)
+        
+        # 搜索过滤
+        if search:
+            query = query.filter(
+                or_(
+                    Plan.name.ilike(f"%{search}%"),
+                    Plan.description.ilike(f"%{search}%")
+                )
+            )
+        
+        # 类型过滤
+        if plan_type:
+            query = query.filter(Plan.plan_type == plan_type)
+        
+        # 状态过滤
+        if is_active is not None:
+            query = query.filter(Plan.is_active == is_active)
+        
+        total = query.count()
+        plans = query.order_by(Plan.created_at.desc()).offset(skip).limit(limit).all()
+        
+        # 转换响应
+        items = []
+        for plan in plans:
+            plan_dict = {
+                "id": plan.id,
+                "name": plan.name,
+                "description": plan.description,
+                "plan_type": plan.plan_type,
+                "duration": plan.duration,
+                "price": float(plan.price),
+                "original_price": float(plan.original_price) if plan.original_price else None,
+                "currency": plan.currency,
+                "features": plan.features or {},
+                "limits": plan.limits or {},
+                "is_active": plan.is_active,
+                "created_at": plan.created_at,
+                "updated_at": plan.updated_at,
+                # 从duration解析
+                "billing_cycle": plan.duration,
+                "duration_days": plan.limits.get("duration_days") if plan.limits else 30,
+                "ai_quota": plan.limits.get("ai_quota") if plan.limits else 0,
+                "recording_duration": plan.limits.get("recording_duration") if plan.limits else 0,
+                "storage_quota": plan.limits.get("storage_quota") if plan.limits else 0,
+                "max_concurrent_streams": plan.limits.get("max_concurrent_streams", 1) if plan.limits else 1,
+            }
+            items.append(plan_dict)
+        
+        return {
+            "data": items,
+            "total": total
+        }
+        
+    except Exception as e:
+        logger.error(f"获取套餐列表失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="获取套餐列表失败")
+
+
+@router.get("/plans/{plan_id}")
+async def get_plan(
+    plan_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin_role)
+):
+    """获取套餐详情"""
+    try:
+        from server.app.models.payment import Plan
+        
+        plan = db.query(Plan).filter(Plan.id == plan_id).first()
+        if not plan:
+            raise HTTPException(status_code=404, detail="套餐不存在")
+        
+        plan_dict = {
+            "id": plan.id,
+            "name": plan.name,
+            "description": plan.description,
+            "plan_type": plan.plan_type,
+            "duration": plan.duration,
+            "price": float(plan.price),
+            "original_price": float(plan.original_price) if plan.original_price else None,
+            "currency": plan.currency,
+            "features": plan.features or {},
+            "limits": plan.limits or {},
+            "is_active": plan.is_active,
+            "created_at": plan.created_at,
+            "updated_at": plan.updated_at,
+            "billing_cycle": plan.duration,
+            "duration_days": plan.limits.get("duration_days") if plan.limits else 30,
+            "ai_quota": plan.limits.get("ai_quota") if plan.limits else 0,
+            "recording_duration": plan.limits.get("recording_duration") if plan.limits else 0,
+            "storage_quota": plan.limits.get("storage_quota") if plan.limits else 0,
+            "max_concurrent_streams": plan.limits.get("max_concurrent_streams", 1) if plan.limits else 1,
+        }
+        
+        return {"data": plan_dict}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取套餐详情失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="获取套餐详情失败")
+
+
+@router.post("/plans", status_code=201)
+async def create_plan(
+    plan_data: PlanCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin_role)
+):
+    """创建套餐"""
+    try:
+        from server.app.models.payment import Plan
+        
+        # 构建limits和features
+        limits = plan_data.limits or {}
+        limits.update({
+            "duration_days": plan_data.duration_days,
+            "ai_quota": plan_data.ai_quota,
+            "recording_duration": plan_data.recording_duration,
+            "storage_quota": plan_data.storage_quota,
+            "max_concurrent_streams": plan_data.max_concurrent_streams,
+        })
+        
+        features = plan_data.features or {}
+        
+        plan = Plan(
+            name=plan_data.name,
+            description=plan_data.description,
+            plan_type=plan_data.plan_type,
+            duration=plan_data.billing_cycle,
+            price=plan_data.price,
+            original_price=plan_data.original_price,
+            currency="CNY",
+            features=features,
+            limits=limits,
+            is_active=plan_data.is_active
+        )
+        
+        db.add(plan)
+        db.commit()
+        db.refresh(plan)
+        
+        # 记录审计日志
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            user_id=current_user.id,
+            action="create_plan",
+            resource_type="plan",
+            resource_id=str(plan.id),
+            details={"name": plan.name, "plan_type": plan.plan_type}
+        )
+        
+        plan_dict = {
+            "id": plan.id,
+            "name": plan.name,
+            "description": plan.description,
+            "plan_type": plan.plan_type,
+            "duration": plan.duration,
+            "price": float(plan.price),
+            "original_price": float(plan.original_price) if plan.original_price else None,
+            "currency": plan.currency,
+            "features": plan.features,
+            "limits": plan.limits,
+            "is_active": plan.is_active,
+            "created_at": plan.created_at,
+            "updated_at": plan.updated_at,
+        }
+        
+        return {"data": plan_dict}
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"创建套餐失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"创建套餐失败: {str(e)}")
+
+
+@router.put("/plans/{plan_id}")
+async def update_plan(
+    plan_id: int,
+    plan_data: PlanUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin_role)
+):
+    """更新套餐"""
+    try:
+        from server.app.models.payment import Plan
+        
+        plan = db.query(Plan).filter(Plan.id == plan_id).first()
+        if not plan:
+            raise HTTPException(status_code=404, detail="套餐不存在")
+        
+        # 更新基本字段
+        if plan_data.name is not None:
+            plan.name = plan_data.name
+        if plan_data.description is not None:
+            plan.description = plan_data.description
+        if plan_data.plan_type is not None:
+            plan.plan_type = plan_data.plan_type
+        if plan_data.billing_cycle is not None:
+            plan.duration = plan_data.billing_cycle
+        if plan_data.price is not None:
+            plan.price = plan_data.price
+        if plan_data.original_price is not None:
+            plan.original_price = plan_data.original_price
+        if plan_data.is_active is not None:
+            plan.is_active = plan_data.is_active
+        
+        # 更新limits
+        if plan.limits is None:
+            plan.limits = {}
+        
+        if plan_data.duration_days is not None:
+            plan.limits["duration_days"] = plan_data.duration_days
+        if plan_data.ai_quota is not None:
+            plan.limits["ai_quota"] = plan_data.ai_quota
+        if plan_data.recording_duration is not None:
+            plan.limits["recording_duration"] = plan_data.recording_duration
+        if plan_data.storage_quota is not None:
+            plan.limits["storage_quota"] = plan_data.storage_quota
+        if plan_data.max_concurrent_streams is not None:
+            plan.limits["max_concurrent_streams"] = plan_data.max_concurrent_streams
+        
+        # 更新features
+        if plan_data.features is not None:
+            if plan.features is None:
+                plan.features = {}
+            plan.features.update(plan_data.features)
+        
+        if plan_data.limits is not None:
+            plan.limits.update(plan_data.limits)
+        
+        db.commit()
+        db.refresh(plan)
+        
+        # 记录审计日志
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            user_id=current_user.id,
+            action="update_plan",
+            resource_type="plan",
+            resource_id=str(plan.id),
+            details={"name": plan.name}
+        )
+        
+        plan_dict = {
+            "id": plan.id,
+            "name": plan.name,
+            "description": plan.description,
+            "plan_type": plan.plan_type,
+            "duration": plan.duration,
+            "price": float(plan.price),
+            "original_price": float(plan.original_price) if plan.original_price else None,
+            "currency": plan.currency,
+            "features": plan.features,
+            "limits": plan.limits,
+            "is_active": plan.is_active,
+            "created_at": plan.created_at,
+            "updated_at": plan.updated_at,
+        }
+        
+        return {"data": plan_dict}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"更新套餐失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"更新套餐失败: {str(e)}")
+
+
+@router.delete("/plans/{plan_id}")
+async def delete_plan(
+    plan_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin_role)
+):
+    """删除套餐"""
+    try:
+        from server.app.models.payment import Plan
+        
+        plan = db.query(Plan).filter(Plan.id == plan_id).first()
+        if not plan:
+            raise HTTPException(status_code=404, detail="套餐不存在")
+        
+        # 软删除 - 只是禁用
+        plan.is_active = False
+        db.commit()
+        
+        # 记录审计日志
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            user_id=current_user.id,
+            action="delete_plan",
+            resource_type="plan",
+            resource_id=str(plan.id),
+            details={"name": plan.name}
+        )
+        
+        return {"message": "套餐已删除"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"删除套餐失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="删除套餐失败")

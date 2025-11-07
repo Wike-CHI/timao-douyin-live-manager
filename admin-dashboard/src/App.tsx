@@ -1,10 +1,17 @@
-import { Admin, Resource } from 'react-admin';
+import { Admin, Resource, CustomRoutes } from 'react-admin';
+import { Route } from 'react-router-dom';
 import { authProvider } from './authProvider';
 import { dataProvider } from './dataProvider';
 import { AppLayout } from './AppLayout';
 import { LoginPage } from './pages/LoginPage';
 import { Dashboard } from './pages/Dashboard';
 import { UserList, UserShow, UserCreate, UserEdit } from './resources/users';
+import { PaymentList, PaymentShow } from './resources/payments';
+import { PlanList, PlanShow, PlanCreate, PlanEdit } from './resources/plans';
+import { AICostStats } from './resources/ai-monitoring';
+import { RevenueCharts } from './resources/analytics/RevenueCharts';
+import { SystemMonitor } from './resources/system/SystemMonitor';
+import { AuditLogs } from './resources/audit/AuditLogs';
 
 function App() {
   return (
@@ -34,6 +41,27 @@ function App() {
         create={UserCreate}
         edit={UserEdit}
       />
+      
+      <Resource
+        name="payments"
+        list={PaymentList}
+        show={PaymentShow}
+      />
+      
+      <Resource
+        name="plans"
+        list={PlanList}
+        show={PlanShow}
+        create={PlanCreate}
+        edit={PlanEdit}
+      />
+      
+      <CustomRoutes>
+        <Route path="/ai-monitoring" element={<AICostStats />} />
+        <Route path="/analytics" element={<RevenueCharts />} />
+        <Route path="/system-monitor" element={<SystemMonitor />} />
+        <Route path="/audit-logs" element={<AuditLogs />} />
+      </CustomRoutes>
     </Admin>
   );
 }
