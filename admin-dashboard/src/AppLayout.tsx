@@ -4,12 +4,12 @@ import PeopleIcon from '@mui/icons-material/People';
 import PaymentIcon from '@mui/icons-material/Payment';
 import CardMembershipIcon from '@mui/icons-material/CardMembership';
 import MonitorHeartIcon from '@mui/icons-material/MonitorHeart';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import OnlinePredictionIcon from '@mui/icons-material/OnlinePrediction';
-import SettingsIcon from '@mui/icons-material/Settings';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import SecurityIcon from '@mui/icons-material/Security';
+import HealthAndSafetyIcon from '@mui/icons-material/HealthAndSafety';
 
 const CustomMenu = () => {
-  const [open] = useSidebarState();
+  useSidebarState();
   
   return (
     <div>
@@ -39,19 +39,19 @@ const CustomMenu = () => {
         leftIcon={<MonitorHeartIcon />}
       />
       <MenuItemLink
-        to="/online-users"
-        primaryText="在线用户"
-        leftIcon={<OnlinePredictionIcon />}
+        to="/analytics"
+        primaryText="数据分析"
+        leftIcon={<BarChartIcon />}
       />
       <MenuItemLink
-        to="/revenue"
-        primaryText="流水统计"
-        leftIcon={<TrendingUpIcon />}
+        to="/system-monitor"
+        primaryText="系统监控"
+        leftIcon={<HealthAndSafetyIcon />}
       />
       <MenuItemLink
-        to="/ai-gateway"
-        primaryText="AI网关"
-        leftIcon={<SettingsIcon />}
+        to="/audit-logs"
+        primaryText="审计日志"
+        leftIcon={<SecurityIcon />}
       />
     </div>
   );
