@@ -41,8 +41,8 @@ def parse_args():
     
     parser.add_argument(
         '--backend',
-        default='http://localhost:8000',
-        help='后端服务地址 (默认: http://localhost:8000)'
+        default='http://localhost:10090',
+        help='后端服务地址 (默认: http://localhost:10090)'
     )
     
     return parser.parse_args()

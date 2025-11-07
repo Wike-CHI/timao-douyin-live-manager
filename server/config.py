@@ -21,7 +21,8 @@ load_dotenv()
 class ServerConfig:
     """服务器配置"""
     host: str = "127.0.0.1"
-    port: int = 5000
+    # 从环境变量读取端口,默认10090
+    port: int = int(os.getenv("BACKEND_PORT", "10090"))
     debug: bool = False
     secret_key: str = "your-secret-key-here"
     cors_origins: list = field(default_factory=lambda: ["*"])

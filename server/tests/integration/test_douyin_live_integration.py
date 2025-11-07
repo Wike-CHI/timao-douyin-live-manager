@@ -24,7 +24,7 @@ import httpx
 
 # 测试配置
 TEST_DURATION_SECONDS = 300  # 5分钟
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:10090"
 LIVE_ROOM_URL = "https://live.douyin.com/191495446158"
 ROOM_ID = "7569996511182932786"
 ANCHOR_ID = "58994334334"
