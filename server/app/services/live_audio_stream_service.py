@@ -242,10 +242,10 @@ class LiveAudioStreamService:
         self._model_size: str = "small"
         # Streaming/VAD parameters are applied via profile presets (default -> stable)
         # 优化VAD参数以提高人声检测精度，特别是在背景音乐环境下
-        # 🔧 增加chunk_seconds以解决"window size"错误，确保音频片段足够长供VAD处理
-        self.chunk_seconds: float = 1.6  # 从0.8增加到1.6秒，满足VAD最小窗口要求
-        self.vad_min_silence_sec: float = 0.60  # 减少最小静音时间，提高响应速度
-        self.vad_min_speech_sec: float = 0.35   # 减少最小语音时间，更快检测到人声
+        # 🔧 优化VAD参数：更灵敏的语音检测，确保持续转录
+        self.chunk_seconds: float = 1.6  # 音频分块时长，满足VAD最小窗口要求
+        self.vad_min_silence_sec: float = 0.50  # 🔧 降低静音阈值：更快检测到静音结束
+        self.vad_min_speech_sec: float = 0.30   # 🔧 降低语音阈值：更快检测到语音开始
         self.vad_hangover_sec: float = 0.40     # 增加挂起时间，避免语音被截断
         self.vad_min_rms: float = 0.015         # 降低RMS阈值，提高对轻声说话的敏感度
         self.vad_force_flush_sec: float = 6.0

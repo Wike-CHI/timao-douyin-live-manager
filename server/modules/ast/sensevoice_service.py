@@ -84,6 +84,9 @@ class SenseVoiceService:
         self._device: str = "cpu"
         self._global_hotwords: set[str] = set()
         self._session_hotwords: Dict[str, set[str]] = {}
+        # 🔧 性能监控：内存和调用统计
+        self._call_count: int = 0
+        self._last_memory_check: float = 0.0
 
         # Enforce Small model only. If an external caller passed Medium/Large,
         # normalize it back to Small. Local paths that already point to
@@ -308,6 +311,30 @@ class SenseVoiceService:
                 "timestamp": time.time(),
                 "words": [],
             }
+        
+        # 🔧 性能监控：每100次调用检查一次内存
+        self._call_count += 1
+        current_time = time.time()
+        
+        if self._call_count % 100 == 0 or (current_time - self._last_memory_check > 300):  # 5分钟
+            self._last_memory_check = current_time
+            try:
+                import gc
+                import psutil
+                process = psutil.Process()
+                memory_mb = process.memory_info().rss / 1024 / 1024
+                
+                if memory_mb > 3500:  # 超过3.5GB发出警告
+                    self.logger.warning(f"⚠️ SenseVoice内存占用: {memory_mb:.0f}MB (调用次数: {self._call_count})")
+                    # 执行垃圾回收
+                    gc.collect()
+                    
+                    if memory_mb > 4500:  # 超过4.5GB，记录严重警告
+                        self.logger.error(f"❌ SenseVoice内存占用严重: {memory_mb:.0f}MB，建议重启服务")
+                elif self._call_count % 500 == 0:  # 每500次正常记录
+                    self.logger.debug(f"✅ SenseVoice运行正常: 内存{memory_mb:.0f}MB, 调用{self._call_count}次")
+            except Exception as e:
+                self.logger.debug(f"内存监控失败: {e}")
 
         loop = asyncio.get_event_loop()
 
@@ -315,6 +342,18 @@ class SenseVoiceService:
             try:
                 speech = np.frombuffer(audio_data, dtype=np.int16)
                 if speech.size == 0:
+                    return {
+                        "success": True,
+                        "type": "silence",
+                        "text": "",
+                        "confidence": 0.0,
+                        "timestamp": time.time(),
+                        "words": [],
+                    }
+                
+                # 🔧 快速静音检测：跳过RMS过低的音频，节省CPU
+                rms = np.sqrt(np.mean(speech.astype(np.float32) ** 2))
+                if rms < 320:  # 约0.01 (320/32768)，极低音量视为静音
                     return {
                         "success": True,
                         "type": "silence",
