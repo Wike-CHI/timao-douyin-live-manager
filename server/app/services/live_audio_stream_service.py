@@ -34,6 +34,18 @@ from server.modules.ast.sensevoice_service import (  # type: ignore
     SenseVoiceService,
 )
 
+# 🆕 科大讯飞ASR（临时替代方案）
+try:
+    from server.modules.ast.iflytek_asr_adapter import (  # type: ignore
+        IFlyTekASRService,
+        IFlyTekConfig,
+    )
+    IFLYTEK_AVAILABLE = True
+except ImportError:
+    IFlyTekASRService = None  # type: ignore
+    IFlyTekConfig = None  # type: ignore
+    IFLYTEK_AVAILABLE = False
+
 # ACRCloud (optional music recognition)
 try:
     from server.modules.ast.acrcloud_client import (  # type: ignore
@@ -230,7 +242,8 @@ class LiveAudioStreamService:
         self._model_size: str = "small"
         # Streaming/VAD parameters are applied via profile presets (default -> stable)
         # 优化VAD参数以提高人声检测精度，特别是在背景音乐环境下
-        self.chunk_seconds: float = 0.8
+        # 🔧 增加chunk_seconds以解决"window size"错误，确保音频片段足够长供VAD处理
+        self.chunk_seconds: float = 1.6  # 从0.8增加到1.6秒，满足VAD最小窗口要求
         self.vad_min_silence_sec: float = 0.60  # 减少最小静音时间，提高响应速度
         self.vad_min_speech_sec: float = 0.35   # 减少最小语音时间，更快检测到人声
         self.vad_hangover_sec: float = 0.40     # 增加挂起时间，避免语音被截断
@@ -766,9 +779,40 @@ class LiveAudioStreamService:
 
     # ---------- Internals ----------
     async def _ensure_sv(self) -> None:
-        """Ensure a single Small+VAD SenseVoice instance is loaded.
-        Prefer a local checkout under models/models/iic/* if available to avoid network.
+        """Ensure ASR service is loaded (SenseVoice or IFlyTek).
+        
+        🆕 支持科大讯飞ASR作为临时替代方案：
+        设置环境变量 USE_IFLYTEK_ASR=1 启用科大讯飞
         """
+        # 🆕 检查是否使用科大讯飞
+        use_iflytek = os.getenv("USE_IFLYTEK_ASR", "0") == "1"
+        
+        if use_iflytek and IFLYTEK_AVAILABLE:
+            # 使用科大讯飞ASR
+            if self._sv is not None:
+                backend = (self._sv.get_model_info() or {}).get("backend")  # type: ignore
+                if backend == "iflytek":
+                    return  # 已经加载科大讯飞
+                # 切换到科大讯飞，清理旧服务
+                try:
+                    await self._sv.cleanup()  # type: ignore
+                except Exception:
+                    pass
+                self._sv = None
+            
+            if self._sv is None:
+                self.logger.info("🔄 使用科大讯飞ASR服务（临时替代方案）")
+                self._sv = IFlyTekASRService()  # type: ignore
+                ok = await self._sv.initialize()  # type: ignore
+                if not ok:
+                    self.logger.error("❌ 科大讯飞ASR初始化失败，回退到SenseVoice")
+                    use_iflytek = False
+                    self._sv = None
+                else:
+                    self.logger.info("✅ 科大讯飞ASR已启用")
+                    return
+        
+        # 使用SenseVoice（默认）
         def _resolve_small_model_id() -> str:
             root = Path(__file__).resolve().parents[3]
             local_dir = root / "models" / "models" / "iic" / "SenseVoiceSmall"
@@ -793,11 +837,13 @@ class LiveAudioStreamService:
         # If already loaded with desired id, keep it
         if self._sv is not None:
             try:
-                cur = (self._sv.get_model_info() or {}).get("model_id")  # type: ignore
+                backend = (self._sv.get_model_info() or {}).get("backend")  # type: ignore
+                if backend == "sensevoice" or backend is None:  # None表示是SenseVoice
+                    cur = (self._sv.get_model_info() or {}).get("model_id")  # type: ignore
+                    if cur and str(cur) == desired_mid:
+                        return
             except Exception:
-                cur = None
-            if cur and str(cur) == desired_mid:
-                return
+                pass
             try:
                 await self._sv.cleanup()  # type: ignore
             except Exception:

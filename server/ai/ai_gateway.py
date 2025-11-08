@@ -294,15 +294,24 @@ class AIGateway:
         # 创建客户端
         if OpenAI and enabled:
             try:
-                self.clients[provider] = OpenAI(
-                    api_key=api_key,
-                    base_url=config.base_url or None,
-                    timeout=config.timeout,
-                    max_retries=config.max_retries,
-                )
+                # 使用最小化参数配置，避免兼容性问题
+                # OpenAI 1.52.2+ 不支持某些旧参数
+                client_kwargs = {
+                    "api_key": api_key,
+                }
+                
+                # 只在有值时添加 base_url
+                if config.base_url:
+                    client_kwargs["base_url"] = config.base_url
+                
+                # 创建客户端（不传递 timeout 和 max_retries，使用默认值）
+                self.clients[provider] = OpenAI(**client_kwargs)
                 logger.info(f"AI服务商已注册: {provider} (模型: {config.default_model})")
             except Exception as e:
                 logger.error(f"创建 {provider} 客户端失败: {e}")
+                logger.debug(f"客户端参数: {client_kwargs}")
+                import traceback
+                logger.debug(f"详细错误: {traceback.format_exc()}")
                 config.enabled = False
     
     def switch_provider(
@@ -374,12 +383,17 @@ class AIGateway:
         # 重新创建客户端
         if OpenAI and config.enabled:
             try:
-                self.clients[provider] = OpenAI(
-                    api_key=api_key,
-                    base_url=config.base_url or None,
-                    timeout=config.timeout,
-                    max_retries=config.max_retries,
-                )
+                # 使用最小化参数配置，避免兼容性问题
+                client_kwargs = {
+                    "api_key": api_key,
+                }
+                
+                # 只在有值时添加 base_url
+                if config.base_url:
+                    client_kwargs["base_url"] = config.base_url
+                
+                # 创建客户端（不传递 timeout 和 max_retries，使用默认值）
+                self.clients[provider] = OpenAI(**client_kwargs)
                 logger.info(f"服务商 {provider} 的 API Key 已更新")
             except Exception as e:
                 logger.error(f"更新 {provider} API Key 失败: {e}")

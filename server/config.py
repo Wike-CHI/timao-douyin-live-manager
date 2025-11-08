@@ -21,8 +21,8 @@ load_dotenv()
 class ServerConfig:
     """服务器配置"""
     host: str = "127.0.0.1"
-    # 从环境变量读取端口,默认11111
-    port: int = int(os.getenv("BACKEND_PORT", "11111"))
+    # 后端端口硬编码为 11111
+    port: int = 11111
     debug: bool = False
     secret_key: str = "your-secret-key-here"
     cors_origins: list = field(default_factory=lambda: ["*"])

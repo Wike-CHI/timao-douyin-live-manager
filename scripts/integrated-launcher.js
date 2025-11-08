@@ -172,8 +172,8 @@ class IntegratedLauncher {
      * 启动后端服务
      */
     async startBackend() {
-        // 使用环境变量 BACKEND_PORT，默认 11111（按需与前端配置保持一致）
-        const backendPort = process.env.BACKEND_PORT || '11111';
+        // 后端端口硬编码为 11111
+        const backendPort = '11111';
         const serverPath = path.join(this.projectRoot, 'server');
         
         // 检测虚拟环境中的Python路径
@@ -221,15 +221,11 @@ class IntegratedLauncher {
             rendererPath
         );
         
-        // 等待前端服务启动（默认端口 10089，可通过 FRONTEND_PORT 覆盖）
-        const frontendPort = process.env.FRONTEND_PORT || '10089';
+        // 等待前端服务启动（前端端口硬编码为 10050）
+        const frontendPort = '10050';
         const frontendReady = await this.waitForHealthCheck(`http://127.0.0.1:${frontendPort}`);
         if (!frontendReady) {
-            // 如果默认端口失败，尝试旧版本使用的 10109 端口（向后兼容）
-            const fallbackReady = await this.waitForHealthCheck('http://127.0.0.1:10109');
-            if (!fallbackReady) {
-                throw new Error('前端服务启动失败');
-            }
+            throw new Error('前端服务启动失败');
         }
     }
 
@@ -272,8 +268,9 @@ class IntegratedLauncher {
             console.log('\n📋 第四步: 启动Electron应用');
             await this.startElectron();
             
-            const backendPort = process.env.BACKEND_PORT || '11111';
-            const frontendPort = process.env.FRONTEND_PORT || '10089';
+            // 端口硬编码
+            const backendPort = '11111';
+            const frontendPort = '10050';
             console.log('\n' + '='.repeat(60));
             console.log('🎉 所有服务启动完成！');
             console.log('');

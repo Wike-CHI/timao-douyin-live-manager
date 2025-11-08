@@ -9,7 +9,7 @@ const devCsp = [
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
-  "connect-src 'self' ws://127.0.0.1:* ws://localhost:* http://127.0.0.1:* http://localhost:* https:",
+  "connect-src 'self' ws://127.0.0.1:* ws://localhost:* ws://129.211.218.135 ws://129.211.218.135:* wss://129.211.218.135:* http://127.0.0.1:* http://localhost:* http://129.211.218.135 http://129.211.218.135:* https:",
   "font-src 'self' data:",
 ];
 
@@ -18,8 +18,8 @@ export default defineConfig({
   base: './',
   server: {
     host: '127.0.0.1',
-    port: 10089, // 默认前端开发端口，可通过环境变量覆盖
-    strictPort: false, // 如果端口被占用，自动尝试下一个可用端口
+    port: 10050, // 前端端口硬编码为 10050
+    strictPort: true, // 强制使用指定端口，不自动尝试其他端口
     headers: {
       'Content-Security-Policy': devCsp.join('; '),
     },

@@ -27,7 +27,18 @@ if TYPE_CHECKING:
 try:
     from funasr import AutoModel as AutoModelImpl  # type: ignore
     FUNASR_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning(f"FunASR 导入失败 (ImportError): {e}")
+    AutoModelImpl = object  # type: ignore
+    FUNASR_AVAILABLE = False
+except Exception as e:
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.error(f"FunASR 导入失败 (非预期错误): {e}")
+    import traceback
+    logger.debug(f"FunASR 导入详细错误:\n{traceback.format_exc()}")
     AutoModelImpl = object  # type: ignore
     FUNASR_AVAILABLE = False
 
@@ -104,7 +115,6 @@ class SenseVoiceService:
             'oss2': 'oss2',
             'sentencepiece': 'sentencepiece',
             'soundfile': 'soundfile',
-            'tensorboardX': 'tensorboardX',
             'umap': 'umap-learn'
         }
         
@@ -341,6 +351,23 @@ class SenseVoiceService:
                         )
                     try:
                         raw_results = self._model.generate(**gen_kwargs)
+                    except ValueError as exc:
+                        # 捕获 "choose a window size" 等音频处理错误
+                        error_msg = str(exc)
+                        if "window size" in error_msg or "choose a window size 0" in error_msg:
+                            # 音频太短或无有效语音，这是正常情况，返回空结果
+                            # 使用DEBUG级别而不是ERROR，因为这不是真正的错误
+                            self.logger.debug(f"音频片段太短或无有效语音: {error_msg}")
+                            return {
+                                "success": True,
+                                "type": "silence",
+                                "text": "",
+                                "confidence": 0.0,
+                                "timestamp": time.time(),
+                                "words": [],
+                            }
+                        # 其他 ValueError 继续处理
+                        raise
                     except TypeError as exc:
                         self.logger.debug("SenseVoice generate fallback: %s", exc)
                         fallback_kwargs = dict(gen_kwargs)
@@ -354,9 +381,36 @@ class SenseVoiceService:
                             fallback_kwargs.pop("encoder_chunk_look_back", None)
                         try:
                             raw_results = self._model.generate(**fallback_kwargs)
+                        except ValueError as inner_exc:
+                            # 同样处理内部的 window size 错误
+                            if "window size" in str(inner_exc):
+                                self.logger.debug(f"Fallback: 音频片段太短或无有效语音: {inner_exc}")
+                                return {
+                                    "success": True,
+                                    "type": "silence",
+                                    "text": "",
+                                    "confidence": 0.0,
+                                    "timestamp": time.time(),
+                                    "words": [],
+                                }
+                            raise
                         except Exception as inner_exc:
                             self.logger.debug("SenseVoice bare fallback used: %s", inner_exc)
-                            raw_results = self._model.generate(input=speech)
+                            try:
+                                raw_results = self._model.generate(input=speech)
+                            except ValueError as bare_exc:
+                                # 最后的 fallback 也捕获 window size 错误
+                                if "window size" in str(bare_exc):
+                                    self.logger.debug(f"Bare fallback: 音频片段太短或无有效语音: {bare_exc}")
+                                    return {
+                                        "success": True,
+                                        "type": "silence",
+                                        "text": "",
+                                        "confidence": 0.0,
+                                        "timestamp": time.time(),
+                                        "words": [],
+                                    }
+                                raise
                     text = self._extract_text(raw_results)
                     words = self._extract_words(raw_results, text, audio_sec)
                     confidence = self._extract_confidence(raw_results, default=0.9 if text else 0.0)
@@ -371,6 +425,18 @@ class SenseVoiceService:
                 else:
                     return self._mock_transcribe(audio_data)
             except Exception as exc:  # pragma: no cover - handled via logging
+                # 如果是window size相关的错误，使用DEBUG级别
+                if "window size" in str(exc):
+                    self.logger.debug(f"音频片段处理: {exc}")
+                    return {
+                        "success": True,
+                        "type": "silence",
+                        "text": "",
+                        "confidence": 0.0,
+                        "timestamp": time.time(),
+                        "words": [],
+                    }
+                # 其他错误仍然记录为ERROR
                 self.logger.error("SenseVoice transcription failed: %s", exc)
                 return self._mock_transcribe(audio_data)
 

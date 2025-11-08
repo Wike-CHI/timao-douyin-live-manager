@@ -72,6 +72,7 @@ class AILiveAnalyzer:
         self._generator: Optional[LiveAnalysisGenerator] = None
         self._script_responder = None
         self._workflow = None
+        self._session_id: Optional[str] = None  # 🔧 初始化session_id，防止stop()时访问不存在的属性
         self._init_workflow()
 
     # -------------- Public API --------------
