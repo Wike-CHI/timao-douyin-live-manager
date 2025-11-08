@@ -120,7 +120,7 @@ vosk-api/**
 server/records/** 
 server/records/live_logs/** 
 server/records/live_logs/233013462762/2025-10-28/danmu_1761623564.jsonl
-##模型文件
+# 模型文件
 models/whisper-large-v2/._____temp/
 models/whisper-large-v2/.lock/
 models/whisper-large-v3/._____temp/
@@ -130,9 +130,9 @@ models/whisper-zh/.lock/
 models/vosk-model-small-zh-cn-0.22/._____temp/
 models/vosk-model-small-zh-cn-0.22/.lock/
 models/vosk-model-small-en-us-0.15/._____temp/
-models/vosk-model-small-en-us-0.15/.lock/   
+models/vosk-model-small-en-us-0.15/.lock/
 # End of large models, datasets, and generated artifacts (repo cleanup)
-##全部的model文件夹
+# 全部的model文件夹
 models/**
 model/iic/SenseVoiceSmall/.mdl
 model/iic/SenseVoiceSmall/.msc
@@ -165,3 +165,6 @@ server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/model.pt
 server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/README.md
 server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/example/vad_example.wav
 server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/fig/struct.png
+
+# Python wheelhouse 目录（包含所有预编译的wheel文件）
+wheelhouse/
