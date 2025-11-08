@@ -1,238 +1,89 @@
-# 🐳 前后端完整 Docker 部署指南
+# 🐳 一键式前后端 Docker 部署
 
-**遵循：奥卡姆剃刀 + 希克定律**
-
-> 最简单的完整部署方案，一键启动前后端
+遵循 **奥卡姆剃刀** 与 **KISS 原则**：只保留必需步骤，一条命令拉起前后端。
 
 ---
 
-## 🎯 一键部署（3步）
+## 0. 先决条件
 
-### 第1步：配置环境变量（只需6项）
+- 已安装 Docker 24+ 与 `docker compose` 插件（或 Docker Desktop 最新版）。
+- 仓库完整克隆到目标服务器。
+
+---
+
+## 1. 准备唯一一份 `.env`
 
 ```bash
-# 后端配置
 cd server
 cp env.production.template .env
-# 编辑 server/.env，配置6个必需项
-
-# 返回项目根目录
-cd ../..
 ```
 
-**后端必需配置（6项）**：
+编辑 `server/.env`，只改 6 个键：
 
-```env
-BACKEND_PORT=11111
-MYSQL_HOST=你的数据库地址
-MYSQL_USER=timao
-MYSQL_PASSWORD=你的密码
-MYSQL_DATABASE=timao
-SECRET_KEY=你的密钥（生产环境必须改）
-```
+| 键 | 说明 |
+| --- | --- |
+| `BACKEND_PORT` | 对外 API 端口（默认 11111） |
+| `MYSQL_HOST` | MySQL 地址 |
+| `MYSQL_USER` | MySQL 用户 |
+| `MYSQL_PASSWORD` | MySQL 密码 |
+| `MYSQL_DATABASE` | MySQL 库名 |
+| `SECRET_KEY` | 64 字节随机串 |
 
-### 第2步：一键部署
+> 其余键全部保留默认值，减少决策面。
+
+---
+
+## 2. 一键启动前后端
+
+在项目根目录执行：
 
 ```bash
-# 在项目根目录
-docker-compose -f docker-compose.full.yml up -d --build
+BACKEND_PORT=11111 FRONTEND_PORT=80 \
+docker compose -f docker-compose.full.yml up -d --build
 ```
 
-### 第3步：验证部署
+- `BACKEND_PORT`、`FRONTEND_PORT` 可按需改成本机空闲端口。
+- 命令会：
+  1. 构建后端镜像（内含 Python 依赖与语音模型下载逻辑）。
+  2. 构建前端静态资源 + Nginx。
+  3. 将 `server/.env` 注入后端容器，并挂载 `server/models|logs|records` 以持久化数据。
+
+---
+
+## 3. 验证
 
 ```bash
-# 后端健康检查
-curl http://localhost:11111/health
-
-# 前端健康检查
-curl http://localhost/health
-
-# 访问前端
-# 浏览器打开: http://localhost
+curl http://localhost:${BACKEND_PORT:-11111}/health
+curl http://localhost:${FRONTEND_PORT:-80}/health
+docker compose -f docker-compose.full.yml ps
 ```
+
+通过即表示前后端均运行。
 
 ---
 
-## 📋 配置说明
-
-### 必需配置（6项）
-
-**后端** (`server/.env`):
-1. ✅ `BACKEND_PORT=11111`
-2. ✅ `MYSQL_HOST=数据库地址`
-3. ✅ `MYSQL_USER=timao`
-4. ✅ `MYSQL_PASSWORD=密码`
-5. ✅ `MYSQL_DATABASE=timao`
-6. ✅ `SECRET_KEY=密钥（生产环境必须改）`
-
-**前端**（自动配置）:
-- ✅ 后端地址自动设置为 `http://backend:11111`（Docker 网络内）
-- ✅ 前端端口默认 `80`（可通过 `FRONTEND_PORT` 环境变量修改）
-
----
-
-## 🔧 前后端通信
-
-### Docker 网络内通信
-
-前后端在同一 Docker 网络中，通过服务名通信：
-
-- 前端 → 后端: `http://backend:11111`
-- 后端端口映射: `11111:11111`（宿主机访问）
-- 前端端口映射: `80:80`（宿主机访问）
-
-### 环境变量配置
-
-前端构建时会注入后端地址：
-
-```yaml
-build:
-  args:
-    VITE_FASTAPI_URL: http://backend:11111
-    VITE_STREAMCAP_URL: http://backend:11111
-    VITE_DOUYIN_URL: http://backend:11111
-```
-
-### Nginx 代理（可选）
-
-如果需要在 Nginx 中代理 API 请求：
-
-```nginx
-location /api/ {
-    proxy_pass http://backend:11111/api/;
-}
-```
-
----
-
-## 🛠️ 常用命令
+## 4. 日常操作
 
 ```bash
-# 启动所有服务
-docker-compose -f docker-compose.full.yml up -d
+# 查看实时日志
+docker compose -f docker-compose.full.yml logs -f backend
+docker compose -f docker-compose.full.yml logs -f frontend
 
-# 停止所有服务
-docker-compose -f docker-compose.full.yml down
+# 重启
+docker compose -f docker-compose.full.yml restart
 
-# 查看日志
-docker-compose -f docker-compose.full.yml logs -f
-
-# 查看后端日志
-docker logs -f timao-backend
-
-# 查看前端日志
-docker logs -f timao-frontend
-
-# 重启服务
-docker-compose -f docker-compose.full.yml restart
-
-# 重建镜像
-docker-compose -f docker-compose.full.yml build --no-cache
-docker-compose -f docker-compose.full.yml up -d
+# 停止并清理容器（保留数据卷）
+docker compose -f docker-compose.full.yml down
 ```
 
 ---
 
-## 🔍 故障排查
+## 5. 常见定制（保持最小化）
 
-### 问题1：前端无法连接后端
-
-**检查**：
-1. 后端服务是否启动：`docker ps | grep backend`
-2. 后端健康检查：`curl http://localhost:11111/health`
-3. 前端日志：`docker logs timao-frontend`
-
-**解决**：
-```bash
-# 检查网络连接
-docker network inspect timao-douyin-live-manager_timao-network
-
-# 测试后端连接（从前端容器）
-docker exec -it timao-frontend wget -O- http://backend:11111/health
-```
-
-### 问题2：CORS 错误
-
-**原因**：后端 CORS 配置不允许前端域名
-
-**解决**：确保后端 `.env` 中配置：
-
-```env
-CORS_ORIGINS=*
-# 或具体域名
-CORS_ORIGINS=http://localhost,http://your-domain.com
-```
-
-### 问题3：端口冲突
-
-**解决**：修改端口映射
-
-```bash
-# 修改 docker-compose.full.yml
-ports:
-  - "8080:80"  # 前端改为 8080
-  - "11112:11111"  # 后端改为 11112
-```
+- **修改端口**：仅调整上方启动命令的 `BACKEND_PORT/FRONTEND_PORT` 环境变量，以及 `server/.env` 中的 `BACKEND_PORT`，无需改 Compose 文件。
+- **更新配置**：改 `server/.env` 后执行 `docker compose -f docker-compose.full.yml up -d`.
+- **更新代码**：拉取最新代码后重复“一键启动”命令（会自动重建镜像）。
 
 ---
 
-## 📊 架构说明
-
-```
-┌─────────────────┐
-│   浏览器/客户端   │
-│  http://localhost│
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  前端 (Nginx)    │
-│  端口: 80       │
-│  容器: frontend │
-└────────┬────────┘
-         │
-         │ Docker 网络
-         │ http://backend:11111
-         ▼
-┌─────────────────┐
-│  后端 (FastAPI)  │
-│  端口: 11111    │
-│  容器: backend  │
-└─────────────────┘
-```
-
----
-
-## ✅ 部署检查清单
-
-- [ ] Docker 和 Docker Compose 已安装
-- [ ] `server/.env` 已配置（6个必需项）
-- [ ] 后端镜像构建成功
-- [ ] 前端镜像构建成功
-- [ ] 所有服务启动成功
-- [ ] 后端健康检查通过
-- [ ] 前端健康检查通过
-- [ ] 前后端可以通信
-
----
-
-## 🎯 部署原则
-
-1. **奥卡姆剃刀**：最简单的 Docker Compose 配置
-2. **希克定律**：只配置6个必需项，其他自动处理
-3. **自动化**：前后端自动连接，无需手动配置
-
----
-
-## 📞 支持
-
-如有问题，检查：
-
-1. Docker 版本 >= 20.10
-2. `server/.env` 文件是否正确
-3. 数据库是否可访问
-4. 端口是否被占用
-5. Docker 网络是否正常
-
-**记住：只需配置6项，其他自动完成！**
-
+整体流程不再拆分脚本或额外服务，所有决定集中在一个 `.env` 和一条 Compose 命令里，尽量减少步骤与干扰项。*** End Patch
