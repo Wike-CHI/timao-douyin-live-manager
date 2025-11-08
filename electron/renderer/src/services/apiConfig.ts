@@ -24,26 +24,26 @@ export interface ApiConfig {
   };
 }
 
-// 默认服务配置 (统一使用后端主服务端口10050)
+// 默认服务配置 (通过Nginx反向代理，使用80端口)
 const DEFAULT_CONFIG: ApiConfig = {
   services: {
     main: {
       name: 'FastAPI主服务',
-      baseUrl: 'http://129.211.218.135:10050', // 后端主服务端口 (可通过VITE_FASTAPI_URL环境变量覆盖)
+      baseUrl: 'http://129.211.218.135', // 通过Nginx反向代理，使用80端口 (可通过VITE_FASTAPI_URL环境变量覆盖)
       healthEndpoint: '/health',
       timeout: 5000,
       retryCount: 3
     },
     streamcap: {
       name: 'StreamCap服务',
-      baseUrl: 'http://129.211.218.135:10050', // 已集成到主服务 (可通过VITE_STREAMCAP_URL环境变量覆盖)
+      baseUrl: 'http://129.211.218.135', // 通过Nginx反向代理，使用80端口 (可通过VITE_STREAMCAP_URL环境变量覆盖)
       healthEndpoint: '/api/streamcap/health',
       timeout: 5000,
       retryCount: 3
     },
     douyin: {
       name: 'Douyin服务',
-      baseUrl: 'http://129.211.218.135:10050', // 已集成到主服务 (可通过VITE_DOUYIN_URL环境变量覆盖)
+      baseUrl: 'http://129.211.218.135', // 通过Nginx反向代理，使用80端口 (可通过VITE_DOUYIN_URL环境变量覆盖)
       healthEndpoint: '/api/douyin/health',
       timeout: 5000,
       retryCount: 3
