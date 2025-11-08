@@ -14,6 +14,12 @@ from pathlib import Path
 
 import numpy as np
 
+# UMAP/FunASR 会在导入阶段依赖 numba 的 JIT；在 Python 3.11 上会触发已知的
+# range lowering bug（i64→i32）。设置以下环境变量可以让 UMAP 走纯 Python 路径，
+# 并禁用 numba 的 JIT，从而避免初始化时崩溃。
+os.environ.setdefault("UMAP_DONT_USE_NUMBA", "1")
+os.environ.setdefault("NUMBA_DISABLE_JIT", "1")
+
 # Conditional import for FunASR to avoid hard dependency
 if TYPE_CHECKING:
     from funasr import AutoModel

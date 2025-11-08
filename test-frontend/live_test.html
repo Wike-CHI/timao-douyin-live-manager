@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TalkingCat · 联合测试</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #020617;
+      --panel: rgba(15, 23, 42, 0.88);
+      --border: rgba(148, 163, 184, 0.22);
+      --accent: #c084fc;
+      --accent-strong: #a855f7;
+      --muted: rgba(226, 232, 240, 0.7);
+      --text: #f8fafc;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(145deg, #0f172a 0%, #020617 100%);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      padding: 40px 16px 56px;
+    }
+
+    main {
+      width: min(1200px, 100%);
+      background: var(--panel);
+      border-radius: 32px;
+      border: 1px solid var(--border);
+      padding: 32px;
+      box-shadow: 0 35px 80px rgba(2, 6, 23, 0.7);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: clamp(26px, 4vw, 34px);
+    }
+
+    header p {
+      margin: 6px 0 26px;
+      color: var(--muted);
+    }
+
+    .control-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    input {
+      border-radius: 14px;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      background: rgba(15, 23, 42, 0.7);
+      color: var(--text);
+      padding: 12px 16px;
+      font-size: 15px;
+      outline: none;
+    }
+
+    input:focus { border-color: var(--accent); }
+
+    button {
+      border: none;
+      border-radius: 14px;
+      padding: 12px 0;
+      font-size: 15px;
+      cursor: pointer;
+      color: white;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    button.primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+    }
+
+    button.secondary {
+      background: rgba(148, 163, 184, 0.28);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    button:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow: 0 18px 32px rgba(168, 85, 247, 0.25);
+    }
+
+    .status-box {
+      border-radius: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.26);
+      background: rgba(15, 23, 42, 0.65);
+      padding: 16px;
+      min-height: 60px;
+      margin-bottom: 24px;
+      line-height: 1.45;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 20px;
+    }
+
+    .panel {
+      border-radius: 24px;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      background: rgba(15, 23, 42, 0.78);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      min-height: 420px;
+    }
+
+    .panel h2 {
+      margin: 0 0 14px;
+      font-size: 20px;
+    }
+
+    ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      flex: 1;
+      overflow-y: auto;
+      scrollbar-width: thin;
+    }
+
+    li {
+      border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+      padding: 10px 0;
+    }
+
+    .transcription-final {
+      color: #fcd34d;
+      font-weight: 600;
+    }
+
+    .meta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: rgba(192, 132, 252, 0.15);
+      color: var(--accent);
+      font-size: 12px;
+      margin-right: 6px;
+    }
+
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>🧪 联合测试（转写 + Douyin）</h1>
+      <p>直接调用 <code>/api/live-test/*</code>，一键联动 SenseVoice 与 Douyin 抓取，验证链路状态。</p>
+    </header>
+
+    <section class="control-bar">
+      <input id="liveInput" type="text" placeholder="直播间号，例如 926155072586" />
+      <button id="startBtn" class="primary">启动联合测试</button>
+      <button id="stopBtn" class="secondary">停止</button>
+    </section>
+
+    <div id="statusBox" class="status-box">等待启动…</div>
+
+    <section class="layout">
+      <article class="panel">
+        <h2>💚 转写输出</h2>
+        <ul id="transcriptionList"></ul>
+      </article>
+
+      <article class="panel">
+        <h2>📡 Douyin 事件</h2>
+        <ul id="eventList"></ul>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const liveInput = document.getElementById('liveInput');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const statusBox = document.getElementById('statusBox');
+    const transcriptionList = document.getElementById('transcriptionList');
+    const eventList = document.getElementById('eventList');
+
+    let eventSource = null;
+    const transcriptBuffer = [];
+    const eventBuffer = [];
+    const MAX_TRANS = 80;
+    const MAX_EVENT = 120;
+
+    function updateStatus(lines, tone = 'info') {
+      const icon = tone === 'success' ? '✅' : tone === 'error' ? '❌' : tone === 'warning' ? '⚠️' : 'ℹ️';
+      statusBox.textContent = `${icon} ${lines}`;
+    }
+
+    async function startTest() {
+      const liveId = liveInput.value.trim();
+      if (!liveId) {
+        updateStatus('请先输入直播间号', 'warning');
+        liveInput.focus();
+        return;
+      }
+      startBtn.disabled = true;
+      try {
+        ensureEventSource();
+        const resp = await fetch('/api/live-test/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ live_id: liveId }),
+        });
+        if (!resp.ok) {
+          const detail = await resp.json().catch(() => ({}));
+          throw new Error(detail?.detail || detail?.error || '启动失败');
+        }
+        updateStatus('联合测试已启动，等待数据…', 'success');
+      } catch (err) {
+        updateStatus(`启动失败：${err.message}`, 'error');
+      } finally {
+        startBtn.disabled = false;
+      }
+    }
+
+    async function stopTest() {
+      stopBtn.disabled = true;
+      try {
+        await fetch('/api/live-test/stop', { method: 'POST' });
+        updateStatus('联合测试已停止', 'warning');
+      } catch (err) {
+        updateStatus(`停止失败：${err.message}`, 'error');
+      } finally {
+        stopBtn.disabled = false;
+      }
+    }
+
+    function ensureEventSource() {
+      if (eventSource) return;
+      eventSource = new EventSource('/api/live-test/stream');
+      eventSource.onopen = () => updateStatus('SSE 通道已建立，等待事件…', 'info');
+      eventSource.onerror = () => updateStatus('SSE 通道异常或断开', 'warning');
+      eventSource.onmessage = (evt) => {
+        try {
+          const data = JSON.parse(evt.data);
+          handleEvent(data);
+        } catch (err) {
+          console.warn('解析事件失败', err);
+        }
+      };
+    }
+
+    function handleEvent(event) {
+      const { type, payload = {}, timestamp } = event;
+      if (type === 'status') {
+        const stage = payload.stage || '未知';
+        updateStatus(`状态：${stage}`, stage.includes('error') ? 'error' : 'info');
+        return;
+      }
+      if (type === 'transcription') {
+        appendTranscription(payload, timestamp);
+        return;
+      }
+      if (type === 'chat' || type === 'gift') {
+        appendEvent(formatEvent(type, payload, timestamp));
+      } else {
+        appendEvent({ text: `${payload.stage || type}`, timestamp: timestamp || Date.now() });
+      }
+    }
+
+    function appendTranscription(payload, ts) {
+      transcriptBuffer.push({
+        text: payload.text || '',
+        isFinal: payload.is_final,
+        confidence: payload.confidence,
+        timestamp: ts || payload.timestamp || Date.now(),
+      });
+      if (transcriptBuffer.length > MAX_TRANS) {
+        transcriptBuffer.splice(0, transcriptBuffer.length - MAX_TRANS);
+      }
+      transcriptionList.innerHTML = transcriptBuffer.slice().reverse().map((item) => `
+        <li>
+          <div class="${item.isFinal ? 'transcription-final' : ''}">${item.text || '（空）'}</div>
+          <div class="meta">置信度 ${item.confidence ?? '-'} · ${new Date(item.timestamp).toLocaleTimeString()}</div>
+        </li>
+      `).join('');
+    }
+
+    function formatEvent(type, payload, ts) {
+      const base = {
+        text: '',
+        timestamp: ts || Date.now(),
+      };
+      if (type === 'chat') {
+        base.text = `💬 ${payload.nickname || '匿名'}：${payload.content || ''}`;
+      } else if (type === 'gift') {
+        base.text = `🎁 ${payload.nickname || '匿名'} 送出 ${payload.gift_name || ''} ×${payload.count || 1}`;
+      } else {
+        base.text = `${type} 事件`;
+      }
+      return base;
+    }
+
+    function appendEvent(item) {
+      if (!item?.text) return;
+      eventBuffer.push(item);
+      if (eventBuffer.length > MAX_EVENT) {
+        eventBuffer.splice(0, eventBuffer.length - MAX_EVENT);
+      }
+      eventList.innerHTML = eventBuffer.slice().reverse().map((evt) => `
+        <li>
+          <div><span class="badge">Douyin</span>${evt.text}</div>
+          <div class="meta">${new Date(evt.timestamp).toLocaleTimeString()}</div>
+        </li>
+      `).join('');
+    }
+
+    async function fetchStatus() {
+      try {
+        const resp = await fetch('/api/live-test/status');
+        if (!resp.ok) throw new Error(resp.statusText);
+        const status = await resp.json();
+        const parts = [
+          `运行: ${status.is_running ? '✅' : '⏸️'}`,
+          `LiveID: ${status.live_id || '—'}`,
+          `转写: ${status.ast_running ? '✅' : '⏸️'}`,
+          `Douyin: ${status.douyin_running ? '✅' : '⏸️'}`,
+          status.last_error ? `错误: ${status.last_error}` : '',
+        ].filter(Boolean);
+        updateStatus(parts.join(' · ') || '空闲', status.is_running ? 'success' : 'info');
+      } catch (err) {
+        updateStatus(`状态获取失败：${err.message}`, 'error');
+      }
+    }
+
+    startBtn.addEventListener('click', startTest);
+    stopBtn.addEventListener('click', stopTest);
+    window.addEventListener('beforeunload', () => eventSource?.close());
+
+    ensureEventSource();
+    fetchStatus();
+    setInterval(fetchStatus, 8000);
+  </script>
+</body>
+</html>

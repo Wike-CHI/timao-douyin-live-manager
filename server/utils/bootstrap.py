@@ -8,7 +8,7 @@ We do NOT modify system PATH permanently. Instead we resolve a local ffmpeg
 binary and set FFMPEG_BIN in-process so subprocess calls can use it reliably.
 """
 from __future__ import annotations
-
+##修改自动下载模型 引用路径server/tools/download_sensevoice.py
 import io
 import os
 import platform
@@ -161,12 +161,12 @@ def ensure_models() -> Dict[str, bool]:
     # Try running download scripts (best effort, only if Python deps available)
     py_exe = sys.executable or "python"
     try:
-        if not ok_m:
+        if not ok_m:##将引用路径改为server/tools/download_sensevoice.py 
             _log("Downloading SenseVoiceSmall model…")
-            subprocess.run([py_exe, str(PROJECT_ROOT / "tools" / "download_sensevoice.py")], check=False, cwd=str(PROJECT_ROOT))
+            subprocess.run([py_exe, str(PROJECT_ROOT / "server" / "tools" / "download_sensevoice.py")], check=False, cwd=str(PROJECT_ROOT))
         if not ok_v:
             _log("Downloading VAD model…")
-            subprocess.run([py_exe, str(PROJECT_ROOT / "tools" / "download_vad_model.py")], check=False, cwd=str(PROJECT_ROOT))
+            subprocess.run([py_exe, str(PROJECT_ROOT / "server" / "tools" / "download_vad_model.py")], check=False, cwd=str(PROJECT_ROOT))
     except Exception:
         pass
     ok_m = mdir.exists(); ok_v = vdir.exists()

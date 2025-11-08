@@ -154,3 +154,14 @@ model/iic/SenseVoiceSmall/fig/inference.png
 model/iic/SenseVoiceSmall/fig/sensevoice.png
 model/iic/SenseVoiceSmall/fig/ser_figure.png
 model/iic/SenseVoiceSmall/fig/ser_table.png
+server/models/models/iic/SenseVoiceSmall
+server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/.mdl
+server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/.msc
+server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/.mv
+server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/am.mvn
+server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/config.yaml
+server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/configuration.json
+server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/model.pt
+server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/README.md
+server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/example/vad_example.wav
+server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/fig/struct.png

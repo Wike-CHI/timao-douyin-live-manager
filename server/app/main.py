@@ -8,7 +8,8 @@ from pathlib import Path
 import os
 import ssl
 import sys
-
+from dotenv import load_dotenv
+load_dotenv()  # 加载 .env 文件
 import asyncio
 from urllib.parse import urlparse
 from fastapi import FastAPI, Request
@@ -345,8 +346,8 @@ def stop_websocket_services():
     logging.info("✅ WebSocket 服务停止（由 FastAPI 管理）")
 
 
-# 静态文件服务 (前端)
-frontend_path = Path(__file__).parent.parent.parent / "frontend"
+# 静态文件服务 (前端)改为 test-frontend
+frontend_path = Path(__file__).parent.parent.parent / "test-frontend"
 if frontend_path.exists():
     app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
     logging.info(f"✅ 静态文件服务已启用: {frontend_path}")
@@ -409,7 +410,7 @@ async def root():
 
             <div>
                 <a href="/docs" class="link">📚 API文档</a>
-                <a href="/api/live_audio/status" class="link">💚 转写状态</a>
+                <a href="/static/status.html" class="link">💚 转写状态</a>
                 <a href="/static/index.html" class="link">🎯 Web 界面</a>
                 <a href="/static/douyin_test.html" class="link">🧪 Douyin 测试面板</a>
                 <a href="/static/live_test.html" class="link">🧪 联合测试面板</a>
