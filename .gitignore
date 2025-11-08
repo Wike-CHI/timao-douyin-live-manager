@@ -14,7 +14,11 @@ dist/
 build/
 out/
 *.egg-info/
-
+server/records/**
+server/records/live_logs/**
+server/records/sessions/**
+*.zip
+*.rar
 # 日志文件
 logs/
 *.log
