@@ -18,7 +18,7 @@ export default defineConfig({
   base: './',
   server: {
     host: '127.0.0.1',
-    port: 10050, // 默认前端开发端口，可通过环境变量覆盖
+    port: 10089, // 默认前端开发端口，可通过环境变量覆盖
     strictPort: false, // 如果端口被占用，自动尝试下一个可用端口
     headers: {
       'Content-Security-Policy': devCsp.join('; '),

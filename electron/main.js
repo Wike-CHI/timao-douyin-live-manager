@@ -302,7 +302,7 @@ async function stopBackendServices() {
 }
 
 // 控制是否由 Electron 自启本地 FastAPI（云端部署时可关闭）
-const shouldStartApi = (process.env.ELECTRON_START_API || 'true') !== 'false';
+const shouldStartApi = (process.env.ELECTRON_START_API || 'false') !== 'true';
 
 async function ensureBackendReady() {
     if (!shouldStartApi) return;
