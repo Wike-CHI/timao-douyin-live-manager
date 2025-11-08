@@ -24,7 +24,7 @@
     "build:win64": "npm run build:backend && npm run build:frontend && electron-builder --win --x64",
     "build:win32": "npm run build:backend && npm run build:frontend && electron-builder --win --ia32",
     "build:config": "npm run build:backend && npm run build:frontend && electron-builder --config build-config.json --publish=never",
-    "build:backend": "python build_backend.py",
+    "build:backend": "python scripts/build_backend.py",
     "build:frontend": "npm --prefix electron/renderer run build",
     "build:services": "npm run build:backend",
     "release": "npm run build:backend && npm run build:frontend && electron-builder --config build-config.json --publish=never",

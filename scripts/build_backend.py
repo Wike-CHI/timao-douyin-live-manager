@@ -13,7 +13,8 @@ from pathlib import Path
 
 class BackendBuilder:
     def __init__(self):
-        self.base_dir = Path(__file__).parent
+        # 项目根目录（scripts目录的父目录）
+        self.base_dir = Path(__file__).parent.parent
         self.build_dir = self.base_dir / "backend_build"
         self.dist_dir = self.base_dir / "backend_dist"
         self.spec_file = self.build_dir / "backend_service.spec"
