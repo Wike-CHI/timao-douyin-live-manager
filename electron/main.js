@@ -41,17 +41,17 @@ const uvicornLogPath = path.join(logsDir, 'uvicorn.log');
 const serviceConfig = {
     main: {
         name: 'FastAPI',
-        port: '11111', // 后端端口硬编码为 11111
+        port: '8181', // 后端端口硬编码为 8181
         healthPath: '/health'
     },
     streamcap: {
         name: 'StreamCap',
-        port: process.env.STREAMCAP_PORT || '9020',
+        port: process.env.STREAMCAP_PORT || '8181',
         healthPath: '/health'
     },
     douyin: {
         name: 'DouyinLive',
-        port: process.env.DOUYIN_PORT || '9021',
+        port: process.env.DOUYIN_PORT || '8181',
         healthPath: '/health'
     }
 };

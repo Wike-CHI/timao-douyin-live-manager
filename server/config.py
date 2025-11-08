@@ -21,8 +21,8 @@ load_dotenv()
 class ServerConfig:
     """服务器配置"""
     host: str = "127.0.0.1"
-    # 后端端口硬编码为 11111
-    port: int = 11111
+    # 后端端口硬编码为 8181
+    port: int = 8181
     debug: bool = False
     secret_key: str = "your-secret-key-here"
     cors_origins: list = field(default_factory=lambda: ["*"])
