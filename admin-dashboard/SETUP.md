@@ -35,13 +35,13 @@ npm install
 
 ### 2. 配置环境变量（可选）
 
-复制 `.env.example` 为 `.env`：
+在 `admin-dashboard/` 目录复制 `.env.example` 为 `.env`：
 
 ```bash
 cp .env.example .env
 ```
 
-默认后端地址：`http://127.0.0.1:9019`
+默认后端地址：`http://127.0.0.1:10090`（可通过 `VITE_FASTAPI_URL` 配置）
 
 ### 3. 启动开发服务器
 
@@ -49,7 +49,7 @@ cp .env.example .env
 npm run dev
 ```
 
-访问：http://localhost:10050
+访问：http://localhost:10065（可通过 `VITE_ADMIN_PORT` 配置）
 
 ### 4. 登录
 

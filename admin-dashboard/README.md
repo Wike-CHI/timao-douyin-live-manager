@@ -79,12 +79,16 @@
 npm install
 ```
 
-### 配置后端地址
+### 配置端口与后端地址（通过环境变量）
 
-创建 `.env` 文件：
+在 `admin-dashboard/` 目录创建 `.env` 文件：
 
 ```env
-VITE_FASTAPI_URL=http://127.0.0.1:9030
+# 管理后台开发端口（Vite）
+VITE_ADMIN_PORT=10065
+
+# 后端 FastAPI 基地址（与后端 BACKEND_PORT 对齐，默认 10090）
+VITE_FASTAPI_URL=http://127.0.0.1:10090
 ```
 
 ### 开发模式
@@ -93,7 +97,7 @@ VITE_FASTAPI_URL=http://127.0.0.1:9030
 npm run dev
 ```
 
-默认访问：http://localhost:10050
+默认访问：http://localhost:10065（可通过 `VITE_ADMIN_PORT` 调整）
 
 如果端口被占用，Vite 会自动尝试下一个端口（10051, 10052...）
 

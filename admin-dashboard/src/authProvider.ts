@@ -1,6 +1,6 @@
 import { AuthProvider } from 'react-admin';
 
-const API_BASE = import.meta.env.VITE_FASTAPI_URL || 'http://127.0.0.1:9019';
+const API_BASE = import.meta.env.VITE_FASTAPI_URL || 'http://127.0.0.1:10090';
 
 export const authProvider: AuthProvider = {
   // 登录
