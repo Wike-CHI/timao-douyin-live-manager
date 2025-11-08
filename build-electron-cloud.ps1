@@ -59,6 +59,6 @@ if (Test-Path $distPath) {
 Write-Host ""
 Write-Host "=== 构建完成！===" -ForegroundColor Green
 Write-Host "现在可以安装并运行 Electron 应用，它将连接到云服务器：" -ForegroundColor Cyan
-Write-Host "  后端地址: http://129.211.218.135:8181" -ForegroundColor Cyan
+Write-Host "  后端地址: " -ForegroundColor Cyan
 Write-Host ""
 
