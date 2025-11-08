@@ -9,7 +9,7 @@ const execAsync = util.promisify(exec);
  */
 class PortManager {
     constructor() {
-        this.defaultPorts = [9030, 9020, 9021, 10109]; // 默认端口：后端 9030，前端 10109（避免 Windows 端口排除范围 10009-10108）
+        this.defaultPorts = [11111, 9020, 9021, 10050]; // 默认端口：后端 11111，前端 10050（按需调整其余服务端口）
     }
 
     /**
@@ -188,7 +188,7 @@ async function main() {
         console.log('  node port-manager.js kill <port>    - 杀死指定端口');
         console.log('  node port-manager.js kill <p1> <p2> - 杀死多个端口');
         console.log('');
-        console.log('默认端口: 9030, 9020, 9021, 10109');
+        console.log('默认端口: 11111, 9020, 9021, 10050');
         return;
     }
     

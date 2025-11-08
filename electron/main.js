@@ -25,7 +25,7 @@ for (const [key, value] of Object.entries(defaultAiEnv)) {
 }
 
 const isDev = !app.isPackaged;
-const rendererDevServerURL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.0.1:10109'; // 默认端口改为 10109，避免 Windows 端口排除范围 10009-10108
+const rendererDevServerURL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.0.1:10050'; // 默认前端开发端口，可通过 ELECTRON_RENDERER_URL 覆盖
 
 // 保持对窗口对象的全局引用，如果不这样做，窗口会在JavaScript对象被垃圾回收时自动关闭
 let mainWindow;
@@ -41,7 +41,7 @@ const uvicornLogPath = path.join(logsDir, 'uvicorn.log');
 const serviceConfig = {
     main: {
         name: 'FastAPI',
-        port: process.env.BACKEND_PORT || '9030', // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
+        port: process.env.BACKEND_PORT || '11111', // 默认端口改为 11111，可通过 BACKEND_PORT 覆盖
         healthPath: '/health'
     },
     streamcap: {

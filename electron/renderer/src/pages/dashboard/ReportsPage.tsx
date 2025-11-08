@@ -20,7 +20,7 @@ type Metrics = {
   gifts?: Record<string, number>;
 };
 
-const FASTAPI_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9030'; // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
+const FASTAPI_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:11111'; // 默认端口改为 11111，可通过环境变量覆盖
 
 const ReportsPage: React.FC = () => {
   const [liveInput, setLiveInput] = useState('');
@@ -433,7 +433,7 @@ const ReportsPage: React.FC = () => {
 
   const refresh = useCallback(async () => {
     try {
-      const r = await getLiveReportStatus(FASTAPI_BASE_URL);
+      const r = await getLiveReportStatus();
       console.log('📊 [ReportsPage] refresh 获取到的数据:', r);
       console.log('📊 [ReportsPage] status:', r?.status);
       console.log('📊 [ReportsPage] metrics:', r?.status?.metrics);
@@ -458,7 +458,7 @@ const ReportsPage: React.FC = () => {
     // 🆕 检查是否有可恢复的会话
     const checkResumableSession = async () => {
       try {
-        const res = await getResumableSession(FASTAPI_BASE_URL);
+        const res = await getResumableSession();
         if (res?.success && res?.data) {
           setResumableSession(res.data);
           setShowResumeDialog(true);
@@ -472,7 +472,7 @@ const ReportsPage: React.FC = () => {
     // 🆕 检查是否有活动会话，如果有则启动轮询
     const checkActiveSession = async () => {
       try {
-        const r = await getLiveReportStatus(FASTAPI_BASE_URL);
+        const r = await getLiveReportStatus();
         if (r?.status && (r.status.status === 'recording' || r.status.status === 'paused')) {
           startPolling();
         }

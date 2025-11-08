@@ -48,7 +48,7 @@ export const AICostStats = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const API_BASE = import.meta.env.VITE_FASTAPI_URL || 'http://127.0.0.1:9030';
+        const API_BASE = import.meta.env.VITE_FASTAPI_URL || 'http://127.0.0.1:15000';
         const token = localStorage.getItem('token');
 
         const response = await fetch(`${API_BASE}/api/admin/ai/costs`, {

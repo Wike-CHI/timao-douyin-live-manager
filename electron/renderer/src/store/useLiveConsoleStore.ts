@@ -71,7 +71,7 @@ interface LiveConsoleState {
   pushAiEvent: (value: any) => void;
   appendLog: (entry: TranscriptEntry) => void;
   resetSessionState: () => void;
-  connectWebSocket: (baseUrl: string) => void;
+  connectWebSocket: () => void;
   disconnectWebSocket: () => void;
   handleWebSocketMessage: (message: LiveAudioMessage) => void;
 }
@@ -171,7 +171,7 @@ export const useLiveConsoleStore = create<LiveConsoleState>()(
           error: null,
           saveInfo: null,
         })),
-      connectWebSocket: (baseUrl) => {
+      connectWebSocket: () => {
         const current = socketHolder.current;
         if (current) {
           try { current.close(); } catch { /* ignore */ }
@@ -182,7 +182,7 @@ export const useLiveConsoleStore = create<LiveConsoleState>()(
         }
         deltaModeHolder.current = false;
         reconnectState.shouldReconnect = true;
-        const socket = openLiveAudioWebSocket((message) => get().handleWebSocketMessage(message), baseUrl);
+        const socket = openLiveAudioWebSocket((message) => get().handleWebSocketMessage(message));
         socketHolder.current = socket;
         socket.onopen = () => {
           deltaModeHolder.current = false;
@@ -197,7 +197,7 @@ export const useLiveConsoleStore = create<LiveConsoleState>()(
           if (!(get().status?.is_running)) return;
           if (reconnectState.timer) clearTimeout(reconnectState.timer);
           reconnectState.timer = setTimeout(() => {
-            get().connectWebSocket(baseUrl);
+            get().connectWebSocket();
           }, 1200);
         };
       },

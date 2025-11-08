@@ -25,8 +25,8 @@ describe('buildServiceUrl 基础能力', () => {
   it('支持覆盖 baseUrl 并处理多余斜杠', async () => {
     const { buildServiceUrl } = await import('../apiConfig');
 
-    expect(buildServiceUrl('main', '/health')).toBe('http://127.0.0.1:9030/health');
-    expect(buildServiceUrl('main', 'health')).toBe('http://127.0.0.1:9030/health');
+    expect(buildServiceUrl('main', '/health')).toBe('http://127.0.0.1:11111/health');
+    expect(buildServiceUrl('main', 'health')).toBe('http://127.0.0.1:11111/health');
     expect(buildServiceUrl('main', '/api/test', 'https://api.example/')).toBe('https://api.example/api/test');
     expect(buildServiceUrl('douyin', 'status', 'https://relay.example')).toBe('https://relay.example/status');
   });
@@ -44,7 +44,7 @@ describe('服务调用统一使用 buildServiceUrl', () => {
     await getPlan('42');
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:9030/api/payment/plans/42');
+    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:11111/api/payment/plans/42');
   });
 
   it('douyin.startDouyinRelay 使用统一 URL 构建', async () => {
@@ -53,7 +53,7 @@ describe('服务调用统一使用 buildServiceUrl', () => {
     await startDouyinRelay('LIVE123', 'cookie');
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:9030/api/douyin/start');
+    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:11111/api/douyin/start');
   });
 
   it('liveReport.startLiveReport 使用统一 URL 构建', async () => {
@@ -62,7 +62,7 @@ describe('服务调用统一使用 buildServiceUrl', () => {
     await startLiveReport('https://douyin.example/live', 15);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:9030/api/report/live/start');
+    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:11111/api/report/live/start');
   });
 
   it('liveSession.getSessionStatus 使用统一 URL 构建', async () => {
@@ -71,7 +71,7 @@ describe('服务调用统一使用 buildServiceUrl', () => {
     await getSessionStatus();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:9030/api/live_session/status');
+    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:11111/api/live_session/status');
   });
 
   it('ai.startAILiveAnalysis 使用统一 URL 构建', async () => {
@@ -80,7 +80,7 @@ describe('服务调用统一使用 buildServiceUrl', () => {
     await startAILiveAnalysis({});
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:9030/api/ai/live/start');
+    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:11111/api/ai/live/start');
   });
 });
 

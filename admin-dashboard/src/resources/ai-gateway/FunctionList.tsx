@@ -52,7 +52,7 @@ export const FunctionList: React.FC = () => {
       const token = localStorage.getItem('auth_token');
       
       // 获取功能配置
-      const configResponse = await fetch('http://127.0.0.1:9030/api/ai_gateway/functions', {
+      const configResponse = await fetch('http://127.0.0.1:15000/api/ai_gateway/functions', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -66,7 +66,7 @@ export const FunctionList: React.FC = () => {
       setConfigs(configData.function_configs);
 
       // 获取服务商列表
-      const providerResponse = await fetch('http://127.0.0.1:9030/api/ai_gateway/providers', {
+      const providerResponse = await fetch('http://127.0.0.1:15000/api/ai_gateway/providers', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -93,7 +93,7 @@ export const FunctionList: React.FC = () => {
   const fetchModels = async (provider: string) => {
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`http://127.0.0.1:9030/api/ai_gateway/models/${provider}`, {
+      const response = await fetch(`http://127.0.0.1:15000/api/ai_gateway/models/${provider}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -129,7 +129,7 @@ export const FunctionList: React.FC = () => {
     try {
       const token = localStorage.getItem('auth_token');
       const response = await fetch(
-        `http://127.0.0.1:9030/api/ai_gateway/functions/${editFunction}`,
+        `http://127.0.0.1:15000/api/ai_gateway/functions/${editFunction}`,
         {
           method: 'PUT',
           headers: {

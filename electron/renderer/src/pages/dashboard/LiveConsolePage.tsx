@@ -16,7 +16,6 @@ import { getSessionStatus, resumeSession, resumePausedSession, type LiveSessionS
 
 // Note: Do not cap transcript items; persist to disk is handled by backend.
 // We keep full in-memory log for current session (may grow large for long sessions).
-const FASTAPI_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9030'; // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
 
 const LiveConsolePage = () => {
   const [showSaveInfo, setShowSaveInfo] = useState(false);
@@ -138,29 +137,49 @@ const LiveConsolePage = () => {
 
   const refreshStatus = useCallback(async () => {
     try {
-      const result = await getLiveAudioStatus(FASTAPI_BASE_URL);
-      setStatus(result);
+      const result = await getLiveAudioStatus();
+      console.log('🔄 [LiveConsolePage] refreshStatus - 获取到的状态:', result);
+      
+      // 处理 API 响应格式：可能是 {success, data} 或直接是数据对象
+      const audioStatus = (result as any)?.data || result;
+      console.log('🔄 [LiveConsolePage] refreshStatus - 解析后的音频状态:', audioStatus);
+      setStatus(audioStatus);
       
       // 获取抖音直播间状态
       try {
-        const douyinResult = await getDouyinRelayStatus(FASTAPI_BASE_URL);
+        const douyinResult = await getDouyinRelayStatus();
+        console.log('🔄 [LiveConsolePage] refreshStatus - 抖音状态:', douyinResult);
+        
+        // 处理 API 响应格式
+        const douyinData = (douyinResult as any)?.data || douyinResult;
+        console.log('🔄 [LiveConsolePage] refreshStatus - 解析后的抖音状态:', douyinData);
+        
         // 应用重启后不保留上次直播间信息：当未运行时，清空 live_id/room_id
-        const normalized = douyinResult?.is_running
-          ? douyinResult
-          : { ...douyinResult, live_id: null, room_id: null };
+        const normalized = douyinData?.is_running || douyinData?.is_monitoring
+          ? douyinData
+          : { ...douyinData, live_id: null, room_id: null };
         setDouyinStatus(normalized);
-        setDouyinConnected(!!normalized.is_running);
+        setDouyinConnected(!!(normalized.is_running || normalized.is_monitoring));
       } catch (err) {
         console.error('获取抖音状态失败:', err);
         setDouyinStatus(null);
         setDouyinConnected(false);
       }
       
+      // 获取报告状态
+      try {
+        const reportResult = await getLiveReportStatus();
+        console.log('🔄 [LiveConsolePage] refreshStatus - 报告状态:', reportResult);
+        setReportStatus(reportResult);
+      } catch (err) {
+        console.warn('获取报告状态失败:', err);
+      }
+      
       // 简洁模式：不再同步 profile 到 UI
       // sync persist settings if present（高级选项已移除）
       try {
-        if ((result as any)?.advanced) {
-          const a = (result as any).advanced || {};
+        if (audioStatus?.advanced) {
+          const a = audioStatus.advanced || {};
           if (typeof a.persist_enabled === 'boolean') setPersistTr(a.persist_enabled);
           if (typeof a.persist_root === 'string') setPersistTrRoot(a.persist_root || '');
           if (typeof a.agc_enabled === 'boolean') setAgcEnabled(a.agc_enabled);
@@ -172,23 +191,29 @@ const LiveConsolePage = () => {
       } catch {}
       // sync douyin persist
       try {
-        const ds = await getDouyinRelayStatus(FASTAPI_BASE_URL);
-        if (typeof (ds as any)?.persist_enabled === 'boolean') setPersistDm((ds as any).persist_enabled);
-        if (typeof (ds as any)?.persist_root === 'string') setPersistDmRoot((ds as any).persist_root || '');
+        const ds = await getDouyinRelayStatus();
+        const douyinData = (ds as any)?.data || ds;
+        if (typeof douyinData?.persist_enabled === 'boolean') setPersistDm(douyinData.persist_enabled);
+        if (typeof douyinData?.persist_root === 'string') setPersistDmRoot(douyinData.persist_root || '');
       } catch {}
-      if (result.is_running) {
+      
+      const isRunning = audioStatus?.is_running || false;
+      if (isRunning) {
         const socket = getLiveConsoleSocket();
         if (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
-          connectWebSocket(FASTAPI_BASE_URL);
+          console.log('🔄 [LiveConsolePage] refreshStatus - 连接 WebSocket');
+          connectWebSocket();
+        } else {
+          console.log('🔄 [LiveConsolePage] refreshStatus - WebSocket 已连接，状态:', socket.readyState);
         }
       } else {
         disconnectWebSocket();
       }
     } catch (err) {
-      console.error(err);
+      console.error('❌ [LiveConsolePage] refreshStatus 失败:', err);
       setError((err as Error).message ?? '获取直播音频状态失败');
     }
-  }, [connectWebSocket, disconnectWebSocket, setPersistDm, setPersistDmRoot, setPersistTr, setPersistTrRoot, setStatus, setError]);
+  }, [connectWebSocket, disconnectWebSocket, setPersistDm, setPersistDmRoot, setPersistTr, setPersistTrRoot, setStatus, setError, setReportStatus]);
 
   useEffect(() => {
     refreshStatus();
@@ -207,14 +232,18 @@ const LiveConsolePage = () => {
   useEffect(() => {
     if (!isRunning) return;
     const id = setInterval(() => {
-      getLiveAudioStatus(FASTAPI_BASE_URL)
-        .then(setStatus)
+      getLiveAudioStatus()
+        .then((result) => {
+          const audioStatus = (result as any)?.data || result;
+          setStatus(audioStatus);
+        })
         .catch(() => {});
       // 同时轮询抖音状态
-      getDouyinRelayStatus(FASTAPI_BASE_URL)
+      getDouyinRelayStatus()
         .then((douyinResult) => {
-          setDouyinStatus(douyinResult);
-          setDouyinConnected(douyinResult.is_running);
+          const douyinData = (douyinResult as any)?.data || douyinResult;
+          setDouyinStatus(douyinData);
+          setDouyinConnected(!!(douyinData.is_running || douyinData.is_monitoring));
         })
         .catch(() => {
           setDouyinStatus(null);
@@ -222,19 +251,21 @@ const LiveConsolePage = () => {
         });
     }, 2000);
     return () => clearInterval(id);
-  }, [isRunning]);
+  }, [isRunning, setStatus]);
 
   // 定期刷新抖音状态（即使不在运行状态也刷新，用于显示服务状态）
   useEffect(() => {
     const id = setInterval(() => {
-      getDouyinRelayStatus(FASTAPI_BASE_URL)
+      getDouyinRelayStatus()
         .then((douyinResult) => {
+          // 处理 API 响应格式
+          const douyinData = (douyinResult as any)?.data || douyinResult;
           // 应用重启后不保留上次直播间信息：当未运行时，清空 live_id/room_id
-          const normalized = douyinResult?.is_running
-            ? douyinResult
-            : { ...douyinResult, live_id: null, room_id: null };
+          const normalized = (douyinData?.is_running || douyinData?.is_monitoring)
+            ? douyinData
+            : { ...douyinData, live_id: null, room_id: null };
           setDouyinStatus(normalized);
-          setDouyinConnected(!!normalized.is_running);
+          setDouyinConnected(!!(normalized.is_running || normalized.is_monitoring));
         })
         .catch((err) => {
           // 如果获取状态失败，可能是服务未启动或网络问题
@@ -251,7 +282,7 @@ const LiveConsolePage = () => {
     let timer: any = null;
     const poll = async () => {
       try {
-        const s = await getLiveReportStatus(FASTAPI_BASE_URL);
+        const s = await getLiveReportStatus();
         setReportStatus(s);
       } catch {}
     };
@@ -267,7 +298,7 @@ const LiveConsolePage = () => {
 
     const checkResumableSession = async () => {
       try {
-        const response = await getSessionStatus(FASTAPI_BASE_URL);
+        const response = await getSessionStatus();
         if (response.success && response.data?.session) {
           const session = response.data.session;
           // 如果会话状态是 recording 或 paused，显示恢复提示
@@ -298,7 +329,7 @@ const LiveConsolePage = () => {
       console.log('🔄 开始恢复会话:', sessionState.session_id);
 
       // 恢复统一会话
-      const resumeResponse = await resumeSession(FASTAPI_BASE_URL);
+      const resumeResponse = await resumeSession();
       if (!resumeResponse.success || !resumeResponse.data?.session) {
         throw new Error(resumeResponse.message || '恢复会话失败');
       }
@@ -313,7 +344,7 @@ const LiveConsolePage = () => {
         servicesToResume.push('录制服务');
         // 录制服务会自动从会话恢复
         try {
-          await getLiveReportStatus(FASTAPI_BASE_URL);
+          await getLiveReportStatus();
         } catch (err) {
           console.warn('检查录制服务状态失败:', err);
         }
@@ -322,8 +353,8 @@ const LiveConsolePage = () => {
       if (resumedSession.douyin_relay_active && resumedSession.live_id) {
         servicesToResume.push('弹幕服务');
         try {
-          await startDouyinRelay(resumedSession.live_id, FASTAPI_BASE_URL);
-          await updateDouyinPersist({ persist_enabled: true }, FASTAPI_BASE_URL);
+          await startDouyinRelay(resumedSession.live_id);
+          await updateDouyinPersist({ persist_enabled: true });
         } catch (err) {
           console.warn('恢复弹幕服务失败:', err);
         }
@@ -332,17 +363,14 @@ const LiveConsolePage = () => {
       if (resumedSession.audio_transcription_active && resumedSession.live_url) {
         servicesToResume.push('转写服务');
         try {
-          await startLiveAudio({ live_url: resumedSession.live_url }, FASTAPI_BASE_URL);
-          connectWebSocket(FASTAPI_BASE_URL);
-          await updateLiveAudioAdvanced(
-            {
-              persist_enabled: true,
-              agc: agcEnabled,
-              diarization: diarizationEnabled,
-              max_speakers: diarizationEnabled ? maxSpeakers : 1,
-            },
-            FASTAPI_BASE_URL
-          );
+          await startLiveAudio({ live_url: resumedSession.live_url });
+          connectWebSocket();
+          await updateLiveAudioAdvanced({
+            persist_enabled: true,
+            agc: agcEnabled,
+            diarization: diarizationEnabled,
+            max_speakers: diarizationEnabled ? maxSpeakers : 1,
+          });
         } catch (err) {
           console.warn('恢复转写服务失败:', err);
         }
@@ -351,7 +379,7 @@ const LiveConsolePage = () => {
       if (resumedSession.ai_analysis_active) {
         servicesToResume.push('AI分析服务');
         try {
-          await startAILiveAnalysis({ window_sec: 30 }, FASTAPI_BASE_URL);
+          await startAILiveAnalysis({ window_sec: 30 });
           analysisBootRef.current = true;
           connectAIStream();
         } catch (err) {
@@ -362,7 +390,7 @@ const LiveConsolePage = () => {
       // 如果会话是暂停状态，恢复暂停状态
       if (resumedSession.status === 'paused') {
         try {
-          await resumePausedSession(FASTAPI_BASE_URL);
+          await resumePausedSession();
         } catch (err) {
           console.warn('恢复暂停状态失败:', err);
         }
@@ -423,10 +451,10 @@ const LiveConsolePage = () => {
       console.log('正在停止现有服务...');
       try {
         await Promise.allSettled([
-          stopDouyinRelay(FASTAPI_BASE_URL).catch(() => {}),
-          stopLiveAudio(FASTAPI_BASE_URL).catch(() => {}),
-          stopLiveReport(FASTAPI_BASE_URL).catch(() => {}),
-          stopAILiveAnalysis(FASTAPI_BASE_URL).catch(() => {})
+          stopDouyinRelay().catch(() => {}),
+          stopLiveAudio().catch(() => {}),
+          stopLiveReport().catch(() => {}),
+          stopAILiveAnalysis().catch(() => {})
         ]);
         console.log('现有服务已停止');
         // 等待一小段时间确保服务完全停止
@@ -441,11 +469,11 @@ const LiveConsolePage = () => {
         async () => {
           // 先检查服务状态
           try {
-            const status = await getDouyinRelayStatus(FASTAPI_BASE_URL);
+            const status = await getDouyinRelayStatus();
             if (status.is_running) {
               console.log('抖音直播互动服务已在运行，跳过启动');
               // 仍然更新持久化设置
-              await updateDouyinPersist({ persist_enabled: true }, FASTAPI_BASE_URL);
+              await updateDouyinPersist({ persist_enabled: true });
               return true;
             }
           } catch (err) {
@@ -456,9 +484,9 @@ const LiveConsolePage = () => {
           const maxRetries = 5;
           while (retries < maxRetries) {
             try {
-              await startDouyinRelay(liveId, FASTAPI_BASE_URL);
+              await startDouyinRelay(liveId);
               // 默认开启弹幕持久化
-              await updateDouyinPersist({ persist_enabled: true }, FASTAPI_BASE_URL);
+              await updateDouyinPersist({ persist_enabled: true });
               console.log('抖音直播互动服务启动成功');
               return true;
             } catch (err) {
@@ -476,20 +504,18 @@ const LiveConsolePage = () => {
         async () => {
           // 先检查服务状态
           try {
-            const status = await getLiveAudioStatus(FASTAPI_BASE_URL);
+            const statusResponse = await getLiveAudioStatus();
+            const status = (statusResponse as any)?.data || statusResponse;
             if (status.is_running) {
               console.log('实时音频转写服务已在运行，跳过启动');
-              connectWebSocket(FASTAPI_BASE_URL);
+              connectWebSocket();
               // 仍然更新高级设置
-              await updateLiveAudioAdvanced(
-                {
-                  persist_enabled: true,
-                  agc: agcEnabled,
-                  diarization: diarizationEnabled,
-                  max_speakers: diarizationEnabled ? maxSpeakers : 1,
-                },
-                FASTAPI_BASE_URL
-              );
+              await updateLiveAudioAdvanced({
+                persist_enabled: true,
+                agc: agcEnabled,
+                diarization: diarizationEnabled,
+                max_speakers: diarizationEnabled ? maxSpeakers : 1,
+              });
               return true;
             }
           } catch (err) {
@@ -501,18 +527,15 @@ const LiveConsolePage = () => {
           const maxRetries = 5;
           while (retries < maxRetries) {
             try {
-              await startLiveAudio({ live_url: liveUrl }, FASTAPI_BASE_URL);
-              connectWebSocket(FASTAPI_BASE_URL);
+              await startLiveAudio({ live_url: liveUrl });
+              connectWebSocket();
               // 默认开启字幕持久化
-              await updateLiveAudioAdvanced(
-                {
-                  persist_enabled: true,
-                  agc: agcEnabled,
-                  diarization: diarizationEnabled,
-                  max_speakers: diarizationEnabled ? maxSpeakers : 1,
-                },
-                FASTAPI_BASE_URL
-              );
+              await updateLiveAudioAdvanced({
+                persist_enabled: true,
+                agc: agcEnabled,
+                diarization: diarizationEnabled,
+                max_speakers: diarizationEnabled ? maxSpeakers : 1,
+              });
               console.log('实时音频转写服务启动成功');
               return true;
             } catch (err) {
@@ -521,18 +544,15 @@ const LiveConsolePage = () => {
               // 如果错误是服务已运行，则直接连接WebSocket并返回成功
               if (errorMessage.includes('already running') || errorMessage.includes('live audio service already running')) {
                 console.log('实时音频转写服务已在运行，连接WebSocket');
-                connectWebSocket(FASTAPI_BASE_URL);
+                connectWebSocket();
                 // 更新高级设置
                 try {
-                  await updateLiveAudioAdvanced(
-                    {
-                      persist_enabled: true,
-                      agc: agcEnabled,
-                      diarization: diarizationEnabled,
-                      max_speakers: diarizationEnabled ? maxSpeakers : 1,
-                    },
-                    FASTAPI_BASE_URL
-                  );
+                  await updateLiveAudioAdvanced({
+                    persist_enabled: true,
+                    agc: agcEnabled,
+                    diarization: diarizationEnabled,
+                    max_speakers: diarizationEnabled ? maxSpeakers : 1,
+                  });
                 } catch (updateErr) {
                   console.warn('更新音频转写高级设置失败:', updateErr);
                 }
@@ -553,7 +573,7 @@ const LiveConsolePage = () => {
         async () => {
           // 先检查服务状态
           try {
-            const status = await getLiveReportStatus(FASTAPI_BASE_URL);
+            const status = await getLiveReportStatus();
             if (status.active) {
               console.log('直播录制服务已在运行，跳过启动');
               return true;
@@ -566,7 +586,7 @@ const LiveConsolePage = () => {
           const maxRetries = 3;
           while (retries < maxRetries) {
             try {
-              await startLiveReport(liveUrl, 30, FASTAPI_BASE_URL);
+              await startLiveReport(liveUrl, 30);
               console.log('直播录制服务启动成功');
               return true;
             } catch (err) {
@@ -607,10 +627,27 @@ const LiveConsolePage = () => {
         }
       }
 
+      console.log('✅ [LiveConsolePage] 所有服务启动完成，开始刷新状态...');
       await refreshStatus();
+      
+      // 延迟再次刷新，确保后端状态已更新
+      setTimeout(async () => {
+        console.log('🔄 [LiveConsolePage] 延迟刷新状态...');
+        await refreshStatus();
+        const updatedStatusResponse = await getLiveAudioStatus().catch(() => null);
+        const updatedDouyinStatusResponse = await getDouyinRelayStatus().catch(() => null);
+        const updatedStatus = updatedStatusResponse ? ((updatedStatusResponse as any)?.data || updatedStatusResponse) : null;
+        const updatedDouyinStatus = updatedDouyinStatusResponse ? ((updatedDouyinStatusResponse as any)?.data || updatedDouyinStatusResponse) : null;
+        console.log('✅ [LiveConsolePage] 状态刷新完成，当前状态:', {
+          audioStatus: updatedStatus,
+          douyinStatus: updatedDouyinStatus,
+          isRunning: updatedStatus?.is_running,
+          douyinConnected: updatedDouyinStatus?.is_running || updatedDouyinStatus?.is_monitoring
+        });
+      }, 1000);
 
-      try { await stopAILiveAnalysis(FASTAPI_BASE_URL).catch(() => {}); } catch {}
-      await startAILiveAnalysis({ window_sec: 30 }, FASTAPI_BASE_URL).catch(() => {});
+      try { await stopAILiveAnalysis().catch(() => {}); } catch {}
+      await startAILiveAnalysis({ window_sec: 30 }).catch(() => {});
       analysisBootRef.current = true;
       connectAIStream();
 
@@ -624,7 +661,7 @@ const LiveConsolePage = () => {
         // 录制目录从 report status 读取
         setTimeout(async () => {
           try {
-            const s = await getLiveReportStatus(FASTAPI_BASE_URL);
+            const s = await getLiveReportStatus();
             const videoDir = s?.status?.recording_dir || '';
             setSaveInfo({ trDir, dmDir, videoDir });
           } catch { setSaveInfo({ trDir, dmDir, videoDir: '' }); }
@@ -647,7 +684,7 @@ const LiveConsolePage = () => {
       const services = [
         async () => {
           try {
-            await stopLiveAudio(FASTAPI_BASE_URL);
+            await stopLiveAudio();
             console.log('实时音频转写服务停止成功');
           } catch (err) {
             console.error('实时音频转写服务停止失败:', err);
@@ -656,7 +693,7 @@ const LiveConsolePage = () => {
         },
         async () => {
           try {
-            await stopDouyinRelay(FASTAPI_BASE_URL);
+            await stopDouyinRelay();
             console.log('抖音直播互动服务停止成功');
           } catch (err) {
             console.error('抖音直播互动服务停止失败:', err);
@@ -665,7 +702,7 @@ const LiveConsolePage = () => {
         },
         async () => {
           try {
-            await stopLiveReport(FASTAPI_BASE_URL);
+            await stopLiveReport();
             console.log('直播录制服务停止成功');
           } catch (err) {
             console.error('直播录制服务停止失败:', err);
@@ -674,7 +711,7 @@ const LiveConsolePage = () => {
         },
         async () => {
           try {
-            await stopAILiveAnalysis(FASTAPI_BASE_URL).catch(() => {});
+            await stopAILiveAnalysis().catch(() => {});
             console.log('AI实时分析服务停止成功');
           } catch (err) {
             console.error('AI实时分析服务停止失败:', err);
@@ -709,7 +746,7 @@ const LiveConsolePage = () => {
       const idMatch = input.match(/live\.douyin\.com\/([A-Za-z0-9_\-]+)/);
       const liveId = idMatch ? idMatch[1] : input;
       const liveUrl = idMatch ? input : `https://live.douyin.com/${liveId}`;
-      await startLiveReport(liveUrl, 5, FASTAPI_BASE_URL);
+      await startLiveReport(liveUrl, 5);
     } catch (e) {
       setError((e as Error).message || '启动复盘失败');
     } finally {
@@ -720,7 +757,7 @@ const LiveConsolePage = () => {
   const handleReportStop = async () => {
     try {
       setReportBusy(true);
-      await stopLiveReport(FASTAPI_BASE_URL);
+      await stopLiveReport();
     } catch (e) {
       setError((e as Error).message || '停止复盘失败');
     } finally {
@@ -731,7 +768,7 @@ const LiveConsolePage = () => {
   const handleReportGenerate = async () => {
     try {
       setReportBusy(true);
-      const res = await generateLiveReport(FASTAPI_BASE_URL);
+      const res = await generateLiveReport();
       setReportPaths(res?.data || null);
     } catch (e) {
       setError((e as Error).message || '生成报告失败');
@@ -935,8 +972,7 @@ const LiveConsolePage = () => {
         try { if (aiSourceRef.current) aiSourceRef.current.close(); } catch {}
         aiSourceRef.current = null;
         setTimeout(connectAIStream, 1500);
-      },
-      FASTAPI_BASE_URL
+      }
     );
     aiSourceRef.current = es;
   }, [normalizeAiEvent, pushAiEvent, setStyleProfile, setVibe, setAnswerScripts]);
@@ -944,13 +980,13 @@ const LiveConsolePage = () => {
   useEffect(() => {
     if (isRunning) {
       if (!analysisBootRef.current) {
-        startAILiveAnalysis({ window_sec: 30 }, FASTAPI_BASE_URL).catch(() => {});
+        startAILiveAnalysis({ window_sec: 30 }).catch(() => {});
         analysisBootRef.current = true;
       }
       connectAIStream();
     } else {
       analysisBootRef.current = false;
-      try { stopAILiveAnalysis(FASTAPI_BASE_URL).catch(() => {}); } catch {}
+      try { stopAILiveAnalysis().catch(() => {}); } catch {}
       if (aiSourceRef.current) { aiSourceRef.current.close(); aiSourceRef.current = null; }
     }
     return () => {
@@ -1018,7 +1054,7 @@ const LiveConsolePage = () => {
       if (transcriptSnippet) payload.transcript = transcriptSnippet;
       if (styleProfile) payload.style_profile = styleProfile;
       if (vibe) payload.vibe = vibe;
-      const res = await generateAnswerScripts(payload, FASTAPI_BASE_URL);
+      const res = await generateAnswerScripts(payload);
       const scripts = res?.data?.scripts || [];
       // 替换为最新生成的话术，确保用户看到的是针对当前选择问题的回答
       setAnswerScripts(scripts);
@@ -1028,7 +1064,7 @@ const LiveConsolePage = () => {
       setAnswerLoading(false);
       generatingRef.current = false;
     }
-  }, [selectedQuestions, log, styleProfile, vibe, answerScripts, setAnswerScripts, FASTAPI_BASE_URL]);
+  }, [selectedQuestions, log, styleProfile, vibe, answerScripts, setAnswerScripts]);
 
   // --------------- State persistence ---------------
   return (
@@ -1111,7 +1147,7 @@ const LiveConsolePage = () => {
                   try {
                     setLoading(true);
                     setError(null);
-                    await stopDouyinRelay(FASTAPI_BASE_URL);
+                    await stopDouyinRelay();
                     await refreshStatus();
                     console.log('抖音直播互动服务已手动停止');
                   } catch (e) {
@@ -1331,7 +1367,6 @@ const LiveConsolePage = () => {
               
               <div className="flex-1 min-h-0 overflow-hidden">
                 <DouyinRelayPanel 
-                  baseUrl={FASTAPI_BASE_URL} 
                   onSelectQuestion={handleSelectQuestion}
                   liveId={liveInput}
                   isRunning={isRunning}

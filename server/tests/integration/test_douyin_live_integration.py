@@ -20,12 +20,12 @@ import time
 from datetime import datetime, timedelta
 from typing import Dict, Any
 import httpx
-
+import os
 
 # 测试配置
 TEST_DURATION_SECONDS = 300  # 5分钟
-# 从环境变量读取后端端口,默认9030
-BASE_URL = f"http://localhost:{os.getenv('BACKEND_PORT', '9030')}"
+# 从环境变量读取后端端口,默认11111
+BASE_URL = f"http://localhost:{os.getenv('BACKEND_PORT', '11111')}"
 LIVE_ROOM_URL = "https://live.douyin.com/191495446158"
 ROOM_ID = "7569996511182932786"
 ANCHOR_ID = "58994334334"

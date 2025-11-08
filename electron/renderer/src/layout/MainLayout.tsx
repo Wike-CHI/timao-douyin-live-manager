@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import ThemeToggle from '../components/ThemeToggle';
 import useAuthStore from '../store/useAuthStore';
 import logoUrl from '../assets/logo.jpg';
-import type { UserInfo } from '../services/auth'; // 导入UserInfo类型
 
 const navItems = [
   { to: '/dashboard', label: '总览', icon: '📊' },
@@ -22,8 +21,8 @@ const MainLayout = () => {
   const [bootstrap, setBootstrap] = useState<any>(null);
   const [showBoot, setShowBoot] = useState<boolean>(true);
   const [wsOk, setWsOk] = useState<boolean | null>(null);
-  const defaultApiBase = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:9030'; // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
-  const injectedApiBase = ((import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:9030').trim() || defaultApiBase; // 默认端口改为 9030，避免 Windows 端口排除范围 8930-9029
+  const defaultApiBase = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:11111'; // 默认端口改为 11111，可通过环境变量覆盖
+  const injectedApiBase = ((import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:11111').trim() || defaultApiBase; // 默认端口改为 11111，可通过环境变量覆盖
   const [apiBase, setApiBase] = useState<string>(injectedApiBase);
 
   const handleLogout = () => {
@@ -196,7 +195,7 @@ const MainLayout = () => {
         <header className="flex justify-between items-center px-8 py-6">
           <div>
             <div className="text-lg font-semibold text-slate-700">
-              欢迎回来，{(user as UserInfo)?.nickname || (user as UserInfo)?.email || '提猫主播'}！
+              欢迎回来，{(user as any)?.nickname || (user as any)?.email || '提猫主播'}！
             </div>
             <div className="text-sm timao-support-text">祝你今晚直播顺利喵～</div>
           </div>

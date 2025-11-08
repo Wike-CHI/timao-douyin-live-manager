@@ -50,7 +50,7 @@ export const ProviderList: React.FC = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('auth_token');
-      const response = await fetch('http://127.0.0.1:9030/api/ai_gateway/status', {
+      const response = await fetch('http://127.0.0.1:15000/api/ai_gateway/status', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -77,7 +77,7 @@ export const ProviderList: React.FC = () => {
   const handleSwitch = async () => {
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch('http://127.0.0.1:9030/api/ai_gateway/switch', {
+      const response = await fetch('http://127.0.0.1:15000/api/ai_gateway/switch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

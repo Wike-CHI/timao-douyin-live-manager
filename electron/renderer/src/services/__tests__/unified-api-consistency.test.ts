@@ -45,7 +45,7 @@ describe('统一 API 调用方式验证（问题4、6、9）', () => {
     await getPlans();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:9030/api/subscription/plans');
+    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:11111/api/subscription/plans');
     expect(fetchMock.mock.calls[0][1]?.headers).toMatchObject(authHeaders);
     expect(apiCallMock).toHaveBeenCalledTimes(1);
   });
@@ -55,7 +55,7 @@ describe('统一 API 调用方式验证（问题4、6、9）', () => {
     await startAILiveAnalysis({});
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:9030/api/ai/live/start');
+    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:11111/api/ai/live/start');
     expect(fetchMock.mock.calls[0][1]?.headers).toMatchObject(authHeaders);
     expect(apiCallMock).toHaveBeenCalledTimes(1);
   });
@@ -65,7 +65,7 @@ describe('统一 API 调用方式验证（问题4、6、9）', () => {
     await startLiveAudio({ live_url: 'https://example.com/live' });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:9030/api/live_audio/start');
+    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:11111/api/live_audio/start');
     expect(fetchMock.mock.calls[0][1]?.headers).toMatchObject(authHeaders);
     expect(apiCallMock).toHaveBeenCalledTimes(1);
   });
@@ -75,7 +75,7 @@ describe('统一 API 调用方式验证（问题4、6、9）', () => {
     await startLiveReport('https://example.com/live');
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:9030/api/report/live/start');
+    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:11111/api/report/live/start');
     expect(fetchMock.mock.calls[0][1]?.headers).toMatchObject(authHeaders);
     expect(apiCallMock).toHaveBeenCalledTimes(1);
   });
@@ -85,7 +85,7 @@ describe('统一 API 调用方式验证（问题4、6、9）', () => {
     await startDouyinRelay('LIVE123');
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:9030/api/douyin/start');
+    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:11111/api/douyin/start');
     expect(fetchMock.mock.calls[0][1]?.headers).toMatchObject(authHeaders);
     expect(apiCallMock).toHaveBeenCalledTimes(1);
   });

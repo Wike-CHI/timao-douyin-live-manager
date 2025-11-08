@@ -53,7 +53,7 @@ describe('liveAudio service with unified error handling', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe('http://127.0.0.1:9030/api/live_audio/start');
+    expect(url).toBe('http://127.0.0.1:11111/api/live_audio/start');
     expect(options?.method).toBe('POST');
     expect(options?.headers).toMatchObject(authHeaders);
 
@@ -75,7 +75,7 @@ describe('liveAudio service with unified error handling', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe('http://127.0.0.1:9030/api/live_audio/stop');
+    expect(url).toBe('http://127.0.0.1:11111/api/live_audio/stop');
     expect(options?.method).toBe('POST');
     expect(options?.headers).toMatchObject(authHeaders);
 

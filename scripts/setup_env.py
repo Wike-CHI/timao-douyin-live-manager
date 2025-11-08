@@ -28,7 +28,7 @@ BACKEND_ENV_TEMPLATE = """# ============================================
 # ------------------------------------------
 # 🚀 服务端口配置 (必需)
 # ------------------------------------------
-BACKEND_PORT=9030
+BACKEND_PORT=11111
 
 # ------------------------------------------
 # 🗄️ 数据库配置 (必需)
@@ -73,15 +73,15 @@ FRONTEND_ENV_TEMPLATE = """# ============================================
 # ------------------------------------------
 # 🌐 开发服务器配置 (必需)
 # ------------------------------------------
-VITE_PORT=10013
+VITE_PORT=10050
 VITE_HOST=127.0.0.1
 
 # ------------------------------------------
 # 🔗 后端服务地址 (必需)
 # ------------------------------------------
-VITE_FASTAPI_URL=http://127.0.0.1:9030
-VITE_STREAMCAP_URL=http://127.0.0.1:9030
-VITE_DOUYIN_URL=http://127.0.0.1:9030
+VITE_FASTAPI_URL=http://127.0.0.1:11111
+VITE_STREAMCAP_URL=http://127.0.0.1:11111
+VITE_DOUYIN_URL=http://127.0.0.1:11111
 
 # ------------------------------------------
 # 🛠️ 开发配置 (可选)
@@ -140,7 +140,7 @@ def main():
     print("✨ 配置内容 (遵循希克定律 - 只关注核心配置):")
     print()
     print("后端核心配置 (6项):")
-    print("  1. ✅ BACKEND_PORT=9030")
+    print("  1. ✅ BACKEND_PORT=11111")
     print("  2. ✅ DB_TYPE=mysql")
     print("  3. ✅ MYSQL_HOST=rm-bp1sqxf05yom2hwdhko.mysql.rds.aliyuncs.com")
     print("  4. ✅ MYSQL_USER=timao")
@@ -148,9 +148,9 @@ def main():
     print("  6. ✅ MYSQL_DATABASE=timao")
     print()
     print("前端核心配置 (3项):")
-    print("  1. ✅ VITE_PORT=10013")
+    print("  1. ✅ VITE_PORT=10050")
     print("  2. ✅ VITE_HOST=127.0.0.1")
-    print("  3. ✅ VITE_FASTAPI_URL=http://127.0.0.1:9030")
+    print("  3. ✅ VITE_FASTAPI_URL=http://127.0.0.1:11111")
     print()
     
     response = input("确认创建配置? (y/N): ").strip().lower()

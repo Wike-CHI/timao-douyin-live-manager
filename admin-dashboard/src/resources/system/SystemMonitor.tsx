@@ -58,7 +58,7 @@ export const SystemMonitor: React.FC = () => {
   const fetchData = async () => {
     try {
       const token = localStorage.getItem('token');
-      const baseUrl = import.meta.env.VITE_FASTAPI_URL || 'http://127.0.0.1:9030';
+      const baseUrl = import.meta.env.VITE_FASTAPI_URL || 'http://127.0.0.1:15000';
 
       // 获取系统健康状态
       const healthRes = await fetch(`${baseUrl}/api/admin/system/health`, {

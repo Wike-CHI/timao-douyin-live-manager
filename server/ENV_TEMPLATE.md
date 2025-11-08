@@ -12,7 +12,7 @@
 # ------------------------------------------
 # 🚀 服务端口配置 (必需)
 # ------------------------------------------
-BACKEND_PORT=9030
+BACKEND_PORT=11111
 
 # ------------------------------------------
 # 🗄️ 数据库配置 (必需)
@@ -89,7 +89,7 @@ New-Item -Path . -Name ".env" -ItemType "file"
 
 **必须修改的配置** (遵循希克定律 - 只关注最重要的):
 
-1. ✅ `BACKEND_PORT=9030` (已设置)
+1. ✅ `BACKEND_PORT=11111` (已设置)
 2. ✅ `DB_TYPE=mysql` (已设置)
 3. ✅ `MYSQL_HOST=...` (使用您的数据库地址)
 4. ✅ `MYSQL_USER=timao` (已设置)
@@ -116,7 +116,7 @@ python app/main.py
 
 应该看到:
 ```
-✅ 服务已启动 http://0.0.0.0:9030
+✅ 服务已启动 http://0.0.0.0:11111
 ```
 
 ---
@@ -125,9 +125,9 @@ python app/main.py
 
 ### 端口配置 (BACKEND_PORT)
 
-- **默认**: 9030
-- **原因**: 避免Windows保留端口范围(8930-9029)
-- **修改**: 如果9030被占用，可改为9031、9032等
+- **默认**: 11111
+- **原因**: 与前端端口分离，避免冲突
+- **修改**: 如果11111被占用，可改为11112、11113等
 
 ### 数据库配置
 
@@ -155,7 +155,7 @@ GEMINI_API_KEY=your-api-key-here
 
 1. ✅ `.env` 文件是否存在于 `server/` 目录
 2. ✅ 数据库连接是否正常
-3. ✅ 端口9030是否被占用
+3. ✅ 端口11111是否被占用
 
 ### Q: 如何检查配置?
 
@@ -171,10 +171,10 @@ python -c "from server.app.database import engine; engine.connect()"
 
 ```bash
 # 临时使用其他端口
-BACKEND_PORT=9031 python app/main.py
+BACKEND_PORT=11112 python app/main.py
 
 # 或修改 .env 文件
-BACKEND_PORT=9031
+BACKEND_PORT=11112
 ```
 
 ---

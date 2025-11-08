@@ -135,8 +135,8 @@ def main():
         print(f"{Colors.BLUE}🔌 检查端口占用情况{Colors.END}")
         print(f"{Colors.BLUE}{'='*60}{Colors.END}")
         
-        backend_port = int(backend_config.get('BACKEND_PORT', '9030'))
-        frontend_port = int(frontend_config.get('VITE_PORT', '10013'))
+        backend_port = int(backend_config.get('BACKEND_PORT', '11111'))
+        frontend_port = int(frontend_config.get('VITE_PORT', '10050'))
         
         backend_port_ok = check_port_available(backend_port, "后端服务")
         frontend_port_ok = check_port_available(frontend_port, "前端开发服务器")

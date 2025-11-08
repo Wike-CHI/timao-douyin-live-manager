@@ -3,7 +3,7 @@
 import requests
 import json
 
-BASE_URL = "http://127.0.0.1:9030"
+BASE_URL = "http://127.0.0.1:11111"
 
 # 1. 登录获取token
 print("1. 登录...")

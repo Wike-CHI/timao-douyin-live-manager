@@ -45,7 +45,7 @@ export const RevenueCharts: React.FC = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const baseUrl = import.meta.env.VITE_FASTAPI_URL || 'http://127.0.0.1:9030';
+      const baseUrl = import.meta.env.VITE_FASTAPI_URL || 'http://127.0.0.1:15000';
 
       // 获取收入趋势
       const revenueRes = await fetch(`${baseUrl}/api/admin/charts/revenue?days=${period}`, {

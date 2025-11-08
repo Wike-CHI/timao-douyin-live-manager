@@ -126,8 +126,8 @@ app = FastAPI(
 allowed_origins = [
     "http://127.0.0.1:10030",
     "http://localhost:10030",
-    "http://127.0.0.1:10109",  # 前端新默认端口（避免 Windows 端口排除范围 10009-10108）
-    "http://localhost:10109",  # 前端新默认端口（避免 Windows 端口排除范围 10009-10108）
+    "http://127.0.0.1:10050",  # 前端默认端口，可根据 FRONTEND_PORT 调整
+    "http://localhost:10050",  # 前端默认端口，可根据 FRONTEND_PORT 调整
     "http://127.0.0.1:9019",  # 允许后端静态文件访问 API
     "http://localhost:9019",   # 允许后端静态文件访问 API
     "http://127.0.0.1:10050",  # 管理后台开发端口
@@ -575,10 +575,10 @@ if __name__ == "__main__":
         "**/.git/**",
     ]
 
-    # 从环境变量读取后端端口，默认 9030
+    # 从环境变量读取后端端口，默认 11111
     # 统一端口配置管理: 请在 .env 文件中设置 BACKEND_PORT
     import os
-    backend_port = int(os.getenv("BACKEND_PORT", "9030"))
+    backend_port = int(os.getenv("BACKEND_PORT", "11111"))
     uvicorn.run(
         "main:app",
         host="127.0.0.1",  # Windows兼容: 使用127.0.0.1而非0.0.0.0避免权限问题
