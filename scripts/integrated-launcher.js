@@ -221,8 +221,8 @@ class IntegratedLauncher {
             rendererPath
         );
         
-        // 等待前端服务启动（默认端口 10050，可通过 FRONTEND_PORT 覆盖）
-        const frontendPort = process.env.FRONTEND_PORT || '10050';
+        // 等待前端服务启动（默认端口 10089，可通过 FRONTEND_PORT 覆盖）
+        const frontendPort = process.env.FRONTEND_PORT || '10089';
         const frontendReady = await this.waitForHealthCheck(`http://127.0.0.1:${frontendPort}`);
         if (!frontendReady) {
             // 如果默认端口失败，尝试旧版本使用的 10109 端口（向后兼容）
@@ -273,7 +273,7 @@ class IntegratedLauncher {
             await this.startElectron();
             
             const backendPort = process.env.BACKEND_PORT || '11111';
-            const frontendPort = process.env.FRONTEND_PORT || '10050';
+            const frontendPort = process.env.FRONTEND_PORT || '10089';
             console.log('\n' + '='.repeat(60));
             console.log('🎉 所有服务启动完成！');
             console.log('');
