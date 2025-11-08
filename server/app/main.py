@@ -564,6 +564,18 @@ if __name__ == "__main__":
     import uvicorn
     from pathlib import Path
 
+    # 从环境变量读取配置
+    import os
+    backend_port = int(os.getenv("BACKEND_PORT", "11111"))
+    debug_mode = os.getenv("DEBUG", "false").lower() == "true"
+    
+    # 生产环境使用 0.0.0.0，开发环境使用 127.0.0.1
+    # 通过 DEBUG 环境变量控制
+    host = "0.0.0.0" if not debug_mode else "127.0.0.1"
+    
+    # 生产环境禁用 reload，开发环境启用
+    reload_enabled = debug_mode
+    
     # 排除脚本目录、日志目录等，避免自动重载导致的频繁重启
     reload_exclude = [
         "**/scripts/**",
@@ -573,16 +585,17 @@ if __name__ == "__main__":
         "**/node_modules/**",
         "**/.venv/**",
         "**/.git/**",
-    ]
+    ] if reload_enabled else None
 
-    # 从环境变量读取后端端口，默认 11111
-    # 统一端口配置管理: 请在 .env 文件中设置 BACKEND_PORT
-    import os
-    backend_port = int(os.getenv("BACKEND_PORT", "11111"))
+    logging.info(f"🚀 启动服务: http://{host}:{backend_port}")
+    logging.info(f"   模式: {'开发' if debug_mode else '生产'}")
+    logging.info(f"   重载: {'启用' if reload_enabled else '禁用'}")
+    
     uvicorn.run(
         "main:app",
-        host="127.0.0.1",  # Windows兼容: 使用127.0.0.1而非0.0.0.0避免权限问题
+        host=host,
         port=backend_port,
-        reload=True,
+        reload=reload_enabled,
+        reload_exclude=reload_exclude,
         log_level="info"
     )

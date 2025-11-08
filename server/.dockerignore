@@ -1,0 +1,58 @@
+# ============================================
+# Docker 构建忽略文件
+# 遵循：奥卡姆剃刀 - 只排除必要的
+# ============================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+
+# 日志和临时文件
+logs/
+*.log
+*.tmp
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 测试和覆盖率
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# 文档
+*.md
+!DEPLOY.md
+!QUICK_START.md
+!DOCKER.md
+
+# 开发脚本（保留部署脚本）
+scripts/*.sh
+scripts/*.ps1
+!scripts/validate_deploy.py
+
+# 前端（不需要）
+admin-dashboard/
+electron/
+
+# 其他
+node_modules/
+*.db
+*.sqlite
+
