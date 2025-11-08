@@ -25,7 +25,7 @@ for (const [key, value] of Object.entries(defaultAiEnv)) {
 }
 
 const isDev = !app.isPackaged;
-const rendererDevServerURL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.0.1:10050'; // 默认前端开发端口，可通过 ELECTRON_RENDERER_URL 覆盖
+const rendererDevServerURL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.0.1:10089'; // 默认前端开发端口，可通过 ELECTRON_RENDERER_URL 覆盖
 
 // 保持对窗口对象的全局引用，如果不这样做，窗口会在JavaScript对象被垃圾回收时自动关闭
 let mainWindow;
