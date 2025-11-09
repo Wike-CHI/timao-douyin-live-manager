@@ -1,0 +1,8 @@
+# 后端日志
+tail -f /www/wwwroot/wwwroot/timao-douyin-live-manager/logs/backend.log
+
+# 服务状态
+systemctl status talkingcat-backend
+
+# Nginx访问日志
+tail -f /www/wwwlogs/129.211.218.135.log
