@@ -168,3 +168,4 @@ server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/fig/struct.png
 
 # Python wheelhouse 目录（包含所有预编译的wheel文件）
 wheelhouse/
+backend_dist/README.txt
