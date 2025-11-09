@@ -37,25 +37,42 @@ class ServerConfig:
 
 @dataclass
 class AIConfig:
-    """AI配置"""
-    # OpenAI配置
+    """
+    AI配置
+    
+    ⚠️ 注意：AI密钥和模型配置统一从环境变量 .env 文件读取
+    这里的字段仅作为类型定义和默认值参考
+    
+    实际使用时，ai_gateway.py 直接从以下环境变量读取：
+    - QWEN_API_KEY, QWEN_BASE_URL, QWEN_MODEL
+    - OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL
+    - XUNFEI_API_KEY, XUNFEI_BASE_URL, XUNFEI_MODEL
+    - GEMINI_API_KEY (通过 AIHUBMIX)
+    - 等等...
+    
+    功能级配置（可选）：
+    - AI_FUNCTION_STYLE_PROFILE_MODEL=qwen-max
+    - AI_FUNCTION_SCRIPT_GENERATION_MODEL=qwen-max
+    - AI_FUNCTION_LIVE_ANALYSIS_MODEL=lite
+    """
+    # OpenAI配置（仅作为类型定义，实际从 OPENAI_* 环境变量读取）
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"
     openai_model: str = "gpt-3.5-turbo"
     openai_max_tokens: int = 1000
     openai_temperature: float = 0.7
     
-    # 通义千问配置
+    # 通义千问配置（仅作为类型定义，实际从 QWEN_* 环境变量读取）
     qwen_api_key: str = ""
-    qwen_model: str = "qwen3-max"
+    qwen_model: str = "qwen-max"  # 建议使用 qwen-max（qwen3-max可能不存在）
     
-    # 百度文心配置
+    # 百度文心配置（仅作为类型定义，实际从 BAIDU_* 环境变量读取）
     baidu_api_key: str = ""
     baidu_secret_key: str = ""
     baidu_model: str = "ERNIE-Bot-turbo"
     
-    # 默认AI服务商
-    default_provider: str = "openai"  # openai, qwen, baidu
+    # 默认AI服务商（仅作为类型定义，实际从 AI_PROVIDER 环境变量读取）
+    default_provider: str = "qwen"  # openai, qwen, baidu, xunfei
     
     # 话术生成配置
     script_max_length: int = 200
@@ -494,16 +511,10 @@ class ConfigManager:
         if server_errors:
             errors["server"] = server_errors
         
-        # 验证AI配置
-        ai_errors = []
-        if self.config.ai.default_provider == "openai" and not self.config.ai.openai_api_key:
-            ai_errors.append("使用OpenAI时必须设置API密钥")
-        if self.config.ai.default_provider == "qwen" and not self.config.ai.qwen_api_key:
-            ai_errors.append("使用通义千问时必须设置API密钥")
-        if self.config.ai.default_provider == "baidu" and (not self.config.ai.baidu_api_key or not self.config.ai.baidu_secret_key):
-            ai_errors.append("使用百度文心时必须设置API密钥和Secret密钥")
-        if ai_errors:
-            errors["ai"] = ai_errors
+        # ⚠️ AI配置验证已禁用：所有AI密钥从 .env 环境变量读取
+        # ai_gateway.py 直接读取环境变量，不依赖 config.py 的 AIConfig
+        # 如需检查AI配置，请检查环境变量：QWEN_API_KEY, OPENAI_API_KEY 等
+        pass
         
         # 验证数据库配置
         db_errors = []
@@ -518,41 +529,77 @@ class ConfigManager:
         sample_content = """# 提猫直播助手配置文件
 # 复制此文件为.env并修改相应配置
 
-# 服务器配置
+# ==================== 服务器配置 ====================
 SERVER_HOST=127.0.0.1
-SERVER_PORT=5000
+SERVER_PORT=8181
 SERVER_DEBUG=false
 SECRET_KEY=your-very-secure-secret-key-here
 
-# AI配置 - 选择一个或多个服务商
-# OpenAI配置
+# ==================== AI配置（统一配置入口）====================
+# ⚠️ 所有AI密钥和模型配置都在这里，ai_gateway.py 直接读取这些环境变量
+
+# --- 通义千问（阿里云）---
+QWEN_API_KEY=your-qwen-api-key
+QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+QWEN_MODEL=qwen-max
+
+# --- 科大讯飞星火 ---
+XUNFEI_API_KEY=your-xunfei-api-key
+XUNFEI_BASE_URL=https://spark-api-open.xf-yun.com/v1
+XUNFEI_MODEL=lite
+
+# --- Google Gemini（通过AiHubMix中转）---
+GEMINI_API_KEY=your-gemini-api-key
+AIHUBMIX_BASE_URL=https://aihubmix.com/v1
+GEMINI_MODEL=gemini-2.0-flash-exp
+
+# --- OpenAI ---
 OPENAI_API_KEY=your-openai-api-key
 OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=gpt-3.5-turbo
 
-# 通义千问配置
-QWEN_API_KEY=your-qwen-api-key
+# --- DeepSeek ---
+DEEPSEEK_API_KEY=your-deepseek-api-key
+DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
 
-# 百度文心配置
-BAIDU_API_KEY=your-baidu-api-key
-BAIDU_SECRET_KEY=your-baidu-secret-key
+# --- 功能级AI模型配置（可选，不配置则使用默认）---
+# AI_FUNCTION_STYLE_PROFILE_MODEL=qwen-max       # 风格画像
+# AI_FUNCTION_SCRIPT_GENERATION_MODEL=qwen-max   # 话术生成
+# AI_FUNCTION_LIVE_ANALYSIS_MODEL=lite           # 直播分析
+# AI_FUNCTION_LIVE_REVIEW_MODEL=gemini-2.5-flash-preview  # 直播复盘
+# AI_FUNCTION_CHAT_FOCUS_MODEL=qwen-max          # 聊天焦点
+# AI_FUNCTION_TOPIC_GENERATION_MODEL=qwen-plus   # 话题生成
 
-# 默认AI服务商 (openai/qwen/baidu)
-AI_PROVIDER=openai
+# ==================== 语音识别配置 ====================
+# 讯飞语音识别（实时ASR）
+XFYUN_APPID=your-xfyun-appid
+XFYUN_API_KEY=your-xfyun-api-key
+XFYUN_API_SECRET=your-xfyun-api-secret
+USE_IFLYTEK_ASR=1  # 1=启用讯飞ASR，0=使用SenseVoice
 
-# 数据库配置
-DATABASE_PATH=data/app.db
+# ==================== 数据库配置 ====================
+# MySQL（RDS云数据库）
+RDS_HOST=your-rds-host
+RDS_PORT=3306
+RDS_USER=your-rds-user
+RDS_PASSWORD=your-rds-password
+RDS_DATABASE=timao_live
 
-# 安全配置
+# ==================== Redis配置 ====================
+REDIS_ENABLED=true
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+REDIS_PASSWORD=
+
+# ==================== 安全配置 ====================
 API_KEY=your-api-key
 API_RATE_LIMIT=100
-
-# 认证与权限开关（开发/调试用）
 AUTH_REQUIRED=true
 PERMISSION_REQUIRED=true
 ROLE_REQUIRED=true
 
-# 应用配置
+# ==================== 应用配置 ====================
 ENVIRONMENT=production
 DEBUG=false
 """

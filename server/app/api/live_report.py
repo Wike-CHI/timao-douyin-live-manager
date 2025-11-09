@@ -1,8 +1,18 @@
 # -*- coding: utf-8 -*-
 """
-Live Report API
-Start/stop a live recording session (Douyin), and after finishing, run
-SenseVoice transcription per 30-min segment and compose a recap report.
+Live Report API (⚠️ 已废弃)
+
+历史功能：录制视频 + 离线转写
+现在：已由 LiveAudioStreamService（实时转写）替代
+
+⚠️ 警告：此API已废弃，不建议使用
+- 录制视频会占用大量服务器空间（500MB/小时）
+- 实时转写已生成转写文本，不需要录制
+- 复盘功能只读转写文本，不需要视频
+
+推荐使用：
+- /api/live_audio/start - 实时转写（讯飞ASR）
+- /api/live_review/generate - 复盘报告（读取转写文本）
 """
 
 from __future__ import annotations
@@ -30,13 +40,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/report/live", tags=["live-report"])
 
 
-@router.post("/start", response_model=BaseResponse[Dict[str, Any]])
+@router.post("/start", response_model=BaseResponse[Dict[str, Any]], deprecated=True)
 async def start_live_report(req: StartLiveReportRequest):
+    """⚠️ 已废弃：建议使用 /api/live_audio/start（实时转写，不录制视频）"""
+    logger.warning("⚠️ 警告：/api/report/live/start 已废弃，将录制视频占用大量空间！推荐使用实时转写")
     try:
         svc = get_live_report_service()
-        log_service_start("直播录制服务", live_url=req.live_url, segment_minutes=req.segment_minutes)
+        log_service_start("直播录制服务（已废弃）", live_url=req.live_url, segment_minutes=req.segment_minutes)
         status = await svc.start(req.live_url, req.segment_minutes)
-        log_service_start("直播录制服务", session_id=status.session_id, recording_pid=status.recording_pid, status="已启动")
+        log_service_start("直播录制服务（已废弃）", session_id=status.session_id, recording_pid=status.recording_pid, status="已启动")
         return success_response({
             "session_id": status.session_id,
             "recording_pid": status.recording_pid,
@@ -63,8 +75,10 @@ async def start_live_report(req: StartLiveReportRequest):
         )
 
 
-@router.post("/stop", response_model=BaseResponse[Dict[str, Any]])
+@router.post("/stop", response_model=BaseResponse[Dict[str, Any]], deprecated=True)
 async def stop_live_report():
+    """⚠️ 已废弃：建议使用 /api/live_audio/stop"""
+    logger.warning("⚠️ 警告：/api/report/live/stop 已废弃")
     try:
         svc = get_live_report_service()
         status = await svc.stop()

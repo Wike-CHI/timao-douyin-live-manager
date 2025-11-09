@@ -103,6 +103,97 @@ async def stop_live_audio():
     })
 
 
+@router.get("/stream-url/{live_url_or_id}", response_model=BaseResponse[Dict[str, Any]])
+async def get_stream_url(live_url_or_id: str):
+    """
+    获取直播流地址（供客户端本地录制）
+    
+    Args:
+        live_url_or_id: 抖音直播URL或房间ID
+    
+    Returns:
+        直播流地址、主播信息等
+    """
+    try:
+        # StreamCap platform handler (resolve real stream URL from live URL)
+        from server.modules.streamcap.platforms import get_platform_handler  # type: ignore
+        
+        def _parse_live_id(url_or_id: str) -> str | None:
+            """Parse Douyin live ID from URL or ID string"""
+            if not url_or_id:
+                return None
+            url_or_id = url_or_id.strip()
+            # Already an ID
+            if url_or_id.isdigit():
+                return url_or_id
+            # Extract from URL
+            import re
+            match = re.search(r'live\.douyin\.com[/\\]+(\d+)', url_or_id)
+            if match:
+                return match.group(1)
+            return None
+        
+        live_id = _parse_live_id(live_url_or_id)
+        if not live_id:
+            raise HTTPException(status_code=400, detail="无效的直播地址或ID")
+        
+        # Resolve stream using StreamCap handler
+        handler = get_platform_handler(live_url=f"https://live.douyin.com/{live_id}")
+        if handler is None:
+            raise HTTPException(status_code=400, detail="不支持的直播平台")
+        
+        info = await handler.get_stream_info(f"https://live.douyin.com/{live_id}")
+        
+        # StreamCap returns a StreamData object (attrs) but defensive fallback supports dict
+        if isinstance(info, dict):
+            is_live = info.get("is_live")
+            record_url = info.get("record_url") or info.get("flv_url") or info.get("m3u8_url")
+            anchor_name = info.get("anchor_name")
+            room_title = info.get("room_title")
+        else:
+            is_live = getattr(info, "is_live", None)
+            record_url = (
+                getattr(info, "record_url", None)
+                or getattr(info, "flv_url", None)
+                or getattr(info, "m3u8_url", None)
+            )
+            anchor_name = getattr(info, "anchor_name", None)
+            room_title = getattr(info, "room_title", None)
+        
+        if is_live is False:
+            raise HTTPException(
+                status_code=400,
+                detail=f"直播间未开播（{anchor_name or live_id}）"
+            )
+        
+        if not record_url:
+            raise HTTPException(status_code=500, detail="无法解析直播流地址")
+        
+        return success_response({
+            "live_id": live_id,
+            "stream_url": record_url,
+            "anchor_name": anchor_name,
+            "room_title": room_title,
+            "is_live": is_live,
+            "live_url": f"https://live.douyin.com/{live_id}",
+        })
+    
+    except HTTPException:
+        raise
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error("Get stream URL failed", exc_info=True)
+        handle_service_error(
+            exc,
+            {
+                "unsupported": (400, "不支持的直播平台"),
+                "invalid": (400, "无效的直播地址"),
+                "未开播": (400, "直播间未开播"),
+            },
+            default_message="获取直播流地址失败",
+        )
+
+
 @router.get("/status", response_model=BaseResponse[Dict[str, Any]])
 async def live_audio_status():
     svc = get_live_audio_service()

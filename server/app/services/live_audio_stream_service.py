@@ -490,6 +490,9 @@ class LiveAudioStreamService:
             )
             self._ffmpeg_exit_reported = False
             self._log_throttle.clear()
+            
+            # ✅ 简化：只输出到pipe，不保存音频文件
+            # 原因：实时转写已生成文本，不需要保存音频归档
             cmd = [
                 ffmpeg_bin,
                 "-loglevel",
@@ -497,15 +500,13 @@ class LiveAudioStreamService:
                 *headers,
                 "-i",
                 record_url,
-                "-vn",
-                "-ac",
-                "1",
-                "-ar",
-                "16000",
-                "-f",
-                "s16le",
-                "pipe:1",
+                "-vn",          # 不要视频
+                "-ac", "1",     # 单声道
+                "-ar", "16000", # 16kHz
+                "-f", "s16le",  # PCM格式
+                "pipe:1",       # 输出到stdout给ASR实时转写
             ]
+            self._audio_save_path = None
             self._ffmpeg = await create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
@@ -618,6 +619,9 @@ class LiveAudioStreamService:
             self._ffmpeg_stderr_task = None
 
     async def _finalize_stop_state(self) -> None:
+        # ✅ 已移除音频保存功能（不再需要通知音频文件）
+        # 转写文本已实时保存到 transcripts.jsonl，复盘直接读取
+        
         self._status.is_running = False
         self._status.ffmpeg_pid = None
         self._status.music_guard_active = False

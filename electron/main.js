@@ -313,10 +313,70 @@ async function ensureBackendReady() {
     }
 }
 
+// 版本检测（启动5秒后）
+async function checkForUpdates() {
+    const currentVersion = app.getVersion();
+    const apiUrl = process.env.VITE_FASTAPI_URL || 'http://127.0.0.1:8181';
+    
+    try {
+        const { net } = require('electron');
+        const request = net.request(`${apiUrl}/api/bootstrap/version`);
+        
+        const response = await new Promise((resolve, reject) => {
+            request.on('response', (res) => {
+                let body = '';
+                res.on('data', (chunk) => { body += chunk; });
+                res.on('end', () => {
+                    try {
+                        resolve(JSON.parse(body));
+                    } catch (e) {
+                        reject(e);
+                    }
+                });
+            });
+            request.on('error', reject);
+            request.end();
+        });
+        
+        if (!response.success) return;
+        
+        const { latest_version, download_url, release_notes, is_required } = response.data;
+        
+        // 比较版本
+        if (latest_version > currentVersion) {
+            const { dialog } = require('electron');
+            const choice = await dialog.showMessageBox(mainWindow, {
+                type: 'info',
+                title: is_required ? '⚠️ 强制更新' : '🎉 发现新版本',
+                message: `发现新版本 ${latest_version}（当前 ${currentVersion}）`,
+                detail: release_notes || '请更新到最新版本',
+                buttons: ['立即下载', '稍后提醒'],
+                defaultId: 0,
+                cancelId: 1
+            });
+            
+            if (choice.response === 0) {
+                shell.openExternal(download_url);
+            }
+        } else {
+            console.log('✅ 当前已是最新版本:', currentVersion);
+        }
+    } catch (err) {
+        console.error('❌ 版本检查失败:', err.message);
+    }
+}
+
 // 当Electron完成初始化并准备创建浏览器窗口时调用此方法
 app.on('ready', async () => {
     await ensureBackendReady();
     createWindow();
+    
+    // 延迟5秒后检查更新（避免影响启动速度）
+    setTimeout(() => {
+        checkForUpdates().catch(err => {
+            console.error('Update check failed:', err);
+        });
+    }, 5000);
 });
 
 // 当所有窗口都关闭时退出
@@ -524,6 +584,77 @@ ipcMain.handle('open-logs', async () => {
         return { success: true };
     } catch (e) {
         return { success: false, message: String(e) };
+    }
+});
+
+// -------------------------------
+// 本地音频录制 IPC 处理器
+// -------------------------------
+const { getLocalAudioRecorder } = require('./services/localAudioRecorder');
+
+// 开始本地录制
+ipcMain.handle('local-audio-start', async (event, liveUrlOrId, apiUrl, options) => {
+    try {
+        const recorder = getLocalAudioRecorder();
+        const result = await recorder.startRecording(liveUrlOrId, apiUrl, options);
+        return { success: true, data: result };
+    } catch (error) {
+        console.error('本地录制启动失败:', error);
+        return { success: false, error: error.message };
+    }
+});
+
+// 停止本地录制
+ipcMain.handle('local-audio-stop', async () => {
+    try {
+        const recorder = getLocalAudioRecorder();
+        const result = recorder.stopRecording();
+        return result;
+    } catch (error) {
+        console.error('本地录制停止失败:', error);
+        return { success: false, error: error.message };
+    }
+});
+
+// 获取录制状态
+ipcMain.handle('local-audio-status', async () => {
+    try {
+        const recorder = getLocalAudioRecorder();
+        return { success: true, data: recorder.getStatus() };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+// 获取已录制的音频列表
+ipcMain.handle('local-audio-list', async () => {
+    try {
+        const recorder = getLocalAudioRecorder();
+        const files = recorder.getAudioFiles();
+        return { success: true, data: files };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+// 删除音频文件
+ipcMain.handle('local-audio-delete', async (event, filePath) => {
+    try {
+        const recorder = getLocalAudioRecorder();
+        return recorder.deleteAudioFile(filePath);
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+// 打开音频目录
+ipcMain.handle('local-audio-open-dir', async () => {
+    try {
+        const recorder = getLocalAudioRecorder();
+        recorder.openAudioDirectory();
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
     }
 });
 
