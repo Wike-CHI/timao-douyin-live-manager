@@ -25,15 +25,29 @@ Set-Location -Path "electron\renderer"
 npm run build
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Frontend build failed" -ForegroundColor Red
+    Set-Location -Path "..\..\"
     exit 1
 }
 Write-Host "Frontend build completed" -ForegroundColor Green
 Set-Location -Path "..\..\"
 Write-Host ""
 
-# Step 2: Package Electron app
-Write-Host "[2/3] Packaging Electron application..." -ForegroundColor Yellow
-npm run electron:build:win
+# Step 2: Create empty backend_dist directory (required by electron-builder)
+Write-Host "[2/3] Preparing backend placeholder..." -ForegroundColor Yellow
+if (Test-Path "backend_dist") {
+    Write-Host "  backend_dist already exists" -ForegroundColor Gray
+} else {
+    New-Item -ItemType Directory -Path "backend_dist" -Force | Out-Null
+    Write-Host "  backend_dist created" -ForegroundColor Gray
+}
+# Create a placeholder file
+"# Backend runs on cloud server: http://129.211.218.135:8181" | Out-File -FilePath "backend_dist\README.txt" -Encoding UTF8
+Write-Host "Backend placeholder ready" -ForegroundColor Green
+Write-Host ""
+
+# Step 3: Package Electron app
+Write-Host "[3/3] Packaging Electron application..." -ForegroundColor Yellow
+npx electron-builder --win --config build-config.json
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Electron packaging failed" -ForegroundColor Red
     exit 1
@@ -41,9 +55,9 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "Electron packaging completed" -ForegroundColor Green
 Write-Host ""
 
-# Step 3: Show build results
-Write-Host "[3/3] Build results:" -ForegroundColor Yellow
-$distPath = "electron-dist"
+# Step 4: Show build results
+Write-Host "Build results:" -ForegroundColor Yellow
+$distPath = "dist"
 if (Test-Path $distPath) {
     Get-ChildItem -Path $distPath -File | ForEach-Object {
         $size = [math]::Round($_.Length / 1MB, 2)
