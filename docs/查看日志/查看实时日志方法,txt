@@ -6,3 +6,7 @@ systemctl status talkingcat-backend
 
 # Nginx访问日志
 tail -f /www/wwwlogs/129.211.218.135.log
+
+sudo systemctl status talkingcat-backend
+sudo systemctl restart talkingcat-backend  ##重启服务
+sudo journalctl -u talkingcat-backend -f
