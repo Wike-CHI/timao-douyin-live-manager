@@ -92,8 +92,8 @@ async def stop_live_report():
         })
     except Exception as e:
         import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Live report stop failed: {type(e).__name__}: {str(e)}", exc_info=True)
+        sub_logger = logging.getLogger(__name__)
+        sub_logger.error(f"Live report stop failed: {type(e).__name__}: {str(e)}", exc_info=True)
         
         # 提供更具体的错误信息
         error_msg = str(e)
@@ -119,8 +119,8 @@ async def pause_live_report():
         })
     except Exception as e:
         import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Live report pause failed: {type(e).__name__}: {str(e)}", exc_info=True)
+        sub_logger = logging.getLogger(__name__)
+        sub_logger.error(f"Live report pause failed: {type(e).__name__}: {str(e)}", exc_info=True)
         
         error_msg = str(e)
         if "no active session" in error_msg.lower():
@@ -147,8 +147,8 @@ async def resume_live_report():
         })
     except Exception as e:
         import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Live report resume failed: {type(e).__name__}: {str(e)}", exc_info=True)
+        sub_logger = logging.getLogger(__name__)
+        sub_logger.error(f"Live report resume failed: {type(e).__name__}: {str(e)}", exc_info=True)
         
         error_msg = str(e)
         if "no session" in error_msg.lower():
@@ -182,8 +182,8 @@ async def get_resumable_session():
         return success_response(None, message="没有可恢复的会话")
     except Exception as e:
         import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Get resumable session failed: {type(e).__name__}: {str(e)}", exc_info=True)
+        sub_logger = logging.getLogger(__name__)
+        sub_logger.error(f"Get resumable session failed: {type(e).__name__}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=400, detail=f"获取可恢复会话失败: {str(e)}")
 
 
@@ -389,8 +389,8 @@ async def get_review_data(report_path: str):
         raise
     except Exception as e:
         import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Load review data failed: {type(e).__name__}: {str(e)}", exc_info=True)
+        sub_logger = logging.getLogger(__name__)
+        sub_logger.error(f"Load review data failed: {type(e).__name__}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=400, detail=f"加载复盘数据失败: {str(e)}")
 
 

@@ -95,8 +95,8 @@ class AIGateway:
     # AI_FUNCTION_LIVE_REVIEW_PROVIDER, AI_FUNCTION_LIVE_REVIEW_MODEL
     FUNCTION_MODELS = {
         "live_analysis": {
-            "provider": os.getenv("AI_FUNCTION_LIVE_ANALYSIS_PROVIDER", "xunfei"),
-            "model": os.getenv("AI_FUNCTION_LIVE_ANALYSIS_MODEL", "lite")  # 直播分析：默认使用讯飞 lite（免费）
+            "provider": os.getenv("AI_FUNCTION_LIVE_ANALYSIS_PROVIDER", "xunfei"), # 已修正为 xunfei
+            "model": os.getenv("AI_FUNCTION_LIVE_ANALYSIS_MODEL", "lite")      # 已修正为 lite
         },
         "style_profile": {
             "provider": os.getenv("AI_FUNCTION_STYLE_PROFILE_PROVIDER", "qwen"),
@@ -116,7 +116,7 @@ class AIGateway:
         },
         "topic_generation": {
             "provider": os.getenv("AI_FUNCTION_TOPIC_GENERATION_PROVIDER", "qwen"),
-            "model": os.getenv("AI_FUNCTION_TOPIC_GENERATION_MODEL", "qwen-plus")  # 智能话题生成：使用 qwen-plus
+            "model": os.getenv("AI_FUNCTION_TOPIC_GENERATION_MODEL", "qwen3-max")  # 智能话题生成：使用 qwen3-max
         },
     }
     
@@ -208,6 +208,11 @@ class AIGateway:
                 base_url=os.getenv("XUNFEI_BASE_URL"),
                 default_model=os.getenv("XUNFEI_MODEL", "lite"),
             )
+            cfg = self.providers.get("xunfei")
+            if cfg:
+                logger.info(f"✅ 已注册讯飞(Xunfei)提供商: base_url={cfg.base_url} 默认模型={cfg.default_model}")
+            else:  # pragma: no cover
+                logger.warning("⚠️ 讯飞提供商注册后未找到配置对象，可能初始化失败")
         
         # 通义千问
         qwen_key = os.getenv("QWEN_API_KEY") or os.getenv("DASHSCOPE_API_KEY")
@@ -435,6 +440,17 @@ class AIGateway:
             # 确定使用的服务商和模型
             target_provider = (provider or self.current_provider or "").lower()
             target_model = model or self.current_model
+
+        # 调试日志（仅在 xunfei 或显式开启 AI_DEBUG 时输出）
+        if os.getenv("AI_DEBUG") == "1" or target_provider == "xunfei":
+            logger.debug(
+                "[GatewayDebug] function=%s provider=%s model=%s has_response_format=%s messages_len=%d",
+                function,
+                target_provider,
+                target_model,
+                bool(response_format),
+                len(messages),
+            )
         
         if not target_provider or target_provider not in self.providers:
             return AIResponse(
@@ -447,8 +463,77 @@ class AIGateway:
                 success=False,
                 error=f"无效的服务商: {target_provider}",
             )
+
+        # 校验模型是否存在于当前服务商支持列表，若不存在则自动降级为默认模型
+        provider_cfg = self.providers[target_provider]
+        if target_model and target_model not in provider_cfg.models:
+            logger.warning(
+                f"模型 {target_model} 不在服务商 {target_provider} 支持列表 {provider_cfg.models} 中，自动降级为 {provider_cfg.default_model}"
+            )
+            target_model = provider_cfg.default_model
+
+        # 对 xunfei 的消息长度/字符数做基本统计，便于定位 404 来源（可能与超长提示相关）
+        if target_provider == "xunfei":
+            try:
+                total_chars = sum(len(m.get("content", "")) for m in messages)
+                if total_chars > 8000:
+                    logger.info(f"讯飞提示总字数较长: {total_chars} chars (可能需要截断避免兼容层异常)")
+            except Exception:
+                pass
         
-        # 直接调用，不做降级
+        # 直接调用，不做降级；对讯飞进行 response_format 兼容性回退（部分模型不支持该参数会触发 404）
+        if target_provider == "xunfei" and response_format:
+            try:
+                return self._call_provider(
+                    provider=target_provider,
+                    model=target_model,
+                    function=function,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    response_format=response_format,
+                    **kwargs,
+                )
+            except Exception as e:
+                # 捕获 NotFound/兼容失败错误后去掉 response_format 重试
+                err_name = type(e).__name__
+                if "NotFound" in err_name or "404" in str(e):
+                    logger.warning(f"讯飞调用含 response_format 发生 {err_name}: {e} -> 自动回退去除 response_format 重试")
+                    try:
+                        return self._call_provider(
+                            provider=target_provider,
+                            model=target_model,
+                            function=function,
+                            messages=messages,
+                            temperature=temperature,
+                            max_tokens=max_tokens,
+                            **kwargs,
+                        )
+                    except Exception as e2:
+                        logger.error(f"讯飞回退重试仍失败: {type(e2).__name__}: {e2}")
+                        return AIResponse(
+                            content="",
+                            model=target_model or "",
+                            provider=target_provider,
+                            usage={"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                            cost=0.0,
+                            duration_ms=0.0,
+                            success=False,
+                            error=f"Xunfei call failed after fallback: {e2}",
+                        )
+                else:
+                    logger.error(f"讯飞调用发生非404错误: {err_name}: {e}")
+                    return AIResponse(
+                        content="",
+                        model=target_model or "",
+                        provider=target_provider,
+                        usage={"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                        cost=0.0,
+                        duration_ms=0.0,
+                        success=False,
+                        error=str(e),
+                    )
+        # 普通路径
         return self._call_provider(
             provider=target_provider,
             model=target_model,
@@ -478,13 +563,73 @@ class AIGateway:
             raise RuntimeError(f"{provider} 客户端未初始化")
         
         actual_model = model or config.default_model
+        # 预日志：便于 404 / NotFound 定位
+        if os.getenv("AI_DEBUG") == "1" or provider == "xunfei":
+            try:
+                logger.debug(
+                    "[GatewayRequest] provider=%s base_url=%s model=%s messages=%d keys=%s kwargs=%s",
+                    provider,
+                    config.base_url,
+                    actual_model,
+                    len(messages),
+                    list(messages[0].keys()) if messages else [],
+                    list(kwargs.keys()),
+                )
+            except Exception:  # pragma: no cover
+                pass
         
-        # 调用 API
-        response = client.chat.completions.create(
-            model=actual_model,
-            messages=messages,  # type: ignore
-            **kwargs,
-        )
+        # 调用 API，增强异常捕获，统一返回 AIResponse 而不是直接抛出导致上层中断
+        try:
+            response = client.chat.completions.create(
+                model=actual_model,
+                messages=messages,  # type: ignore
+                **kwargs,
+            )
+        except Exception as e:  # 捕获 openai / 兼容层异常
+            err_type = type(e).__name__
+            err_text = str(e)
+            # 部分 NotFoundError 不带 response，需要主动提示可疑点
+            suspected = []
+            if "NotFound" in err_type or "404" in err_text:
+                # 基于常见错误添加诊断提示
+                if config.base_url.endswith("/chat/completions"):
+                    suspected.append("base_url 不应包含 /chat/completions，只保留到 /v1")
+                if not config.base_url.rstrip("/").endswith("/v1"):
+                    suspected.append("base_url 末尾通常需要包含 /v1 (OpenAI 兼容模式)")
+                if actual_model not in config.models:
+                    suspected.append(f"模型 {actual_model} 不在注册列表 {config.models}")
+                if provider == "xunfei" and "response_format" in kwargs:
+                    suspected.append("讯飞兼容层可能不支持 response_format，可移除后再试")
+            # 输出扩展日志
+            logger.error(
+                "[GatewayError] provider=%s model=%s base_url=%s type=%s error=%s suspected=%s",
+                provider,
+                actual_model,
+                config.base_url,
+                err_type,
+                err_text,
+                "; ".join(suspected) if suspected else "",
+            )
+            # 尝试从异常对象提取底层 response 信息（openai 1.x 风格）
+            resp = getattr(e, "response", None)
+            if resp is not None:
+                try:
+                    status_code = getattr(resp, "status_code", None)
+                    text_body = getattr(resp, "text", None)
+                    logger.error("[GatewayErrorHTTP] status=%s body=%s", status_code, text_body[:500] if text_body else None)
+                except Exception:  # pragma: no cover
+                    pass
+            # 返回失败响应，避免直接抛出让上层功能整体失败
+            return AIResponse(
+                content="",
+                model=actual_model,
+                provider=provider,
+                usage={"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                cost=0.0,
+                duration_ms=(time.time() - start_time) * 1000,
+                success=False,
+                error=f"{err_type}: {err_text}",
+            )
         
         duration_ms = (time.time() - start_time) * 1000
         
