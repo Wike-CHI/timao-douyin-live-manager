@@ -95,8 +95,8 @@ class AIGateway:
     # AI_FUNCTION_LIVE_REVIEW_PROVIDER, AI_FUNCTION_LIVE_REVIEW_MODEL
     FUNCTION_MODELS = {
         "live_analysis": {
-            "provider": os.getenv("AI_FUNCTION_LIVE_ANALYSIS_PROVIDER", "xunfei"), # 已修正为 xunfei
-            "model": os.getenv("AI_FUNCTION_LIVE_ANALYSIS_MODEL", "lite")      # 已修正为 lite
+            "provider": os.getenv("AI_FUNCTION_LIVE_ANALYSIS_PROVIDER", "qwen"), # 已修正为 xunfei
+            "model": os.getenv("AI_FUNCTION_LIVE_ANALYSIS_MODEL", "qwen3-max")      # 已修正为 lite
         },
         "style_profile": {
             "provider": os.getenv("AI_FUNCTION_STYLE_PROFILE_PROVIDER", "qwen"),
@@ -580,11 +580,36 @@ class AIGateway:
         
         # 调用 API，增强异常捕获，统一返回 AIResponse 而不是直接抛出导致上层中断
         try:
-            response = client.chat.completions.create(
-                model=actual_model,
-                messages=messages,  # type: ignore
-                **kwargs,
-            )
+            oc = client
+            try:
+                oc = client.with_options(timeout=config.timeout)
+            except Exception:
+                oc = client
+            retries = 0
+            while True:
+                try:
+                    response = oc.chat.completions.create(
+                        model=actual_model,
+                        messages=messages,  # type: ignore
+                        **kwargs,
+                    )
+                    break
+                except Exception as e_inner:
+                    err_type_inner = type(e_inner).__name__
+                    err_text_inner = str(e_inner)
+                    transient = (
+                        "timeout" in err_text_inner.lower()
+                        or "ServiceUnavailable" in err_type_inner
+                        or "RateLimit" in err_type_inner
+                        or "429" in err_text_inner
+                        or "500" in err_text_inner
+                        or "503" in err_text_inner
+                    )
+                    if not transient or retries >= config.max_retries:
+                        raise e_inner
+                    wait = min(2 ** retries, 8)
+                    time.sleep(wait)
+                    retries += 1
         except Exception as e:  # 捕获 openai / 兼容层异常
             err_type = type(e).__name__
             err_text = str(e)
@@ -814,7 +839,7 @@ class AIGateway:
                 "enabled": config.enabled,
                 "timeout": config.timeout,
                 "max_retries": config.max_retries,
-                "api_key": config.api_key,  # 包含完整API Key（前端会脱敏显示）
+                "masked_api_key": (f"{config.api_key[:8]}..." if config.api_key else None),
             }
             for name, config in self.providers.items()
         }

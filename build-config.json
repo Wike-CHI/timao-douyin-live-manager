@@ -9,7 +9,7 @@
   "files": [
     "electron/**/*",
     "backend_dist/**/*",
-    "scripts/service_launcher.py",
+    "scripts/构建与启动/service_launcher.py",
     "config.json",
     "package.json",
     "!AST_module/**/*",
@@ -33,8 +33,8 @@
       "filter": ["**/*"]
     },
     {
-      "from": "scripts/service_launcher.py",
-      "to": "scripts/service_launcher.py"
+      "from": "scripts/构建与启动/service_launcher.py",
+      "to": "scripts/构建与启动/service_launcher.py"
     },
     {
       "from": "config.json",

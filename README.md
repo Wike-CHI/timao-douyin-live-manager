@@ -59,16 +59,28 @@ timao-douyin-live-manager/
 │   └── renderer/            # React + Vite 前端，端口 30013（dev）
 │       └── src/assets/      # 前端资源文件（图标、图片等）
 │
-├── scripts/                 # 工具脚本
-│   ├── check_db_config.py   # 数据库配置检查
-│   ├── init_mysql.py        # MySQL 初始化
-│   ├── create_admin_user.py # 创建管理员用户
-│   └── ...
+├── scripts/                 # 工具脚本（中文分层）
+│   ├── 构建与启动/          # build-all、integrated-launcher、service_launcher 等
+│   ├── 部署与运维/          # docker_deploy_full 等部署脚本
+│   ├── 检查与校验/          # check_backend、validate_port_config、verify-port-config 等
+│   ├── 初始化与迁移/        # setup_env、init_*、migrate_env_config 等
+│   ├── 诊断与排障/          # debug/diagnose、kill-port、port-manager 等
+│   ├── 测试与验证/          # test_douyin_live、test_memory_redis 等
+│   └── 辅助工具/            # list_users、simple_list_users 等
 │
-├── docs/                    # 文档目录（所有文档统一在此）
-│   ├── AI处理工作流/         # AI 工作流相关文档
-│   ├── legacy_code/          # 历史代码（已弃用）
-│   └── *.md                 # 各种文档文件
+├── docs/                    # 文档目录（企业级分层管理）
+│   ├── guides/              # 安装、部署、打包、使用指南
+│   ├── runbooks/            # 故障处理、紧急变更操作手册
+│   ├── reference/           # 端口、命令、配置基线
+│   ├── reports/             # Fix/验收/总结报告
+│   ├── internal/            # 内部凭证及敏感信息（受控访问）
+│   ├── AI方案与集成/         # AI 网关、AST、ASR 等方案沉淀
+│   ├── 直播音频方案/         # Douyin 抓取、录制链路与音频策略
+│   ├── 部署与运维指南/       # 环境配置、脚本、运维与安全加固
+│   ├── 产品使用手册/         # 启动、手册、脚本使用说明
+│   ├── 开发规范与流程/       # Git/Code 规范、项目结构、Token 检查
+│   ├── 测试与质量保障/       # 测试、Review、质量改进文档
+│   └── 项目复盘与报告/       # 迁移总结、复盘报告、完成说明
 │
 ├── deploy/                  # 部署相关文件（Docker、部署文档、脚本）
 │   ├── Dockerfile           # Docker 镜像构建
@@ -76,7 +88,12 @@ timao-douyin-live-manager/
 │   ├── scripts/             # 部署脚本
 │   └── config/              # 部署配置
 ├── migrations/              # 数据库迁移文件
-├── tests/                   # 全局测试文件
+├── tests/                   # 全局测试文件（统一分层）
+│   ├── integration/         # 跨服务端到端校验
+│   ├── regression/          # 缺陷回归/修复验证
+│   ├── scripts/             # Shell 驱动或环境校验脚本
+│   ├── manual/              # 手工/可视化验证页面
+│   └── reports/             # 测试报告、运行结果
 ├── electron/                # 桌面端应用
 │   ├── main.js              # Electron 主进程
 │   └── renderer/            # React + Vite 前端
@@ -88,7 +105,20 @@ timao-douyin-live-manager/
 └── logs/                    # 日志文件
 ```
 
-> **注意**：`AST_module`、`DouyinLiveWebFetcher`、`StreamCap` 等历史模块已迁移到 `server/modules/` 目录，历史代码保存在 `docs/legacy_code/` 仅用于参考。详细说明请参考 [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)。
+> **注意**：`AST_module`、`DouyinLiveWebFetcher`、`StreamCap` 等历史模块已迁移到 `server/modules/` 目录，历史代码保存在 `docs/legacy_code/` 仅用于参考。详细说明请参考 [docs/开发规范与流程/PROJECT_STRUCTURE.md](docs/开发规范与流程/PROJECT_STRUCTURE.md)。
+
+## 文档与测试分层
+
+- `docs/guides/`: 快速启动、部署、打包与日常操作指南（例如 `docs/guides/Electron打包指南.md`、`docs/guides/QUICKSTART_ENV_SETUP.md`）。
+- `docs/runbooks/`: 生产值班/紧急处理手册，集中存放 CORS、依赖冲突、紧急修复等 SOP。
+- `docs/reference/`: 端口、命令、配置等基线信息（例如 `docs/reference/PORTS_CONFIGURED.txt`、`docs/reference/README-端口配置.md`）。
+- `docs/reports/`: 变更验收、修复总结、专项复盘（LangGraph、SenseVoice、部署完成说明等）。
+- `docs/internal/`: 受控访问的信息（如 `docs/internal/帐号以及密码.txt`），建议按权限管理。
+- `tests/integration/`: 跨服务/端到端校验脚本，包含 `tests/integration/test_admin_api.py`、`tests/integration/test_xfyun_asr.py` 等。
+- `tests/regression/`: 针对缺陷修复与性能优化的验证用例（`tests/regression/test_ai_gateway_fix.py`、`tests/regression/test_sensevoice_optimization.py`）。
+- `tests/scripts/`: Shell 驱动/环境检测脚本，例如 `tests/scripts/test_cors.sh`、`tests/scripts/test_ai_auth.sh`。
+- `tests/manual/`: 需要人工操作或浏览器加载的用例（`tests/manual/test_history_api.html` 等）。
+- `tests/reports/`: 测试产出与运行记录（`tests/reports/comprehensive_test_report.json`）。
 
 ## 环境准备
 
@@ -205,15 +235,15 @@ OPENAI_API_KEY=sk-openai-key
 
 ## 文档与资源
 
-- `docs/启动说明.md`：桌面端启动流程与故障排查。
+- `docs/产品使用手册/启动说明.md`：桌面端启动流程与故障排查。
 - `AST_README.md` / `AST_module/docs/`：语音模块架构、测试方法。
-- `docs/MODELS.md`：模型下载、目录规划与容量建议。
-- `docs/Windows打包部署指南.md`：Windows 构建/签名注意事项。
-- `docs/AI_GATEWAY_SIMPLE.md`：AI 网关快速指南。
-- `docs/AI_GATEWAY_API_KEY_MANAGEMENT.md`：API Key 管理文档。
-- `docs/MONITORING_GUIDE.md`：AI 成本监控指南。
-- `docs/提猫直播助手_API_数据模型与接口规范.md`：REST API 字段约定。
-- `docs/安全加固实施指南.md`：生产环境安全配置 Checklist。
+- `docs/部署与运维指南/MODELS.md`：模型下载、目录规划与容量建议。
+- `docs/部署与运维指南/Windows打包部署指南.md`：Windows 构建/签名注意事项。
+- `docs/AI方案与集成/AI_GATEWAY_SIMPLE.md`：AI 网关快速指南。
+- `docs/AI方案与集成/AI_GATEWAY_API_KEY_MANAGEMENT.md`：API Key 管理文档。
+- `docs/部署与运维指南/MONITORING_GUIDE.md`：AI 成本监控指南。
+- `docs/直播音频方案/提猫直播助手_API_数据模型与接口规范.md`：REST API 字段约定。
+- `docs/部署与运维指南/安全加固实施指南.md`：生产环境安全配置 Checklist。
 
 ## 注意事项
 

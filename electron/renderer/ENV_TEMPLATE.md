@@ -144,7 +144,7 @@ VITE_PORT=10014
 
 ## 📚 相关文档
 
-- 📖 完整配置文档: `docs/PORT_CONFIGURATION.md`
-- 📝 快速指南: `docs/PORT_CONFIG_QUICKSTART.md`
-- 🔧 验证工具: `scripts/validate_port_config.py`
+- 📖 完整配置文档: `docs/部署与运维指南/PORT_CONFIGURATION.md`
+- 📝 快速指南: `docs/部署与运维指南/PORT_CONFIG_QUICKSTART.md`
+- 🔧 验证工具: `scripts/检查与校验/validate_port_config.py`
 

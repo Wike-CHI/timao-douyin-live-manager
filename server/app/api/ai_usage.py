@@ -3,7 +3,7 @@ AI 使用量监控 API
 提供使用统计、成本分析、报告导出等功能
 """
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends
 from fastapi.responses import JSONResponse, FileResponse
 from typing import Optional, List, Dict, Any
 from datetime import datetime
@@ -11,7 +11,8 @@ from pathlib import Path
 
 from ...utils.ai_usage_monitor import get_usage_monitor, ModelPricing
 
-router = APIRouter(prefix="/api/ai_usage", tags=["AI使用监控"])
+from .auth import get_current_user
+router = APIRouter(prefix="/api/ai_usage", tags=["AI使用监控"], dependencies=[Depends(get_current_user)])
 
 
 def _translate_function_names(data: Dict[str, Any]) -> Dict[str, Any]:

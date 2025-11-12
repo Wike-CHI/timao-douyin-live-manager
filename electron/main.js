@@ -25,7 +25,7 @@ for (const [key, value] of Object.entries(defaultAiEnv)) {
 }
 
 const isDev = !app.isPackaged;
-const rendererDevServerURL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.0.1:10050'; // 前端端口硬编码为 10050
+const rendererDevServerURL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.0.1:10065'; // 前端端口更新为 10065
 
 // 保持对窗口对象的全局引用，如果不这样做，窗口会在JavaScript对象被垃圾回收时自动关闭
 let mainWindow;
@@ -41,7 +41,7 @@ const uvicornLogPath = path.join(logsDir, 'uvicorn.log');
 const serviceConfig = {
     main: {
         name: 'FastAPI',
-        port: '8181', // 后端端口硬编码为 8181
+        port: '11111', // 后端端口更新为 11111
         healthPath: '/health'
     },
     streamcap: {
@@ -163,7 +163,7 @@ function startBackendServices() {
             // 启动统一服务启动器
             backendServiceProcess = spawn(
                 process.platform === 'win32' ? 'python' : 'python3',
-                ['scripts/service_launcher.py'],
+                ['scripts/构建与启动/service_launcher.py'],
                 {
                     cwd: path.join(__dirname, '..'),
                     env: envForServices,

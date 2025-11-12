@@ -105,7 +105,7 @@ New-Item -Path . -Name ".env" -ItemType "file"
 ### 3. 验证配置
 
 ```bash
-python scripts/validate_port_config.py
+python scripts/检查与校验/validate_port_config.py
 ```
 
 ### 4. 启动服务
@@ -161,7 +161,7 @@ GEMINI_API_KEY=your-api-key-here
 
 ```bash
 # 验证配置文件
-python scripts/validate_port_config.py
+python scripts/检查与校验/validate_port_config.py
 
 # 测试数据库连接
 python -c "from server.app.database import engine; engine.connect()"

@@ -41,7 +41,7 @@ cd d:\gsxm\timao-douyin-live-manager
 python server/main.py
 
 # 2. 在新终端运行测试
-python scripts/test_douyin_live.py
+python scripts/测试与验证/test_douyin_live.py
 ```
 
 ### 方法2: 使用pytest
@@ -69,13 +69,13 @@ python server/tests/integration/test_douyin_live_integration.py
 
 ```bash
 # 指定不同的直播间
-python scripts/test_douyin_live.py --url https://live.douyin.com/YOUR_ROOM_ID
+python scripts/测试与验证/test_douyin_live.py --url https://live.douyin.com/YOUR_ROOM_ID
 
 # 修改测试时长（单位：秒）
-python scripts/test_douyin_live.py --duration 600  # 10分钟
+python scripts/测试与验证/test_douyin_live.py --duration 600  # 10分钟
 
 # 指定后端服务地址
-python scripts/test_douyin_live.py --backend http://192.168.1.100:8000
+python scripts/测试与验证/test_douyin_live.py --backend http://192.168.1.100:8000
 ```
 
 ### 修改代码配置

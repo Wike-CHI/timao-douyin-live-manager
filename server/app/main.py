@@ -39,7 +39,6 @@ _load_env_once()
 
 from server.app.database import init_database, close_database
 from server.app.models import Base
-from server.utils.ai_defaults import ensure_default_ai_env
 from server.config import config_manager
 from server.utils.service_logger import log_service_start, log_service_stop
 
@@ -61,7 +60,6 @@ def _disable_ssl_verify_if_requested() -> None:
     except Exception:
         pass
 
-ensure_default_ai_env()
 _disable_ssl_verify_if_requested()
 
 # 配置日志 - 支持UTF-8编码以正确显示中文
@@ -500,6 +498,5 @@ if __name__ == "__main__":
         host=host,
         port=backend_port,
         reload=reload_enabled,
-        reload_exclude=reload_exclude,
         log_level="info"
     )
