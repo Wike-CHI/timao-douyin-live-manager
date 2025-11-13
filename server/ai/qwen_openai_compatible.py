@@ -17,7 +17,7 @@ import json
 from typing import Any, Dict, List, Optional
 
 try:
-    from openai import OpenAI
+    from openai import OpenAI  # pyright: ignore[reportMissingImports]
 except Exception:  # pragma: no cover
     OpenAI = None  # type: ignore
 

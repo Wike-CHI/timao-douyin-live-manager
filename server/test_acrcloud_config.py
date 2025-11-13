@@ -172,7 +172,7 @@ def main():
         print("\n下一步操作:")
         print("1. 启动服务: python -m uvicorn app.main:app --host 0.0.0.0 --port 10090")
         print("2. 查看状态: curl http://localhost:10090/api/live_audio/status")
-        print("3. 查看文档: docs/ACRCloud_Setup_Guide.md")
+        print("3. 查看文档: docs/AI方案与集成/ACRCloud_Setup_Guide.md")
         
     elif not sdk_ok:
         print("状态: SDK 未安装")

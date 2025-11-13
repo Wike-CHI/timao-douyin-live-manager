@@ -262,14 +262,23 @@ class LiveAnalysisGenerator:
         """生成直播分析（网关会自动记录使用情况）"""
         messages = self._build_prompt(context)
         
-        # 使用网关调用，通过function参数自动选择默认模型
-        # 网关会自动记录使用情况，包括模型名称和token消耗
+        # 判断当前 live_analysis 功能配置使用的服务商，讯飞兼容模式接口可能不支持 OpenAI 的 response_format 参数
+        func_cfg = self.gateway.get_function_config("live_analysis") or {}
+        provider_for_function = func_cfg.get("provider") or ""
+        use_response_format = provider_for_function.lower() not in {"xunfei"}
+        extra_kwargs = {}
+        if use_response_format:
+            extra_kwargs["response_format"] = {"type": "json_object"}
+        else:
+            logger.debug("Skip response_format for xunfei provider to avoid 404 NotFound.")
+        
+        # 使用网关调用，通过 function 参数自动选择默认模型；如果是讯飞则不传 response_format，避免 404
         response = self.gateway.chat_completion(
             messages=messages,
-            function="live_analysis",  # 使用功能标识，自动选择xunfei lite（直播分析）
+            function="live_analysis",
             temperature=0.3,
-            response_format={"type": "json_object"},
             max_tokens=800,
+            **extra_kwargs,
         )
         
         if not response.success:

@@ -7,13 +7,13 @@ LangChain's legacy location seamlessly receive the updated class.
 """
 
 try:
-    from langchain_huggingface import HuggingFaceEmbeddings as _NewHFEmbeddings
+    from langchain_huggingface import HuggingFaceEmbeddings as _NewHFEmbeddings  # pyright: ignore[reportMissingImports]
 except ImportError:  # pragma: no cover - optional dependency
     _NewHFEmbeddings = None
 
 if _NewHFEmbeddings is not None:
     try:
-        import langchain.embeddings.huggingface as _legacy_module
+        import langchain.embeddings.huggingface as _legacy_module  # pyright: ignore[reportMissingImports]
 
         _legacy_module.HuggingFaceEmbeddings = _NewHFEmbeddings
     except ImportError:
@@ -22,7 +22,7 @@ if _NewHFEmbeddings is not None:
         pass
 
     try:
-        import langchain.embeddings as _legacy_package
+        import langchain.embeddings as _legacy_package  # pyright: ignore[reportMissingImports]
 
         _legacy_package.HuggingFaceEmbeddings = _NewHFEmbeddings
     except ImportError:

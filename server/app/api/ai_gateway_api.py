@@ -4,13 +4,14 @@ AI 网关管理 API
 提供 RESTful API 用于管理 AI 服务商配置和切换
 """
 
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Depends
 from pydantic import BaseModel, Field
 from typing import Dict, List, Optional, Any
 
 from server.ai.ai_gateway import get_gateway, AIProvider
+from server.app.api.auth import get_current_user
 
-router = APIRouter(prefix="/api/ai_gateway", tags=["AI网关管理"])
+router = APIRouter(prefix="/api/ai_gateway", tags=["AI网关管理"], dependencies=[Depends(get_current_user)])
 
 
 class RegisterProviderRequest(BaseModel):

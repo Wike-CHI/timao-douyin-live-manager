@@ -3,6 +3,8 @@
  * 支持前后端分离部署的服务发现和健康检查
  */
 
+import { requestManager } from './requestManager';
+
 export interface ServiceConfig {
   name: string;
   baseUrl: string;
@@ -58,13 +60,18 @@ const DEFAULT_CONFIG: ApiConfig = {
 
 class ApiConfigManager {
   private config: ApiConfig;
-  private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
+  private healthCheckInterval: NodeJS.Timeout | number | null = null;
   private serviceStatus: Map<string, boolean> = new Map();
   private listeners: Set<(status: Map<string, boolean>) => void> = new Set();
 
   constructor() {
     this.config = this.loadConfig();
     this.initializeServiceStatus();
+    
+    // 注册清理回调
+    requestManager.registerCleanup(() => {
+      this.stopHealthCheck();
+    });
   }
 
   /**
@@ -137,8 +144,9 @@ class ApiConfigManager {
     const healthUrl = this.buildUrl(serviceName, service.healthEndpoint);
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), service.timeout);
+      // 使用追踪的 AbortController
+      const controller = requestManager.createAbortController();
+      const timeoutId = requestManager.createTimeout(() => controller.abort(), service.timeout);
 
       const response = await fetch(healthUrl, {
         method: 'GET',
@@ -148,7 +156,7 @@ class ApiConfigManager {
         }
       });
 
-      clearTimeout(timeoutId);
+      requestManager.clearTimeout(timeoutId);
 
       const isHealthy = response.ok;
       this.serviceStatus.set(serviceName, isHealthy);
@@ -206,8 +214,8 @@ class ApiConfigManager {
     // 立即执行一次检查
     this.checkAllServicesHealth();
 
-    // 定期检查
-    this.healthCheckInterval = setInterval(() => {
+    // 使用追踪的 setInterval
+    this.healthCheckInterval = requestManager.createInterval(() => {
       this.checkAllServicesHealth();
     }, this.config.healthCheck.interval);
   }
@@ -217,7 +225,7 @@ class ApiConfigManager {
    */
   stopHealthCheck(): void {
     if (this.healthCheckInterval) {
-      clearInterval(this.healthCheckInterval);
+      requestManager.clearInterval(this.healthCheckInterval);
       this.healthCheckInterval = null;
       console.log('🛑 服务健康检查已停止');
     }
@@ -275,8 +283,9 @@ class ApiConfigManager {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), service.timeout);
+        // 使用追踪的 AbortController 和 setTimeout
+        const controller = requestManager.createAbortController();
+        const timeoutId = requestManager.createTimeout(() => controller.abort(), service.timeout);
 
         const response = await fetch(url, {
           ...options,
@@ -287,7 +296,7 @@ class ApiConfigManager {
           }
         });
 
-        clearTimeout(timeoutId);
+        requestManager.clearTimeout(timeoutId);
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -309,8 +318,10 @@ class ApiConfigManager {
           throw new Error(`${service.name} 请求失败: ${error}`);
         }
         
-        // 等待后重试
-        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        // 使用追踪的 setTimeout 进行重试延迟
+        await new Promise(resolve => {
+          requestManager.createTimeout(() => resolve(undefined), 1000 * attempt);
+        });
       }
     }
 
