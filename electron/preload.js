@@ -1,25 +1,49 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 /**
- * 向渲染进程暴露安全的API
+ * 向渲染进程暴露 Electron IPC 通信接口
+ * 用于监听主进程的清理信号
+ */
+contextBridge.exposeInMainWorld('electron', {
+  ipcRenderer: {
+    // 监听来自主进程的消息
+    on: (channel, callback) => {
+      const validChannels = ['app-cleanup-request'];
+      if (validChannels.includes(channel)) {
+        ipcRenderer.on(channel, callback);
+      }
+    },
+    // 移除监听器
+    removeListener: (channel, callback) => {
+      const validChannels = ['app-cleanup-request'];
+      if (validChannels.includes(channel)) {
+        ipcRenderer.removeListener(channel, callback);
+      }
+    }
+  }
+});
+
+/**
+ * 向渲染进程暴露应用 API
  */
 contextBridge.exposeInMainWorld('electronAPI', {
-  // FastAPI服务相关
-  checkServiceHealth: () => ipcRenderer.invoke('check-service-health'),
-  getServiceUrl: () => ipcRenderer.invoke('get-service-url'),
-  openPath: (p) => ipcRenderer.invoke('open-path', p),
+  // 应用操作
+  openExternalLink: (url) => ipcRenderer.invoke('open-external-link', url),
   quitApp: () => ipcRenderer.invoke('app-quit'),
+  openPath: (path) => ipcRenderer.invoke('open-path', path),
   openLogs: () => ipcRenderer.invoke('open-logs'),
-  getRuntimeInfo: () => ipcRenderer.invoke('runtime-info'),
-  runPrepareTorch: () => ipcRenderer.invoke('run-prepare-torch'),
-  setRuntimeDevice: (device) => ipcRenderer.invoke('set-runtime-device', device),
+  
+  // 应用信息
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  getAppPath: () => ipcRenderer.invoke('get-app-path'),
+  getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
+  getLogsPath: () => ipcRenderer.invoke('get-logs-path'),
+  getIsDev: () => ipcRenderer.invoke('get-is-dev'),
+  getAppInfo: () => ipcRenderer.invoke('get-app-info'),
   
   // 系统信息
   platform: process.platform,
-  version: process.versions,
-  
-  // 应用信息
-  getAppInfo: () => ipcRenderer.invoke('get-app-info')
+  version: process.versions
 });
 
 /**
@@ -105,49 +129,6 @@ contextBridge.exposeInMainWorld('utils', {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }
-});
-
-/**
- * 向渲染进程暴露常量
- */
-contextBridge.exposeInMainWorld('constants', {
-  // API端点
-  API_ENDPOINTS: {
-    HEALTH: '/api/health',
-    COMMENTS_STREAM: '/api/comments/stream',
-    HOT_WORDS: '/api/analysis/hot-words',
-    LATEST_SCRIPT: '/api/ai/latest-script',
-    MARK_SCRIPT_USED: '/api/ai/mark-used',
-    CONFIG: '/api/config'
-  },
-  
-  // 事件类型
-  EVENT_TYPES: {
-    COMMENT_RECEIVED: 'comment_received',
-    HOT_WORDS_UPDATED: 'hot_words_updated',
-    SCRIPT_GENERATED: 'script_generated',
-    ERROR_OCCURRED: 'error_occurred'
-  },
-  
-  // 状态码
-  STATUS_CODES: {
-    SUCCESS: 200,
-    CREATED: 201,
-    BAD_REQUEST: 400,
-    UNAUTHORIZED: 401,
-    NOT_FOUND: 404,
-    INTERNAL_ERROR: 500
-  },
-  
-  // 配置默认值
-  DEFAULT_CONFIG: {
-    MAX_COMMENTS_DISPLAY: 100,
-    HOT_WORDS_LIMIT: 20,
-    SCRIPT_REFRESH_INTERVAL: 30000,
-    COMMENT_FETCH_INTERVAL: 1000,
-    AUTO_SCROLL: true,
-    SOUND_ENABLED: true
   }
 });
 

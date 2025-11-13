@@ -2,20 +2,28 @@
 
 **请复制以下内容创建 `server/.env` 文件**
 
+> ⚠️ **推荐使用极简版配置**：查看 [ENV_SIMPLE.md](./ENV_SIMPLE.md) 或 `.env.minimal` 文件
+> 
+> 本文件为完整版配置模板，包含所有可配置项（包括有默认值的项）
+
 ```env
 # ============================================
-# 提猫直播助手 - 后端服务环境变量
+# 提猫直播助手 - 后端服务环境变量（完整版）
 # ============================================
 # 审查人: 叶维哲
-# 遵循原则: KISS、单一职责、希克定律
+# 遵循原则: 奥卡姆剃刀、KISS、单一职责
+#
+# ⚠️ 注意：大多数配置都有默认值，不需要全部设置
+# 推荐使用极简版：只配置必需项（8项）
+# 查看 ENV_SIMPLE.md 了解哪些是必需的
 
 # ------------------------------------------
 # 🚀 服务端口配置 (必需)
 # ------------------------------------------
-BACKEND_PORT=11111
+BACKEND_PORT=10090
 
 # ------------------------------------------
-# 🗄️ 数据库配置 (必需)
+# 🗄️ 数据库配置 (必需 - 5项)
 # ------------------------------------------
 DB_TYPE=mysql
 MYSQL_HOST=rm-bp1sqxf05yom2hwdhko.mysql.rds.aliyuncs.com
@@ -34,40 +42,40 @@ SECRET_KEY=timao-secret-key-change-in-production-must-be-64-chars-minimum
 ENCRYPTION_KEY=timao-encryption-key-32chars
 
 # ------------------------------------------
-# 🤖 AI服务配置
+# 🤖 AI服务配置 (可选)
 # ------------------------------------------
 # Google Gemini (推荐)
-GEMINI_API_KEY=
+# GEMINI_API_KEY=
 
-# 默认AI服务商
-DEFAULT_AI_PROVIDER=gemini
+# 默认AI服务商 (有默认值，可不配置)
+# DEFAULT_AI_PROVIDER=gemini
 
 # OpenAI (可选)
-OPENAI_API_KEY=
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_MODEL=gpt-3.5-turbo
+# OPENAI_API_KEY=
+# OPENAI_BASE_URL=https://api.openai.com/v1
+# OPENAI_MODEL=gpt-3.5-turbo
 
 # ------------------------------------------
-# 📝 日志配置
+# 📝 日志配置 (有默认值，可不配置)
 # ------------------------------------------
-LOG_LEVEL=INFO
-LOG_DIR=logs
+# LOG_LEVEL=INFO
+# LOG_DIR=logs
 
 # ------------------------------------------
-# 🌐 CORS配置 (开发环境可用*)
+# 🌐 CORS配置 (有默认值，可不配置)
 # ------------------------------------------
-CORS_ORIGINS=*
+# CORS_ORIGINS=*
 
 # ------------------------------------------
-# ⚙️ 应用配置
+# ⚙️ 应用配置 (有默认值，可不配置)
 # ------------------------------------------
-DEBUG=false
-TIMEZONE=Asia/Shanghai
+# DEBUG=false
+# TIMEZONE=Asia/Shanghai
 
 # ------------------------------------------
-# 📦 功能开关
+# 📦 功能开关 (有默认值，可不配置)
 # ------------------------------------------
-WEBSOCKET_ENABLED=true
+# WEBSOCKET_ENABLED=true
 ```
 
 ## 🚀 快速开始
@@ -181,17 +189,20 @@ BACKEND_PORT=11112
 
 ## ✅ 遵循的设计原则
 
-1. **KISS原则**: 配置简单明了，只包含必需项
-2. **单一职责原则**: 后端配置只在 `server/.env`
-3. **希克定律**: 优先配置最重要的6个选项，其他可选
+1. **奥卡姆剃刀原理**: 如无必要，勿增实体 - 只配置必需项
+2. **KISS原则**: 配置简单明了
+3. **单一职责原则**: 后端配置只在 `server/.env`
+4. **80/20法则**: 只配置最重要的8个选项
 
-**最重要的6个配置** (80/20法则):
+**必需的8个配置**:
 1. BACKEND_PORT
 2. DB_TYPE
 3. MYSQL_HOST
-4. MYSQL_USER
-5. MYSQL_PASSWORD
-6. MYSQL_DATABASE
+4. MYSQL_PORT
+5. MYSQL_USER
+6. MYSQL_PASSWORD
+7. MYSQL_DATABASE
+8. SECRET_KEY / ENCRYPTION_KEY（生产环境）
 
-其他配置有合理的默认值，可稍后根据需要调整。
+**推荐使用极简版配置**：查看 [ENV_SIMPLE.md](./ENV_SIMPLE.md)
 

@@ -17,8 +17,8 @@ from typing import Any, Dict, List, Optional
 import shutil
 
 try:  # pragma: no cover - optional dependency
-    from langchain_community.vectorstores import DocArrayInMemorySearch
-    from langchain_core.documents import Document
+    from langchain_community.vectorstores import DocArrayInMemorySearch  # pyright: ignore[reportMissingImports]
+    from langchain_core.documents import Document  # pyright: ignore[reportMissingImports]
     LANGCHAIN_AVAILABLE = True
 except Exception as exc:  # pragma: no cover
     LANGCHAIN_AVAILABLE = False

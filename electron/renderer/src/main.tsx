@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './theme/global.css';
 import useAuthStore from './store/useAuthStore';
+import './services/appCleanup'; // 初始化应用清理服务
 
 // 演示模式：启动时自动写入“超级管理员”登录态与订阅状态
 (() => {

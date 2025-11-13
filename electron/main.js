@@ -1,5 +1,4 @@
 const { app, BrowserWindow, ipcMain, shell } = require('electron');
-const { spawn, spawnSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
@@ -25,37 +24,18 @@ for (const [key, value] of Object.entries(defaultAiEnv)) {
 }
 
 const isDev = !app.isPackaged;
-const rendererDevServerURL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.0.1:10065'; // 前端端口更新为 10065
+const rendererDevServerURL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.0.1:10065';
 
-// 保持对窗口对象的全局引用，如果不这样做，窗口会在JavaScript对象被垃圾回收时自动关闭
+// 保持对窗口对象的全局引用
 let mainWindow;
 
-// 统一后端服务管理
-let backendServiceProcess = null;
-let serviceManager = null;
+// 日志目录
 const logsDir = path.join(__dirname, '..', 'logs');
 try { if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true }); } catch {}
-const uvicornLogPath = path.join(logsDir, 'uvicorn.log');
 
-// 服务配置
-const serviceConfig = {
-    main: {
-        name: 'FastAPI',
-        port: '11111', // 后端端口更新为 11111
-        healthPath: '/health'
-    },
-    streamcap: {
-        name: 'StreamCap',
-        port: process.env.STREAMCAP_PORT || '8181',
-        healthPath: '/health'
-    },
-    douyin: {
-        name: 'DouyinLive',
-        port: process.env.DOUYIN_PORT || '8181',
-        healthPath: '/health'
-    }
-};
-
+/**
+ * 解析生产环境的 index.html 路径
+ */
 function resolveProductionIndex() {
     const distIndex = path.join(__dirname, 'renderer', 'dist', 'index.html');
     const legacyIndex = path.join(__dirname, 'renderer', 'index.html');
@@ -65,21 +45,19 @@ function resolveProductionIndex() {
     if (fs.existsSync(legacyIndex)) {
         return legacyIndex;
     }
-    // 回退到旧页面，避免打包失败
     return path.join(__dirname, 'renderer', 'voice_transcription.html');
 }
 
+/**
+ * 创建主窗口
+ */
 function createWindow() {
-    // 创建浏览器窗口
-    // Prefer a branded window icon when available
+    // 查找应用图标
     const iconCandidates = [
         path.join(__dirname, 'renderer', 'src', 'assets', 'app.png'),
         path.join(__dirname, 'renderer', 'src', 'assets', 'app.ico'),
         path.join(__dirname, 'renderer', 'src', 'assets', 'logo.png'),
-        path.join(__dirname, 'renderer', 'src', 'assets', 'logo.jpg'),
         path.join(__dirname, 'renderer', 'src', 'assets', 'talkingcat.png'),
-        path.join(__dirname, 'renderer', 'src', 'assets', 'talkingcat.jpg'),
-        // also allow using packaged build icons
         path.join(__dirname, 'renderer', 'src', 'assets', 'icon.png'),
         path.join(__dirname, 'renderer', 'src', 'assets', 'icon.ico'),
     ];
@@ -95,603 +73,146 @@ function createWindow() {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            webSecurity: false,  // 允许访问本地 API
+            webSecurity: false,
             preload: path.join(__dirname, 'preload.js')
         }
     });
 
+    // 加载页面
     if (isDev) {
         mainWindow.loadURL(rendererDevServerURL);
+        mainWindow.webContents.openDevTools();
     } else {
-        mainWindow.loadFile(resolveProductionIndex());
+        const indexPath = resolveProductionIndex();
+        mainWindow.loadFile(indexPath);
     }
-    // Ensure title reflects brand even if page overrides
-    mainWindow.setTitle('提猫直播助手 • TalkingCat');
 
-    // 当窗口关闭时触发
     mainWindow.on('closed', function () {
         mainWindow = null;
     });
 }
 
-// -------------------------------
-// Backend API (FastAPI) launcher
-// -------------------------------
-// 启动统一后端服务
-function startBackendServices() {
-    return new Promise(async (resolve, reject) => {
-        try {
-            if (backendServiceProcess) {
-                console.log('[electron] Backend services are already running.');
-                return resolve({ success: true, message: 'Backend services already running' });
-            }
-
-            // 准备后端运行环境变量：默认使用本地SQLite并禁用Redis，确保无外部依赖即可运行
-            const userDataDir = app.getPath('userData');
-            const sqliteDir = path.join(userDataDir, 'data');
-            try { fs.mkdirSync(sqliteDir, { recursive: true }); } catch {}
-            const sqlitePath = path.join(sqliteDir, 'app.db');
-
-            // 检查是否有服务已在运行
-            const runningServices = await checkExistingServices();
-            if (runningServices.length > 0) {
-                console.log(`[electron] Found running services: ${runningServices.join(', ')}`);
-                return resolve({ success: true, message: 'Services already running externally' });
-            }
-
-            console.log('[electron] Starting unified backend services...');
-            
-            const envForServices = {
-                ...process.env,
-                // 数据库配置（仅支持MySQL）
-                DB_TYPE: process.env.DB_TYPE || 'mysql',
-                // DATABASE_PATH 已移除（SQLite不再支持）
-                REDIS_ENABLED: process.env.REDIS_ENABLED || 'false',
-                // 编码配置
-                PYTHONIOENCODING: 'utf-8',
-                PYTHONUTF8: '1',
-                // 服务端口配置
-                BACKEND_PORT: serviceConfig.main.port,
-                STREAMCAP_PORT: serviceConfig.streamcap.port,
-                DOUYIN_PORT: serviceConfig.douyin.port,
-                // 前端环境变量
-                VITE_FASTAPI_URL: `http://127.0.0.1:${serviceConfig.main.port}`,
-                VITE_STREAMCAP_URL: `http://127.0.0.1:${serviceConfig.streamcap.port}`,
-                VITE_DOUYIN_URL: `http://127.0.0.1:${serviceConfig.douyin.port}`
-            };
-
-            // 启动统一服务启动器
-            backendServiceProcess = spawn(
-                process.platform === 'win32' ? 'python' : 'python3',
-                ['scripts/构建与启动/service_launcher.py'],
-                {
-                    cwd: path.join(__dirname, '..'),
-                    env: envForServices,
+/**
+ * 应用退出前清理资源
+ */
+app.on('before-quit', async (event) => {
+    console.log('[electron] App is about to quit. Cleaning up resources...');
+    
+    // 通知所有渲染进程清理资源
+    const allWindows = BrowserWindow.getAllWindows();
+    if (allWindows.length > 0) {
+        console.log(`[electron] Notifying ${allWindows.length} window(s) to cleanup...`);
+        
+        allWindows.forEach((win) => {
+            if (!win.isDestroyed()) {
+                try {
+                    win.webContents.send('app-cleanup-request');
+                    console.log('[electron] Cleanup signal sent to window');
+                } catch (error) {
+                    console.error('[electron] Failed to send cleanup signal:', error);
                 }
-            );
-
-            backendServiceProcess.stdout.on('data', (data) => {
-                const text = data.toString();
-                console.log(`[service-manager] ${text}`.trim());
-                if (mainWindow) mainWindow.webContents.send('service-log', text);
-                try { fs.appendFileSync(uvicornLogPath, text); } catch {}
-            });
-
-            backendServiceProcess.stderr.on('data', (data) => {
-                const text = data.toString();
-                console.error(`[service-manager] ${text}`.trim());
-                if (mainWindow) mainWindow.webContents.send('service-error', text);
-                try { fs.appendFileSync(uvicornLogPath, text); } catch {}
-            });
-
-            backendServiceProcess.on('close', (code) => {
-                console.log(`Backend services process exited: ${code}`);
-                if (mainWindow) mainWindow.webContents.send('service-stopped', code);
-                backendServiceProcess = null;
-            });
-
-            // 等待服务启动并进行健康检查
-            await waitForServicesReady();
-            resolve({ success: true, message: 'Backend services started' });
-            
-        } catch (err) {
-            console.error('Failed to start backend services:', err);
-            reject(err);
-        }
-    });
-}
-
-// 检查现有服务
-async function checkExistingServices() {
-    const runningServices = [];
-    
-    for (const [key, config] of Object.entries(serviceConfig)) {
-        try {
-            const response = await fetch(`http://127.0.0.1:${config.port}${config.healthPath}`, {
-                method: 'GET',
-                timeout: 2000
-            });
-            
-            if (response.ok) {
-                runningServices.push(config.name);
-                console.log(`[electron] ${config.name} service is already running on port ${config.port}`);
-            }
-        } catch (error) {
-            // 服务未运行，继续检查其他服务
-        }
-    }
-    
-    return runningServices;
-}
-
-// 等待服务就绪
-async function waitForServicesReady() {
-    const maxRetries = 30;
-    const retryDelay = 1000;
-    
-    console.log('[electron] Waiting for services to be ready...');
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-            // 检查主服务（FastAPI）
-            const response = await fetch(`http://127.0.0.1:${serviceConfig.main.port}/health`, {
-                method: 'GET',
-                timeout: 3000
-            });
-            
-            if (response.ok) {
-                console.log('[electron] Main service is ready!');
-                return true;
-            }
-        } catch (error) {
-            if (attempt === maxRetries) {
-                throw new Error(`Services failed to start after ${maxRetries} attempts`);
-            }
-            
-            console.log(`[electron] Waiting for services... attempt ${attempt}/${maxRetries}`);
-            await new Promise(resolve => setTimeout(resolve, retryDelay));
-        }
-    }
-}
-
-// 停止后端服务
-async function stopBackendServices() {
-    if (!backendServiceProcess) {
-        return { success: true, message: 'Backend services not running' };
-    }
-    
-    try {
-        console.log('[electron] Stopping backend services...');
-        
-        // 发送终止信号
-        if (process.platform === 'win32') {
-            // Windows下使用taskkill强制终止
-            spawn('taskkill', ['/pid', backendServiceProcess.pid, '/f', '/t']);
-        } else {
-            // Unix系统使用SIGTERM
-            backendServiceProcess.kill('SIGTERM');
-        }
-        
-        // 等待进程结束
-        await new Promise((resolve) => {
-            const timeout = setTimeout(() => {
-                if (backendServiceProcess) {
-                    backendServiceProcess.kill('SIGKILL');
-                }
-                resolve();
-            }, 5000);
-            
-            if (backendServiceProcess) {
-                backendServiceProcess.on('close', () => {
-                    clearTimeout(timeout);
-                    resolve();
-                });
-            } else {
-                clearTimeout(timeout);
-                resolve();
             }
         });
         
-        backendServiceProcess = null;
-        return { success: true, message: 'Backend services stopped' };
-        
-    } catch (err) {
-        console.error('Failed to stop backend services:', err);
-        return { success: false, message: String(err) };
+        // 等待渲染进程完成清理
+        console.log('[electron] Waiting for renderer cleanup (500ms)...');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        console.log('[electron] Renderer cleanup wait completed');
     }
-}
-
-// 控制是否由 Electron 自启本地 FastAPI（云端部署时可关闭）
-const shouldStartApi = (process.env.ELECTRON_START_API || 'false') !== 'true';
-
-async function ensureBackendReady() {
-    if (!shouldStartApi) return;
-    try {
-        await startBackendServices();
-    } catch (e) {
-        console.error('Failed to auto start backend services:', e);
-    }
-}
-
-// 版本检测（启动5秒后）
-async function checkForUpdates() {
-    const currentVersion = app.getVersion();
-    const apiUrl = process.env.VITE_FASTAPI_URL || 'http://127.0.0.1:8181';
     
-    try {
-        const { net } = require('electron');
-        const request = net.request(`${apiUrl}/api/bootstrap/version`);
-        
-        const response = await new Promise((resolve, reject) => {
-            request.on('response', (res) => {
-                let body = '';
-                res.on('data', (chunk) => { body += chunk; });
-                res.on('end', () => {
-                    try {
-                        resolve(JSON.parse(body));
-                    } catch (e) {
-                        reject(e);
-                    }
-                });
-            });
-            request.on('error', reject);
-            request.end();
-        });
-        
-        if (!response.success) return;
-        
-        const { latest_version, download_url, release_notes, is_required } = response.data;
-        
-        // 比较版本
-        if (latest_version > currentVersion) {
-            const { dialog } = require('electron');
-            const choice = await dialog.showMessageBox(mainWindow, {
-                type: 'info',
-                title: is_required ? '⚠️ 强制更新' : '🎉 发现新版本',
-                message: `发现新版本 ${latest_version}（当前 ${currentVersion}）`,
-                detail: release_notes || '请更新到最新版本',
-                buttons: ['立即下载', '稍后提醒'],
-                defaultId: 0,
-                cancelId: 1
-            });
-            
-            if (choice.response === 0) {
-                shell.openExternal(download_url);
-            }
-        } else {
-            console.log('✅ 当前已是最新版本:', currentVersion);
-        }
-    } catch (err) {
-        console.error('❌ 版本检查失败:', err.message);
-    }
-}
-
-// 当Electron完成初始化并准备创建浏览器窗口时调用此方法
-app.on('ready', async () => {
-    await ensureBackendReady();
-    createWindow();
-    
-    // 延迟5秒后检查更新（避免影响启动速度）
-    setTimeout(() => {
-        checkForUpdates().catch(err => {
-            console.error('Update check failed:', err);
-        });
-    }, 5000);
+    console.log('[electron] Cleanup completed');
 });
 
-// 当所有窗口都关闭时退出
-app.on('window-all-closed', async function () {
+/**
+ * 当所有窗口都关闭时退出
+ */
+app.on('window-all-closed', function () {
     if (process.platform !== 'darwin') {
-        // Stop backends
-        try { await stopBackendServices(); } catch (e) {}
         app.quit();
     }
 });
 
+/**
+ * 在 macOS 上激活时重新创建窗口
+ */
 app.on('activate', function () {
     if (mainWindow === null) {
         createWindow();
     }
 });
 
-// IPC处理程序 - 启动后端服务（提供给渲染端按需调用）
-ipcMain.handle('start-service', async () => {
-    return startBackendServices();
-});
-
-// IPC处理程序 - 停止后端服务
-ipcMain.handle('stop-service', async () => {
-    return stopBackendServices();
-});
-
-// IPC处理程序 - 检查服务健康状态
-ipcMain.handle('check-service-health', async (event, serviceName = 'main') => {
-    try {
-        const config = serviceConfig[serviceName];
-        if (!config) {
-            return { success: false, error: `Unknown service: ${serviceName}` };
-        }
-        
-        const response = await fetch(`http://127.0.0.1:${config.port}${config.healthPath}`, {
-            method: 'GET',
-            timeout: 3000
-        });
-        
-        const data = await response.json();
-        return { success: true, data, service: serviceName };
-    } catch (error) {
-        return { success: false, error: error.message, service: serviceName };
-    }
-});
-
-// IPC处理程序 - 检查所有服务健康状态
-ipcMain.handle('check-all-services-health', async () => {
-    const results = {};
+/**
+ * 应用准备就绪时创建窗口
+ */
+app.whenReady().then(() => {
+    createWindow();
     
-    for (const [serviceName, config] of Object.entries(serviceConfig)) {
+    // 注册 IPC 处理器
+    ipcMain.handle('open-external-link', async (event, url) => {
+        shell.openExternal(url);
+    });
+    
+    ipcMain.handle('get-app-version', () => app.getVersion());
+    
+    ipcMain.handle('get-app-path', () => app.getAppPath());
+    
+    ipcMain.handle('get-user-data-path', () => app.getPath('userData'));
+    
+    ipcMain.handle('get-logs-path', () => logsDir);
+    
+    ipcMain.handle('get-is-dev', () => isDev);
+    
+    ipcMain.handle('app-quit', () => {
+        app.quit();
+    });
+    
+    ipcMain.handle('open-path', async (event, targetPath) => {
         try {
-            const response = await fetch(`http://127.0.0.1:${config.port}${config.healthPath}`, {
-                method: 'GET',
-                timeout: 2000
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                results[serviceName] = { 
-                    status: 'healthy', 
-                    data, 
-                    url: `http://127.0.0.1:${config.port}` 
-                };
-            } else {
-                results[serviceName] = { 
-                    status: 'unhealthy', 
-                    error: `HTTP ${response.status}`,
-                    url: `http://127.0.0.1:${config.port}` 
-                };
-            }
+            shell.openPath(targetPath);
+            return { success: true };
         } catch (error) {
-            results[serviceName] = { 
-                status: 'offline', 
-                error: error.message,
-                url: `http://127.0.0.1:${config.port}` 
-            };
+            return { success: false, error: error.message };
         }
-    }
+    });
     
-    return { success: true, services: results };
-});
-
-// IPC处理程序 - 获取服务URL
-ipcMain.handle('get-service-url', async (event, serviceName = 'main') => {
-    const config = serviceConfig[serviceName];
-    if (!config) {
-        return { success: false, error: `Unknown service: ${serviceName}` };
-    }
-    
-    return { 
-        success: true, 
-        url: `http://127.0.0.1:${config.port}`,
-        service: serviceName 
-    };
-});
-
-// IPC处理程序 - 获取所有服务配置
-ipcMain.handle('get-services-config', async () => {
-    const services = {};
-    
-    for (const [serviceName, config] of Object.entries(serviceConfig)) {
-        services[serviceName] = {
-            name: config.name,
-            url: `http://127.0.0.1:${config.port}`,
-            port: config.port,
-            healthPath: config.healthPath
-        };
-    }
-    
-    return { success: true, services };
-});
-
-// IPC处理程序 - 检查服务状态
-ipcMain.handle('check-service-status', async () => {
-    return {
-        running: backendServiceProcess !== null,
-        pid: backendServiceProcess ? backendServiceProcess.pid : null,
-        services: Object.keys(serviceConfig)
-    };
-});
-
-// IPC - Open a path in OS file manager
-ipcMain.handle('open-path', async (_event, targetPath) => {
-    try {
-        if (!targetPath) return { success: false, message: 'path required' };
-        const res = await shell.openPath(String(targetPath));
-        if (res) return { success: false, message: res };
-        return { success: true };
-    } catch (e) {
-        return { success: false, message: String(e) };
-    }
-});
-
-// IPC - Runtime info
-ipcMain.handle('runtime-info', async () => {
-    try {
-        const info = {
-            node: process.versions.node,
-            chrome: process.versions.chrome,
-            electron: process.versions.electron,
-            platform: process.platform,
-            arch: process.arch,
-            env: {
-                LIVE_FORCE_DEVICE: process.env.LIVE_FORCE_DEVICE || null,
-                FORCE_TORCH_MODE: process.env.FORCE_TORCH_MODE || null,
-            }
-        };
+    ipcMain.handle('open-logs', async () => {
         try {
-            const pyCmd = 'import torch, json;print(json.dumps({"version": getattr(torch, "__version__", "unknown"), "cuda": torch.cuda.is_available() if hasattr(torch, "cuda") else False}))';
-            const result = spawnSync(process.platform === 'win32' ? 'python' : 'python3', ['-c', pyCmd], { timeout: 5000 });
-            if (result.status === 0) {
-                const parsed = JSON.parse(result.stdout.toString() || '{}');
-                info.torch = parsed;
-            } else {
-                info.torch = { error: result.stderr?.toString() || 'unknown error' };
-            }
-        } catch (err) {
-            info.torch = { error: String(err) };
+            shell.openPath(logsDir);
+            return { success: true, path: logsDir };
+        } catch (error) {
+            return { success: false, error: error.message };
         }
-        return { success: true, info };
-    } catch (e) {
-        return { success: false, message: String(e) };
-    }
-});
-
-ipcMain.handle('run-prepare-torch', async () => {
-    return new Promise((resolve) => {
-        const proc = spawn(process.platform === 'win32' ? 'python' : 'python3', ['server/tools/prepare_torch.py'], {
-            cwd: path.join(__dirname, '..'),
-            env: { ...process.env, PYTHONENSUREPIP: '1' },
-        });
-        let output = '';
-        proc.stdout.on('data', (data) => { output += data.toString(); });
-        proc.stderr.on('data', (data) => { output += data.toString(); });
-        proc.on('close', (code) => {
-            resolve({ success: code === 0, code, output });
-        });
     });
-});
-
-ipcMain.handle('set-runtime-device', async (_event, device) => {
-    try {
-        const value = (device || '').trim();
-        if (value) process.env.LIVE_FORCE_DEVICE = value;
-        else delete process.env.LIVE_FORCE_DEVICE;
-        return { success: true, device: value || null };
-    } catch (e) {
-        return { success: false, message: String(e) };
-    }
-});
-
-// IPC - Quit app
-ipcMain.handle('app-quit', async () => {
-    try { app.quit(); return { success: true }; }
-    catch (e) { return { success: false, message: String(e) }; }
-});
-
-// IPC - Open logs directory
-ipcMain.handle('open-logs', async () => {
-    try {
-        const res = await shell.openPath(logsDir);
-        if (res) return { success: false, message: res };
-        return { success: true };
-    } catch (e) {
-        return { success: false, message: String(e) };
-    }
-});
-
-// -------------------------------
-// 本地音频录制 IPC 处理器
-// -------------------------------
-const { getLocalAudioRecorder } = require('./services/localAudioRecorder');
-
-// 开始本地录制
-ipcMain.handle('local-audio-start', async (event, liveUrlOrId, apiUrl, options) => {
-    try {
-        const recorder = getLocalAudioRecorder();
-        const result = await recorder.startRecording(liveUrlOrId, apiUrl, options);
-        return { success: true, data: result };
-    } catch (error) {
-        console.error('本地录制启动失败:', error);
-        return { success: false, error: error.message };
-    }
-});
-
-// 停止本地录制
-ipcMain.handle('local-audio-stop', async () => {
-    try {
-        const recorder = getLocalAudioRecorder();
-        const result = recorder.stopRecording();
-        return result;
-    } catch (error) {
-        console.error('本地录制停止失败:', error);
-        return { success: false, error: error.message };
-    }
-});
-
-// 获取录制状态
-ipcMain.handle('local-audio-status', async () => {
-    try {
-        const recorder = getLocalAudioRecorder();
-        return { success: true, data: recorder.getStatus() };
-    } catch (error) {
-        return { success: false, error: error.message };
-    }
-});
-
-// 获取已录制的音频列表
-ipcMain.handle('local-audio-list', async () => {
-    try {
-        const recorder = getLocalAudioRecorder();
-        const files = recorder.getAudioFiles();
-        return { success: true, data: files };
-    } catch (error) {
-        return { success: false, error: error.message };
-    }
-});
-
-// 删除音频文件
-ipcMain.handle('local-audio-delete', async (event, filePath) => {
-    try {
-        const recorder = getLocalAudioRecorder();
-        return recorder.deleteAudioFile(filePath);
-    } catch (error) {
-        return { success: false, error: error.message };
-    }
-});
-
-// 打开音频目录
-ipcMain.handle('local-audio-open-dir', async () => {
-    try {
-        const recorder = getLocalAudioRecorder();
-        recorder.openAudioDirectory();
-        return { success: true };
-    } catch (error) {
-        return { success: false, error: error.message };
-    }
-});
-
-// -------------------------------
-// Helpers
-// -------------------------------
-// IPC handler for app info
-ipcMain.handle('get-app-info', async () => {
-    const packagePath = path.join(__dirname, 'package.json');
-    try {
-        const packageData = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+    
+    ipcMain.handle('get-app-info', async () => {
         return {
-            name: packageData.name,
-            version: packageData.version,
-            description: packageData.description
+            version: app.getVersion(),
+            name: app.getName(),
+            path: app.getAppPath(),
+            userDataPath: app.getPath('userData'),
+            logsPath: logsDir,
+            isDev: isDev,
+            platform: process.platform
         };
-    } catch (error) {
-        console.error('Failed to read package.json:', error);
-        return {
-            name: 'ast-voice-transcription-app',
-            version: '1.0.0',
-            description: '语音转录服务桌面应用'
-        };
-    }
-});
-
-function isPortAvailable(port) {
-    return new Promise((resolve) => {
-        const net = require('net');
-        const tester = net.createServer()
-            .once('error', (err) => {
-                if (err.code === 'EADDRINUSE') resolve(false);
-                else resolve(false);
-            })
-            .once('listening', () => {
-                tester.close(() => resolve(true));
-            })
-            .listen(port, '127.0.0.1');
     });
-}
+    
+    console.log('[electron] Application initialized successfully');
+    console.log(`[electron] Version: ${app.getVersion()}`);
+    console.log(`[electron] Platform: ${process.platform}`);
+    console.log(`[electron] Development mode: ${isDev}`);
+});
+
+// 防止证书错误
+app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
+    if (isDev) {
+        event.preventDefault();
+        callback(true);
+    } else {
+        callback(false);
+    }
+});
+
+console.log('提猫直播助手 Electron 主进程已启动');
+console.log(`Electron版本: ${process.versions.electron}`);
+console.log(`Node版本: ${process.versions.node}`);
+console.log(`Chrome版本: ${process.versions.chrome}`);

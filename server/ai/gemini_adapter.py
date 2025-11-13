@@ -13,7 +13,7 @@ import time
 from typing import Dict, Any, Optional
 
 try:
-    import openai
+    import openai  # pyright: ignore[reportMissingImports]
     _OPENAI_AVAILABLE = True
 except ImportError:
     _OPENAI_AVAILABLE = False

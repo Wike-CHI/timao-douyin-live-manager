@@ -1,0 +1,114 @@
+# Nginx 配置示例
+# 文件位置: /etc/nginx/conf.d/admin-dashboard.conf
+# 或添加到主配置文件: /etc/nginx/nginx.conf
+
+server {
+    listen 80;
+    server_name 129.211.218.135;
+
+    # 字符编码
+    charset utf-8;
+
+    # 日志配置
+    access_log /var/log/nginx/admin-dashboard-access.log;
+    error_log /var/log/nginx/admin-dashboard-error.log;
+
+    # 管理后台路径
+    location /admin/ {
+        alias /www/wwwroot/wwwroot/timao-douyin-live-manager/admin-dashboard/dist/;
+        
+        # SPA 路由支持
+        try_files $uri $uri/ /admin/index.html;
+        
+        index index.html;
+        
+        # 安全头
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        
+        # 禁用目录列表
+        autoindex off;
+    }
+
+    # API 代理（如果需要通过 Nginx 代理）
+    location /api/ {
+        proxy_pass http://127.0.0.1:10090;
+        proxy_http_version 1.1;
+        
+        # 请求头
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $server_name;
+        
+        # 超时设置
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+        
+        # 缓冲设置
+        proxy_buffering on;
+        proxy_buffer_size 4k;
+        proxy_buffers 8 4k;
+        
+        # CORS 配置（如果需要）
+        # add_header Access-Control-Allow-Origin * always;
+        # add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
+        # add_header Access-Control-Allow-Headers "Authorization, Content-Type" always;
+        # 
+        # if ($request_method = OPTIONS) {
+        #     return 204;
+        # }
+    }
+
+    # 静态资源缓存（JS/CSS/图片等）
+    location ~* /admin/.*\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        alias /www/wwwroot/wwwroot/timao-douyin-live-manager/admin-dashboard/dist/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    # 禁止访问隐藏文件
+    location ~ /\. {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+
+    # 速率限制（防止暴力破解）
+    limit_req_zone $binary_remote_addr zone=admin_limit:10m rate=10r/s;
+    
+    location /admin/login {
+        limit_req zone=admin_limit burst=5 nodelay;
+        alias /www/wwwroot/wwwroot/timao-douyin-live-manager/admin-dashboard/dist/;
+        try_files $uri $uri/ /admin/index.html;
+    }
+}
+
+# HTTPS 配置（推荐生产环境使用）
+# server {
+#     listen 443 ssl http2;
+#     server_name 129.211.218.135;
+# 
+#     # SSL 证书配置
+#     ssl_certificate /etc/letsencrypt/live/129.211.218.135/fullchain.pem;
+#     ssl_certificate_key /etc/letsencrypt/live/129.211.218.135/privkey.pem;
+#     ssl_protocols TLSv1.2 TLSv1.3;
+#     ssl_ciphers HIGH:!aNULL:!MD5;
+#     ssl_prefer_server_ciphers on;
+# 
+#     # 其他配置与 HTTP 相同
+#     # ...
+# }
+# 
+# # HTTP 重定向到 HTTPS
+# server {
+#     listen 80;
+#     server_name 129.211.218.135;
+#     return 301 https://$server_name$request_uri;
+# }
+

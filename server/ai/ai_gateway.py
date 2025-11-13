@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 try:
-    from openai import OpenAI
+    from openai import OpenAI  # pyright: ignore[reportMissingImports]
 except ImportError:
     OpenAI = None  # type: ignore
 

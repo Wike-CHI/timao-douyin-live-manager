@@ -7,40 +7,29 @@
     "buildResources": "assets"
   },
   "files": [
-    "electron/**/*",
-    "backend_dist/**/*",
-    "scripts/构建与启动/service_launcher.py",
-    "config.json",
+    "electron/main.js",
+    "electron/preload.js",
+    "electron/renderer/dist/**/*",
+    "electron/package.json",
     "package.json",
-    "!AST_module/**/*",
-    "!DouyinLiveWebFetcher/**/*",
-    "!server/**/*",
-    "!StreamCap/**/*",
-    "!test-frontend/**/*",
+    "!electron/renderer/src/**/*",
+    "!electron/renderer/node_modules/**/*",
+    "!electron/renderer/package.json",
+    "!electron/renderer/package-lock.json",
+    "!electron/renderer/.env*",
+    "!electron/node_modules/**/*",
     "!**/__pycache__/**",
     "!**/*.pyc",
     "!**/*.pyo",
     "!**/*.log",
     "!**/.git/**",
-    "!**/node_modules/**",
-    "!**/.env*",
-    "!**/logs/**"
+    "!**/logs/**",
+    "!**/test/**",
+    "!**/tests/**",
+    "!**/.vscode/**",
+    "!**/.idea/**"
   ],
-  "extraResources": [
-    {
-      "from": "backend_dist",
-      "to": "backend_dist",
-      "filter": ["**/*"]
-    },
-    {
-      "from": "scripts/构建与启动/service_launcher.py",
-      "to": "scripts/构建与启动/service_launcher.py"
-    },
-    {
-      "from": "config.json",
-      "to": "config.json"
-    }
-  ],
+  "extraResources": [],
   "win": {
     "target": [
       {
@@ -65,7 +54,10 @@
     "artifactName": "TalkingCat-Setup-${version}-${arch}.exe",
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "提猫直播助手"
+    "shortcutName": "提猫直播助手",
+    "include": null,
+    "perMachine": false,
+    "allowElevation": true
   },
   "mac": {
     "target": [

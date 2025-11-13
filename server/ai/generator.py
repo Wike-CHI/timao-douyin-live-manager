@@ -9,7 +9,7 @@ import re
 from collections import Counter
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from openai import OpenAI
+from openai import OpenAI  # pyright: ignore[reportMissingImports]
 
 from ..models import AIScript, HotWord, Comment, create_success_response, create_error_response
 

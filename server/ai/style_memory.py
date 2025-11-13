@@ -21,10 +21,10 @@ from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional
 logger = logging.getLogger(__name__)
 
 try:  # pragma: no cover - optional dependency
-    from langchain.memory import VectorStoreRetrieverMemory
-    from langchain_community.vectorstores import DocArrayInMemorySearch
-    from langchain_core.embeddings import Embeddings
-    from langchain_core.vectorstores import VectorStore
+    from langchain.memory import VectorStoreRetrieverMemory  # pyright: ignore[reportMissingImports]
+    from langchain_community.vectorstores import DocArrayInMemorySearch  # pyright: ignore[reportMissingImports]
+    from langchain_core.embeddings import Embeddings  # pyright: ignore[reportMissingImports]
+    from langchain_core.vectorstores import VectorStore  # pyright: ignore[reportMissingImports]
     LANGCHAIN_AVAILABLE = True
 except Exception as exc:  # pragma: no cover - graceful fallback
     LANGCHAIN_AVAILABLE = False
@@ -35,9 +35,9 @@ except Exception as exc:  # pragma: no cover - graceful fallback
     logger.warning("LangChain components unavailable: %s", exc)
 
 if TYPE_CHECKING:
-    from langchain.memory import VectorStoreRetrieverMemory as _VectorStoreRetrieverMemoryT
-    from langchain_core.embeddings import Embeddings as _EmbeddingsT
-    from langchain_core.vectorstores import VectorStore as _VectorStoreT
+    from langchain.memory import VectorStoreRetrieverMemory as _VectorStoreRetrieverMemoryT  # pyright: ignore[reportMissingImports]
+    from langchain_core.embeddings import Embeddings as _EmbeddingsT  # pyright: ignore[reportMissingImports]
+    from langchain_core.vectorstores import VectorStore as _VectorStoreT  # pyright: ignore[reportMissingImports]
 
 
 def _sanitize_anchor_id(anchor_id: Optional[str]) -> Optional[str]:

@@ -8,7 +8,7 @@ import json
 import uuid
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-import requests
+import requests  # pyright: ignore[reportMissingModuleSource]
 from server.utils.logger import LoggerMixin
 
 try:  # pragma: no cover - optional style memory
@@ -214,7 +214,7 @@ class TipGenerator(LoggerMixin):
     def _call_openai_api(self, prompt: str) -> str:
         """调用OpenAI API"""
         try:
-            from openai import OpenAI
+            from openai import OpenAI  # pyright: ignore[reportMissingImports]
             
             # 使用配置的API参数或默认值
             api_key = self.api_key

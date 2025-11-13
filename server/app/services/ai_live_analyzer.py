@@ -212,6 +212,10 @@ class AILiveAnalyzer:
         style_profile = result.get("style_profile") or result.get("persona") or {}
         vibe = result.get("vibe") or {}
 
+        # 获取话题列表（兼容 topic_candidates 和 topics）
+        topic_candidates = result.get("topic_candidates", [])
+        topics = result.get("topics", topic_candidates)  # 优先使用 topics，否则使用 topic_candidates
+        
         payload = {
             "summary": result.get("summary"),
             "highlight_points": result.get("highlight_points", []),
@@ -219,7 +223,8 @@ class AILiveAnalyzer:
             "suggestions": result.get("suggestions", []),
             "top_questions": result.get("top_questions", []),
             "analysis_card": card,  # 只包含直播分析内容，不包含 style_profile 和 vibe
-            "topic_candidates": result.get("topic_candidates", []),
+            "topic_candidates": topic_candidates,  # 保留向后兼容
+            "topics": topics,  # 添加 topics 字段（映射自 topic_candidates）
             "analysis_focus": result.get("analysis_focus"),
             "planner_notes": result.get("planner_notes", {}),
             "style_profile": style_profile,  # 由 style_profile_builder 独立生成（qwen3-max）
@@ -230,6 +235,8 @@ class AILiveAnalyzer:
             "knowledge_refs": result.get("knowledge_refs", []),
             "lead_candidates": result.get("lead_candidates", []),
             "error": result.get("analysis_error"),
+            "persona": result.get("persona", {}),  # 确保 persona 字段存在
+            "chat_signals": result.get("chat_signals", []),  # 确保 chat_signals 字段存在
         }
         if "speaker_timeline" in result:
             payload["speaker_timeline"] = result.get("speaker_timeline")

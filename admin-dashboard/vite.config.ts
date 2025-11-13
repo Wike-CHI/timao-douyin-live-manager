@@ -9,8 +9,12 @@ export default defineConfig(({ mode }) => {
   const port = Number(env.VITE_ADMIN_PORT || env.PORT || '10065');
   const apiTarget = env.VITE_FASTAPI_URL || 'http://127.0.0.1:10090';
 
+  // 生产环境使用 /admin/ 作为 base 路径
+  const base = mode === 'production' ? '/admin/' : '/';
+
   return {
     plugins: [react()],
+    base, // 支持子路径部署
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),

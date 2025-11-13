@@ -20,5 +20,24 @@
   "devDependencies": {
     "electron": "^38.1.2",
     "electron-builder": "^24.0.0"
+  },
+  "build": {
+    "appId": "com.xingjuai.talkingcat",
+    "productName": "提猫直播助手",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "sign": null
+    },
+    "portable": {
+      "artifactName": "TalkingCat-Portable-${version}-${arch}.exe"
+    }
   }
 }

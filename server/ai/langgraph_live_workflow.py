@@ -19,8 +19,8 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Literal, Optional, Set, Tuple, TypedDict
 
 try:  # pragma: no cover - optional dependency
-    from langgraph.graph import END, StateGraph
-    from langgraph.checkpoint.memory import MemorySaver
+    from langgraph.graph import END, StateGraph  # pyright: ignore[reportMissingImports]
+    from langgraph.checkpoint.memory import MemorySaver  # pyright: ignore[reportMissingImports]
 
     _LANGGRAPH_AVAILABLE = True
 except Exception:  # pragma: no cover
@@ -72,9 +72,11 @@ class GraphState(TypedDict, total=False):
     speech_stats: Dict[str, Any]
     speaker_timeline: List[Dict[str, Any]]
     topic_candidates: List[Dict[str, Any]]
+    topics: List[Dict[str, Any]]  # 添加 topics 字段（映射自 topic_candidates）
     mood: str
     vibe: Dict[str, Any]
     persona: Dict[str, Any]
+    style_profile: Dict[str, Any]  # 添加 style_profile 字段（由 style_profile_builder 节点生成）
     planner_notes: Dict[str, Any]
     analysis_focus: str
     analysis_card: Dict[str, Any]
@@ -1163,6 +1165,10 @@ class LangGraphLiveWorkflow:
         # 从 state 中获取 style_profile 和 vibe（由独立节点生成）
         style_profile = state.get("style_profile") or state.get("persona") or {}
         vibe = state.get("vibe") or {}
+        
+        # 获取 topics（从 topic_candidates 映射）
+        topic_candidates = state.get("topic_candidates", [])
+        topics = state.get("topics", topic_candidates)  # 优先使用 topics，否则使用 topic_candidates
 
         return {
             "summary": summary,
@@ -1175,6 +1181,12 @@ class LangGraphLiveWorkflow:
             "chat_focus": topic_text,
             "style_profile": style_profile,  # 由 style_profile_builder 节点生成（qwen3-max）
             "vibe": vibe,  # 由 mood_estimator 节点生成（本地计算）
+            "topics": topics,  # 添加 topics 字段（映射自 topic_candidates）
+            "topic_candidates": topic_candidates,  # 保留向后兼容
+            "persona": state.get("persona") or {},  # 确保 persona 字段存在
+            "chat_signals": state.get("chat_signals", []),  # 确保 chat_signals 字段存在
+            "analysis_card": state.get("analysis_card") or {},  # 确保 analysis_card 字段存在
+            "analysis_focus": state.get("analysis_focus") or "",  # 确保 analysis_focus 字段存在
         }
 
     # ------------------------------------------------------------------ fallback
