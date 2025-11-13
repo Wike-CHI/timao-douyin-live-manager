@@ -9,7 +9,19 @@ import type {
   LoginRequest,
   RegisterRequest,
   RegisterResponse,
+  PaymentUploadResponse,
+  PaymentPollResponse,
 } from '../types/api-types';
+
+// 重新导出类型，供其他模块使用
+export type { 
+  LoginResponse, 
+  RegisterResponse, 
+  UserInfo, 
+  UserResponse,
+  LoginRequest,
+  RegisterRequest
+};
 
 const getAuthBaseUrl = () => import.meta.env?.VITE_AUTH_BASE_URL?.trim() || undefined;
 
@@ -81,11 +93,11 @@ export const register = async (payload: RegisterRequest): Promise<RegisterRespon
   );
 };
 
-export const uploadPayment = async (file: File) => {
+export const uploadPayment = async (file: File): Promise<PaymentUploadResponse> => {
   const form = new FormData();
   form.append('file', file);
   const authHeaders = await authService.getAuthHeaders();
-  return apiCall(
+  return apiCall<PaymentUploadResponse>(
     () => fetch(buildAuthUrl('/api/payment/upload'), {
     method: 'POST',
     headers: authHeaders,
@@ -95,8 +107,8 @@ export const uploadPayment = async (file: File) => {
   );
 };
 
-export const pollPayment = async () => {
-  return apiCall(
+export const pollPayment = async (): Promise<PaymentPollResponse> => {
+  return apiCall<PaymentPollResponse>(
     () => fetchJsonWithAuth('main', '/api/payment/poll', {
     method: 'GET',
     }, getAuthBaseUrl()),

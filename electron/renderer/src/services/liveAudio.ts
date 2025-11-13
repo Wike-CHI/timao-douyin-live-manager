@@ -8,6 +8,9 @@ import type {
   LiveAudioAdvancedSettings,
 } from '../types/api-types';
 
+// 重新导出类型，供其他模块使用
+export type { LiveAudioStatus, LiveAudioMessage };
+
 export const startLiveAudio = async (payload: StartLiveAudioRequest) => {
   const body: Record<string, unknown> = {
     live_url: payload.live_url,

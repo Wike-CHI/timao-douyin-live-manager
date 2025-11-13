@@ -8,6 +8,7 @@ and stream results over WebSocket with delta/full messages, plus input level.
 
 from __future__ import annotations
 
+from ast import List
 import asyncio
 from typing import Any, Dict
 
