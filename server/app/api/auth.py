@@ -5,9 +5,9 @@
 
 import logging
 from typing import Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session  # pyright: ignore[reportMissingImports]
 
 from server.app.database import get_db_session
 from server.app.services.user_service import UserService
@@ -38,16 +38,24 @@ security = HTTPBearer()
 
 # 依赖注入：获取当前用户
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    token: Optional[str] = Query(None),  # 支持 URL query 参数
     db: Session = Depends(get_db_session)
 ) -> Optional[dict]:
-    """获取当前认证用户"""
+    """获取当前认证用户（支持Header或Query参数中的token）"""
     # 开发模式：强制禁用演示模式，使用真实用户系统
     # 不再检查 config.demo.enabled，始终使用真实用户认证
     
     try:
-        token = credentials.credentials
-        print(f"[DEBUG] 收到token: {token[:50]}...")
+        # 优先从 Header 获取，其次从 Query 参数
+        if credentials:
+            token_value = credentials.credentials
+        elif token:
+            token_value = token
+        else:
+            raise HTTPException(status_code=401, detail="未提供认证token")
+        
+        print(f"[DEBUG] 收到token: {token_value[:50] if token_value else 'None'}...")
         
         # 首先尝试JWT token验证
         from server.app.core.security import JWTManager

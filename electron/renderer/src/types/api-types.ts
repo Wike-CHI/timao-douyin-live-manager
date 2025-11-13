@@ -601,6 +601,32 @@ export interface PaymentStatistics {
 }
 
 /**
+ * 支付上传响应
+ */
+export interface PaymentUploadResponse {
+  success: boolean;
+  message?: string;
+  data?: {
+    upload_id?: string;
+    file_url?: string;
+  };
+}
+
+/**
+ * 支付轮询响应
+ */
+export interface PaymentPollResponse {
+  success: boolean;
+  message?: string;
+  status?: PaymentStatus | string;
+  data?: {
+    payment_status?: PaymentStatus | string;
+    verified?: boolean;
+    verified_at?: DateTimeString;
+  };
+}
+
+/**
  * 订阅统计信息
  */
 export interface SubscriptionStatistics {

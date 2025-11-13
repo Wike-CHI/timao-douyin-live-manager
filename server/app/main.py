@@ -8,7 +8,7 @@ from pathlib import Path
 import os
 import ssl
 import sys
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # pyright: ignore[reportMissingImports]
 load_dotenv()  # 加载 .env 文件
 import asyncio
 from urllib.parse import urlparse
@@ -16,7 +16,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # pyright: ignore[reportMissingImports]
 
 # 确保项目根目录在 Python 路径中（模块已迁移到 server/modules/）
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -54,7 +54,7 @@ def _disable_ssl_verify_if_requested() -> None:
         return
     ssl._create_default_https_context = ssl._create_unverified_context  # type: ignore[attr-defined]
     try:
-        import urllib3
+        import urllib3  # pyright: ignore[reportMissingImports]
 
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     except Exception:
