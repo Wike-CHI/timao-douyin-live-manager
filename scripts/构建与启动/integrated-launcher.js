@@ -3,7 +3,7 @@
 const { spawn, exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const PortManager = require('./port-manager');
+const PortManager = require('../诊断与排障/port-manager');
 
 /**
  * 一体化启动器
