@@ -12,7 +12,7 @@ class IntegratedLauncher {
     constructor() {
         this.portManager = new PortManager();
         this.processes = new Map();
-        this.projectRoot = path.resolve(__dirname, '..');
+        this.projectRoot = path.resolve(__dirname, '../..'); // scripts/构建与启动/ -> scripts -> 项目根目录
         this.isShuttingDown = false;
         
         // 绑定信号处理
