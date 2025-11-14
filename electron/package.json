@@ -1,6 +1,6 @@
 {
   "name": "ast-voice-transcription-app",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "语音转录服务桌面应用",
   "main": "main.js",
   "scripts": {

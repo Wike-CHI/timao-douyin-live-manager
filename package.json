@@ -1,7 +1,7 @@
 {
   "$schema": "./schemas/package.schema.json",
   "name": "timao-douyin-live-manager",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "抖音直播评论实时分析与AI话术生成工具",
   "main": "electron/main.js",
   "scripts": {
