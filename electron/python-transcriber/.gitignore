@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# 模型文件（太大，不上传）
+models/
+*.pth
+*.bin
+*.safetensors
+
+# 日志
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+

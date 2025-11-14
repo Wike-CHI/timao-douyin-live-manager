@@ -1547,6 +1547,11 @@ class LiveReportService:
                     json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
                 )
                 self._analysis.append(payload)
+                
+                # 🆕 内存优化：限制分析结果数量
+                if len(self._analysis) > 100:
+                    self._analysis = self._analysis[-50:]
+                    logger.debug(f"🧹 录制服务内存清理：analysis从{len(self._analysis) + 50}减少到50")
             except Exception:
                 pass
         except Exception:
@@ -1578,6 +1583,13 @@ class LiveReportService:
                 ev.setdefault("ts", int(time.time() * 1000))
                 ev.setdefault("source", "douyin")
                 self._comments.append(ev)
+                
+                # 🆕 内存优化：限制评论数量
+                if len(self._comments) > 10000:
+                    self._comments = self._comments[-5000:]
+                    import gc
+                    gc.collect()
+                    logger.info(f"🧹 录制服务内存清理：comments从10000减少到5000")
                 # aggregates
                 try:
                     et = ev.get("type")

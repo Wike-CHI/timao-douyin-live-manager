@@ -1,0 +1,48 @@
+{
+  "start_time": "2025-11-14T19:55:42.753602",
+  "end_time": "2025-11-14T19:55:42.948606",
+  "duration_seconds": 0.19500517845153809,
+  "test_passed": false,
+  "errors": [
+    "MySQL检查失败: cannot import name 'get_database' from 'server.app.database' (/www/wwwroot/wwwroot/timao-douyin-live-manager/server/app/database.py)",
+    "测试失败: 'LiveSessionManager' object has no attribute 'start_session'"
+  ],
+  "metrics": {
+    "mysql": {
+      "queries": 0,
+      "avg_query_time": 0,
+      "slow_queries": 0,
+      "errors": 0
+    },
+    "redis": {
+      "operations": 0,
+      "avg_operation_time": 0,
+      "cache_hits": 0,
+      "cache_misses": 0,
+      "errors": 0
+    },
+    "transcription": {
+      "segments_processed": 0,
+      "avg_processing_time": 0,
+      "errors": 0,
+      "vad_detections": 0
+    },
+    "ai_analysis": {
+      "analyses_performed": 0,
+      "avg_analysis_time": 0,
+      "cache_hits": 0,
+      "errors": 0
+    },
+    "danmu": {
+      "messages_received": 0,
+      "messages_processed": 0,
+      "avg_processing_time": 0,
+      "errors": 0
+    },
+    "system": {
+      "memory_usage_mb": [],
+      "cpu_usage_percent": [],
+      "active_connections": []
+    }
+  }
+}

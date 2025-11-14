@@ -1,0 +1,22 @@
+{
+  "session_id": "live_douyin_测试主播2_20251114_1763120642",
+  "live_url": "https://test.douyin.com/654321",
+  "live_id": "654321",
+  "room_id": null,
+  "anchor_name": "测试主播2",
+  "platform_key": "douyin",
+  "session_date": "2025-11-14",
+  "started_at": 1763120642934,
+  "last_updated_at": 1763120642935,
+  "status": "stopped",
+  "recording_active": false,
+  "audio_transcription_active": false,
+  "ai_analysis_active": false,
+  "douyin_relay_active": false,
+  "recording_session_id": null,
+  "audio_session_id": null,
+  "ai_session_id": null,
+  "douyin_session_id": null,
+  "last_error": null,
+  "metadata": {}
+}

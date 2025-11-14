@@ -50,6 +50,8 @@ class SenseVoiceConfig:
     We hard-lock the backend to SenseVoiceSmall and enable VAD by default.
     Streaming knobs are enabled so we can reuse SenseVoice incremental decoding,
     hotword biasing, and punctuation without hand-written heuristics.
+    
+    🔧 内存优化：减小chunk_size和look_back参数以降低内存峰值
     """
 
     # Prefer local checkout if present; otherwise fall back to ModelScope id.
@@ -65,9 +67,9 @@ class SenseVoiceConfig:
     batch_size: int = 1
     disable_update: bool = True
     enable_streaming: bool = True
-    chunk_size: int = 3200
-    chunk_shift: int = 800
-    encoder_chunk_look_back: int = 4
+    chunk_size: int = 1600  # 🔧 从3200降至1600，减少内存峰值
+    chunk_shift: int = 400  # 🔧 从800降至400，保持25%重叠率
+    encoder_chunk_look_back: int = 2  # 🔧 从4降至2，减少上下文缓存
     decoder_chunk_look_back: int = 1
     hotword_weight: float = 3.0
 
@@ -87,6 +89,15 @@ class SenseVoiceService:
         # 🔧 性能监控：内存和调用统计
         self._call_count: int = 0
         self._last_memory_check: float = 0.0
+        
+        # 🔒 并发控制：防止多音频流死锁
+        self._model_lock = asyncio.Lock()  # 模型调用互斥锁
+        self._max_concurrent = 2  # 最大并发转写数（适配7.4GB内存）
+        self._semaphore = asyncio.Semaphore(self._max_concurrent)  # 并发信号量
+        self._timeout_seconds = 10.0  # 单次转写超时时间
+        self._active_requests: int = 0  # 当前活跃请求数
+        self._total_timeouts: int = 0  # 超时计数
+        self._total_errors: int = 0  # 错误计数
 
         # Enforce Small model only. If an external caller passed Medium/Large,
         # normalize it back to Small. Local paths that already point to
@@ -296,7 +307,10 @@ class SenseVoiceService:
         session_id: Optional[str] = None,
         bias_phrases: Optional[Iterable[str]] = None,
     ) -> Dict[str, Any]:
-        """Transcribe a raw PCM chunk (16-bit mono, 16 kHz)."""
+        """Transcribe a raw PCM chunk (16-bit mono, 16 kHz).
+        
+        🔒 并发安全：使用信号量限制并发数，使用锁保护模型调用，添加超时防止死锁
+        """
 
         # 如果模型未初始化或缺少依赖包，使用模拟转录
         if not self.is_initialized or not FUNASR_AVAILABLE:
@@ -312,27 +326,76 @@ class SenseVoiceService:
                 "words": [],
             }
         
-        # 🔧 性能监控：每100次调用检查一次内存
+        # 🔒 并发控制：获取信号量，限制同时转写数量
+        try:
+            async with self._semaphore:
+                self._active_requests += 1
+                try:
+                    # 🔒 添加超时保护，防止死锁
+                    result = await asyncio.wait_for(
+                        self._transcribe_with_lock(audio_data, session_id, bias_phrases),
+                        timeout=self._timeout_seconds
+                    )
+                    return result
+                except asyncio.TimeoutError:
+                    self._total_timeouts += 1
+                    self.logger.error(
+                        f"⏱️ 转写超时 ({self._timeout_seconds}秒)，会话: {session_id}, "
+                        f"累计超时: {self._total_timeouts}次"
+                    )
+                    return {
+                        "success": False,
+                        "type": "error",
+                        "text": "",
+                        "confidence": 0.0,
+                        "timestamp": time.time(),
+                        "words": [],
+                        "error": f"转写超时({self._timeout_seconds}秒)",
+                    }
+                finally:
+                    self._active_requests -= 1
+        except Exception as exc:
+            self._total_errors += 1
+            self.logger.error(f"❌ 转写失败: {exc}")
+            return self._mock_transcribe(audio_data)
+    
+    async def _transcribe_with_lock(
+        self,
+        audio_data: bytes,
+        session_id: Optional[str],
+        bias_phrases: Optional[Iterable[str]],
+    ) -> Dict[str, Any]:
+        """使用锁保护的转写实现，防止模型并发调用冲突"""
+        
+        # 🔧 性能监控：每20次调用检查一次内存（更频繁监控）
         self._call_count += 1
         current_time = time.time()
         
-        if self._call_count % 100 == 0 or (current_time - self._last_memory_check > 300):  # 5分钟
+        if self._call_count % 20 == 0 or (current_time - self._last_memory_check > 60):  # 1分钟
             self._last_memory_check = current_time
             try:
                 import gc
-                import psutil
+                import psutil  # pyright: ignore[reportMissingModuleSource]
                 process = psutil.Process()
                 memory_mb = process.memory_info().rss / 1024 / 1024
                 
-                if memory_mb > 3500:  # 超过3.5GB发出警告
-                    self.logger.warning(f"⚠️ SenseVoice内存占用: {memory_mb:.0f}MB (调用次数: {self._call_count})")
-                    # 执行垃圾回收
+                # 更积极的内存管理策略
+                if memory_mb > 2000:  # 超过2GB开始垃圾回收
                     gc.collect()
                     
-                    if memory_mb > 4500:  # 超过4.5GB，记录严重警告
+                if memory_mb > 2500:  # 超过2.5GB发出警告
+                    self.logger.warning(
+                        f"⚠️ SenseVoice内存: {memory_mb:.0f}MB, 活跃请求: {self._active_requests}, "
+                        f"调用: {self._call_count}, 超时: {self._total_timeouts}, 错误: {self._total_errors}"
+                    )
+                    
+                    if memory_mb > 3000:  # 超过3GB，记录严重警告
                         self.logger.error(f"❌ SenseVoice内存占用严重: {memory_mb:.0f}MB，建议重启服务")
-                elif self._call_count % 500 == 0:  # 每500次正常记录
-                    self.logger.debug(f"✅ SenseVoice运行正常: 内存{memory_mb:.0f}MB, 调用{self._call_count}次")
+                elif self._call_count % 100 == 0:  # 每100次正常记录
+                    self.logger.debug(
+                        f"✅ SenseVoice运行正常: 内存{memory_mb:.0f}MB, 活跃{self._active_requests}, "
+                        f"调用{self._call_count}次"
+                    )
             except Exception as e:
                 self.logger.debug(f"内存监控失败: {e}")
 
@@ -453,6 +516,11 @@ class SenseVoiceService:
                     text = self._extract_text(raw_results)
                     words = self._extract_words(raw_results, text, audio_sec)
                     confidence = self._extract_confidence(raw_results, default=0.9 if text else 0.0)
+                    
+                    # 🔧 立即释放音频数据和结果，减少内存占用
+                    del speech
+                    del raw_results
+                    
                     return {
                         "success": True,
                         "type": "final",
@@ -479,7 +547,9 @@ class SenseVoiceService:
                 self.logger.error("SenseVoice transcription failed: %s", exc)
                 return self._mock_transcribe(audio_data)
 
-        return await loop.run_in_executor(None, _infer)
+        # 🔒 使用锁保护模型调用，防止多音频流并发冲突
+        async with self._model_lock:
+            return await loop.run_in_executor(None, _infer)
 
     def _mock_transcribe(self, audio_data: bytes) -> Dict[str, Any]:
         """模拟转录功能"""
@@ -512,6 +582,25 @@ class SenseVoiceService:
             "vad_model_id": self.config.vad_model_id,
             "punc_model_id": self.config.punc_model_id,
             "initialized": self.is_initialized,
+        }
+    
+    def get_service_status(self) -> Dict[str, Any]:
+        """获取服务运行状态（并发控制、性能统计）"""
+        return {
+            "initialized": self.is_initialized,
+            "device": self._device,
+            "call_count": self._call_count,
+            "active_requests": self._active_requests,
+            "max_concurrent": self._max_concurrent,
+            "timeout_seconds": self._timeout_seconds,
+            "total_timeouts": self._total_timeouts,
+            "total_errors": self._total_errors,
+            "config": {
+                "chunk_size": self.config.chunk_size,
+                "chunk_shift": self.config.chunk_shift,
+                "encoder_chunk_look_back": self.config.encoder_chunk_look_back,
+                "batch_size": self.config.batch_size,
+            }
         }
 
     def _compose_hotword_payload(

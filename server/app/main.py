@@ -118,6 +118,56 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# ========== 应用生命周期事件 ==========
+@app.on_event("startup")
+async def startup_event():
+    """应用启动时初始化"""
+    logging.info("=" * 60)
+    logging.info("🚀 应用启动中...")
+    logging.info("=" * 60)
+    
+    # 初始化Redis管理器
+    try:
+        from server.utils.redis_manager import init_redis
+        from server.config import config_manager
+        
+        redis_config = config_manager.config.redis
+        redis_manager = init_redis(redis_config)
+        
+        if redis_manager:
+            logging.info("✅ Redis管理器已初始化")
+            logging.info(f"   - 主机: {redis_config.host}:{redis_config.port}")
+            logging.info(f"   - 数据库: {redis_config.db}")
+            logging.info(f"   - 最大连接数: {redis_config.max_connections}")
+        else:
+            logging.warning("⚠️  Redis管理器初始化失败，将使用内存回退")
+    except Exception as e:
+        logging.error(f"❌ Redis初始化失败: {e}")
+        logging.info("   将继续使用内存回退模式")
+    
+    logging.info("=" * 60)
+    logging.info("✅ 应用启动完成")
+    logging.info("=" * 60)
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """应用关闭时清理"""
+    logging.info("=" * 60)
+    logging.info("🛑 应用关闭中...")
+    logging.info("=" * 60)
+    
+    # 关闭Redis连接
+    try:
+        from server.utils.redis_manager import close_redis
+        close_redis()
+        logging.info("✅ Redis连接已关闭")
+    except Exception as e:
+        logging.error(f"❌ Redis关闭失败: {e}")
+    
+    logging.info("=" * 60)
+    logging.info("✅ 应用已关闭")
+    logging.info("=" * 60)
+
 # 🔧 CORS配置 - 部署阶段：允许所有来源访问（KISS原则）
 # ⚠️ 生产环境建议限制具体来源
 _CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"]
@@ -237,6 +287,7 @@ _include_router_safe("订阅管理", "server.app.api.subscription")
 # payment.py 已移除，统一使用 subscription.py
 _include_router_safe("管理员", "server.app.api.admin")
 _include_router_safe("直播评论管理", "server.app.api.live_comments")
+_include_router_safe("模型状态", "server.app.api.model_status")  # 🆕 SenseVoice+VAD 模型状态查询
 
 # WebSocket 服务已迁移到 FastAPI 原生 WebSocket 实现
 # 原 Flask WebSocket 处理器已归档到 docs/legacy_flask_code/
@@ -405,6 +456,16 @@ async def startup_event():
         import traceback
         logging.error(traceback.format_exc())
     
+    # 🆕 启动内存监控服务
+    try:
+        from server.app.services.memory_monitor import get_memory_monitor
+        memory_monitor = get_memory_monitor()
+        await memory_monitor.start()
+        log_service_start("内存监控服务")
+        logging.info("✅ 内存监控服务已启动")
+    except Exception as e:
+        logging.warning(f"⚠️ 内存监控服务启动失败: {e}")
+    
     try:
         start_websocket_services()
         log_service_start("WebSocket服务")
@@ -436,6 +497,16 @@ async def shutdown_event():
     """应用关闭"""
     logging.info("🐱 提猫直播助手正在关闭...")
     log_service_stop("FastAPI主服务")
+    
+    # 🆕 停止内存监控服务
+    try:
+        from server.app.services.memory_monitor import get_memory_monitor
+        memory_monitor = get_memory_monitor()
+        await memory_monitor.stop()
+        log_service_stop("内存监控服务")
+        logging.info("✅ 内存监控服务已停止")
+    except Exception as e:
+        logging.warning(f"⚠️ 内存监控服务停止失败: {e}")
     
     # 关闭 Redis 连接
     try:

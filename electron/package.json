@@ -27,6 +27,18 @@
     "directories": {
       "output": "dist"
     },
+    "extraResources": [
+      {
+        "from": "python-transcriber/dist/transcriber_service${/*}",
+        "to": "python-transcriber",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "python-transcriber/models",
+        "to": "python-transcriber/models",
+        "filter": ["**/*"]
+      }
+    ],
     "win": {
       "target": [
         {
@@ -38,6 +50,13 @@
     },
     "portable": {
       "artifactName": "TalkingCat-Portable-${version}-${arch}.exe"
-    }
+    },
+    "files": [
+      "**/*",
+      "!python-transcriber/venv/**",
+      "!python-transcriber/build/**",
+      "!python-transcriber/__pycache__/**",
+      "!python-transcriber/*.spec"
+    ]
   }
 }

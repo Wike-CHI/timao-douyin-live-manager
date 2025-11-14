@@ -37,6 +37,7 @@ class RedisManager:
         self._mem_hash: Dict[str, Dict[str, Any]] = {}
         self._mem_list: Dict[str, List[Any]] = {}
         self._mem_set: Dict[str, Set[Any]] = {}
+        self._mem_zset: Dict[str, List[tuple]] = {}  # sorted set: [(member, score), ...]
         self._mem_expiry: Dict[str, float] = {}
         
         if self._enabled:
@@ -110,6 +111,7 @@ class RedisManager:
             self._mem_hash.pop(key, None)
             self._mem_list.pop(key, None)
             self._mem_set.pop(key, None)
+            self._mem_zset.pop(key, None)
 
     def _set_expiry(self, key: str, ttl: Optional[int]) -> None:
         if ttl is None:
@@ -240,6 +242,9 @@ class RedisManager:
                     if k in self._mem_set:
                         self._mem_set.pop(k, None)
                         removed = True
+                    if k in self._mem_zset:
+                        self._mem_zset.pop(k, None)
+                        removed = True
                     self._mem_expiry.pop(k, None)
                     if removed:
                         count += 1
@@ -269,7 +274,7 @@ class RedisManager:
                 for key in keys:
                     k = self._get_key(key)
                     self._cleanup_if_expired(k)
-                    if k in self._mem_kv or k in self._mem_hash or k in self._mem_list or k in self._mem_set:
+                    if k in self._mem_kv or k in self._mem_hash or k in self._mem_list or k in self._mem_set or k in self._mem_zset:
                         cnt += 1
                 return cnt
             return 0
@@ -296,7 +301,7 @@ class RedisManager:
             if self._use_memory:
                 k = self._get_key(key)
                 self._cleanup_if_expired(k)
-                if k in self._mem_kv or k in self._mem_hash or k in self._mem_list or k in self._mem_set:
+                if k in self._mem_kv or k in self._mem_hash or k in self._mem_list or k in self._mem_set or k in self._mem_zset:
                     self._set_expiry(k, seconds)
                     return True
                 return False
@@ -322,7 +327,7 @@ class RedisManager:
             if self._use_memory:
                 k = self._get_key(key)
                 self._cleanup_if_expired(k)
-                if not (k in self._mem_kv or k in self._mem_hash or k in self._mem_list or k in self._mem_set):
+                if not (k in self._mem_kv or k in self._mem_hash or k in self._mem_list or k in self._mem_set or k in self._mem_zset):
                     return -2
                 exp = self._mem_expiry.get(k)
                 if exp is None:
@@ -428,14 +433,15 @@ class RedisManager:
             logger.warning(f"Redis hget 失败 [{name}.{key}]: {e}")
             return None
     
-    def hset(self, name: str, key: str, value: Any) -> bool:
+    def hset(self, name: str, key: str = None, value: Any = None, mapping: dict = None) -> bool:
         """
-        设置哈希表字段值
+        设置哈希表字段值（支持单个字段或批量设置）
         
         Args:
             name: 哈希表名
-            key: 字段名
-            value: 字段值
+            key: 字段名（单个设置时使用）
+            value: 字段值（单个设置时使用）
+            mapping: 字段字典（批量设置时使用）
             
         Returns:
             是否设置成功
@@ -448,20 +454,50 @@ class RedisManager:
                 if table is None:
                     table = {}
                     self._mem_hash[n] = table
-                table[key] = value
+                
+                # 批量设置
+                if mapping:
+                    table.update(mapping)
+                # 单个设置
+                elif key is not None and value is not None:
+                    table[key] = value
+                else:
+                    logger.warning("hset需要提供key+value或mapping参数")
+                    return False
                 return True
             return False
         
         try:
-            # 序列化值
-            if isinstance(value, (dict, list, tuple)):
-                value = json.dumps(value, ensure_ascii=False)
-            elif not isinstance(value, str):
-                value = str(value)
+            # 批量设置
+            if mapping:
+                # 序列化mapping中的值
+                serialized_mapping = {}
+                for k, v in mapping.items():
+                    if isinstance(v, (dict, list, tuple)):
+                        serialized_mapping[k] = json.dumps(v, ensure_ascii=False)
+                    elif not isinstance(v, str):
+                        serialized_mapping[k] = str(v)
+                    else:
+                        serialized_mapping[k] = v
+                
+                return bool(self._client.hset(self._get_key(name), mapping=serialized_mapping))
             
-            return bool(self._client.hset(self._get_key(name), key, value))
+            # 单个设置
+            elif key is not None and value is not None:
+                # 序列化值
+                if isinstance(value, (dict, list, tuple)):
+                    value = json.dumps(value, ensure_ascii=False)
+                elif not isinstance(value, str):
+                    value = str(value)
+                
+                return bool(self._client.hset(self._get_key(name), key, value))
+            
+            else:
+                logger.warning("hset需要提供key+value或mapping参数")
+                return False
+                
         except RedisError as e:
-            logger.warning(f"Redis hset 失败 [{name}.{key}]: {e}")
+            logger.warning(f"Redis hset 失败 [{name}]: {e}")
             return False
     
     def hgetall(self, name: str) -> dict:
@@ -826,6 +862,7 @@ class RedisManager:
                 self._mem_hash.clear()
                 self._mem_list.clear()
                 self._mem_set.clear()
+                self._mem_zset.clear()
                 self._mem_expiry.clear()
                 return True
             return False
@@ -844,7 +881,7 @@ class RedisManager:
             是否连接正常
         """
         if not self.is_enabled():
-            # 在使用内存回退时，认为“缓存后端可用”
+            # 在使用内存回退时，认为"缓存后端可用"
             if self._use_memory:
                 return True
             return False
@@ -854,6 +891,354 @@ class RedisManager:
         except RedisError as e:
             logger.warning(f"Redis ping 失败: {e}")
             return False
+    
+    # ===== Sorted Set (有序集合) 操作 =====
+    def zadd(self, key: str, mapping: Dict[str, float], nx: bool = False, xx: bool = False) -> Optional[int]:
+        """
+        向有序集合添加成员
+        
+        Args:
+            key: 有序集合键
+            mapping: 成员-分数映射，如 {"member1": 1.0, "member2": 2.0}
+            nx: 仅当成员不存在时添加
+            xx: 仅当成员存在时更新
+            
+        Returns:
+            添加的成员数量
+        """
+        if not self.is_enabled() or not mapping:
+            if not self.is_enabled() and self._use_memory and mapping:
+                k = self._get_key(key)
+                self._cleanup_if_expired(k)
+                zset = self._mem_zset.get(k)
+                if zset is None:
+                    zset = []
+                    self._mem_zset[k] = zset
+                
+                # 转换为字典以便快速查找
+                zset_dict = {member: score for member, score in zset}
+                added_count = 0
+                
+                for member, score in mapping.items():
+                    # 序列化成员
+                    if isinstance(member, (dict, list, tuple)):
+                        member_str = json.dumps(member, ensure_ascii=False)
+                    elif not isinstance(member, str):
+                        member_str = str(member)
+                    else:
+                        member_str = member
+                    
+                    exists = member_str in zset_dict
+                    
+                    # 检查 nx/xx 条件
+                    if nx and exists:
+                        continue
+                    if xx and not exists:
+                        continue
+                    
+                    # 添加或更新
+                    if not exists:
+                        added_count += 1
+                    zset_dict[member_str] = float(score)
+                
+                # 更新 zset
+                self._mem_zset[k] = [(member, score) for member, score in zset_dict.items()]
+                return added_count
+            return None
+        
+        try:
+            # 序列化键
+            serialized_mapping = {}
+            for member, score in mapping.items():
+                if isinstance(member, (dict, list, tuple)):
+                    serialized_mapping[json.dumps(member, ensure_ascii=False)] = float(score)
+                elif not isinstance(member, str):
+                    serialized_mapping[str(member)] = float(score)
+                else:
+                    serialized_mapping[member] = float(score)
+            
+            return self._client.zadd(self._get_key(key), serialized_mapping, nx=nx, xx=xx)
+        except RedisError as e:
+            logger.warning(f"Redis zadd 失败 [{key}]: {e}")
+            return None
+    
+    def zincrby(self, key: str, amount: float, member: str) -> Optional[float]:
+        """
+        增加有序集合成员的分数
+        
+        Args:
+            key: 有序集合键
+            amount: 增加的分数
+            member: 成员
+            
+        Returns:
+            新的分数
+        """
+        if not self.is_enabled():
+            if self._use_memory:
+                k = self._get_key(key)
+                self._cleanup_if_expired(k)
+                zset = self._mem_zset.get(k)
+                if zset is None:
+                    zset = []
+                    self._mem_zset[k] = zset
+                
+                # 序列化成员
+                if isinstance(member, (dict, list, tuple)):
+                    member_str = json.dumps(member, ensure_ascii=False)
+                elif not isinstance(member, str):
+                    member_str = str(member)
+                else:
+                    member_str = member
+                
+                # 查找成员
+                zset_dict = {m: s for m, s in zset}
+                current_score = zset_dict.get(member_str, 0.0)
+                new_score = current_score + float(amount)
+                zset_dict[member_str] = new_score
+                
+                # 更新 zset
+                self._mem_zset[k] = [(m, s) for m, s in zset_dict.items()]
+                return new_score
+            return None
+        
+        try:
+            # 序列化成员
+            if isinstance(member, (dict, list, tuple)):
+                member_str = json.dumps(member, ensure_ascii=False)
+            elif not isinstance(member, str):
+                member_str = str(member)
+            else:
+                member_str = member
+            
+            return self._client.zincrby(self._get_key(key), float(amount), member_str)
+        except RedisError as e:
+            logger.warning(f"Redis zincrby 失败 [{key}]: {e}")
+            return None
+    
+    def zrem(self, key: str, *members: str) -> Optional[int]:
+        """
+        从有序集合删除成员
+        
+        Args:
+            key: 有序集合键
+            *members: 要删除的成员
+            
+        Returns:
+            删除的成员数量
+        """
+        if not self.is_enabled() or not members:
+            if not self.is_enabled() and self._use_memory and members:
+                k = self._get_key(key)
+                self._cleanup_if_expired(k)
+                zset = self._mem_zset.get(k)
+                if not zset:
+                    return 0
+                
+                # 序列化成员
+                serialized_members = []
+                for member in members:
+                    if isinstance(member, (dict, list, tuple)):
+                        serialized_members.append(json.dumps(member, ensure_ascii=False))
+                    elif not isinstance(member, str):
+                        serialized_members.append(str(member))
+                    else:
+                        serialized_members.append(member)
+                
+                # 删除成员
+                removed_count = 0
+                zset_dict = {m: s for m, s in zset}
+                for member in serialized_members:
+                    if member in zset_dict:
+                        del zset_dict[member]
+                        removed_count += 1
+                
+                # 更新 zset
+                self._mem_zset[k] = [(m, s) for m, s in zset_dict.items()]
+                if not self._mem_zset[k]:
+                    self._mem_zset.pop(k, None)
+                
+                return removed_count
+            return None
+        
+        try:
+            # 序列化成员
+            serialized_members = []
+            for member in members:
+                if isinstance(member, (dict, list, tuple)):
+                    serialized_members.append(json.dumps(member, ensure_ascii=False))
+                elif not isinstance(member, str):
+                    serialized_members.append(str(member))
+                else:
+                    serialized_members.append(member)
+            
+            return self._client.zrem(self._get_key(key), *serialized_members)
+        except RedisError as e:
+            logger.warning(f"Redis zrem 失败 [{key}]: {e}")
+            return None
+    
+    def zrange(self, key: str, start: int, end: int, withscores: bool = False) -> list:
+        """
+        获取有序集合范围内的成员（按分数从小到大）
+        
+        Args:
+            key: 有序集合键
+            start: 起始索引
+            end: 结束索引（-1 表示到末尾）
+            withscores: 是否返回分数
+            
+        Returns:
+            成员列表，如果 withscores=True 则返回 [(member, score), ...]
+        """
+        if not self.is_enabled():
+            if self._use_memory:
+                k = self._get_key(key)
+                self._cleanup_if_expired(k)
+                zset = self._mem_zset.get(k, [])
+                
+                # 按分数排序
+                sorted_zset = sorted(zset, key=lambda x: x[1])
+                
+                # 处理索引
+                n = len(sorted_zset)
+                s = start if start >= 0 else n + start
+                e = end if end >= 0 else n + end
+                s = max(s, 0)
+                e = min(e, n - 1)
+                
+                if s > e or n == 0:
+                    return []
+                
+                result = sorted_zset[s:e + 1]
+                
+                if withscores:
+                    return result
+                else:
+                    return [member for member, score in result]
+            return []
+        
+        try:
+            return self._client.zrange(self._get_key(key), start, end, withscores=withscores)
+        except RedisError as e:
+            logger.warning(f"Redis zrange 失败 [{key}]: {e}")
+            return []
+    
+    def zrevrange(self, key: str, start: int, end: int, withscores: bool = False) -> list:
+        """
+        获取有序集合范围内的成员（按分数从大到小）
+        
+        Args:
+            key: 有序集合键
+            start: 起始索引
+            end: 结束索引（-1 表示到末尾）
+            withscores: 是否返回分数
+            
+        Returns:
+            成员列表，如果 withscores=True 则返回 [(member, score), ...]
+        """
+        if not self.is_enabled():
+            if self._use_memory:
+                k = self._get_key(key)
+                self._cleanup_if_expired(k)
+                zset = self._mem_zset.get(k, [])
+                
+                # 按分数排序（降序）
+                sorted_zset = sorted(zset, key=lambda x: x[1], reverse=True)
+                
+                # 处理索引
+                n = len(sorted_zset)
+                s = start if start >= 0 else n + start
+                e = end if end >= 0 else n + end
+                s = max(s, 0)
+                e = min(e, n - 1)
+                
+                if s > e or n == 0:
+                    return []
+                
+                result = sorted_zset[s:e + 1]
+                
+                if withscores:
+                    return result
+                else:
+                    return [member for member, score in result]
+            return []
+        
+        try:
+            return self._client.zrevrange(self._get_key(key), start, end, withscores=withscores)
+        except RedisError as e:
+            logger.warning(f"Redis zrevrange 失败 [{key}]: {e}")
+            return []
+    
+    def zscore(self, key: str, member: str) -> Optional[float]:
+        """
+        获取有序集合成员的分数
+        
+        Args:
+            key: 有序集合键
+            member: 成员
+            
+        Returns:
+            分数，如果成员不存在则返回 None
+        """
+        if not self.is_enabled():
+            if self._use_memory:
+                k = self._get_key(key)
+                self._cleanup_if_expired(k)
+                zset = self._mem_zset.get(k, [])
+                
+                # 序列化成员
+                if isinstance(member, (dict, list, tuple)):
+                    member_str = json.dumps(member, ensure_ascii=False)
+                elif not isinstance(member, str):
+                    member_str = str(member)
+                else:
+                    member_str = member
+                
+                # 查找成员
+                for m, score in zset:
+                    if m == member_str:
+                        return float(score)
+                
+                return None
+            return None
+        
+        try:
+            # 序列化成员
+            if isinstance(member, (dict, list, tuple)):
+                member_str = json.dumps(member, ensure_ascii=False)
+            elif not isinstance(member, str):
+                member_str = str(member)
+            else:
+                member_str = member
+            
+            return self._client.zscore(self._get_key(key), member_str)
+        except RedisError as e:
+            logger.warning(f"Redis zscore 失败 [{key}]: {e}")
+            return None
+    
+    def zcard(self, key: str) -> int:
+        """
+        获取有序集合的成员数量
+        
+        Args:
+            key: 有序集合键
+            
+        Returns:
+            成员数量
+        """
+        if not self.is_enabled():
+            if self._use_memory:
+                k = self._get_key(key)
+                self._cleanup_if_expired(k)
+                zset = self._mem_zset.get(k, [])
+                return len(zset)
+            return 0
+        
+        try:
+            return self._client.zcard(self._get_key(key))
+        except RedisError as e:
+            logger.warning(f"Redis zcard 失败 [{key}]: {e}")
+            return 0
     
     def close(self) -> None:
         """关闭 Redis 连接"""

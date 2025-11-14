@@ -175,12 +175,12 @@ class DatabaseConfig:
     mysql_root_password: str = "123456"  # 从环境变量 MYSQL_ROOT_PASSWORD 读取，默认123456
     mysql_auto_create_user: bool = False  # RDS不需要自动创建用户
     
-    # 连接池配置
-    pool_size: int = 20
-    pool_timeout: int = 30
-    pool_recycle: int = 3600
+    # 连接池配置 - 优化以支持50+直播会话并发
+    pool_size: int = 50  # 从20增加到50，支持更多并发会话
+    pool_timeout: int = 60  # 从30增加到60秒，减少连接等待超时
+    pool_recycle: int = 1800  # 从3600减少到1800秒（30分钟），避免连接过期
     pool_pre_ping: bool = True  # 连接前测试
-    max_overflow: int = 10  # 最大溢出连接数
+    max_overflow: int = 20  # 从10增加到20，提供更多临时连接
     
     # 备份配置
     backup_enabled: bool = True
