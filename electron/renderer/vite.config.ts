@@ -9,7 +9,7 @@ const devCsp = [
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
-  "connect-src 'self' ws://127.0.0.1:* ws://localhost:* ws://129.211.218.135 ws://129.211.218.135:8181 ws://129.211.218.135:* wss://129.211.218.135:* http://127.0.0.1:* http://localhost:* http://129.211.218.135 http://129.211.218.135:8181 http://129.211.218.135:* https:",
+  "connect-src 'self' ws://127.0.0.1:* ws://localhost:* ws://129.211.218.135 ws://129.211.218.135:11111 ws://129.211.218.135:* wss://129.211.218.135:* http://127.0.0.1:* http://localhost:* http://129.211.218.135 http://129.211.218.135:11111 http://129.211.218.135:* https:",
   "font-src 'self' data:",
 ];
 

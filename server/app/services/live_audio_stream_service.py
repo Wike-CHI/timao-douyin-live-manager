@@ -28,23 +28,11 @@ from typing import Any, Awaitable, Callable, Deque, Dict, List, Optional
 # StreamCap platform handler (resolve real stream URL from live URL)
 from server.modules.streamcap.platforms import get_platform_handler  # type: ignore
 
-# SenseVoice (batch API)
+# SenseVoice (batch API) - 本地PyTorch模型 + VAD
 from server.modules.ast.sensevoice_service import (  # type: ignore
     SenseVoiceConfig,
     SenseVoiceService,
 )
-
-# 🆕 科大讯飞ASR（临时替代方案）
-try:
-    from server.modules.ast.iflytek_asr_adapter import (  # type: ignore
-        IFlyTekASRService,
-        IFlyTekConfig,
-    )
-    IFLYTEK_AVAILABLE = True
-except ImportError:
-    IFlyTekASRService = None  # type: ignore
-    IFlyTekConfig = None  # type: ignore
-    IFLYTEK_AVAILABLE = False
 
 # ACRCloud (optional music recognition)
 try:
@@ -783,43 +771,10 @@ class LiveAudioStreamService:
 
     # ---------- Internals ----------
     async def _ensure_sv(self) -> None:
-        """Ensure ASR service is loaded (SenseVoice or IFlyTek).
-        
-        🆕 支持科大讯飞ASR作为临时替代方案：
-        设置环境变量 USE_IFLYTEK_ASR=1 启用科大讯飞
-        """
-        # 🆕 检查是否使用科大讯飞
-        use_iflytek = os.getenv("USE_IFLYTEK_ASR", "0") == "1"
-        
-        if use_iflytek and IFLYTEK_AVAILABLE:
-            # 使用科大讯飞ASR
-            if self._sv is not None:
-                backend = (self._sv.get_model_info() or {}).get("backend")  # type: ignore
-                if backend == "iflytek":
-                    return  # 已经加载科大讯飞
-                # 切换到科大讯飞，清理旧服务
-                try:
-                    await self._sv.cleanup()  # type: ignore
-                except Exception:
-                    pass
-                self._sv = None
-            
-            if self._sv is None:
-                self.logger.info("🔄 使用科大讯飞ASR服务（临时替代方案）")
-                self._sv = IFlyTekASRService()  # type: ignore
-                ok = await self._sv.initialize()  # type: ignore
-                if not ok:
-                    self.logger.error("❌ 科大讯飞ASR初始化失败，回退到SenseVoice")
-                    use_iflytek = False
-                    self._sv = None
-                else:
-                    self.logger.info("✅ 科大讯飞ASR已启用")
-                    return
-        
-        # 使用SenseVoice（默认）
+        """确保SenseVoice ASR服务已加载（使用本地PyTorch模型 + VAD）"""
         def _resolve_small_model_id() -> str:
             root = Path(__file__).resolve().parents[3]
-            local_dir = root / "models" / "models" / "iic" / "SenseVoiceSmall"
+            local_dir = root / "server" / "models" / "models" / "iic" / "SenseVoiceSmall"
             try:
                 if local_dir.exists():
                     return str(local_dir)
@@ -829,7 +784,7 @@ class LiveAudioStreamService:
 
         def _resolve_vad_model_id() -> str:
             root = Path(__file__).resolve().parents[3]
-            local_vad = root / "models" / "models" / "iic" / "speech_fsmn_vad_zh-cn-16k-common-pytorch"
+            local_vad = root / "server" / "models" / "models" / "iic" / "speech_fsmn_vad_zh-cn-16k-common-pytorch"
             try:
                 if local_vad.exists():
                     return str(local_vad)
@@ -838,31 +793,34 @@ class LiveAudioStreamService:
             return "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
 
         desired_mid = _resolve_small_model_id()
-        # If already loaded with desired id, keep it
+        # 如果已经加载了所需的模型，保持不变
         if self._sv is not None:
             try:
-                backend = (self._sv.get_model_info() or {}).get("backend")  # type: ignore
-                if backend == "sensevoice" or backend is None:  # None表示是SenseVoice
                     cur = (self._sv.get_model_info() or {}).get("model_id")  # type: ignore
                     if cur and str(cur) == desired_mid:
                         return
             except Exception:
                 pass
+            # 清理旧服务
             try:
                 await self._sv.cleanup()  # type: ignore
             except Exception:
                 pass
             self._sv = None
 
+        # 初始化SenseVoice服务
         cfg = SenseVoiceConfig(model_id=desired_mid, vad_model_id=_resolve_vad_model_id())
         sv = SenseVoiceService(cfg)
+        
         ok = await sv.initialize()
         if ok:
             self._sv = sv
             self._model_size = "small"
+            self.logger.info("✅ SenseVoice + VAD 初始化成功（本地PyTorch模型）")
             return
-        # Failed to init
+        # 初始化失败
         self._sv = None
+        self.logger.error("❌ SenseVoice初始化失败")
 
     async def _read_loop(self) -> None:
         assert self._ffmpeg and self._ffmpeg.stdout
@@ -1772,7 +1730,7 @@ class LiveAudioStreamService:
         return self._model_size
 
     async def preload_model(self, size: str) -> None:
-        # Only preload small; ignore others
+        # 只预加载SenseVoice Small模型
         try:
             self._preload_busy.add("small")
             tmp = SenseVoiceService(SenseVoiceConfig(model_id="iic/SenseVoiceSmall"))

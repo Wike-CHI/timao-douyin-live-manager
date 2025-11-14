@@ -3,12 +3,15 @@ import { Link, useNavigate } from 'react-router-dom';
 import { login, type LoginResponse } from '../../services/auth';
 import useAuthStore from '../../store/useAuthStore';
 import useAccountStore from '../../store/useAccountStore';
+import { useLiveConsoleStore } from '../../store/useLiveConsoleStore';
+import { cleanupLiveData } from '../../utils/dataCleanup';
 import TermsModal from '../../components/TermsModal';
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const { setAuth, rememberMe, setRememberMe } = useAuthStore();
   const { saveAccount, getSortedAccounts, removeAccount } = useAccountStore();
+  const { clearAllData } = useLiveConsoleStore();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -54,6 +57,15 @@ const LoginPage = () => {
         remember_me: rememberMe  // 传递"记住我"状态
       });
       if (response.success) {
+        // 🧹 清理旧用户的直播控制台数据，防止数据残留
+        console.log('🧹 正在清理旧的直播控制台数据...');
+        
+        // 1. 清理 Zustand store 中的数据
+        clearAllData();
+        
+        // 2. 清理 storage 中的临时数据
+        cleanupLiveData();
+        
         // 登录成功后保存账号密码
         if (savePassword) {
           saveAccount(email, password, response.user.nickname || response.user.username);
@@ -67,6 +79,8 @@ const LoginPage = () => {
           isPaid: response.isPaid
         });
 
+        console.log('✅ 登录成功，数据已清理');
+        
         // 登录成功后总是跳转到主页（对未付费用户更友好）
         navigate('/dashboard', { replace: true });
       }

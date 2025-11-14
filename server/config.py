@@ -9,7 +9,7 @@ import logging
 from typing import Dict, Any, Optional, Union
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # pyright: ignore[reportMissingImports]
 
 from server.utils.helpers import read_json_file, write_json_file, safe_get
 
@@ -21,8 +21,8 @@ load_dotenv()
 class ServerConfig:
     """服务器配置"""
     host: str = "127.0.0.1"
-    # 后端端口硬编码为 8181
-    port: int = 8181
+    # 后端端口从环境变量 BACKEND_PORT 读取，默认 11111
+    port: int = int(os.getenv("BACKEND_PORT", "11111"))
     debug: bool = False
     secret_key: str = "your-secret-key-here"
     cors_origins: list = field(default_factory=lambda: ["*"])
@@ -531,7 +531,7 @@ class ConfigManager:
 
 # ==================== 服务器配置 ====================
 SERVER_HOST=127.0.0.1
-SERVER_PORT=8181
+SERVER_PORT=11111
 SERVER_DEBUG=false
 SECRET_KEY=your-very-secure-secret-key-here
 

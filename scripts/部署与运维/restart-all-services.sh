@@ -33,10 +33,10 @@ fi
 
 # 4. 启动FastAPI主服务
 echo ""
-echo "4. 启动FastAPI主服务 (端口8181)..."
-nohup python -m uvicorn server.app.main:app --host 0.0.0.0 --port 8181 > logs/main.log 2>&1 &
+echo "4. 启动FastAPI主服务 (端口11111)..."
+nohup python -m uvicorn server.app.main:app --host 0.0.0.0 --port 11111 > logs/main.log 2>&1 &
 sleep 2
-if netstat -tulnp | grep :8181 > /dev/null; then
+if netstat -tulnp | grep :11111 > /dev/null; then
     echo "✓ FastAPI主服务启动成功"
 else
     echo "❌ FastAPI主服务启动失败"

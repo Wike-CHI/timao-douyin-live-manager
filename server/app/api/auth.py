@@ -32,102 +32,74 @@ from server.app.utils.api import success_response
 # 创建路由器
 router = APIRouter(prefix="/api/auth", tags=["认证"])
 
-# HTTP Bearer 认证
-security = HTTPBearer()
+# 创建logger
+logger = logging.getLogger(__name__)
+
+# HTTP Bearer 认证 (auto_error=False 允许query参数token)
+security = HTTPBearer(auto_error=False)
 
 
 # 依赖注入：获取当前用户
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-    token: Optional[str] = Query(None),  # 支持 URL query 参数
+    token: Optional[str] = Query(None),  # 支持 URL query 参数（SSE/WebSocket）
     db: Session = Depends(get_db_session)
 ) -> Optional[dict]:
-    """获取当前认证用户（支持Header或Query参数中的token）"""
-    # 开发模式：强制禁用演示模式，使用真实用户系统
-    # 不再检查 config.demo.enabled，始终使用真实用户认证
+    """
+    获取当前认证用户
     
+    简化后的鉴权逻辑（KISS原则）：
+    - 只使用JWT验证
+    - 支持Header（标准）和Query参数（SSE/WebSocket）
+    - 清晰的错误信息
+    """
+    # 1. 获取token（优先Header，其次Query参数）
+    token_value = None
+    if credentials:
+        token_value = credentials.credentials
+    elif token:
+        token_value = token
+    
+    if not token_value:
+        raise HTTPException(status_code=401, detail="未提供认证token")
+    
+    # 2. JWT验证
     try:
-        # 优先从 Header 获取，其次从 Query 参数
-        if credentials:
-            token_value = credentials.credentials
-        elif token:
-            token_value = token
-        else:
-            raise HTTPException(status_code=401, detail="未提供认证token")
-        
-        print(f"[DEBUG] 收到token: {token_value[:50] if token_value else 'None'}...")
-        
-        # 首先尝试JWT token验证
         from server.app.core.security import JWTManager
-        try:
-            print("[DEBUG] 开始JWT token验证...")
-            payload = JWTManager.verify_token(token, "access")
-            print(f"[DEBUG] JWT payload: {payload}")
-            
-            user_id = payload.get("sub")
-            print(f"[DEBUG] 从JWT获取user_id: {user_id} (类型: {type(user_id)})")
-            
-            if user_id:
-                # 从数据库获取用户信息，确保user_id是整数类型，并传递session
-                print(f"[DEBUG] 正在查询用户ID: {int(user_id)}")
-                user = UserService.get_user_by_id(int(user_id), session=db)
-                print(f"[DEBUG] 查询到用户: {user.username if user else 'None'}")
-                
-                if user and user.status not in [UserStatusEnum.BANNED, UserStatusEnum.SUSPENDED]:
-                    print("[DEBUG] JWT验证成功，返回用户信息")
-                    try:
-                        user_data = {
-                            "id": user.id,
-                            "user_id": user.id,  # 添加 user_id 字段以兼容 useFree 接口
-                            "username": user.username,
-                            "email": user.email,
-                            "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
-                            "status": user.status.value if hasattr(user.status, 'value') else str(user.status)
-                        }
-                        print(f"[DEBUG] 构造的用户数据: {user_data}")
-                        return user_data
-                    except Exception as e:
-                        print(f"[DEBUG] 构造用户数据时出错: {e}")
-                        raise HTTPException(status_code=500, detail=f"构造用户数据失败: {str(e)}")
-                else:
-                    print(f"[DEBUG] 用户状态无效或被禁用: {user.status if user else 'None'}")
-            else:
-                print("[DEBUG] JWT payload中没有找到sub字段")
-                
-        except Exception as jwt_error:
-            # JWT验证失败，尝试session token验证（向后兼容）
-            print(f"[DEBUG] JWT验证失败: {str(jwt_error)}")
-            print("[DEBUG] 尝试session token验证...")
-            
-            user = UserService.validate_session(token)
-            if user:
-                print("[DEBUG] Session token验证成功")
-                return {
-                    "id": user.id,
-                    "user_id": user.id,  # 添加 user_id 字段以兼容 useFree 接口
-                    "username": user.username,
-                    "email": user.email,
-                    "role": user.role.value,
-                    "status": user.status.value
-                }
-            else:
-                print("[DEBUG] Session token验证也失败")
         
-        print("[DEBUG] 所有验证方式都失败，抛出401错误")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="无效的认证令牌",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        payload = JWTManager.verify_token(token_value, "access")
+        user_id = payload.get("sub")
         
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Token中缺少用户ID")
+        
+        # 3. 获取用户信息
+        user = UserService.get_user_by_id(int(user_id), session=db)
+        
+        if not user:
+            raise HTTPException(status_code=401, detail="用户不存在")
+        
+        if user.status in [UserStatusEnum.BANNED, UserStatusEnum.SUSPENDED]:
+            raise HTTPException(status_code=403, detail=f"用户账号已{user.status.value}")
+        
+        # 4. 返回用户数据
+        return {
+            "id": user.id,
+            "user_id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
+            "status": user.status.value if hasattr(user.status, 'value') else str(user.status)
+        }
+    
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[DEBUG] 认证过程中发生异常: {str(e)}")
+        logger.error(f"JWT验证失败: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="认证失败",
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=401,
+            detail="无效的认证令牌",
+            headers={"WWW-Authenticate": "Bearer"}
         )
 
 

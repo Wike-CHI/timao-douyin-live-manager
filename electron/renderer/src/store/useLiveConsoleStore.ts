@@ -71,6 +71,7 @@ interface LiveConsoleState {
   pushAiEvent: (value: any) => void;
   appendLog: (entry: TranscriptEntry) => void;
   resetSessionState: () => void;
+  clearAllData: () => void;
   connectWebSocket: () => void;
   disconnectWebSocket: () => void;
   handleWebSocketMessage: (message: LiveAudioMessage) => void;
@@ -171,6 +172,42 @@ export const useLiveConsoleStore = create<LiveConsoleState>()(
           error: null,
           saveInfo: null,
         })),
+      clearAllData: () => {
+        // 断开 WebSocket 连接
+        get().disconnectWebSocket();
+        
+        // 重置所有状态为初始值
+        set({
+          liveInput: '',
+          status: null,
+          latest: null,
+          log: [],
+          mode: 'vad',
+          error: null,
+          backendLevel: 0,
+          confSum: 0,
+          confCount: 0,
+          reportPaths: null,
+          reportStatus: null,
+          saveInfo: null,
+          styleProfile: null,
+          vibe: null,
+          persistTr: false,
+          persistTrRoot: '',
+          persistDm: false,
+          persistDmRoot: '',
+          aiEvents: [],
+          answerScripts: [],
+        });
+        
+        // 清除 sessionStorage 中的持久化数据
+        try {
+          sessionStorage.removeItem('timao-live-console');
+          console.log('✅ 直播控制台数据已清理');
+        } catch (error) {
+          console.error('清理直播控制台数据失败:', error);
+        }
+      },
       connectWebSocket: () => {
         const current = socketHolder.current;
         if (current) {
