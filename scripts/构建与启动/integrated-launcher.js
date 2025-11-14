@@ -172,8 +172,8 @@ class IntegratedLauncher {
      * 启动后端服务
      */
     async startBackend() {
-        // 后端端口硬编码为 11111
-        const backendPort = '11111';
+        // 后端端口改为 8080（常用开发端口，避免权限问题）
+        const backendPort = '8080';
         const serverPath = path.join(this.projectRoot, 'server');
         
         // 检测虚拟环境中的Python路径
@@ -221,8 +221,8 @@ class IntegratedLauncher {
             rendererPath
         );
         
-        // 等待前端服务启动（前端端口硬编码为 10050）
-        const frontendPort = '10050';
+        // 等待前端服务启动（前端端口改为 3000）
+        const frontendPort = '3000';
         const frontendReady = await this.waitForHealthCheck(`http://127.0.0.1:${frontendPort}`);
         if (!frontendReady) {
             throw new Error('前端服务启动失败');
@@ -268,9 +268,9 @@ class IntegratedLauncher {
             console.log('\n📋 第四步: 启动Electron应用');
             await this.startElectron();
             
-            // 端口硬编码
-            const backendPort = '11111';
-            const frontendPort = '10050';
+            // 端口改为常用开发端口
+            const backendPort = '8080';
+            const frontendPort = '3000';
             console.log('\n' + '='.repeat(60));
             console.log('🎉 所有服务启动完成！');
             console.log('');

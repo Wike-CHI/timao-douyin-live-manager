@@ -24,7 +24,7 @@ for (const [key, value] of Object.entries(defaultAiEnv)) {
 }
 
 const isDev = !app.isPackaged;
-const rendererDevServerURL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.0.1:10065';
+const rendererDevServerURL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.0.1:3000';
 
 // 保持对窗口对象的全局引用
 let mainWindow;
