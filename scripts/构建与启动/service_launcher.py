@@ -16,13 +16,25 @@ import requests
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+# 加载 .env 文件
+try:
+    from dotenv import load_dotenv
+    # 加载项目根目录和 server 目录的 .env 文件
+    project_root = Path(__file__).parent.parent.parent
+    load_dotenv(project_root / ".env")
+    load_dotenv(project_root / "server" / ".env")
+except ImportError:
+    print("⚠️ python-dotenv 未安装，将使用默认端口配置")
+    print("提示：运行 pip install python-dotenv 来支持 .env 文件")
+
 class ServiceManager:
     """服务管理器"""
     
     def __init__(self):
         self.services: Dict[str, subprocess.Popen] = {}
         self.running = False
-        self.base_dir = Path(__file__).parent.parent  # scripts/ -> 项目根目录
+        # 修正：从 scripts/构建与启动/ -> scripts -> 项目根目录
+        self.base_dir = Path(__file__).parent.parent.parent
         self.health_check_thread = None
         
         # 配置日志
