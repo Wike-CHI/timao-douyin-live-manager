@@ -18,7 +18,7 @@ export default defineConfig({
   base: './',
   server: {
     host: '127.0.0.1',
-    port: 10050, // 前端端口硬编码为 10050
+    port: 3000, // 前端端口改为常用端口 3000（避免权限问题）
     strictPort: true, // 强制使用指定端口，不自动尝试其他端口
     headers: {
       'Content-Security-Policy': devCsp.join('; '),
