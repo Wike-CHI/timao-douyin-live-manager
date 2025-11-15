@@ -1,0 +1,1655 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>提猫直播助手 - 双模式控制台 v2</title>
+    <style>
+        /* ============= 提猫主题色 ============= */
+        :root {
+            --violet-primary: #9370DB;      /* 紫罗兰主色 */
+            --violet-secondary: #8B7BB8;    /* 紫罗兰辅助色 */
+            --violet-dark: #7B68EE;         /* 深紫罗兰 */
+            --cat-paw-pink: #FFB6C1;        /* 猫爪粉 */
+            --cat-paw-pink-light: #FFC0CB;  /* 浅猫爪粉 */
+            --cat-paw-pink-dark: #FF9FB4;   /* 深猫爪粉 */
+            --bg-dark: #1a1625;             /* 深色背景 */
+            --bg-card: #2d2438;             /* 卡片背景 */
+            --text-primary: #f5f3ff;        /* 主文本 */
+            --text-secondary: #d8b4fe;      /* 次要文本 */
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            overflow: hidden;
+        }
+
+        /* ============= 全功能模式 ============= */
+        .full-mode {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: opacity 0.3s ease;
+        }
+
+        .full-mode.hidden {
+            opacity: 0;
+            pointer-events: none;
+            position: absolute;
+        }
+
+        /* 顶部控制栏 */
+        .control-bar {
+            height: 80px;
+            background: linear-gradient(135deg, var(--violet-primary) 0%, var(--cat-paw-pink) 100%);
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            box-shadow: 0 4px 12px rgba(147, 112, 219, 0.4);
+        }
+
+        .control-bar h1 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-right: auto;
+        }
+
+        .url-input {
+            flex: 1;
+            max-width: 500px;
+            height: 44px;
+            padding: 0 16px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .url-input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .control-btn {
+            height: 44px;
+            padding: 0 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--violet-secondary) 0%, var(--violet-primary) 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, var(--violet-dark) 0%, var(--violet-secondary) 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(147, 112, 219, 0.6);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, var(--cat-paw-pink-dark) 0%, var(--cat-paw-pink) 100%);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #FF8FAA 0%, var(--cat-paw-pink-dark) 100%);
+            box-shadow: 0 4px 12px rgba(255, 182, 193, 0.6);
+        }
+
+        .btn-mode-switch {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-mode-switch:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: var(--cat-paw-pink-light);
+        }
+
+        /* 四宫格布局 */
+        .grid-container {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 16px;
+            padding: 16px;
+            overflow: hidden;
+        }
+
+        .grid-item {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(147, 112, 219, 0.2);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .grid-item h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--cat-paw-pink);
+            flex-shrink: 0;
+        }
+
+        .grid-item-icon {
+            font-size: 24px;
+        }
+
+        /* ========== 宫格1: 实时语音转写 + 弹幕（并排显示）========== */
+        .transcript-section {
+            flex: 1;
+            display: flex;
+            flex-direction: row;
+            gap: 16px;
+            overflow: hidden;
+        }
+        
+        .transcript-left,
+        .transcript-right {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .section-title {
+            font-size: 14px;
+            color: #94a3b8;
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .transcript-item {
+            padding: 12px;
+            background: rgba(147, 112, 219, 0.15);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border-left: 3px solid var(--violet-primary);
+        }
+
+        .transcript-meta {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .transcript-text {
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .comment-stream {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .comment-item {
+            padding: 8px 12px;
+            background: rgba(255, 182, 193, 0.15);
+            border-radius: 6px;
+            margin-bottom: 6px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .comment-user {
+            color: var(--cat-paw-pink);
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .comment-text {
+            color: var(--text-primary);
+            flex: 1;
+        }
+
+        .gift-tag {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: #fff;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            box-shadow: 0 2px 4px rgba(255, 215, 0, 0.3);
+        }
+
+        /* ========== 宫格2: 智能话术建议 ========== */
+        .script-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .script-item {
+            padding: 16px;
+            background: rgba(147, 112, 219, 0.1);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border-left: 4px solid var(--violet-primary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .script-item:hover {
+            background: rgba(147, 112, 219, 0.2);
+            transform: translateX(4px);
+            box-shadow: 0 4px 12px rgba(147, 112, 219, 0.3);
+        }
+
+        .script-item.high-priority {
+            border-left-color: var(--cat-paw-pink);
+            background: rgba(255, 182, 193, 0.15);
+        }
+
+        .script-item.high-priority:hover {
+            background: rgba(239, 68, 68, 0.2);
+        }
+
+        .script-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .script-type-tag {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .script-type-thank {
+            background: linear-gradient(135deg, var(--violet-primary), var(--violet-dark));
+            color: white;
+        }
+
+        .script-type-retain {
+            background: linear-gradient(135deg, var(--violet-secondary), var(--violet-primary));
+            color: white;
+        }
+
+        .script-type-interact {
+            background: linear-gradient(135deg, var(--cat-paw-pink-dark), var(--cat-paw-pink));
+            color: white;
+        }
+
+        .priority-badge {
+            padding: 4px 8px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: auto;
+        }
+
+        .priority-high {
+            background: linear-gradient(135deg, #FF6B9D, var(--cat-paw-pink));
+            color: white;
+        }
+
+        .priority-medium {
+            background: linear-gradient(135deg, #FFB366, #FFA500);
+            color: white;
+        }
+
+        .priority-low {
+            background: rgba(147, 112, 219, 0.3);
+            color: var(--text-secondary);
+        }
+
+        .script-content {
+            font-size: 15px;
+            line-height: 1.6;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .script-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .script-target {
+            color: var(--cat-paw-pink);
+        }
+
+        .script-rationale {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .copy-hint {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            font-size: 20px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .script-item:hover .copy-hint {
+            opacity: 1;
+        }
+
+        /* ========== 宫格3: AI实时分析 ========== */
+        .ai-analysis-section {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .analysis-card {
+            padding: 16px;
+            background: rgba(147, 112, 219, 0.1);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border-left: 3px solid var(--violet-primary);
+        }
+
+        .analysis-card.warning {
+            background: rgba(255, 182, 193, 0.1);
+            border-left-color: var(--cat-paw-pink);
+        }
+
+        .analysis-card.success {
+            background: rgba(147, 112, 219, 0.15);
+            border-left-color: var(--violet-dark);
+        }
+
+        .analysis-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--violet-primary);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .analysis-content {
+            font-size: 13px;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+
+        .analysis-metrics {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .metric-item {
+            padding: 8px;
+            background: rgba(26, 22, 37, 0.8);
+            border-radius: 6px;
+            text-align: center;
+            border: 1px solid rgba(147, 112, 219, 0.2);
+        }
+
+        .metric-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .metric-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--cat-paw-pink);
+        }
+
+        /* ========== 宫格4: 主播画像与氛围 ========== */
+        .vibe-section {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .vibe-score-display {
+            text-align: center;
+            padding: 24px;
+            background: linear-gradient(135deg, rgba(147, 112, 219, 0.1), rgba(255, 182, 193, 0.1));
+            border-radius: 12px;
+            margin-bottom: 16px;
+            border: 1px solid rgba(147, 112, 219, 0.2);
+        }
+
+        .vibe-score-circle {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 12px;
+            border-radius: 50%;
+            background: conic-gradient(
+                var(--violet-primary) 0deg,
+                var(--cat-paw-pink) calc(var(--score) * 3.6deg),
+                rgba(147, 112, 219, 0.2) calc(var(--score) * 3.6deg)
+            );
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: 0 4px 12px rgba(147, 112, 219, 0.3);
+        }
+
+        .vibe-score-circle::before {
+            content: '';
+            width: 90px;
+            height: 90px;
+            background: var(--bg-card);
+            border-radius: 50%;
+            position: absolute;
+        }
+
+        .vibe-score-value {
+            font-size: 36px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--violet-primary), var(--cat-paw-pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            position: relative;
+            z-index: 1;
+        }
+
+        .vibe-score-label {
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .emotion-card {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            padding: 16px;
+            background: linear-gradient(135deg, rgba(147, 112, 219, 0.1), rgba(255, 182, 193, 0.1));
+            border-radius: 8px;
+            margin-bottom: 16px;
+            border: 1px solid rgba(147, 112, 219, 0.2);
+        }
+
+        .emotion-emoji {
+            font-size: 48px;
+        }
+
+        .emotion-info {
+            flex: 1;
+        }
+
+        .emotion-text {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--cat-paw-pink);
+            margin-bottom: 4px;
+        }
+
+        .emotion-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .emotion-confidence {
+            font-size: 14px;
+            color: var(--violet-primary);
+            font-weight: 600;
+        }
+
+        .vibe-metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .vibe-metric-card {
+            padding: 16px;
+            background: rgba(139, 92, 246, 0.1);
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .vibe-metric-label {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 8px;
+        }
+
+        .vibe-metric-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #a855f7;
+        }
+
+        .vibe-metric-trend {
+            font-size: 14px;
+            margin-left: 8px;
+        }
+
+        .trend-up {
+            color: #10b981;
+        }
+
+        .trend-down {
+            color: #ef4444;
+        }
+
+        .suggestions-list {
+            margin-top: 16px;
+        }
+
+        .suggestion-item {
+            padding: 12px;
+            background: rgba(168, 85, 247, 0.1);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .suggestion-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .suggestion-text {
+            flex: 1;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #cbd5e1;
+        }
+
+        /* 底部状态栏 */
+        .status-bar {
+            height: 60px;
+            background: #1e293b;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            gap: 32px;
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-icon {
+            font-size: 20px;
+        }
+
+        .status-label {
+            color: #94a3b8;
+            font-size: 14px;
+        }
+
+        .status-value {
+            color: #e2e8f0;
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        /* ============= 直播模式（悬浮窗） ============= */
+        .live-mode {
+            position: fixed;
+            display: none;
+            z-index: 9999;
+        }
+
+        .live-mode.active {
+            display: block;
+        }
+
+        .floating-window {
+            position: absolute;
+            width: 360px;
+            height: 280px;
+            background: rgba(45, 36, 56, 0.98);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(147, 112, 219, 0.4);
+            border: 1px solid rgba(147, 112, 219, 0.3);
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .floating-window.collapsed {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+        }
+
+        /* 标题栏 */
+        .floating-title {
+            height: 44px;
+            background: linear-gradient(135deg, var(--violet-primary), var(--cat-paw-pink));
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: move;
+            user-select: none;
+        }
+
+        .floating-window.collapsed .floating-title {
+            display: none;
+        }
+
+        .title-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .title-icon {
+            font-size: 18px;
+        }
+
+        .title-text {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .title-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .title-btn {
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .title-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+        }
+
+        /* 内容区 */
+        .floating-content {
+            height: calc(100% - 44px - 48px);
+            padding: 16px;
+            overflow-y: auto;
+        }
+
+        .floating-window.collapsed .floating-content {
+            display: none;
+        }
+
+        /* 收起状态的显示 */
+        .collapsed-display {
+            display: none;
+            width: 100%;
+            height: 100%;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .floating-window.collapsed .collapsed-display {
+            display: flex;
+        }
+
+        .collapsed-icon {
+            font-size: 32px;
+            margin-bottom: 4px;
+        }
+
+        .collapsed-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--cat-paw-pink);
+        }
+
+        /* 操作栏 */
+        .floating-actions {
+            height: 48px;
+            background: rgba(26, 22, 37, 0.95);
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-top: 1px solid rgba(147, 112, 219, 0.2);
+        }
+
+        .floating-window.collapsed .floating-actions {
+            display: none;
+        }
+
+        .action-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: rgba(147, 112, 219, 0.2);
+            color: var(--violet-primary);
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .action-btn:hover {
+            background: rgba(255, 182, 193, 0.3);
+            color: var(--cat-paw-pink);
+            transform: scale(1.1);
+        }
+
+        .indicators {
+            display: flex;
+            gap: 8px;
+        }
+
+        .indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(147, 112, 219, 0.3);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .indicator.active {
+            background: linear-gradient(135deg, var(--violet-primary), var(--cat-paw-pink));
+            box-shadow: 0 0 8px rgba(147, 112, 219, 0.8);
+            transform: scale(1.3);
+        }
+
+        .indicator:hover {
+            transform: scale(1.2);
+            background: rgba(255, 182, 193, 0.5);
+        }
+
+        /* 悬浮窗内容显示 */
+        .content-display {
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 提示框 */
+        .toast {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            padding: 16px 24px;
+            background: rgba(16, 185, 129, 0.9);
+            color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 10000;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(148, 163, 184, 0.1);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(168, 85, 247, 0.5);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(168, 85, 247, 0.7);
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .grid-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: repeat(4, 1fr);
+            }
+
+            .floating-window {
+                width: 300px;
+                height: 240px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 全功能模式 -->
+    <div class="full-mode" id="fullMode">
+        <!-- 顶部控制栏 -->
+        <div class="control-bar">
+            <h1>📱 提猫直播助手 v2</h1>
+            <input type="text" class="url-input" placeholder="https://live.douyin.com/xxxx" value="https://live.douyin.com/123456789">
+            <button class="control-btn btn-primary" onclick="startLive()">
+                <span>▶️</span>
+                <span>开始转写</span>
+            </button>
+            <button class="control-btn btn-secondary" onclick="stopLive()" style="display: none;" id="stopBtn">
+                <span>⏹️</span>
+                <span>停止</span>
+            </button>
+            <button class="control-btn btn-mode-switch" onclick="switchMode()">
+                <span>🔄</span>
+                <span>切换模式</span>
+            </button>
+        </div>
+
+        <!-- 四宫格布局 -->
+        <div class="grid-container">
+            <!-- 1️⃣ 实时语音转写 + 实时弹幕 -->
+            <div class="grid-item">
+                <h2>
+                    <span class="grid-item-icon">🎤</span>
+                    实时语音转写 & 弹幕流
+                </h2>
+                <div class="transcript-section">
+                    <!-- 左侧：语音转写 -->
+                    <div class="transcript-left">
+                        <div class="section-title">🗣️ 主播语音</div>
+                        <div class="transcript-item">
+                            <div class="transcript-meta">【主播】 14:32:15</div>
+                            <div class="transcript-text">欢迎大家来到我的直播间，今天给大家带来很多好东西</div>
+                        </div>
+                        <div class="transcript-item">
+                            <div class="transcript-meta">【主播】 14:32:28</div>
+                            <div class="transcript-text">这款产品真的非常好用，已经卖出去5000多件了</div>
+                        </div>
+                        <div class="transcript-item">
+                            <div class="transcript-meta">【主播】 14:33:05</div>
+                            <div class="transcript-text">今天直播间的宝宝们都特别给力，我们继续加油！</div>
+                        </div>
+                    </div>
+
+                    <!-- 右侧：实时弹幕流 -->
+                    <div class="transcript-right">
+                        <div class="section-title">💬 实时弹幕</div>
+                        <div class="comment-item">
+                            <span class="comment-user">用户A:</span>
+                            <span class="comment-text">送出嘉年华</span>
+                            <span class="gift-tag">¥3,000</span>
+                        </div>
+                        <div class="comment-item">
+                            <span class="comment-user">用户B:</span>
+                            <span class="comment-text">主播讲得真好</span>
+                        </div>
+                        <div class="comment-item">
+                            <span class="comment-user">用户C:</span>
+                            <span class="comment-text">这个多少钱？</span>
+                        </div>
+                        <div class="comment-item">
+                            <span class="comment-user">用户D:</span>
+                            <span class="comment-text">666666</span>
+                        </div>
+                        <div class="comment-item">
+                            <span class="comment-user">用户E:</span>
+                            <span class="comment-text">加个关注不迷路</span>
+                        </div>
+                        <div class="comment-item">
+                            <span class="comment-user">用户F:</span>
+                            <span class="comment-text">刚进来的</span>
+                        </div>
+                        <div class="comment-item">
+                            <span class="comment-user">用户G:</span>
+                            <span class="comment-text">这个包邮吗？</span>
+                        </div>
+                        <div class="comment-item">
+                            <span class="comment-user">用户H:</span>
+                            <span class="comment-text">送出小心心</span>
+                            <span class="gift-tag">¥1</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2️⃣ 智能话术建议（按优先级自动生成） -->
+            <div class="grid-item">
+                <h2>
+                    <span class="grid-item-icon">💬</span>
+                    智能话术建议
+                </h2>
+                <div class="script-list">
+                    <!-- 高优先级话术 -->
+                    <div class="script-item high-priority" onclick="copyScript(this)">
+                        <div class="script-header">
+                            <span class="script-type-tag script-type-thank">🙏 感谢话术</span>
+                            <span class="priority-badge priority-high">🔥 高优先级</span>
+                        </div>
+                        <div class="script-content">
+                            "感谢老板A送的嘉年华，财运滚滚来！宝宝们也给老板点点关注，让他感受到咱们的热情！"
+                        </div>
+                        <div class="script-footer">
+                            <span class="script-target">👤 @用户A</span>
+                            <span>刚刚生成</span>
+                        </div>
+                        <div class="script-rationale">
+                            💡 触发原因：大额礼物 ¥3,000 - 需立即感谢
+                        </div>
+                        <div class="copy-hint">📋</div>
+                    </div>
+
+                    <!-- 中优先级话术 -->
+                    <div class="script-item" onclick="copyScript(this)">
+                        <div class="script-header">
+                            <span class="script-type-tag script-type-retain">👋 留人话术</span>
+                            <span class="priority-badge priority-medium">⚠️ 中优先级</span>
+                        </div>
+                        <div class="script-content">
+                            "刚来的宝宝们点点关注哦，今天有限时优惠，错过可就没机会啦！"
+                        </div>
+                        <div class="script-footer">
+                            <span class="script-target">👥 针对新观众</span>
+                            <span>1分钟前</span>
+                        </div>
+                        <div class="script-rationale">
+                            💡 触发原因：在线人数上升15% - 留住新观众
+                        </div>
+                        <div class="copy-hint">📋</div>
+                    </div>
+
+                    <!-- 互动话术 -->
+                    <div class="script-item" onclick="copyScript(this)">
+                        <div class="script-header">
+                            <span class="script-type-tag script-type-interact">💬 互动话术</span>
+                            <span class="priority-badge priority-medium">⚠️ 中优先级</span>
+                        </div>
+                        <div class="script-content">
+                            "宝宝们觉得这个颜色怎么样？打1的想要红色，打2的想要蓝色，让我看到你们的热情！"
+                        </div>
+                        <div class="script-footer">
+                            <span class="script-target">🎯 活跃气氛</span>
+                            <span>2分钟前</span>
+                        </div>
+                        <div class="script-rationale">
+                            💡 触发原因：互动率较低 - 需要活跃气氛
+                        </div>
+                        <div class="copy-hint">📋</div>
+                    </div>
+
+                    <!-- 冷场破冰 -->
+                    <div class="script-item" onclick="copyScript(this)">
+                        <div class="script-header">
+                            <span class="script-type-tag script-type-interact">💬 破冰话术</span>
+                            <span class="priority-badge priority-low">ℹ️ 低优先级</span>
+                        </div>
+                        <div class="script-content">
+                            "宝宝们在吗？有什么想了解的可以打在公屏上，我一个个给大家解答！"
+                        </div>
+                        <div class="script-footer">
+                            <span class="script-target">❄️ 冷场提醒</span>
+                            <span>3分钟前</span>
+                        </div>
+                        <div class="script-rationale">
+                            💡 触发原因：35秒无互动 - 建议破冰
+                        </div>
+                        <div class="copy-hint">📋</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3️⃣ AI实时分析 -->
+            <div class="grid-item">
+                <h2>
+                    <span class="grid-item-icon">🤖</span>
+                    AI实时分析
+                </h2>
+                <div class="ai-analysis-section">
+                    <!-- 当前直播状态 -->
+                    <div class="analysis-card">
+                        <div class="analysis-title">📊 当前直播状态</div>
+                        <div class="analysis-metrics">
+                            <div class="metric-item">
+                                <div class="metric-label">在线观众</div>
+                                <div class="metric-value">1,234</div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-label">峰值人数</div>
+                                <div class="metric-value">2,000</div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-label">弹幕总数</div>
+                                <div class="metric-value">5,678</div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-label">礼物总额</div>
+                                <div class="metric-value" style="color: #fbbf24;">¥8.8K</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 关键洞察 -->
+                    <div class="analysis-card warning">
+                        <div class="analysis-title">💡 关键洞察</div>
+                        <div class="analysis-content">
+                            • 最近5分钟"价格"被提及12次，建议强调性价比<br>
+                            • 用户C连续发问3次，建议重点关注<br>
+                            • 互动高峰期，适合推出促销活动
+                        </div>
+                    </div>
+
+                    <!-- 风险预警 -->
+                    <div class="analysis-card" style="background: rgba(239, 68, 68, 0.1); border-left-color: #ef4444;">
+                        <div class="analysis-title" style="color: #ef4444;">⚠️ 风险预警</div>
+                        <div class="analysis-content">
+                            • 当前冷场时长：0秒（正常）<br>
+                            • 在线人数波动：+15%（积极）<br>
+                            • 负面情绪占比：2%（健康范围）
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4️⃣ 主播画像与氛围（精进版） -->
+            <div class="grid-item">
+                <h2>
+                    <span class="grid-item-icon">🎭</span>
+                    直播间氛围
+                </h2>
+                <div class="vibe-section">
+                    <!-- 主播风格画像 -->
+                    <div class="analysis-card success" style="margin-bottom: 16px;">
+                        <div class="analysis-title">👤 主播风格画像</div>
+                        <div class="analysis-content">
+                            <strong>人设：</strong>情感陪伴者，温暖倾听者<br>
+                            <strong>语气：</strong>温柔亲切，真诚共情<br>
+                            <strong>节奏：</strong>舒缓平稳，耐心细致<br>
+                            <strong>口头禅：</strong>"宝贝们"、"我懂你"、"陪着你"
+                        </div>
+                    </div>
+
+                    <!-- 氛围评分 -->
+                    <div class="vibe-score-display">
+                        <div class="vibe-score-circle" style="--score: 85">
+                            <span class="vibe-score-value">85</span>
+                        </div>
+                        <div class="vibe-score-label">直播间氛围评分</div>
+                    </div>
+
+                    <!-- 观众情绪 -->
+                    <div class="emotion-card">
+                        <div class="emotion-emoji">😊</div>
+                        <div class="emotion-info">
+                            <div class="emotion-text">积极</div>
+                            <div class="emotion-label">观众主要情绪</div>
+                            <div class="emotion-confidence">置信度：92%</div>
+                        </div>
+                    </div>
+
+                    <!-- 关键指标 -->
+                    <div class="vibe-metrics-grid">
+                        <div class="vibe-metric-card">
+                            <div class="vibe-metric-label">在线人数</div>
+                            <div class="vibe-metric-value">
+                                1.2K
+                                <span class="vibe-metric-trend trend-up">↑15%</span>
+                            </div>
+                        </div>
+                        <div class="vibe-metric-card">
+                            <div class="vibe-metric-label">互动率</div>
+                            <div class="vibe-metric-value">
+                                8.5%
+                            </div>
+                        </div>
+                        <div class="vibe-metric-card">
+                            <div class="vibe-metric-label">礼物价值</div>
+                            <div class="vibe-metric-value" style="color: #fbbf24;">
+                                ¥8.8K
+                            </div>
+                        </div>
+                        <div class="vibe-metric-card">
+                            <div class="vibe-metric-label">平均停留</div>
+                            <div class="vibe-metric-value">
+                                12分钟
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI建议 -->
+                    <div class="suggestions-list">
+                        <div class="suggestion-item">
+                            <span class="suggestion-icon">💡</span>
+                            <span class="suggestion-text">继续保持互动频率，当前氛围很好，观众参与度高</span>
+                        </div>
+                        <div class="suggestion-item">
+                            <span class="suggestion-icon">📈</span>
+                            <span class="suggestion-text">在线人数持续上升，可以加大促销力度，推出限时优惠</span>
+                        </div>
+                        <div class="suggestion-item">
+                            <span class="suggestion-icon">🎯</span>
+                            <span class="suggestion-text">检测到3位高价值用户，建议进行针对性互动和感谢</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部状态栏 -->
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="status-icon">👥</span>
+                <div>
+                    <div class="status-label">在线人数</div>
+                    <div class="status-value">1,234</div>
+                </div>
+            </div>
+            <div class="status-item">
+                <span class="status-icon">🎁</span>
+                <div>
+                    <div class="status-label">礼物价值</div>
+                    <div class="status-value">¥8,888</div>
+                </div>
+            </div>
+            <div class="status-item">
+                <span class="status-icon">💬</span>
+                <div>
+                    <div class="status-label">互动率</div>
+                    <div class="status-value">8.5%</div>
+                </div>
+            </div>
+            <div class="status-item">
+                <span class="status-icon">⏱️</span>
+                <div>
+                    <div class="status-label">直播时长</div>
+                    <div class="status-value" id="duration">00:00:00</div>
+                </div>
+            </div>
+            <div class="status-item">
+                <span class="status-icon">🔴</span>
+                <div>
+                    <div class="status-label">状态</div>
+                    <div class="status-value" style="color: #10b981;">运行中</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 直播模式（悬浮窗） -->
+    <div class="live-mode" id="liveMode">
+        <div class="floating-window" id="floatingWindow">
+            <!-- 标题栏 -->
+            <div class="floating-title" id="floatingTitle">
+                <div class="title-left">
+                    <span class="title-icon" id="currentIcon">🎭</span>
+                    <span class="title-text" id="currentTitle">直播间氛围</span>
+                </div>
+                <div class="title-actions">
+                    <button class="title-btn" onclick="switchMode()" title="切换回全功能模式">⇄</button>
+                    <button class="title-btn" onclick="toggleCollapse()" title="收起/展开">−</button>
+                </div>
+            </div>
+
+            <!-- 收起状态显示 -->
+            <div class="collapsed-display" onclick="toggleCollapse()">
+                <div class="collapsed-icon">🎭</div>
+                <div class="collapsed-value">85</div>
+            </div>
+
+            <!-- 内容区 -->
+            <div class="floating-content">
+                <div class="content-display" id="contentDisplay">
+                    <!-- 默认显示直播间氛围 -->
+                </div>
+            </div>
+
+            <!-- 操作栏 -->
+            <div class="floating-actions">
+                <button class="action-btn" onclick="copyContent()" title="复制内容">📋</button>
+                <div class="indicators">
+                    <div class="indicator active" onclick="switchContent(0)" data-index="0"></div>
+                    <div class="indicator" onclick="switchContent(1)" data-index="1"></div>
+                    <div class="indicator" onclick="switchContent(2)" data-index="2"></div>
+                    <div class="indicator" onclick="switchContent(3)" data-index="3"></div>
+                </div>
+                <button class="action-btn" onclick="showMore()" title="更多">⋯</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局状态
+        let currentMode = 'full';
+        let isCollapsed = false;
+        let currentContentIndex = 0;
+        let isDragging = false;
+        let startX, startY, initialX, initialY;
+        let carouselInterval = null;
+        let durationInterval = null;
+        let startTime = null;
+
+        // 悬浮窗内容数据（分段显示直播间分析信息）
+        const floatingContents = [
+            {
+                icon: '🎭',
+                title: '直播间氛围',
+                html: `
+                    <div style="text-align: center; margin-bottom: 16px;">
+                        <div style="width: 100px; height: 100px; margin: 0 auto 12px; border-radius: 50%; background: conic-gradient(#a855f7 0deg, #a855f7 306deg, rgba(148, 163, 184, 0.2) 306deg); display: flex; align-items: center; justify-content: center; position: relative;">
+                            <div style="width: 75px; height: 75px; background: #1e293b; border-radius: 50%; position: absolute;"></div>
+                            <span style="font-size: 32px; font-weight: 700; color: #a855f7; position: relative; z-index: 1;">85</span>
+                        </div>
+                        <div style="color: #94a3b8; font-size: 13px;">氛围评分</div>
+                    </div>
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px; background: rgba(139, 92, 246, 0.1); border-radius: 8px; margin-bottom: 12px;">
+                        <div style="font-size: 36px;">😊</div>
+                        <div>
+                            <div style="font-size: 20px; font-weight: 700; color: #10b981;">积极</div>
+                            <div style="font-size: 11px; color: #94a3b8;">观众情绪</div>
+                        </div>
+                    </div>
+                    <div style="font-size: 12px; color: #cbd5e1; line-height: 1.6;">
+                        💡 当前直播氛围良好，观众参与度高，建议保持现有互动节奏
+                    </div>
+                `
+            },
+            {
+                icon: '📊',
+                title: '实时数据',
+                html: `
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                        <div style="padding: 12px; background: rgba(139, 92, 246, 0.1); border-radius: 8px; text-align: center;">
+                            <div style="font-size: 11px; color: #94a3b8; margin-bottom: 6px;">在线人数</div>
+                            <div style="font-size: 24px; font-weight: 700; color: #a855f7;">1.2K</div>
+                            <div style="font-size: 13px; color: #10b981;">↑15%</div>
+                        </div>
+                        <div style="padding: 12px; background: rgba(139, 92, 246, 0.1); border-radius: 8px; text-align: center;">
+                            <div style="font-size: 11px; color: #94a3b8; margin-bottom: 6px;">互动率</div>
+                            <div style="font-size: 24px; font-weight: 700; color: #a855f7;">8.5%</div>
+                            <div style="font-size: 13px; color: #94a3b8;">优秀</div>
+                        </div>
+                        <div style="padding: 12px; background: rgba(139, 92, 246, 0.1); border-radius: 8px; text-align: center;">
+                            <div style="font-size: 11px; color: #94a3b8; margin-bottom: 6px;">礼物价值</div>
+                            <div style="font-size: 24px; font-weight: 700; color: #fbbf24;">¥8.8K</div>
+                        </div>
+                        <div style="padding: 12px; background: rgba(139, 92, 246, 0.1); border-radius: 8px; text-align: center;">
+                            <div style="font-size: 11px; color: #94a3b8; margin-bottom: 6px;">平均停留</div>
+                            <div style="font-size: 24px; font-weight: 700; color: #a855f7;">12分</div>
+                        </div>
+                    </div>
+                `
+            },
+            {
+                icon: '💡',
+                title: 'AI建议',
+                html: `
+                    <div style="padding: 10px; background: rgba(16, 185, 129, 0.1); border-radius: 8px; margin-bottom: 10px;">
+                        <div style="display: flex; align-items: flex-start; gap: 8px;">
+                            <span style="font-size: 16px;">💡</span>
+                            <div style="font-size: 12px; line-height: 1.6; color: #cbd5e1;">
+                                继续保持互动频率，当前氛围很好
+                            </div>
+                        </div>
+                    </div>
+                    <div style="padding: 10px; background: rgba(59, 130, 246, 0.1); border-radius: 8px; margin-bottom: 10px;">
+                        <div style="display: flex; align-items: flex-start; gap: 8px;">
+                            <span style="font-size: 16px;">📈</span>
+                            <div style="font-size: 12px; line-height: 1.6; color: #cbd5e1;">
+                                在线人数上升，可加大促销力度
+                            </div>
+                        </div>
+                    </div>
+                    <div style="padding: 10px; background: rgba(168, 85, 247, 0.1); border-radius: 8px;">
+                        <div style="display: flex; align-items: flex-start; gap: 8px;">
+                            <span style="font-size: 16px;">🎯</span>
+                            <div style="font-size: 12px; line-height: 1.6; color: #cbd5e1;">
+                                检测到3位高价值用户
+                            </div>
+                        </div>
+                    </div>
+                `
+            },
+            {
+                icon: '💬',
+                title: '最新话术',
+                html: `
+                    <div style="padding: 12px; background: rgba(239, 68, 68, 0.1); border-radius: 8px; border-left: 3px solid #ef4444; margin-bottom: 12px;">
+                        <div style="font-size: 11px; color: #ef4444; font-weight: 600; margin-bottom: 6px;">🔥 高优先级 · 感谢话术</div>
+                        <div style="font-size: 13px; line-height: 1.6; color: #e2e8f0; margin-bottom: 6px;">
+                            "感谢老板A送的嘉年华，财运滚滚来！"
+                        </div>
+                        <div style="font-size: 10px; color: #94a3b8;">
+                            💡 大额礼物 ¥3,000 - 需立即感谢
+                        </div>
+                    </div>
+                    <div style="padding: 12px; background: rgba(16, 185, 129, 0.1); border-radius: 8px; border-left: 3px solid #10b981;">
+                        <div style="font-size: 11px; color: #f59e0b; font-weight: 600; margin-bottom: 6px;">⚠️ 中优先级 · 留人话术</div>
+                        <div style="font-size: 13px; line-height: 1.6; color: #e2e8f0; margin-bottom: 6px;">
+                            "刚来的宝宝们点点关注哦"
+                        </div>
+                        <div style="font-size: 10px; color: #94a3b8;">
+                            💡 在线人数上升15%
+                        </div>
+                    </div>
+                `
+            }
+        ];
+
+        // 初始化
+        window.onload = function() {
+            initFloatingWindow();
+            updateFloatingContent();
+            showToast('✅ 原型v2已加载 - 点击"开始转写"体验');
+        };
+
+        // 初始化悬浮窗
+        function initFloatingWindow() {
+            const floatingWindow = document.getElementById('floatingWindow');
+            const floatingTitle = document.getElementById('floatingTitle');
+            
+            const initialX = window.innerWidth - 400;
+            const initialY = window.innerHeight - 320;
+            floatingWindow.style.left = initialX + 'px';
+            floatingWindow.style.top = initialY + 'px';
+            
+            floatingTitle.addEventListener('mousedown', startDrag);
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', stopDrag);
+        }
+
+        function startDrag(e) {
+            isDragging = true;
+            const floatingWindow = document.getElementById('floatingWindow');
+            startX = e.clientX;
+            startY = e.clientY;
+            initialX = floatingWindow.offsetLeft;
+            initialY = floatingWindow.offsetTop;
+        }
+
+        function drag(e) {
+            if (!isDragging) return;
+            
+            const floatingWindow = document.getElementById('floatingWindow');
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+            
+            let newX = initialX + deltaX;
+            let newY = initialY + deltaY;
+            
+            const maxX = window.innerWidth - floatingWindow.offsetWidth;
+            const maxY = window.innerHeight - floatingWindow.offsetHeight;
+            newX = Math.max(0, Math.min(newX, maxX));
+            newY = Math.max(0, Math.min(newY, maxY));
+            
+            floatingWindow.style.left = newX + 'px';
+            floatingWindow.style.top = newY + 'px';
+        }
+
+        function stopDrag() {
+            if (isDragging) {
+                isDragging = false;
+                snapToEdge();
+            }
+        }
+
+        function snapToEdge() {
+            const floatingWindow = document.getElementById('floatingWindow');
+            const rect = floatingWindow.getBoundingClientRect();
+            const SNAP_THRESHOLD = 30;
+            
+            let newX = rect.left;
+            let newY = rect.top;
+            
+            if (rect.left < SNAP_THRESHOLD) newX = 0;
+            if (window.innerWidth - rect.right < SNAP_THRESHOLD) newX = window.innerWidth - rect.width;
+            if (rect.top < SNAP_THRESHOLD) newY = 0;
+            if (window.innerHeight - rect.bottom < SNAP_THRESHOLD) newY = window.innerHeight - rect.height;
+            
+            floatingWindow.style.transition = 'all 0.2s ease';
+            floatingWindow.style.left = newX + 'px';
+            floatingWindow.style.top = newY + 'px';
+            
+            setTimeout(() => {
+                floatingWindow.style.transition = '';
+            }, 200);
+        }
+
+        function switchMode() {
+            const fullMode = document.getElementById('fullMode');
+            const liveMode = document.getElementById('liveMode');
+            
+            if (currentMode === 'full') {
+                fullMode.classList.add('hidden');
+                liveMode.classList.add('active');
+                currentMode = 'live';
+                startCarousel();
+                showToast('✅ 已切换到直播模式');
+            } else {
+                fullMode.classList.remove('hidden');
+                liveMode.classList.remove('active');
+                currentMode = 'full';
+                stopCarousel();
+                showToast('✅ 已切换到全功能模式');
+            }
+        }
+
+        function startLive() {
+            document.querySelector('.btn-primary').style.display = 'none';
+            document.getElementById('stopBtn').style.display = 'flex';
+            
+            startTime = Date.now();
+            durationInterval = setInterval(updateDuration, 1000);
+            
+            showToast('⏳ 直播服务启动中...');
+            
+            setTimeout(() => {
+                showToast('✅ 服务启动成功，自动切换到直播模式');
+                setTimeout(() => {
+                    switchMode();
+                }, 1000);
+            }, 3000);
+        }
+
+        function stopLive() {
+            document.querySelector('.btn-primary').style.display = 'flex';
+            document.getElementById('stopBtn').style.display = 'none';
+            
+            if (durationInterval) {
+                clearInterval(durationInterval);
+                durationInterval = null;
+            }
+            
+            if (currentMode === 'live') {
+                switchMode();
+            }
+            
+            showToast('⏹️ 直播已停止');
+        }
+
+        function updateDuration() {
+            if (!startTime) return;
+            
+            const elapsed = Date.now() - startTime;
+            const hours = Math.floor(elapsed / 3600000);
+            const minutes = Math.floor((elapsed % 3600000) / 60000);
+            const seconds = Math.floor((elapsed % 60000) / 1000);
+            
+            const formatted = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            document.getElementById('duration').textContent = formatted;
+        }
+
+        function toggleCollapse() {
+            const floatingWindow = document.getElementById('floatingWindow');
+            isCollapsed = !isCollapsed;
+            
+            if (isCollapsed) {
+                floatingWindow.classList.add('collapsed');
+                stopCarousel();
+            } else {
+                floatingWindow.classList.remove('collapsed');
+                startCarousel();
+            }
+        }
+
+        function switchContent(index) {
+            currentContentIndex = index;
+            updateFloatingContent();
+            
+            const indicators = document.querySelectorAll('.indicator');
+            indicators.forEach((ind, i) => {
+                if (i === index) {
+                    ind.classList.add('active');
+                } else {
+                    ind.classList.remove('active');
+                }
+            });
+            
+            stopCarousel();
+            setTimeout(() => {
+                if (currentMode === 'live' && !isCollapsed) {
+                    startCarousel();
+                }
+            }, 10000);
+        }
+
+        function updateFloatingContent() {
+            const content = floatingContents[currentContentIndex];
+            document.getElementById('currentIcon').textContent = content.icon;
+            document.getElementById('currentTitle').textContent = content.title;
+            document.getElementById('contentDisplay').innerHTML = content.html;
+        }
+
+        function startCarousel() {
+            if (carouselInterval) return;
+            
+            carouselInterval = setInterval(() => {
+                currentContentIndex = (currentContentIndex + 1) % floatingContents.length;
+                switchContent(currentContentIndex);
+            }, 5000);
+        }
+
+        function stopCarousel() {
+            if (carouselInterval) {
+                clearInterval(carouselInterval);
+                carouselInterval = null;
+            }
+        }
+
+        function copyContent() {
+            const contentText = document.getElementById('contentDisplay').innerText;
+            const textarea = document.createElement('textarea');
+            textarea.value = contentText;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            showToast('✅ 内容已复制到剪贴板');
+        }
+
+        function copyScript(element) {
+            const scriptText = element.querySelector('.script-content').textContent;
+            const textarea = document.createElement('textarea');
+            textarea.value = scriptText;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            showToast('✅ 话术已复制到剪贴板');
+        }
+
+        function showMore() {
+            showToast('ℹ️ 更多功能开发中...');
+        }
+
+        function showToast(message) {
+            const existingToast = document.querySelector('.toast');
+            if (existingToast) {
+                existingToast.remove();
+            }
+            
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        // 模拟数据更新
+        setInterval(() => {
+            const newScore = Math.floor(Math.random() * 20) + 75;
+            document.querySelector('.vibe-score-value').textContent = newScore;
+            document.querySelector('.vibe-score-circle').style.setProperty('--score', newScore);
+        }, 15000);
+    </script>
+</body>
+</html>
+

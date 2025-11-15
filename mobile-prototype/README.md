@@ -2,19 +2,20 @@
 
 ## 项目概述
 
-这是提猫直播助手移动端应用的高保真HTML原型，基于需求文档 v1.2 设计，包含4个核心页面，可直接用于开发参考。
+这是提猫直播助手移动端应用的高保真HTML原型，基于需求文档 v1.2 设计，包含5个核心页面，可直接用于开发参考。新增了直播控制台双模式原型，展示了全功能模式与直播模式的界面设计和交互逻辑。
 
 ## 文件结构
 
 ```
 mobile-prototype/
-├── index.html          # 原型导航页面
-├── login.html          # 登录页面
-├── monitor.html        # 直播监控页面（含悬浮窗）
-├── stats.html          # 数据统计列表页面
-├── report.html         # 复盘报告详情页面
-├── UX_ANALYSIS.md      # 用户体验分析文档
-└── README.md          # 本文件
+├── index.html                    # 原型导航页面
+├── login.html                    # 登录页面
+├── monitor.html                  # 直播监控页面（含悬浮窗）
+├── stats.html                    # 数据统计列表页面
+├── report.html                   # 复盘报告详情页面
+├── live-dual-mode-prototype.html # 直播控制台双模式原型
+├── UX_ANALYSIS.md                # 用户体验分析文档
+└── README.md                    # 本文件
 ```
 
 ## 核心功能
@@ -50,6 +51,14 @@ mobile-prototype/
 - ✅ AI分析内容
 - ✅ 深度分析和优化建议
 - ✅ 导出和分享功能
+
+### 5. 直播控制台双模式原型 (live-dual-mode-prototype.html)
+- ✅ 全功能模式（四宫格布局）
+- ✅ 直播模式（悬浮窗设计）
+- ✅ 模式间切换功能
+- ✅ 悬浮窗拖拽、展开/收起
+- ✅ 信息轮播显示机制
+- ✅ 优先级系统演示
 
 ## 技术栈
 
@@ -149,8 +158,15 @@ mobile-prototype/
 - **阶段三**：用户认证功能 → `login.html`
 - **阶段四**：直播监控功能 → `monitor.html`
 - **阶段五**：数据统计与复盘功能 → `stats.html` 和 `report.html`
+- **新增阶段**：直播控制台双模式功能 → `live-dual-mode-prototype.html`
 
 ## 更新日志
+
+### v1.1 (2025-11-15)
+- ✅ 新增直播控制台双模式原型 (live-dual-mode-prototype.html)
+- ✅ 实现全功能模式与直播模式切换
+- ✅ 添加悬浮窗拖拽、展开/收起功能
+- ✅ 集成信息轮播显示机制
 
 ### v1.0 (2025-01-27)
 - ✅ 完成4个核心页面原型设计
