@@ -27,27 +27,26 @@ export interface ApiConfig {
 }
 
 // 默认服务配置
-// local-view分支：使用本地开发地址
-// main分支：使用云服务器地址
+// 🔧 硬编码端口（演示测试）- 后端 11111，前端 10065
 const DEFAULT_CONFIG: ApiConfig = {
   services: {
     main: {
       name: 'FastAPI主服务',
-      baseUrl: 'http://127.0.0.1:8080', // 本地开发地址（local-view分支）
+      baseUrl: 'http://127.0.0.1:11111', // 🔧 硬编码后端端口 11111
       healthEndpoint: '/health',
       timeout: 30000, // 30秒超时（本地开发可能较慢）
       retryCount: 3
     },
     streamcap: {
       name: 'StreamCap服务',
-      baseUrl: 'http://127.0.0.1:9020', // 本地开发地址（local-view分支）
+      baseUrl: 'http://127.0.0.1:11111', // 🔧 StreamCap 已集成到主服务
       healthEndpoint: '/health',
       timeout: 30000,
       retryCount: 3
     },
     douyin: {
       name: 'Douyin服务',
-      baseUrl: 'http://127.0.0.1:9021', // 本地开发地址（local-view分支）
+      baseUrl: 'http://127.0.0.1:11111', // 🔧 Douyin 已集成到主服务
       healthEndpoint: '/health',
       timeout: 30000,
       retryCount: 3

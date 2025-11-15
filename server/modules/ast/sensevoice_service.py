@@ -193,28 +193,35 @@ class SenseVoiceService:
                     device = "cpu"
 
             def _resolve_small_model_id() -> str:
-                # Prefer local checkout if exists
-                project_root = Path(__file__).resolve().parents[1]
-                local_dir = project_root / "models" / "models" / "iic" / "SenseVoiceSmall"
+                # 🔧 修复：project_root 应该指向 server/ 而不是 server/modules/
+                # Path(__file__) = server/modules/ast/sensevoice_service.py
+                # .parents[2] = server/
+                project_root = Path(__file__).resolve().parents[2]
+                # 检查缓存目录：server/modules/models/.cache/models/iic/SenseVoiceSmall
+                cache_dir = project_root / "modules" / "models" / ".cache" / "models" / "iic" / "SenseVoiceSmall"
                 try:
-                    if local_dir.exists():
-                        return str(local_dir)
+                    if cache_dir.exists():
+                        return str(cache_dir)
                 except Exception:
                     pass
                 return self.config.model_id
 
             def _resolve_vad_model_id() -> str:
-                # Try local VAD first
-                project_root = Path(__file__).resolve().parents[1]
-                local_vad = project_root / "models" / "models" / "iic" / "speech_fsmn_vad_zh-cn-16k-common-pytorch"
+                # 🔧 修复：使用正确的路径和优先级
+                # 1. 优先使用配置中指定的路径
+                if self.config.vad_model_id:
+                    return self.config.vad_model_id
+                
+                # 2. 检查缓存目录：server/modules/models/.cache/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch
+                project_root = Path(__file__).resolve().parents[2]
+                cache_vad = project_root / "modules" / "models" / ".cache" / "models" / "iic" / "speech_fsmn_vad_zh-cn-16k-common-pytorch"
                 try:
-                    if self.config.vad_model_id:
-                        return self.config.vad_model_id
-                    if local_vad.exists():
-                        return str(local_vad)
+                    if cache_vad.exists():
+                        return str(cache_vad)
                 except Exception:
                     pass
-                # Fallback to ModelScope id
+                
+                # 3. 回退到 ModelScope ID（FunASR 会自动下载到缓存目录）
                 return "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
 
             def _resolve_punc_model_id() -> Optional[str]:

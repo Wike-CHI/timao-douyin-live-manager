@@ -243,9 +243,10 @@ async def live_audio_health():
     - Attempts a lazy init; returns current status and suggestions
     """
     svc = get_live_audio_service()
+    # 🔧 修复：使用正确的缓存路径
     root = Path(__file__).resolve().parents[3]
-    model_dir = root / "models" / "models" / "iic" / "SenseVoiceSmall"
-    vad_dir = root / "models" / "models" / "iic" / "speech_fsmn_vad_zh-cn-16k-common-pytorch"
+    model_dir = root / "server" / "modules" / "models" / ".cache" / "models" / "iic" / "SenseVoiceSmall"
+    vad_dir = root / "server" / "modules" / "models" / ".cache" / "models" / "iic" / "speech_fsmn_vad_zh-cn-16k-common-pytorch"
     present = {
         "model_dir": str(model_dir),
         "model_present": model_dir.exists(),
