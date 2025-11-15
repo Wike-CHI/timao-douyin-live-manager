@@ -5,18 +5,56 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>提猫直播助手 - 双模式控制台 v2</title>
     <style>
-        /* ============= 提猫主题色 ============= */
+        /* ============= 提猫主题色系统 ============= */
+        /* 紫罗兰主题 */
+        :root[data-theme="violet"] {
+            --primary-color: #9370DB;
+            --primary-light: #B19CD9;
+            --primary-dark: #7B68EE;
+            --secondary-color: #8B7BB8;
+            --accent-color: #A855F7;
+            --bg-dark: #1a1625;
+            --bg-card: #2d2438;
+            --bg-hover: rgba(147, 112, 219, 0.15);
+            --border-color: rgba(147, 112, 219, 0.3);
+            --text-primary: #f5f3ff;
+            --text-secondary: #d8b4fe;
+            --gradient-start: #9370DB;
+            --gradient-end: #7B68EE;
+        }
+
+        /* 猫爪粉主题 */
+        :root[data-theme="pink"] {
+            --primary-color: #FFB6C1;
+            --primary-light: #FFC0CB;
+            --primary-dark: #FF9FB4;
+            --secondary-color: #FFB6C1;
+            --accent-color: #FF69B4;
+            --bg-dark: #2d1b2e;
+            --bg-card: #3d2b3e;
+            --bg-hover: rgba(255, 182, 193, 0.15);
+            --border-color: rgba(255, 182, 193, 0.3);
+            --text-primary: #fff5f7;
+            --text-secondary: #ffc0cb;
+            --gradient-start: #FFB6C1;
+            --gradient-end: #FF69B4;
+        }
+
+        /* 默认使用紫罗兰主题 */
         :root {
-            --violet-primary: #9370DB;      /* 紫罗兰主色 */
-            --violet-secondary: #8B7BB8;    /* 紫罗兰辅助色 */
-            --violet-dark: #7B68EE;         /* 深紫罗兰 */
-            --cat-paw-pink: #FFB6C1;        /* 猫爪粉 */
-            --cat-paw-pink-light: #FFC0CB;  /* 浅猫爪粉 */
-            --cat-paw-pink-dark: #FF9FB4;   /* 深猫爪粉 */
-            --bg-dark: #1a1625;             /* 深色背景 */
-            --bg-card: #2d2438;             /* 卡片背景 */
-            --text-primary: #f5f3ff;        /* 主文本 */
-            --text-secondary: #d8b4fe;      /* 次要文本 */
+            --primary-color: #9370DB;
+            --primary-light: #B19CD9;
+            --primary-dark: #7B68EE;
+            --secondary-color: #8B7BB8;
+            --accent-color: #A855F7;
+            --bg-dark: #1a1625;
+            --bg-card: #2d2438;
+            --bg-hover: rgba(147, 112, 219, 0.15);
+            --border-color: rgba(147, 112, 219, 0.3);
+            --text-primary: #f5f3ff;
+            --text-secondary: #d8b4fe;
+            --gradient-start: #9370DB;
+            --gradient-end: #7B68EE;
         }
 
         * {
@@ -50,12 +88,12 @@
         /* 顶部控制栏 */
         .control-bar {
             height: 80px;
-            background: linear-gradient(135deg, var(--violet-primary) 0%, var(--cat-paw-pink) 100%);
+            background: linear-gradient(135deg, var(--gradient-start) 0%, var(--gradient-end) 100%);
             padding: 0 24px;
             display: flex;
             align-items: center;
             gap: 16px;
-            box-shadow: 0 4px 12px rgba(147, 112, 219, 0.4);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
         }
 
         .control-bar h1 {
@@ -96,24 +134,24 @@
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, var(--violet-secondary) 0%, var(--violet-primary) 100%);
+            background: linear-gradient(135deg, var(--secondary-color) 0%, var(--primary-color) 100%);
             color: white;
         }
 
         .btn-primary:hover {
-            background: linear-gradient(135deg, var(--violet-dark) 0%, var(--violet-secondary) 100%);
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--secondary-color) 100%);
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(147, 112, 219, 0.6);
+            box-shadow: 0 4px 12px var(--border-color);
         }
 
         .btn-secondary {
-            background: linear-gradient(135deg, var(--cat-paw-pink-dark) 0%, var(--cat-paw-pink) 100%);
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-color) 100%);
             color: white;
         }
 
         .btn-secondary:hover {
-            background: linear-gradient(135deg, #FF8FAA 0%, var(--cat-paw-pink-dark) 100%);
-            box-shadow: 0 4px 12px rgba(255, 182, 193, 0.6);
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+            box-shadow: 0 4px 12px var(--border-color);
         }
 
         .btn-mode-switch {
@@ -124,7 +162,50 @@
 
         .btn-mode-switch:hover {
             background: rgba(255, 255, 255, 0.3);
-            border-color: var(--cat-paw-pink-light);
+            border-color: var(--primary-light);
+        }
+
+        /* 主题切换按钮 */
+        .theme-switcher {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .theme-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .theme-btn.violet {
+            background: linear-gradient(135deg, #9370DB, #7B68EE);
+        }
+
+        .theme-btn.pink {
+            background: linear-gradient(135deg, #FFB6C1, #FF69B4);
+        }
+
+        .theme-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(255, 255, 255, 0.3);
+        }
+
+        .theme-btn.active {
+            border-color: white;
+            box-shadow: 0 0 12px rgba(255, 255, 255, 0.5);
+            transform: scale(1.15);
         }
 
         /* 四宫格布局 */
@@ -144,7 +225,7 @@
             padding: 20px;
             overflow-y: auto;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(147, 112, 219, 0.2);
+            border: 1px solid var(--border-color);
             display: flex;
             flex-direction: column;
         }
@@ -156,7 +237,7 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            color: var(--cat-paw-pink);
+            color: var(--primary-color);
             flex-shrink: 0;
         }
 
@@ -193,10 +274,10 @@
 
         .transcript-item {
             padding: 12px;
-            background: rgba(147, 112, 219, 0.15);
+            background: var(--bg-hover);
             border-radius: 8px;
             margin-bottom: 8px;
-            border-left: 3px solid var(--violet-primary);
+            border-left: 3px solid var(--primary-color);
         }
 
         .transcript-meta {
@@ -870,12 +951,12 @@
         }
 
         ::-webkit-scrollbar-thumb {
-            background: rgba(168, 85, 247, 0.5);
+            background: linear-gradient(135deg, rgba(147, 112, 219, 0.5), rgba(255, 182, 193, 0.5));
             border-radius: 3px;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-            background: rgba(168, 85, 247, 0.7);
+            background: linear-gradient(135deg, rgba(147, 112, 219, 0.8), rgba(255, 182, 193, 0.8));
         }
 
         /* 响应式 */
