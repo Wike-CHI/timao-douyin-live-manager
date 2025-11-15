@@ -145,7 +145,33 @@ app.on('activate', function () {
 /**
  * 应用准备就绪时创建窗口
  */
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+    // 🆕 启动 Python 转写服务（如果可用）
+    try {
+        // 动态加载 Python 转写服务（TypeScript 编译后的 JS）
+        const pythonTranscriberPath = path.join(__dirname, 'services', 'pythonTranscriber.js');
+        if (fs.existsSync(pythonTranscriberPath)) {
+            console.log('[electron] 加载 Python 转写服务...');
+            const { pythonTranscriber } = require('./services/pythonTranscriber.js');
+            
+            // 启动 Python 转写服务
+            console.log('[electron] 启动 Python 转写服务...');
+            await pythonTranscriber.start();
+            console.log('[electron] ✅ Python 转写服务已启动');
+            
+            // 注册退出时停止服务
+            app.on('will-quit', () => {
+                console.log('[electron] 停止 Python 转写服务...');
+                pythonTranscriber.stop();
+            });
+        } else {
+            console.log('[electron] ⚠️ Python 转写服务未找到，将使用服务器端转写');
+        }
+    } catch (error) {
+        console.error('[electron] ❌ Python 转写服务启动失败:', error);
+        console.log('[electron] 将回退到服务器端转写模式');
+    }
+    
     createWindow();
     
     // 注册 IPC 处理器

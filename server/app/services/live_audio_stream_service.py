@@ -222,6 +222,8 @@ class LiveAudioStreamService:
         # Callbacks
         self._tr_callbacks: Dict[str, Callable[[Dict[str, Any]], Awaitable[None] | None]] = {}
         self._level_callbacks: Dict[str, Callable[[float, float], Awaitable[None] | None]] = {}
+        # 🆕 音频流回调（用于推送原始音频数据到 WebSocket 客户端）
+        self._audio_stream_callbacks: Dict[str, Callable[[bytes], Awaitable[None] | None]] = {}
 
         # Config
         # Output mode: hard-lock to 'vad' per product requirement
@@ -247,6 +249,8 @@ class LiveAudioStreamService:
         self._vad_buf: bytearray = bytearray()
         # Duplicate suppression (final sentence level)
         self._last_sent_norms: List[str] = []  # keep recent normalized sentences
+        # 🆕 转写计数器，用于定期垃圾回收
+        self._transcription_count: int = 0
         # Soft constraints
         self.min_sentence_chars: int = 8  # 默认稳定配置，可通过 profile 覆盖
         # Stability gating for non-punctuation finals
@@ -273,6 +277,14 @@ class LiveAudioStreamService:
         self.persist_root: Optional[str] = None
         self._persist_tr: Optional[Any] = None
 
+        # 🆕 Redis批量写入配置
+        self._redis_batch_enabled: bool = bool(int(os.getenv("REDIS_BATCH_ENABLED", "1")))
+        self._redis_batch_size: int = int(os.getenv("REDIS_BATCH_SIZE", "100"))
+        self._redis_batch_interval: float = float(os.getenv("REDIS_BATCH_INTERVAL", "10.0"))
+        self._redis_batch_buffer: List[Dict[str, Any]] = []
+        self._redis_batch_task: Optional[asyncio.Task] = None
+        self._redis_batch_lock: asyncio.Lock = asyncio.Lock()
+        
         # 背景音乐检测与自适应阈值 - 优化参数以更好地抑制背景音乐
         self.music_detection_enabled: bool = bool(int(os.getenv("LIVE_VAD_MUSIC_DETECT", "1")))
         if np is None:
@@ -769,6 +781,15 @@ class LiveAudioStreamService:
     def remove_level_callback(self, name: str) -> None:
         self._level_callbacks.pop(name, None)
 
+    # 🆕 音频流回调管理（用于 Electron 本地转写）
+    def add_audio_stream_callback(self, name: str, cb: Callable[[bytes], Awaitable[None] | None]) -> None:
+        """添加音频流回调，用于推送原始音频数据"""
+        self._audio_stream_callbacks[name] = cb
+
+    def remove_audio_stream_callback(self, name: str) -> None:
+        """移除音频流回调"""
+        self._audio_stream_callbacks.pop(name, None)
+
     # ---------- Internals ----------
     async def _ensure_sv(self) -> None:
         """确保SenseVoice ASR服务已加载（使用本地PyTorch模型 + VAD）"""
@@ -852,6 +873,9 @@ class LiveAudioStreamService:
                 self._status.audio_chunk_count += 1
                 self._status.last_audio_chunk_time = _now()
                 self._status.is_receiving_audio = True
+                
+                # 🆕 广播音频块到 WebSocket 客户端（Electron 本地转写）
+                await self._broadcast_audio_chunk(data)
                 
                 buf.extend(data)
                 while len(buf) >= chunk_bytes:
@@ -1067,6 +1091,19 @@ class LiveAudioStreamService:
                 "speaker_debug": self._last_speaker_debug,
             },
         })
+
+    async def _broadcast_audio_chunk(self, audio_data: bytes) -> None:
+        """🆕 广播音频块到所有 WebSocket 客户端（用于 Electron 本地转写）"""
+        if not audio_data or not self._audio_stream_callbacks:
+            return
+        # Fan out to audio stream callbacks
+        for _, cb in list(self._audio_stream_callbacks.items()):
+            try:
+                r = cb(audio_data)
+                if asyncio.iscoroutine(r):
+                    await r
+            except Exception as e:
+                self.logger.debug(f"音频流广播失败: {e}")
 
     async def _drain_ffmpeg_stderr(self, stream: asyncio.StreamReader) -> None:
         try:
@@ -1580,6 +1617,13 @@ class LiveAudioStreamService:
                 suffix,
                 min_interval=1.5,
             )
+            
+            # 🆕 内存优化：定期垃圾回收
+            self._transcription_count += 1
+            if self._transcription_count % 100 == 0:
+                import gc
+                gc.collect()
+                self.logger.debug(f"🧹 转写服务内存清理：已处理{self._transcription_count}次转写")
         except Exception as e:
             self._status.failed_transcriptions += 1
             await self._emit({
@@ -1654,20 +1698,27 @@ class LiveAudioStreamService:
         })
         # Persist final transcription (VAD)
         try:
+            transcription_data = {
+                "type": "transcription",
+                "text": clean,
+                "confidence": conf,
+                "timestamp": _now(),
+                "is_final": True,
+                "room_id": self._status.live_id,
+                "session_id": self._status.session_id,
+                "words": res.get("words", []),
+                "reason": reason,
+                "speaker": self._last_speaker_label,
+                "speaker_debug": self._last_speaker_debug,
+            }
+            
+            # 写入JSONL文件（保持原有功能）
             if self._persist_tr is not None:
-                self._persist_tr.write({
-                    "type": "transcription",
-                    "text": clean,
-                    "confidence": conf,
-                    "timestamp": _now(),
-                    "is_final": True,
-                    "room_id": self._status.live_id,
-                    "session_id": self._status.session_id,
-                    "words": res.get("words", []),
-                    "reason": reason,
-                    "speaker": self._last_speaker_label,
-                    "speaker_debug": self._last_speaker_debug,
-                })
+                self._persist_tr.write(transcription_data)
+            
+            # 🆕 Redis批量缓冲（异步写MySQL）
+            if self._redis_batch_enabled:
+                await self._buffer_transcription_for_batch(transcription_data)
         except Exception:
             pass
 
@@ -1810,6 +1861,74 @@ class LiveAudioStreamService:
                 self._hotword.set_rules(replace)  # type: ignore
         except Exception:
             pass
+
+    # 🆕 Redis批量入库相关方法
+    async def _buffer_transcription_for_batch(self, data: Dict[str, Any]) -> None:
+        """将转写结果加入批量缓冲区"""
+        try:
+            async with self._redis_batch_lock:
+                self._redis_batch_buffer.append(data)
+                
+                # 如果达到批量大小，立即触发写入
+                if len(self._redis_batch_buffer) >= self._redis_batch_size:
+                    await self._flush_transcription_batch()
+            
+            # 启动后台批量任务（如果尚未启动）
+            if self._redis_batch_task is None or self._redis_batch_task.done():
+                self._redis_batch_task = asyncio.create_task(self._batch_transcription_worker())
+        except Exception as e:
+            self.logger.error(f"缓冲转写结果失败: {e}")
+
+    async def _batch_transcription_worker(self) -> None:
+        """后台批量写入任务"""
+        try:
+            while self._status.is_running:
+                await asyncio.sleep(self._redis_batch_interval)
+                await self._flush_transcription_batch()
+        except asyncio.CancelledError:
+            # 任务被取消时，最后flush一次
+            await self._flush_transcription_batch()
+        except Exception as e:
+            self.logger.error(f"批量转写任务异常: {e}")
+
+    async def _flush_transcription_batch(self) -> None:
+        """将缓冲的转写结果批量写入Redis和MySQL"""
+        try:
+            async with self._redis_batch_lock:
+                if not self._redis_batch_buffer:
+                    return
+                
+                batch_to_write = self._redis_batch_buffer.copy()
+                self._redis_batch_buffer.clear()
+            
+            if not batch_to_write:
+                return
+            
+            # 写入Redis List（作为临时队列）
+            try:
+                from server.utils.redis_manager import get_redis
+                redis_mgr = get_redis()
+                if redis_mgr:
+                    session_id = self._status.session_id
+                    redis_key = f"transcription:{session_id}:stream"
+                    
+                    # 批量推入Redis List
+                    import json
+                    for item in batch_to_write:
+                        redis_mgr.rpush(redis_key, json.dumps(item, ensure_ascii=False))
+                    
+                    # 设置过期时间（24小时）
+                    redis_mgr.expire(redis_key, 86400)
+                    
+                    self.logger.info(f"批量写入Redis: {len(batch_to_write)}条转写记录 -> {redis_key}")
+            except Exception as e:
+                self.logger.error(f"写入Redis失败: {e}")
+            
+            # TODO: 异步批量写MySQL（需要数据库模型支持）
+            # 这里暂时只写Redis，MySQL批量写入需要在独立的数据持久化服务中实现
+            
+        except Exception as e:
+            self.logger.error(f"刷新转写批次失败: {e}")
 
 
 # Singleton accessor

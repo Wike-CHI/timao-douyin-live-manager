@@ -56,6 +56,11 @@ class AIState:
     vibe: Dict[str, Any] = field(default_factory=dict)
     anchor_id: Optional[str] = None
     user_scores: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    
+    # 🆕 内存限制配置
+    max_sentences: int = 200  # 最多保留200条句子
+    max_comments: int = 500  # 最多保留500条评论
+    max_speaker_sentences: int = 200  # 最多保留200条说话人句子
 
 
 class AILiveAnalyzer:
@@ -73,6 +78,11 @@ class AILiveAnalyzer:
         self._script_responder = None
         self._workflow = None
         self._session_id: Optional[str] = None  # 🔧 初始化session_id，防止stop()时访问不存在的属性
+        
+        # 🆕 Redis缓存配置（AI分析结果）
+        self._redis_cache_enabled: bool = bool(int(os.getenv("AI_CACHE_ENABLED", "1")))
+        self._redis_cache_ttl: int = int(os.getenv("AI_CACHE_TTL", "3600"))  # 1小时
+        
         self._init_workflow()
 
     # -------------- Public API --------------
@@ -318,6 +328,94 @@ class AILiveAnalyzer:
         scripts = self._script_responder.generate(context)
         return {"scripts": scripts}
 
+    # 🆕 Redis缓存辅助方法
+    async def _get_cached_analysis(self, cache_key: str) -> Optional[Dict[str, Any]]:
+        """从Redis获取缓存的AI分析结果"""
+        if not self._redis_cache_enabled:
+            return None
+        
+        try:
+            from server.utils.redis_manager import get_redis
+            import json
+            redis_mgr = get_redis()
+            if redis_mgr:
+                cached = redis_mgr.get(cache_key)
+                if cached:
+                    logger.info(f"✅ 命中AI分析缓存: {cache_key}")
+                    # 兼容Redis管理器返回字符串或dict的情况
+                    if isinstance(cached, dict):
+                        return cached
+                    elif isinstance(cached, (str, bytes)):
+                        return json.loads(cached if isinstance(cached, str) else cached.decode('utf-8'))
+                    else:
+                        logger.warning(f"未知的缓存数据类型: {type(cached)}")
+                        return None
+        except Exception as e:
+            logger.warning(f"获取AI分析缓存失败: {e}")
+        
+        return None
+
+    async def _cache_analysis_result(self, cache_key: str, result: Dict[str, Any]) -> None:
+        """将AI分析结果缓存到Redis"""
+        if not self._redis_cache_enabled:
+            return
+        
+        try:
+            from server.utils.redis_manager import get_redis
+            import json
+            redis_mgr = get_redis()
+            if redis_mgr:
+                redis_mgr.set(
+                    cache_key, 
+                    json.dumps(result, ensure_ascii=False), 
+                    ttl=self._redis_cache_ttl
+                )
+                logger.debug(f"✅ AI分析结果已缓存: {cache_key}")
+        except Exception as e:
+            logger.warning(f"缓存AI分析结果失败: {e}")
+
+    def _generate_cache_key(self, sentences: List[str], comments: List[Dict[str, Any]]) -> str:
+        """生成缓存键（基于输入内容的哈希）"""
+        import hashlib
+        import json
+        
+        # 构建缓存键的内容（句子+评论）
+        content = {
+            "sentences": sentences,
+            "comments": [c.get("content", "") for c in comments if isinstance(c, dict)]
+        }
+        content_str = json.dumps(content, ensure_ascii=False, sort_keys=True)
+        content_hash = hashlib.md5(content_str.encode()).hexdigest()
+        
+        # 缓存键格式：ai_analysis:{session_id}:{content_hash}
+        session_id = self._session_id or "default"
+        return f"ai_analysis:{session_id}:{content_hash}"
+
+    def _enforce_memory_limits(self) -> None:
+        """强制执行内存限制，防止内存无限增长"""
+        try:
+            state = self._state
+            
+            # 限制句子数量
+            if len(state.sentences) > state.max_sentences:
+                excess = len(state.sentences) - state.max_sentences
+                state.sentences = state.sentences[excess:]
+                logger.debug(f"清理 {excess} 条旧句子，当前保留 {len(state.sentences)} 条")
+            
+            # 限制评论数量
+            if len(state.comments) > state.max_comments:
+                excess = len(state.comments) - state.max_comments
+                state.comments = state.comments[excess:]
+                logger.debug(f"清理 {excess} 条旧评论，当前保留 {len(state.comments)} 条")
+            
+            # 限制说话人句子数量
+            if len(state.speaker_sentences) > state.max_speaker_sentences:
+                excess = len(state.speaker_sentences) - state.max_speaker_sentences
+                state.speaker_sentences = state.speaker_sentences[excess:]
+                logger.debug(f"清理 {excess} 条旧说话人句子，当前保留 {len(state.speaker_sentences)} 条")
+        except Exception as e:
+            logger.error(f"强制内存限制失败: {e}")
+
     def _run_workflow(
         self,
         sentences: List[str],
@@ -328,6 +426,10 @@ class AILiveAnalyzer:
     ) -> Dict[str, Any]:
         if self._workflow is None:
             raise RuntimeError("LangGraph workflow not available")
+        
+        # 🆕 尝试从缓存获取（注意：_run_workflow是同步方法，需要用asyncio.run或在调用方处理）
+        # 这里简化处理，直接执行workflow（缓存逻辑放在async wrapper中）
+        
         state: Dict[str, Any] = {
             "anchor_id": self._anchor_id or "default",
             "broadcaster_id": self._anchor_id or "default",
@@ -546,6 +648,22 @@ class AILiveAnalyzer:
         ]
         for key in stale_keys:
             s.user_scores.pop(key, None)
+        
+        # 🆕 内存优化：限制 user_scores 数量，避免长时间累积
+        if len(s.user_scores) > 500:
+            # 按活跃度排序，只保留最活跃的300个用户
+            sorted_users = sorted(
+                s.user_scores.items(),
+                key=lambda x: int(x[1].get("last_ts", 0)),
+                reverse=True
+            )
+            s.user_scores = dict(sorted_users[:300])
+            logger.info(f"🧹 AI分析服务内存清理：user_scores从{len(sorted_users)}减少到300")
+        
+        # 🆕 定期垃圾回收
+        if len(s.user_scores) > 100:
+            import gc
+            gc.collect()
 
         # call AI (异步执行，避免阻塞事件循环)
         try:

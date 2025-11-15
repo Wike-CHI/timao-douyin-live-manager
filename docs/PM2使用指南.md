@@ -9,10 +9,48 @@ Python环境: .venv/bin/python (虚拟环境)
 工作目录: /www/wwwroot/wwwroot/timao-douyin-live-manager
 启动命令: python -m uvicorn server.app.main:app --host 0.0.0.0 --port 11111 --workers 1
 
-内存限制: 2GB (超过自动重启)
+内存限制: 3GB (SenseVoice + VAD 需要约 2.5GB，留有余量)
 日志路径: 
   - logs/pm2-out.log
   - logs/pm2-error.log
+```
+
+### 🤖 SenseVoice + VAD 模型配置
+
+PM2 已配置以下环境变量，确保模型正确加载：
+
+```javascript
+// 模型路径配置
+MODEL_ROOT: '/www/wwwroot/.../server/models/models/iic'
+SENSEVOICE_MODEL_PATH: '.../SenseVoiceSmall'           // ~2.3GB
+VAD_MODEL_PATH: '.../speech_fsmn_vad_zh-cn-16k-...'    // ~140MB
+
+// 模型加载配置
+ENABLE_MODEL_PRELOAD: '1'                              // 启用预加载
+MODEL_CACHE_DIR: '.cache/modelscope'                   // 缓存目录
+
+// VAD 参数（已优化）
+LIVE_VAD_CHUNK_SEC: '1.6'                              // 分块时长
+LIVE_VAD_MIN_SILENCE_SEC: '0.50'                       // 最小静音
+LIVE_VAD_MIN_SPEECH_SEC: '0.30'                        // 最小语音
+LIVE_VAD_MIN_RMS: '0.015'                              // 灵敏度阈值
+
+// PyTorch CPU 优化
+OMP_NUM_THREADS: '4'                                   // OpenMP 线程
+MKL_NUM_THREADS: '4'                                   // MKL 线程
+```
+
+**配置文件**: `ecosystem.config.js`
+
+**模型验证命令**:
+```bash
+# 检查模型文件是否存在
+ls -lh server/models/models/iic/SenseVoiceSmall/
+ls -lh server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/
+
+# 查看模型大小
+du -sh server/models/models/iic/SenseVoiceSmall/
+du -sh server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/
 ```
 
 ## 🚀 基本操作
@@ -222,14 +260,92 @@ pm2 show timao-backend
 pm2 reload timao-backend
 ```
 
-### 场景5: 查看SenseVoice加载情况
+### 场景5: 查看SenseVoice+VAD加载情况
+
+#### 方法 1: 使用模型状态 API（推荐）
+
+```bash
+# 快速健康检查
+curl http://127.0.0.1:11111/api/model/health | python3 -m json.tool
+
+# 查看完整模型状态
+curl http://127.0.0.1:11111/api/model/status | python3 -m json.tool
+
+# 查看环境变量配置
+curl http://127.0.0.1:11111/api/model/config | python3 -m json.tool
+
+# 运行自动测试脚本
+python scripts/检查与校验/test-model-api.py
+```
+
+**API 响应示例**:
+```json
+{
+  "status": "healthy",
+  "sensevoice": {"exists": true, "size_mb": 892.9},
+  "vad": {"exists": true, "size_mb": 1.6},
+  "vad_config": {"chunk_sec": "1.6", "min_silence_sec": "0.50"},
+  "pytorch_config": {"omp_threads": "4", "mkl_threads": "4"},
+  "system": {"available_memory_gb": 3.52, "cpu_percent": 2.6},
+  "checks": {
+    "sensevoice_exists": true,
+    "vad_exists": true,
+    "vad_config_set": true,
+    "memory_sufficient": true
+  }
+}
+```
+
+#### 方法 2: 查看 PM2 日志
 
 ```bash
 # 查看启动日志（SenseVoice初始化信息）
 pm2 logs timao-backend --lines 200 | grep -i "sensevoice\|vad\|模型"
 
-# 实时查看
+# 实时查看模型加载
 pm2 logs timao-backend | grep -i "sensevoice\|vad"
+
+# 查看模型初始化成功标志
+pm2 logs timao-backend | grep "✅ SenseVoice"
+
+# 查看环境变量配置
+pm2 env 0 | grep -E "SENSEVOICE|VAD|MODEL"
+```
+
+**预期的成功日志**:
+```
+✅ SenseVoice + VAD 初始化成功（本地PyTorch模型）
+模型路径: /www/wwwroot/.../SenseVoiceSmall
+VAD路径: /www/wwwroot/.../speech_fsmn_vad_zh-cn-16k-common-pytorch
+```
+
+**如果模型加载失败**:
+```bash
+# 1. 使用 API 诊断问题
+curl -s http://127.0.0.1:11111/api/model/status | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if data['warnings']:
+    print('⚠️  警告:')
+    for w in data['warnings']: print(f'  • {w}')
+if data['recommendations']:
+    print('💡 建议:')
+    for r in data['recommendations']: print(f'  • {r}')
+"
+
+# 2. 检查模型文件
+ls -lh server/models/models/iic/SenseVoiceSmall/model.pt
+ls -lh server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/model.pt
+
+# 3. 检查内存是否充足
+free -h
+
+# 4. 重新下载模型（如果缺失）
+python server/tools/download_sensevoice.py
+python server/tools/download_vad_model.py
+
+# 5. 重启服务
+pm2 restart timao-backend
 ```
 
 ### 场景6: 性能监控
@@ -271,6 +387,81 @@ pm2 plus
 2. 检查端口: netstat -tulnp | grep 11111
 3. 测试启动: python -m uvicorn server.app.main:app --port 11111
 ```
+
+## 🤖 模型配置验证
+
+### 验证模型文件完整性
+
+```bash
+# 1. 检查模型文件是否存在
+cd /www/wwwroot/wwwroot/timao-douyin-live-manager
+
+# SenseVoice 模型（应该有 model.pt 等文件）
+ls -lh server/models/models/iic/SenseVoiceSmall/
+# 预期输出：model.pt (~2.3GB)
+
+# VAD 模型
+ls -lh server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/
+# 预期输出：model.pt (~140MB)
+
+# 2. 查看模型总大小
+du -sh server/models/models/iic/SenseVoiceSmall/
+du -sh server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/
+```
+
+### 验证环境变量配置
+
+```bash
+# 查看 PM2 进程的环境变量
+pm2 env 0 | grep -E "SENSEVOICE|VAD|MODEL|PYTORCH|OMP|MKL"
+
+# 预期输出应包含：
+# SENSEVOICE_MODEL_PATH=/www/wwwroot/.../SenseVoiceSmall
+# VAD_MODEL_PATH=/www/wwwroot/.../speech_fsmn_vad_zh-cn-16k-common-pytorch
+# ENABLE_MODEL_PRELOAD=1
+# OMP_NUM_THREADS=4
+# MKL_NUM_THREADS=4
+```
+
+### 验证模型加载状态
+
+```bash
+# 启动服务并查看加载日志
+pm2 restart timao-backend
+pm2 logs timao-backend --lines 100
+
+# 等待几秒后，搜索成功标志
+pm2 logs timao-backend --lines 200 | grep -A 5 "SenseVoice"
+
+# 预期看到：
+# ✅ SenseVoice + VAD 初始化成功（本地PyTorch模型）
+```
+
+### 测试模型推理
+
+```bash
+# 查看服务状态
+pm2 show timao-backend
+
+# 检查 API 健康
+curl http://127.0.0.1:11111/health
+
+# 测试语音转写端点（如果有测试音频）
+# curl -X POST http://127.0.0.1:11111/api/transcribe \
+#   -F "audio=@test.wav"
+```
+
+### 模型配置检查清单
+
+| 检查项 | 命令 | 预期结果 |
+|--------|------|----------|
+| ✅ 模型文件存在 | `ls server/models/models/iic/SenseVoiceSmall/model.pt` | 文件存在 |
+| ✅ VAD文件存在 | `ls server/models/.../speech_fsmn_vad.../model.pt` | 文件存在 |
+| ✅ 环境变量配置 | `pm2 env 0 \| grep SENSEVOICE` | 路径正确 |
+| ✅ 内存充足 | `free -h` | 至少 4GB 可用 |
+| ✅ PM2进程运行 | `pm2 list` | online 状态 |
+| ✅ 模型初始化成功 | `pm2 logs \| grep "✅ SenseVoice"` | 有成功日志 |
+| ✅ API 可访问 | `curl http://127.0.0.1:11111/health` | 200 OK |
 
 ## 🔍 故障排除
 
@@ -315,9 +506,56 @@ pm2 show timao-backend | grep memory
 # 如果持续增长，定期重启
 pm2 reload timao-backend
 
-# 或修改配置降低内存限制（触发更频繁的自动重启）
-# 编辑 ecosystem.config.js
-max_memory_restart: '1500M'  # 从2G降低到1.5G
+# 注意：SenseVoice + VAD 需要约 2.5GB 内存
+# 不要将 max_memory_restart 设置低于 2.5GB
+# 否则模型加载后会立即触发重启
+
+# 当前配置: 3GB (合理)
+# 最低建议: 2.5GB (紧张)
+```
+
+### 问题5: 模型加载失败
+
+```bash
+# 症状：日志中出现 "❌ SenseVoice初始化失败"
+
+# 1. 检查模型文件完整性
+ls -lh server/models/models/iic/SenseVoiceSmall/model.pt
+ls -lh server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/model.pt
+
+# 2. 检查磁盘空间
+df -h
+
+# 3. 检查内存
+free -h
+
+# 4. 重新下载模型
+python server/tools/download_sensevoice.py
+python server/tools/download_vad_model.py
+
+# 5. 检查 PyTorch 依赖
+.venv/bin/pip list | grep torch
+
+# 6. 清理缓存后重试
+rm -rf .cache/modelscope/*
+pm2 restart timao-backend
+```
+
+### 问题6: 模型加载慢
+
+```bash
+# 症状：启动需要 1-2 分钟
+
+# 这是正常的！SenseVoice Small 模型约 2.3GB
+# 首次加载或冷启动需要时间
+
+# 优化建议：
+# 1. 确保使用 SSD 而非 HDD
+# 2. 增加 PyTorch 线程数（已在配置中）
+# 3. 使用模型预加载（已在配置中）
+
+# 查看加载进度
+pm2 logs timao-backend --lines 50
 ```
 
 ### 问题4: CPU占用过高

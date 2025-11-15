@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>直播控制台双模式 - 提猫直播助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            overflow-x: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        /* 全功能模式样式 */
+        .full-mode {
+            display: block;
+        }
+        
+        .live-mode {
+            display: none;
+        }
+        
+        /* 悬浮窗样式 */
+        .floating-window {
+            position: fixed;
+            z-index: 9999;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: move;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06), 0 12px 24px rgba(0, 0, 0, 0.15);
+            border-radius: 16px;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.95);
+        }
+        
+        .floating-window.dark-mode {
+            background: rgba(26, 32, 44, 0.95);
+        }
+        
+        .floating-window.expanded {
+            width: 320px;
+            height: 240px;
+        }
+        
+        .floating-window.collapsed {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+        }
+        
+        .floating-window:hover {
+            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15), 0 4px 8px rgba(0, 0, 0, 0.1), 0 16px 32px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* 标题栏样式 */
+        .title-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: rgba(168, 85, 247, 0.1);
+            cursor: move;
+        }
+        
+        .title-text {
+            font-weight: 600;
+            font-size: 14px;
+            color: #6b7280;
+        }
+        
+        .title-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .title-btn {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(156, 163, 175, 0.2);
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .title-btn:hover {
+            background: rgba(156, 163, 175, 0.3);
+        }
+        
+        /* 内容区域样式 */
+        .content-area {
+            padding: 16px;
+            height: calc(100% - 40px - 48px);
+            overflow-y: auto;
+        }
+        
+        .content-main {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        /* 操作栏样式 */
+        .action-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            border-top: 1px solid rgba(229, 231, 235, 0.5);
+        }
+        
+        .btn-copy {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(168, 85, 247, 0.1);
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-copy:hover {
+            background: rgba(168, 85, 247, 0.2);
+        }
+        
+        .indicators {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .indicator {
+            position: relative;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .indicator-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(148, 163, 184, 0.5);
+            transition: all 0.3s ease;
+        }
+        
+        .indicator.active .indicator-dot {
+            background: #a855f7;
+            box-shadow: 0 0 8px rgba(168, 85, 247, 0.6);
+        }
+        
+        .indicator:hover .indicator-dot {
+            transform: scale(1.2);
+        }
+        
+        .btn-more {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(156, 163, 175, 0.2);
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-more:hover {
+            background: rgba(156, 163, 175, 0.3);
+        }
+        
+        /* 收起状态样式 */
+        .collapsed-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+        }
+        
+        .collapsed-icon {
+            font-size: 24px;
+            margin-bottom: 4px;
+        }
+        
+        .collapsed-value {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        /* 动画效果 */
+        @keyframes expand {
+            from {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes collapse {
+            from {
+                transform: scale(1);
+                opacity: 1;
+            }
+            to {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+        }
+        
+        .expanding {
+            animation: expand 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .collapsing {
+            animation: collapse 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* 信息内容样式 */
+        .ai-analysis-content, .script-content, .vibe-content {
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        
+        .metric {
+            margin-bottom: 12px;
+        }
+        
+        .metric-label {
+            display: block;
+            font-weight: 500;
+            color: #6b7280;
+            margin-bottom: 4px;
+        }
+        
+        .metric-value {
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        .suggestion {
+            background: rgba(168, 85, 247, 0.1);
+            padding: 8px;
+            border-radius: 8px;
+            margin-top: 8px;
+        }
+        
+        .script-item {
+            margin-bottom: 12px;
+        }
+        
+        .script-type {
+            display: inline-block;
+            padding: 2px 6px;
+            background: rgba(59, 130, 246, 0.1);
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+        
+        .script-text {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+        
+        .script-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #6b7280;
+        }
+        
+        .priority.high {
+            color: #ef4444;
+        }
+        
+        .vibe-metric {
+            margin-bottom: 12px;
+        }
+        
+        .trend.up {
+            color: #10b981;
+        }
+        
+        .trend.down {
+            color: #ef4444;
+        }
+        
+        /* 控制面板样式 */
+        .control-panel {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .control-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 16px;
+            margin-bottom: 16px;
+        }
+        
+        .control-buttons {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .btn-primary {
+            flex: 1;
+            padding: 14px;
+            background: linear-gradient(135deg, #8b5cf6, #a855f7);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+        }
+        
+        .btn-secondary {
+            flex: 1;
+            padding: 14px;
+            background: #f3f4f6;
+            color: #4b5563;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+        
+        /* 四宫格布局 */
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        
+        .grid-item {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            padding: 16px;
+            height: 200px;
+            overflow: hidden;
+        }
+        
+        .grid-title {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .grid-content {
+            height: calc(100% - 32px);
+            overflow-y: auto;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        /* 状态栏 */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            padding: 16px;
+            margin-top: 20px;
+        }
+        
+        .status-item {
+            text-align: center;
+        }
+        
+        .status-value {
+            font-weight: 700;
+            font-size: 18px;
+            color: #8b5cf6;
+        }
+        
+        .status-label {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        
+        /* 模式切换按钮 */
+        .mode-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            padding: 10px 16px;
+            background: #8b5cf6;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+        }
+        
+        /* 响应式适配 */
+        @media (max-width: 768px) {
+            .grid-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .floating-window.expanded {
+                width: 280px;
+                height: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 模式切换按钮 -->
+    <button id="modeToggle" class="mode-toggle">
+        <i class="fas fa-exchange-alt mr-2"></i>切换到直播模式
+    </button>
+    
+    <!-- 全功能模式 -->
+    <div id="fullMode" class="full-mode">
+        <!-- 顶部控制栏 -->
+        <div class="control-panel">
+            <h1 class="text-2xl font-bold text-gray-800 mb-6">直播控制台</h1>
+            <input type="text" id="liveUrl" class="control-input" placeholder="https://live.douyin.com/xxxx" value="https://live.douyin.com/123456789">
+            <div class="control-buttons">
+                <button id="startBtn" class="btn-primary">
+                    <i class="fas fa-play mr-2"></i>开始转写
+                </button>
+                <button id="stopBtn" class="btn-secondary" disabled>
+                    <i class="fas fa-stop mr-2"></i>停止
+                </button>
+            </div>
+        </div>
+        
+        <!-- 四宫格布局 -->
+        <div class="grid-container">
+            <!-- 区域1: 实时语音转写 -->
+            <div class="grid-item">
+                <div class="grid-title">
+                    <i class="fas fa-microphone-alt text-blue-500"></i>
+                    <span>实时语音转写</span>
+                </div>
+                <div class="grid-content" id="transcriptionContent">
+                    <div class="mb-3">
+                        <span class="text-xs text-gray-500">10:30:15</span>
+                        <p class="mt-1"><strong>【主播】</strong>欢迎大家来到我的直播间，今天我们来聊聊这款新产品...</p>
+                    </div>
+                    <div class="mb-3">
+                        <span class="text-xs text-gray-500">10:30:22</span>
+                        <p class="mt-1"><strong>【嘉宾】</strong>这款产品确实有很多亮点，特别是它的设计...</p>
+                    </div>
+                    <div class="mb-3">
+                        <span class="text-xs text-gray-500">10:30:30</span>
+                        <p class="mt-1"><strong>【主播】</strong>是的，我们特别注重用户体验...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 区域2: 智能话术建议 -->
+            <div class="grid-item">
+                <div class="grid-title">
+                    <i class="fas fa-lightbulb text-yellow-500"></i>
+                    <span>智能话术建议</span>
+                </div>
+                <div class="grid-content" id="scriptContent">
+                    <div class="mb-4">
+                        <span class="inline-block px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">感谢</span>
+                        <p class="mt-2">"感谢老板A送的嘉年华，财运滚滚来！"</p>
+                        <div class="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>@用户A</span>
+                            <span class="text-red-500">高优先级 🔥</span>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <span class="inline-block px-2 py-1 text-xs bg-green-100 text-green-800 rounded">留人</span>
+                        <p class="mt-2">"刚来的宝宝们点点关注哦，今天有福利"</p>
+                        <div class="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>新用户增长</span>
+                            <span class="text-orange-500">中优先级</span>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="inline-block px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded">互动</span>
+                        <p class="mt-2">"宝宝们有什么想了解的吗？"</p>
+                        <div class="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>冷场提醒</span>
+                            <span class="text-orange-500">中优先级</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 区域3: 直播间互动分析 -->
+            <div class="grid-item">
+                <div class="grid-title">
+                    <i class="fas fa-comments text-green-500"></i>
+                    <span>直播间互动分析</span>
+                </div>
+                <div class="grid-content" id="interactionContent">
+                    <div class="mb-3">
+                        <div class="flex justify-between">
+                            <span class="font-medium">🎁 大额礼物</span>
+                            <span class="text-red-500 font-bold">¥3000</span>
+                        </div>
+                        <p class="text-sm text-gray-600 mt-1">用户A 送了嘉年华</p>
+                    </div>
+                    <div class="mb-3">
+                        <div class="flex justify-between">
+                            <span class="font-medium">❓ 关键问题</span>
+                            <span class="text-blue-500">高亮</span>
+                        </div>
+                        <p class="text-sm text-gray-600 mt-1">"主播这个多少钱？"</p>
+                    </div>
+                    <div class="mb-3">
+                        <div class="flex justify-between">
+                            <span class="font-medium">⚠️ 风险提醒</span>
+                            <span class="text-yellow-500">中等</span>
+                        </div>
+                        <p class="text-sm text-gray-600 mt-1">注意避免价格争议</p>
+                    </div>
+                    <div>
+                        <div class="flex justify-between">
+                            <span class="font-medium">💡 亮点识别</span>
+                            <span class="text-green-500">积极</span>
+                        </div>
+                        <p class="text-sm text-gray-600 mt-1">产品功能介绍获得好评</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 区域4: 主播画像与氛围 -->
+            <div class="grid-item">
+                <div class="grid-title">
+                    <i class="fas fa-user-circle text-purple-500"></i>
+                    <span>主播画像与氛围</span>
+                </div>
+                <div class="grid-content" id="profileContent">
+                    <div class="mb-4">
+                        <div class="flex justify-between">
+                            <span class="font-medium">氛围评分</span>
+                            <span class="font-bold text-purple-600">85/100</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
+                            <div class="bg-purple-600 h-2 rounded-full" style="width: 85%"></div>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <div class="flex justify-between">
+                            <span class="font-medium">观众情绪</span>
+                            <span class="font-bold text-green-600">积极 😊</span>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <div class="flex justify-between">
+                            <span class="font-medium">互动建议</span>
+                        </div>
+                        <p class="text-sm text-gray-600 mt-1">💡 继续保持互动频率</p>
+                    </div>
+                    <div>
+                        <div class="flex justify-between">
+                            <span class="font-medium">风格画像</span>
+                        </div>
+                        <p class="text-sm text-gray-600 mt-1">专业知识分享者 · 亲切专业</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 底部状态栏 -->
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-value" id="viewerCount">1,234</div>
+                <div class="status-label">在线人数</div>
+            </div>
+            <div class="status-item">
+                <div class="status-value" id="giftValue">¥8,888</div>
+                <div class="status-label">礼物价值</div>
+            </div>
+            <div class="status-item">
+                <div class="status-value" id="engagementRate">8.5%</div>
+                <div class="status-label">互动率</div>
+            </div>
+            <div class="status-item">
+                <div class="status-value" id="recordingStatus">录制中</div>
+                <div class="status-label">录制状态</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 直播模式 - 悬浮窗 -->
+    <div id="liveMode" class="live-mode">
+        <!-- AI分析悬浮窗 -->
+        <div id="aiAnalysisWindow" class="floating-window expanded" style="right: 20px; top: 100px;">
+            <div class="h-full flex flex-col">
+                <!-- 标题栏 -->
+                <div class="title-bar">
+                    <span class="title-icon">📊</span>
+                    <span class="title-text">AI分析</span>
+                    <div class="title-actions">
+                        <button class="title-btn btn-switch" title="切换模式">
+                            <i class="fas fa-exchange-alt"></i>
+                        </button>
+                        <button class="title-btn btn-close" title="关闭">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 主内容区 -->
+                <div class="content-area">
+                    <div class="content-main">
+                        <div class="ai-analysis-content">
+                            <div class="metric">
+                                <span class="metric-label">氛围评分</span>
+                                <span class="metric-value">85/100</span>
+                            </div>
+                            <div class="metric">
+                                <span class="metric-label">观众情绪</span>
+                                <span class="metric-value">积极 😊</span>
+                            </div>
+                            <div class="suggestion">
+                                <p>💡 继续保持互动频率</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 操作按钮区 -->
+                <div class="action-bar">
+                    <button class="btn-copy" title="复制">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                    <div class="indicators">
+                        <button class="indicator active" data-type="ai_analysis" title="AI分析">
+                            <span class="indicator-dot"></span>
+                        </button>
+                        <button class="indicator" data-type="script" title="话术生成">
+                            <span class="indicator-dot"></span>
+                        </button>
+                        <button class="indicator" data-type="vibe" title="直播间氛围">
+                            <span class="indicator-dot"></span>
+                        </button>
+                    </div>
+                    <button class="btn-more" title="更多">
+                        <i class="fas fa-ellipsis-h"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 收起状态的悬浮窗示例 -->
+        <div class="floating-window collapsed" style="right: 20px; top: 360px;">
+            <div class="collapsed-content">
+                <div class="collapsed-icon">📊</div>
+                <div class="collapsed-value">85</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 当前模式状态
+        let currentMode = 'full'; // 'full' 或 'live'
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 模式切换按钮事件
+            document.getElementById('modeToggle').addEventListener('click', toggleMode);
+            
+            // 直播模式中的切换按钮事件
+            const switchButtons = document.querySelectorAll('.btn-switch');
+            switchButtons.forEach(button => {
+                button.addEventListener('click', toggleMode);
+            });
+            
+            // 关闭悬浮窗事件
+            const closeButtons = document.querySelectorAll('.btn-close');
+            closeButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    this.closest('.floating-window').style.display = 'none';
+                });
+            });
+            
+            // 指示器切换事件
+            const indicators = document.querySelectorAll('.indicator');
+            indicators.forEach(indicator => {
+                indicator.addEventListener('click', function() {
+                    // 移除所有激活状态
+                    indicators.forEach(ind => ind.classList.remove('active'));
+                    // 激活当前指示器
+                    this.classList.add('active');
+                });
+            });
+            
+            // 复制按钮事件
+            const copyButtons = document.querySelectorAll('.btn-copy');
+            copyButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    alert('内容已复制到剪贴板');
+                });
+            });
+            
+            // 开始转写按钮事件
+            document.getElementById('startBtn').addEventListener('click', function() {
+                this.disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                
+                // 模拟3秒后自动切换到直播模式
+                setTimeout(() => {
+                    switchToLiveMode();
+                }, 3000);
+            });
+            
+            // 停止按钮事件
+            document.getElementById('stopBtn').addEventListener('click', function() {
+                this.disabled = true;
+                document.getElementById('startBtn').disabled = false;
+                switchToFullMode();
+            });
+            
+            // 初始化拖拽功能
+            initDrag(document.getElementById('aiAnalysisWindow'));
+        });
+        
+        // 切换模式
+        function toggleMode() {
+            if (currentMode === 'full') {
+                switchToLiveMode();
+            } else {
+                switchToFullMode();
+            }
+        }
+        
+        // 切换到直播模式
+        function switchToLiveMode() {
+            currentMode = 'live';
+            document.getElementById('fullMode').style.display = 'none';
+            document.getElementById('liveMode').style.display = 'block';
+            document.getElementById('modeToggle').innerHTML = '<i class="fas fa-exchange-alt mr-2"></i>切换到全功能模式';
+        }
+        
+        // 切换到全功能模式
+        function switchToFullMode() {
+            currentMode = 'full';
+            document.getElementById('liveMode').style.display = 'none';
+            document.getElementById('fullMode').style.display = 'block';
+            document.getElementById('modeToggle').innerHTML = '<i class="fas fa-exchange-alt mr-2"></i>切换到直播模式';
+        }
+        
+        // 拖拽功能实现
+        function initDrag(windowElement) {
+            let isDragging = false;
+            let startX, startY;
+            let initialX, initialY;
+            
+            // 标题栏拖拽
+            const titleBar = windowElement.querySelector('.title-bar');
+            
+            titleBar.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                
+                const rect = windowElement.getBoundingClientRect();
+                initialX = rect.left;
+                initialY = rect.top;
+                
+                // 添加拖拽样式
+                windowElement.style.cursor = 'grabbing';
+            });
+            
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                
+                const deltaX = e.clientX - startX;
+                const deltaY = e.clientY - startY;
+                
+                let newX = initialX + deltaX;
+                let newY = initialY + deltaY;
+                
+                // 限制在屏幕内
+                const maxX = window.innerWidth - windowElement.offsetWidth;
+                const maxY = window.innerHeight - windowElement.offsetHeight;
+                newX = Math.max(0, Math.min(newX, maxX));
+                newY = Math.max(0, Math.min(newY, maxY));
+                
+                windowElement.style.left = newX + 'px';
+                windowElement.style.right = 'auto';
+                windowElement.style.top = newY + 'px';
+            });
+            
+            document.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    windowElement.style.cursor = 'move';
+                    
+                    // 边缘吸附
+                    snapToEdge(windowElement);
+                }
+            });
+        }
+        
+        // 屏幕边缘吸附
+        function snapToEdge(element) {
+            const rect = element.getBoundingClientRect();
+            const SNAP_THRESHOLD = 30;
+            
+            let newX = rect.left;
+            let newY = rect.top;
+            
+            // 左边缘吸附
+            if (rect.left < SNAP_THRESHOLD) {
+                newX = 0;
+            }
+            
+            // 右边缘吸附
+            if (window.innerWidth - rect.right < SNAP_THRESHOLD) {
+                newX = window.innerWidth - rect.width;
+            }
+            
+            // 上边缘吸附
+            if (rect.top < SNAP_THRESHOLD) {
+                newY = 0;
+            }
+            
+            // 下边缘吸附
+            if (window.innerHeight - rect.bottom < SNAP_THRESHOLD) {
+                newY = window.innerHeight - rect.height;
+            }
+            
+            // 平滑过渡到吸附位置
+            element.style.transition = 'all 0.2s ease';
+            element.style.left = newX + 'px';
+            element.style.top = newY + 'px';
+            
+            setTimeout(() => {
+                element.style.transition = '';
+            }, 200);
+        }
+    </script>
+</body>
+</html>

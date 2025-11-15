@@ -147,20 +147,32 @@ export const useLiveConsoleStore = create<LiveConsoleState>()(
       setAiEvents: (value) => set({ aiEvents: value }),
       setAnswerScripts: (value) => set({ answerScripts: value }),
       pushAiEvent: (value) =>
-        set((state) => ({
-          ...state,
-          aiEvents: [value, ...state.aiEvents],
-        })),
+        set((state) => {
+          // 🆕 内存优化：限制AI事件最多100条
+          const currentEvents = state.aiEvents;
+          const newEvents = currentEvents.length >= 100 
+            ? [value, ...currentEvents.slice(0, 49)] 
+            : [value, ...currentEvents];
+          return {
+            ...state,
+            aiEvents: newEvents,
+          };
+        }),
       appendLog: (entry) =>
         set((state) => {
           const last = state.log[0];
           if (last && isDupLike(entry.text, last.text)) {
             return { ...state, latest: entry };
           }
+          // 🆕 内存优化：限制日志最多1000条
+          const currentLog = state.log;
+          const newLog = currentLog.length >= 1000 
+            ? [entry, ...currentLog.slice(0, 499)] 
+            : [entry, ...currentLog];
           return {
             ...state,
             latest: entry,
-            log: [entry, ...state.log],
+            log: newLog,
           };
         }),
       resetSessionState: () =>

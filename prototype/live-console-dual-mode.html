@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>提猫直播助手 - 双模式控制台原型</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            overflow: hidden;
+        }
+
+        /* ============= 全功能模式 ============= */
+        .full-mode {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: opacity 0.3s ease;
+        }
+
+        .full-mode.hidden {
+            opacity: 0;
+            pointer-events: none;
+            position: absolute;
+        }
+
+        /* 顶部控制栏 */
+        .control-bar {
+            height: 80px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .control-bar h1 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-right: auto;
+        }
+
+        .url-input {
+            flex: 1;
+            max-width: 500px;
+            height: 44px;
+            padding: 0 16px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .url-input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .control-btn {
+            height: 44px;
+            padding: 0 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #059669;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-secondary {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #dc2626;
+        }
+
+        .btn-mode-switch {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .btn-mode-switch:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* 四宫格布局 */
+        .grid-container {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 16px;
+            padding: 16px;
+            overflow: hidden;
+        }
+
+        .grid-item {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .grid-item h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #a855f7;
+        }
+
+        .grid-item-icon {
+            font-size: 24px;
+        }
+
+        /* 实时转写区域 */
+        .transcript-item {
+            padding: 12px;
+            background: rgba(168, 85, 247, 0.1);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border-left: 3px solid #a855f7;
+        }
+
+        .transcript-meta {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+
+        .transcript-text {
+            color: #e2e8f0;
+            line-height: 1.6;
+        }
+
+        /* 话术建议区域 */
+        .script-item {
+            padding: 16px;
+            background: rgba(16, 185, 129, 0.1);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border-left: 3px solid #10b981;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .script-item:hover {
+            background: rgba(16, 185, 129, 0.2);
+            transform: translateX(4px);
+        }
+
+        .script-type {
+            display: inline-block;
+            padding: 4px 12px;
+            background: #10b981;
+            color: white;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .script-text {
+            color: #e2e8f0;
+            line-height: 1.6;
+            margin-bottom: 8px;
+        }
+
+        .script-meta {
+            font-size: 12px;
+            color: #94a3b8;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .priority-high {
+            color: #ef4444;
+            font-weight: 600;
+        }
+
+        /* 互动分析区域 */
+        .comment-item {
+            padding: 8px 12px;
+            background: rgba(59, 130, 246, 0.1);
+            border-radius: 6px;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+
+        .comment-user {
+            color: #60a5fa;
+            font-weight: 600;
+        }
+
+        .gift-item {
+            padding: 12px;
+            background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.2));
+            border-radius: 8px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .gift-icon {
+            font-size: 32px;
+        }
+
+        .gift-info {
+            flex: 1;
+        }
+
+        .gift-value {
+            color: #fbbf24;
+            font-weight: 600;
+            font-size: 18px;
+        }
+
+        /* 氛围分析区域 */
+        .vibe-metric {
+            padding: 16px;
+            background: rgba(139, 92, 246, 0.1);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        .vibe-score {
+            font-size: 48px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #a855f7, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .vibe-label {
+            color: #94a3b8;
+            font-size: 14px;
+        }
+
+        .emotion-display {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 12px;
+            background: rgba(139, 92, 246, 0.1);
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+
+        .emotion-emoji {
+            font-size: 32px;
+        }
+
+        .emotion-text {
+            font-size: 18px;
+            font-weight: 600;
+            color: #10b981;
+        }
+
+        /* 底部状态栏 */
+        .status-bar {
+            height: 60px;
+            background: #1e293b;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            gap: 32px;
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-icon {
+            font-size: 20px;
+        }
+
+        .status-label {
+            color: #94a3b8;
+            font-size: 14px;
+        }
+
+        .status-value {
+            color: #e2e8f0;
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        /* ============= 直播模式（悬浮窗） ============= */
+        .live-mode {
+            position: fixed;
+            display: none;
+            z-index: 9999;
+        }
+
+        .live-mode.active {
+            display: block;
+        }
+
+        .floating-window {
+            position: absolute;
+            width: 320px;
+            height: 240px;
+            background: rgba(30, 41, 59, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .floating-window.collapsed {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+        }
+
+        /* 标题栏 */
+        .floating-title {
+            height: 44px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: move;
+            user-select: none;
+        }
+
+        .floating-window.collapsed .floating-title {
+            display: none;
+        }
+
+        .title-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .title-icon {
+            font-size: 18px;
+        }
+
+        .title-text {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .title-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .title-btn {
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .title-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+        }
+
+        /* 内容区 */
+        .floating-content {
+            height: calc(100% - 44px - 48px);
+            padding: 16px;
+            overflow-y: auto;
+        }
+
+        .floating-window.collapsed .floating-content {
+            display: none;
+        }
+
+        /* 收起状态的显示 */
+        .collapsed-display {
+            display: none;
+            width: 100%;
+            height: 100%;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .floating-window.collapsed .collapsed-display {
+            display: flex;
+        }
+
+        .collapsed-icon {
+            font-size: 32px;
+            margin-bottom: 4px;
+        }
+
+        .collapsed-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #a855f7;
+        }
+
+        /* 操作栏 */
+        .floating-actions {
+            height: 48px;
+            background: rgba(15, 23, 42, 0.8);
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .floating-window.collapsed .floating-actions {
+            display: none;
+        }
+
+        .action-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: rgba(168, 85, 247, 0.2);
+            color: #a855f7;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .action-btn:hover {
+            background: rgba(168, 85, 247, 0.3);
+            transform: scale(1.1);
+        }
+
+        .indicators {
+            display: flex;
+            gap: 8px;
+        }
+
+        .indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(148, 163, 184, 0.5);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .indicator.active {
+            background: #a855f7;
+            box-shadow: 0 0 8px rgba(168, 85, 247, 0.6);
+            transform: scale(1.3);
+        }
+
+        .indicator:hover {
+            transform: scale(1.2);
+        }
+
+        /* 内容显示 */
+        .content-display {
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* AI分析内容 */
+        .ai-analysis-content .score-display {
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .score-circle {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 8px;
+            border-radius: 50%;
+            background: conic-gradient(
+                #a855f7 0deg,
+                #a855f7 calc(var(--score) * 3.6deg),
+                rgba(148, 163, 184, 0.2) calc(var(--score) * 3.6deg)
+            );
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .score-circle::before {
+            content: '';
+            width: 60px;
+            height: 60px;
+            background: #1e293b;
+            border-radius: 50%;
+            position: absolute;
+        }
+
+        .score-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #a855f7;
+            position: relative;
+            z-index: 1;
+        }
+
+        .suggestion-list {
+            margin-top: 16px;
+        }
+
+        .suggestion-item {
+            padding: 8px 12px;
+            background: rgba(168, 85, 247, 0.1);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .suggestion-icon {
+            font-size: 16px;
+        }
+
+        .suggestion-text {
+            flex: 1;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .grid-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: repeat(4, 1fr);
+            }
+
+            .floating-window {
+                width: 280px;
+                height: 200px;
+            }
+        }
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(148, 163, 184, 0.1);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(168, 85, 247, 0.5);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(168, 85, 247, 0.7);
+        }
+
+        /* 提示框 */
+        .toast {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            padding: 16px 24px;
+            background: rgba(16, 185, 129, 0.9);
+            color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 10000;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 全功能模式 -->
+    <div class="full-mode" id="fullMode">
+        <!-- 顶部控制栏 -->
+        <div class="control-bar">
+            <h1>📱 提猫直播助手</h1>
+            <input type="text" class="url-input" placeholder="https://live.douyin.com/xxxx" value="https://live.douyin.com/123456789">
+            <button class="control-btn btn-primary" onclick="startLive()">
+                <span>▶️</span>
+                <span>开始转写</span>
+            </button>
+            <button class="control-btn btn-secondary" onclick="stopLive()" style="display: none;" id="stopBtn">
+                <span>⏹️</span>
+                <span>停止</span>
+            </button>
+            <button class="control-btn btn-mode-switch" onclick="switchMode()">
+                <span>🔄</span>
+                <span>切换模式</span>
+            </button>
+        </div>
+
+        <!-- 四宫格布局 -->
+        <div class="grid-container">
+            <!-- 1. 实时语音转写 -->
+            <div class="grid-item">
+                <h2>
+                    <span class="grid-item-icon">🎤</span>
+                    实时语音转写
+                </h2>
+                <div id="transcriptArea">
+                    <div class="transcript-item">
+                        <div class="transcript-meta">【主播】 14:32:15</div>
+                        <div class="transcript-text">欢迎大家来到我的直播间，今天给大家带来很多好东西</div>
+                    </div>
+                    <div class="transcript-item">
+                        <div class="transcript-meta">【主播】 14:32:28</div>
+                        <div class="transcript-text">这款产品真的非常好用，已经卖出去5000多件了</div>
+                    </div>
+                    <div class="transcript-item">
+                        <div class="transcript-meta">【主播】 14:32:45</div>
+                        <div class="transcript-text">现在下单还有优惠券可以用哦</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. 智能话术建议 -->
+            <div class="grid-item">
+                <h2>
+                    <span class="grid-item-icon">💬</span>
+                    智能话术建议
+                </h2>
+                <div id="scriptArea">
+                    <div class="script-item">
+                        <span class="script-type">🙏 感谢</span>
+                        <div class="script-text">"感谢老板送的嘉年华，财运滚滚来！宝宝们也给老板点点关注"</div>
+                        <div class="script-meta">
+                            <span>@用户A</span>
+                            <span class="priority-high">🔥 高优先级</span>
+                        </div>
+                    </div>
+                    <div class="script-item">
+                        <span class="script-type">👋 留人</span>
+                        <div class="script-text">"刚来的宝宝们点点关注哦，今天有福利，限时优惠不要错过"</div>
+                        <div class="script-meta">
+                            <span>针对新观众</span>
+                            <span>中优先级</span>
+                        </div>
+                    </div>
+                    <div class="script-item">
+                        <span class="script-type">💬 互动</span>
+                        <div class="script-text">"宝宝们觉得这个颜色怎么样？打1的想要红色，打2的想要蓝色"</div>
+                        <div class="script-meta">
+                            <span>活跃气氛</span>
+                            <span>中优先级</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. 直播间互动分析 -->
+            <div class="grid-item">
+                <h2>
+                    <span class="grid-item-icon">📊</span>
+                    直播间互动分析
+                </h2>
+                <div id="interactionArea">
+                    <div class="gift-item">
+                        <div class="gift-icon">🎁</div>
+                        <div class="gift-info">
+                            <div><strong>用户A</strong> 送出 <strong>嘉年华</strong></div>
+                            <div class="gift-value">¥3,000</div>
+                        </div>
+                    </div>
+                    <div class="comment-item">
+                        <span class="comment-user">用户B:</span> 主播讲得真好
+                    </div>
+                    <div class="comment-item">
+                        <span class="comment-user">用户C:</span> 这个多少钱？
+                    </div>
+                    <div class="comment-item">
+                        <span class="comment-user">用户D:</span> 666666
+                    </div>
+                    <div class="comment-item">
+                        <span class="comment-user">用户E:</span> 加个关注不迷路
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. 主播画像与氛围 -->
+            <div class="grid-item">
+                <h2>
+                    <span class="grid-item-icon">🎭</span>
+                    直播间氛围
+                </h2>
+                <div id="vibeArea">
+                    <div class="vibe-metric">
+                        <div class="vibe-score" id="vibeScore">85</div>
+                        <div class="vibe-label">氛围评分</div>
+                    </div>
+                    <div class="emotion-display">
+                        <div class="emotion-emoji">😊</div>
+                        <div>
+                            <div class="emotion-text">积极</div>
+                            <div style="font-size: 12px; color: #94a3b8;">观众情绪</div>
+                        </div>
+                    </div>
+                    <div class="suggestion-list">
+                        <div class="suggestion-item">
+                            <span class="suggestion-icon">💡</span>
+                            <span class="suggestion-text">继续保持互动频率，氛围很好</span>
+                        </div>
+                        <div class="suggestion-item">
+                            <span class="suggestion-icon">📈</span>
+                            <span class="suggestion-text">在线人数持续上升，可以加大促销力度</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部状态栏 -->
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="status-icon">👥</span>
+                <div>
+                    <div class="status-label">在线人数</div>
+                    <div class="status-value">1,234</div>
+                </div>
+            </div>
+            <div class="status-item">
+                <span class="status-icon">🎁</span>
+                <div>
+                    <div class="status-label">礼物价值</div>
+                    <div class="status-value">¥8,888</div>
+                </div>
+            </div>
+            <div class="status-item">
+                <span class="status-icon">💬</span>
+                <div>
+                    <div class="status-label">互动率</div>
+                    <div class="status-value">8.5%</div>
+                </div>
+            </div>
+            <div class="status-item">
+                <span class="status-icon">⏱️</span>
+                <div>
+                    <div class="status-label">直播时长</div>
+                    <div class="status-value" id="duration">00:00:00</div>
+                </div>
+            </div>
+            <div class="status-item">
+                <span class="status-icon">🔴</span>
+                <div>
+                    <div class="status-label">状态</div>
+                    <div class="status-value" style="color: #10b981;">运行中</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 直播模式（悬浮窗） -->
+    <div class="live-mode" id="liveMode">
+        <div class="floating-window" id="floatingWindow">
+            <!-- 标题栏 -->
+            <div class="floating-title" id="floatingTitle">
+                <div class="title-left">
+                    <span class="title-icon" id="currentIcon">📊</span>
+                    <span class="title-text" id="currentTitle">AI分析</span>
+                </div>
+                <div class="title-actions">
+                    <button class="title-btn" onclick="switchMode()" title="切换回全功能模式">⇄</button>
+                    <button class="title-btn" onclick="toggleCollapse()" title="收起/展开">−</button>
+                </div>
+            </div>
+
+            <!-- 收起状态显示 -->
+            <div class="collapsed-display" onclick="toggleCollapse()">
+                <div class="collapsed-icon">📊</div>
+                <div class="collapsed-value">85</div>
+            </div>
+
+            <!-- 内容区 -->
+            <div class="floating-content">
+                <div class="content-display" id="contentDisplay">
+                    <!-- 默认显示AI分析 -->
+                    <div class="ai-analysis-content">
+                        <div class="score-display">
+                            <div class="score-circle" style="--score: 85">
+                                <span class="score-value">85</span>
+                            </div>
+                            <div class="vibe-label">氛围评分</div>
+                        </div>
+                        <div class="emotion-display" style="background: rgba(139, 92, 246, 0.1); margin: 0;">
+                            <div class="emotion-emoji">😊</div>
+                            <div>
+                                <div class="emotion-text">积极</div>
+                                <div style="font-size: 12px; color: #94a3b8;">观众情绪</div>
+                            </div>
+                        </div>
+                        <div class="suggestion-list">
+                            <div class="suggestion-item">
+                                <span class="suggestion-icon">💡</span>
+                                <span class="suggestion-text">继续保持互动频率</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 操作栏 -->
+            <div class="floating-actions">
+                <button class="action-btn" onclick="copyContent()" title="复制内容">📋</button>
+                <div class="indicators">
+                    <div class="indicator active" onclick="switchContent(0)" data-index="0"></div>
+                    <div class="indicator" onclick="switchContent(1)" data-index="1"></div>
+                    <div class="indicator" onclick="switchContent(2)" data-index="2"></div>
+                </div>
+                <button class="action-btn" onclick="showMore()" title="更多">⋯</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局状态
+        let currentMode = 'full'; // 'full' or 'live'
+        let isCollapsed = false;
+        let currentContentIndex = 0;
+        let isDragging = false;
+        let startX, startY, initialX, initialY;
+        let carouselInterval = null;
+        let durationInterval = null;
+        let startTime = null;
+
+        // 内容数据
+        const contents = [
+            {
+                icon: '📊',
+                title: 'AI分析',
+                html: `
+                    <div class="ai-analysis-content">
+                        <div class="score-display">
+                            <div class="score-circle" style="--score: 85">
+                                <span class="score-value">85</span>
+                            </div>
+                            <div class="vibe-label">氛围评分</div>
+                        </div>
+                        <div class="emotion-display" style="background: rgba(139, 92, 246, 0.1); margin: 0;">
+                            <div class="emotion-emoji">😊</div>
+                            <div>
+                                <div class="emotion-text">积极</div>
+                                <div style="font-size: 12px; color: #94a3b8;">观众情绪</div>
+                            </div>
+                        </div>
+                        <div class="suggestion-list">
+                            <div class="suggestion-item">
+                                <span class="suggestion-icon">💡</span>
+                                <span class="suggestion-text">继续保持互动频率</span>
+                            </div>
+                        </div>
+                    </div>
+                `
+            },
+            {
+                icon: '💬',
+                title: '话术生成',
+                html: `
+                    <div style="padding: 8px;">
+                        <div style="padding: 12px; background: rgba(16, 185, 129, 0.1); border-radius: 8px; margin-bottom: 12px;">
+                            <div style="display: inline-block; padding: 4px 12px; background: #10b981; color: white; border-radius: 12px; font-size: 11px; margin-bottom: 8px;">🙏 感谢</div>
+                            <div style="font-size: 13px; line-height: 1.6; margin-bottom: 8px;">"感谢老板送的嘉年华，财运滚滚来！"</div>
+                            <div style="font-size: 11px; color: #94a3b8; display: flex; justify-content: space-between;">
+                                <span>@用户A</span>
+                                <span style="color: #ef4444; font-weight: 600;">🔥 高优先级</span>
+                            </div>
+                        </div>
+                    </div>
+                `
+            },
+            {
+                icon: '🎭',
+                title: '直播间氛围',
+                html: `
+                    <div style="padding: 8px;">
+                        <div style="padding: 12px; background: rgba(139, 92, 246, 0.1); border-radius: 8px; margin-bottom: 8px;">
+                            <div style="font-size: 12px; color: #94a3b8; margin-bottom: 4px;">在线人数</div>
+                            <div style="font-size: 24px; font-weight: 700; color: #a855f7;">1,234 <span style="font-size: 14px; color: #10b981;">↑15%</span></div>
+                        </div>
+                        <div style="padding: 12px; background: rgba(139, 92, 246, 0.1); border-radius: 8px; margin-bottom: 8px;">
+                            <div style="font-size: 12px; color: #94a3b8; margin-bottom: 4px;">互动率</div>
+                            <div style="font-size: 24px; font-weight: 700; color: #a855f7;">8.5%</div>
+                        </div>
+                        <div style="padding: 12px; background: rgba(139, 92, 246, 0.1); border-radius: 8px;">
+                            <div style="font-size: 12px; color: #94a3b8; margin-bottom: 4px;">礼物价值</div>
+                            <div style="font-size: 24px; font-weight: 700; color: #fbbf24;">¥8,888</div>
+                        </div>
+                    </div>
+                `
+            }
+        ];
+
+        // 初始化
+        window.onload = function() {
+            initFloatingWindow();
+            showToast('原型已加载，点击"开始转写"体验模式切换');
+        };
+
+        // 初始化悬浮窗
+        function initFloatingWindow() {
+            const floatingWindow = document.getElementById('floatingWindow');
+            const floatingTitle = document.getElementById('floatingTitle');
+            
+            // 设置初始位置（右下角）
+            const initialX = window.innerWidth - 360;
+            const initialY = window.innerHeight - 300;
+            floatingWindow.style.left = initialX + 'px';
+            floatingWindow.style.top = initialY + 'px';
+            
+            // 拖拽功能
+            floatingTitle.addEventListener('mousedown', startDrag);
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', stopDrag);
+        }
+
+        // 开始拖拽
+        function startDrag(e) {
+            isDragging = true;
+            const floatingWindow = document.getElementById('floatingWindow');
+            startX = e.clientX;
+            startY = e.clientY;
+            initialX = floatingWindow.offsetLeft;
+            initialY = floatingWindow.offsetTop;
+        }
+
+        // 拖拽中
+        function drag(e) {
+            if (!isDragging) return;
+            
+            const floatingWindow = document.getElementById('floatingWindow');
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+            
+            let newX = initialX + deltaX;
+            let newY = initialY + deltaY;
+            
+            // 限制在屏幕内
+            const maxX = window.innerWidth - floatingWindow.offsetWidth;
+            const maxY = window.innerHeight - floatingWindow.offsetHeight;
+            newX = Math.max(0, Math.min(newX, maxX));
+            newY = Math.max(0, Math.min(newY, maxY));
+            
+            floatingWindow.style.left = newX + 'px';
+            floatingWindow.style.top = newY + 'px';
+        }
+
+        // 停止拖拽
+        function stopDrag() {
+            if (isDragging) {
+                isDragging = false;
+                snapToEdge();
+            }
+        }
+
+        // 边缘吸附
+        function snapToEdge() {
+            const floatingWindow = document.getElementById('floatingWindow');
+            const rect = floatingWindow.getBoundingClientRect();
+            const SNAP_THRESHOLD = 30;
+            
+            let newX = rect.left;
+            let newY = rect.top;
+            
+            // 左边缘吸附
+            if (rect.left < SNAP_THRESHOLD) {
+                newX = 0;
+            }
+            
+            // 右边缘吸附
+            if (window.innerWidth - rect.right < SNAP_THRESHOLD) {
+                newX = window.innerWidth - rect.width;
+            }
+            
+            // 上边缘吸附
+            if (rect.top < SNAP_THRESHOLD) {
+                newY = 0;
+            }
+            
+            // 下边缘吸附
+            if (window.innerHeight - rect.bottom < SNAP_THRESHOLD) {
+                newY = window.innerHeight - rect.height;
+            }
+            
+            floatingWindow.style.transition = 'all 0.2s ease';
+            floatingWindow.style.left = newX + 'px';
+            floatingWindow.style.top = newY + 'px';
+            
+            setTimeout(() => {
+                floatingWindow.style.transition = '';
+            }, 200);
+        }
+
+        // 切换模式
+        function switchMode() {
+            const fullMode = document.getElementById('fullMode');
+            const liveMode = document.getElementById('liveMode');
+            
+            if (currentMode === 'full') {
+                // 切换到直播模式
+                fullMode.classList.add('hidden');
+                liveMode.classList.add('active');
+                currentMode = 'live';
+                startCarousel();
+                showToast('已切换到直播模式');
+            } else {
+                // 切换到全功能模式
+                fullMode.classList.remove('hidden');
+                liveMode.classList.remove('active');
+                currentMode = 'full';
+                stopCarousel();
+                showToast('已切换到全功能模式');
+            }
+        }
+
+        // 开始直播
+        function startLive() {
+            document.querySelector('.btn-primary').style.display = 'none';
+            document.getElementById('stopBtn').style.display = 'flex';
+            
+            // 启动时长计时
+            startTime = Date.now();
+            durationInterval = setInterval(updateDuration, 1000);
+            
+            showToast('直播服务启动中...');
+            
+            // 模拟3秒后自动切换
+            setTimeout(() => {
+                showToast('服务启动成功，自动切换到直播模式');
+                setTimeout(() => {
+                    switchMode();
+                }, 1000);
+            }, 3000);
+        }
+
+        // 停止直播
+        function stopLive() {
+            document.querySelector('.btn-primary').style.display = 'flex';
+            document.getElementById('stopBtn').style.display = 'none';
+            
+            // 停止时长计时
+            if (durationInterval) {
+                clearInterval(durationInterval);
+                durationInterval = null;
+            }
+            
+            if (currentMode === 'live') {
+                switchMode();
+            }
+            
+            showToast('直播已停止');
+        }
+
+        // 更新直播时长
+        function updateDuration() {
+            if (!startTime) return;
+            
+            const elapsed = Date.now() - startTime;
+            const hours = Math.floor(elapsed / 3600000);
+            const minutes = Math.floor((elapsed % 3600000) / 60000);
+            const seconds = Math.floor((elapsed % 60000) / 1000);
+            
+            const formatted = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            document.getElementById('duration').textContent = formatted;
+        }
+
+        // 切换展开/收起
+        function toggleCollapse() {
+            const floatingWindow = document.getElementById('floatingWindow');
+            isCollapsed = !isCollapsed;
+            
+            if (isCollapsed) {
+                floatingWindow.classList.add('collapsed');
+                stopCarousel();
+            } else {
+                floatingWindow.classList.remove('collapsed');
+                startCarousel();
+            }
+        }
+
+        // 切换内容
+        function switchContent(index) {
+            currentContentIndex = index;
+            updateContent();
+            
+            // 更新指示器
+            const indicators = document.querySelectorAll('.indicator');
+            indicators.forEach((ind, i) => {
+                if (i === index) {
+                    ind.classList.add('active');
+                } else {
+                    ind.classList.remove('active');
+                }
+            });
+            
+            // 停止自动轮播，10秒后恢复
+            stopCarousel();
+            setTimeout(() => {
+                if (currentMode === 'live' && !isCollapsed) {
+                    startCarousel();
+                }
+            }, 10000);
+        }
+
+        // 更新内容
+        function updateContent() {
+            const content = contents[currentContentIndex];
+            document.getElementById('currentIcon').textContent = content.icon;
+            document.getElementById('currentTitle').textContent = content.title;
+            document.getElementById('contentDisplay').innerHTML = content.html;
+        }
+
+        // 开始轮播
+        function startCarousel() {
+            if (carouselInterval) return;
+            
+            carouselInterval = setInterval(() => {
+                currentContentIndex = (currentContentIndex + 1) % contents.length;
+                switchContent(currentContentIndex);
+            }, 5000); // 每5秒切换
+        }
+
+        // 停止轮播
+        function stopCarousel() {
+            if (carouselInterval) {
+                clearInterval(carouselInterval);
+                carouselInterval = null;
+            }
+        }
+
+        // 复制内容
+        function copyContent() {
+            const contentText = document.getElementById('contentDisplay').innerText;
+            
+            // 创建临时textarea
+            const textarea = document.createElement('textarea');
+            textarea.value = contentText;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            
+            showToast('✅ 内容已复制到剪贴板');
+        }
+
+        // 显示更多
+        function showMore() {
+            showToast('更多功能开发中...');
+        }
+
+        // 显示提示
+        function showToast(message) {
+            // 移除已存在的toast
+            const existingToast = document.querySelector('.toast');
+            if (existingToast) {
+                existingToast.remove();
+            }
+            
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        // 模拟实时数据更新
+        setInterval(() => {
+            // 随机更新氛围评分
+            const newScore = Math.floor(Math.random() * 30) + 70; // 70-100
+            document.getElementById('vibeScore').textContent = newScore;
+            
+            // 如果在直播模式且显示AI分析，也更新悬浮窗
+            if (currentMode === 'live' && currentContentIndex === 0) {
+                const scoreElement = document.querySelector('.floating-window .score-value');
+                if (scoreElement) {
+                    scoreElement.textContent = newScore;
+                }
+                const scoreCircle = document.querySelector('.floating-window .score-circle');
+                if (scoreCircle) {
+                    scoreCircle.style.setProperty('--score', newScore);
+                }
+            }
+        }, 10000); // 每10秒更新一次
+    </script>
+</body>
+</html>
+

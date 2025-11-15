@@ -382,3 +382,108 @@ async def live_audio_ws(ws: WebSocket):
         svc.remove_transcription_callback(cb_name)
         svc.remove_level_callback(cb_name)
         ws_mgr.disconnect(ws)
+
+
+@router.websocket("/ws/audio")
+async def audio_stream_ws(ws: WebSocket):
+    """
+    🆕 实时音频流推送 WebSocket 端点
+    用于将服务器端的音频流推送到 Electron 客户端进行本地转写
+    """
+    svc = get_live_audio_service()
+    await ws.accept()
+    cb_name = f"audio_ws_{id(ws)}"
+    
+    async def on_audio(audio_data: bytes) -> None:
+        """音频数据回调：将音频字节流推送到 WebSocket"""
+        try:
+            await ws.send_bytes(audio_data)
+        except Exception:
+            pass
+    
+    # 注册音频流回调
+    svc.add_audio_stream_callback(cb_name, on_audio)
+    
+    try:
+        while True:
+            # Keepalive 循环，接收客户端心跳
+            try:
+                data = await ws.receive_json()
+                if isinstance(data, dict) and data.get("type") == "ping":
+                    await ws.send_json({"type": "pong"})
+            except Exception:
+                # 允许接收文本或二进制消息，保持连接
+                await asyncio.sleep(0.5)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        # 清理回调
+        svc.remove_audio_stream_callback(cb_name)
+
+
+@router.post("/transcriptions", response_model=BaseResponse[Dict[str, Any]])
+async def upload_transcription(data: Dict[str, Any]):
+    """
+    🆕 接收 Electron 上传的转写结果
+    
+    用于 Electron 本地转写完成后，将结果回传服务器进行保存和广播
+    """
+    try:
+        session_id = data.get("session_id")
+        text = data.get("text", "")
+        confidence = data.get("confidence", 0.0)
+        timestamp = data.get("timestamp")
+        
+        if not session_id:
+            raise HTTPException(status_code=400, detail="缺少 session_id")
+        
+        if not text:
+            # 空文本，忽略
+            return success_response({"success": True, "message": "Empty text ignored"})
+        
+        # 构建转写数据
+        transcription_data = {
+            "type": "transcription",
+            "text": text,
+            "confidence": confidence,
+            "timestamp": timestamp or asyncio.get_event_loop().time(),
+            "is_final": True,
+            "session_id": session_id,
+            "source": "electron_local",  # 标记来源为 Electron 本地转写
+        }
+        
+        # 写入 Redis Stream（用于实时消费和历史查询）
+        try:
+            from server.utils.redis_manager import get_redis
+            import json
+            
+            redis_mgr = get_redis()
+            if redis_mgr:
+                redis_key = f"timao:transcription:{session_id}:stream"
+                redis_mgr.rpush(redis_key, json.dumps(transcription_data, ensure_ascii=False))
+                # 设置过期时间（24小时）
+                redis_mgr.expire(redis_key, 86400)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"写入Redis失败: {e}")
+        
+        # 广播到 WebSocket 前端（实时显示）
+        svc = get_live_audio_service()
+        await svc._emit(transcription_data)
+        
+        return success_response({
+            "success": True,
+            "session_id": session_id,
+            "text_length": len(text)
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error("Upload transcription failed", exc_info=True)
+        handle_service_error(
+            exc,
+            {},
+            default_message="上传转写结果失败",
+        )
