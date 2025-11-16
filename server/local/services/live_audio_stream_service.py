@@ -743,15 +743,20 @@ class LiveAudioStreamService:
 
     # ---------- Internals ----------
     async def _ensure_sv(self) -> None:
-        """确保SenseVoice ASR服务已加载（使用本地PyTorch模型 + VAD）"""
+        """确保SenseVoice ASR服务已加载（支持自动下载）"""
         def _resolve_small_model_id() -> str:
             root = Path(__file__).resolve().parents[3]
             local_dir = root / "server" / "models" / "models" / "iic" / "SenseVoiceSmall"
             try:
-                if local_dir.exists():
+                # 检查本地模型是否存在且完整
+                if local_dir.exists() and (local_dir / "model.pt").exists():
+                    self.logger.info(f"使用本地模型: {local_dir}")
                     return str(local_dir)
             except Exception:
                 pass
+            
+            # 使用ModelScope ID，FunASR会自动下载
+            self.logger.info("使用ModelScope在线模型（首次使用会自动下载到~/.cache/modelscope）")
             return "iic/SenseVoiceSmall"
 
         def _resolve_vad_model_id() -> str:
@@ -759,9 +764,12 @@ class LiveAudioStreamService:
             local_vad = root / "server" / "models" / "models" / "iic" / "speech_fsmn_vad_zh-cn-16k-common-pytorch"
             try:
                 if local_vad.exists():
+                    self.logger.info(f"使用本地VAD模型: {local_vad}")
                     return str(local_vad)
             except Exception:
                 pass
+            # 使用ModelScope ID，FunASR会自动下载
+            self.logger.info("使用ModelScope在线VAD模型（首次使用会自动下载）")
             return "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
 
         desired_mid = _resolve_small_model_id()
