@@ -192,3 +192,6 @@ backend_dist/README.txt
 **/models/**/model.pt
 model_registry.json
 .download/
+
+#打包文件夹
+/python-runtime
