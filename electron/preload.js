@@ -69,6 +69,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   isFloatingWindowVisible: () => ipcRenderer.invoke('is-floating-window-visible'),
   
   /**
+   * 🆕 切换悬浮窗置顶状态
+   * @returns {Promise<{success: boolean, alwaysOnTop?: boolean, error?: string}>}
+   */
+  toggleFloatingAlwaysOnTop: () => ipcRenderer.invoke('toggle-floating-always-on-top'),
+  
+  /**
+   * 🆕 获取悬浮窗置顶状态
+   * @returns {Promise<boolean>}
+   */
+  getFloatingAlwaysOnTop: () => ipcRenderer.invoke('get-floating-always-on-top'),
+  
+  /**
    * 推送数据到悬浮窗
    * @param {object} data - 要推送的数据
    */

@@ -54,6 +54,18 @@ export interface ElectronAPI {
   isFloatingWindowVisible: () => Promise<boolean>;
   
   /**
+   * 🆕 切换悬浮窗置顶状态
+   * @returns 返回新的置顶状态
+   */
+  toggleFloatingAlwaysOnTop: () => Promise<{ success: boolean; alwaysOnTop?: boolean; error?: string }>;
+  
+  /**
+   * 🆕 获取悬浮窗置顶状态
+   * @returns 当前是否置顶
+   */
+  getFloatingAlwaysOnTop: () => Promise<boolean>;
+  
+  /**
    * 推送数据到悬浮窗
    * @param data - 要推送的数据
    */

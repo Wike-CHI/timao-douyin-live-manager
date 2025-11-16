@@ -9,7 +9,9 @@ const {
   hideFloatingWindow,
   closeFloatingWindow,
   sendDataToFloating,
-  isFloatingWindowVisible
+  isFloatingWindowVisible,
+  toggleAlwaysOnTop,      // 🆕 切换置顶状态
+  getAlwaysOnTopState     // 🆕 获取置顶状态
 } = require('./floatingWindow');
 
 // 开发环境下跳过SSL证书验证，解决X509_V_FLAG_NOTIFY_POLICY错误
@@ -269,6 +271,27 @@ app.whenReady().then(() => {
      */
     ipcMain.handle('is-floating-window-visible', async () => {
         return isFloatingWindowVisible();
+    });
+    
+    /**
+     * 🆕 切换悬浮窗置顶状态
+     */
+    ipcMain.handle('toggle-floating-always-on-top', async () => {
+        try {
+            console.log('📌 [IPC] 收到切换置顶状态请求');
+            const newState = toggleAlwaysOnTop();
+            return { success: true, alwaysOnTop: newState };
+        } catch (error) {
+            console.error('❌ 切换置顶状态失败:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    
+    /**
+     * 🆕 获取悬浮窗置顶状态
+     */
+    ipcMain.handle('get-floating-always-on-top', async () => {
+        return getAlwaysOnTopState();
     });
     
     console.log('[electron] Application initialized successfully');

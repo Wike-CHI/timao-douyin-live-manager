@@ -1,6 +1,6 @@
 /**
  * 独立悬浮窗管理模块
- * 
+ *
  * 功能：
  * - 创建系统级独立悬浮窗（BrowserWindow）
  * - 始终置顶，可覆盖OBS等全屏应用
@@ -8,16 +8,16 @@
  * - 位置持久化
  */
 
-const { BrowserWindow, screen } = require('electron');
-const path = require('path');
-const fs = require('fs');
+const { BrowserWindow, screen } = require("electron");
+const path = require("path");
+const fs = require("fs");
 
 // 悬浮窗实例
 let floatingWindow = null;
 
 // 配置文件路径
-const CONFIG_DIR = path.join(__dirname, '..', 'config');
-const POSITION_FILE = path.join(CONFIG_DIR, 'floating-position.json');
+const CONFIG_DIR = path.join(__dirname, "..", "config");
+const POSITION_FILE = path.join(CONFIG_DIR, "floating-position.json");
 
 /**
  * 确保配置目录存在
@@ -28,51 +28,61 @@ function ensureConfigDir() {
       fs.mkdirSync(CONFIG_DIR, { recursive: true });
     }
   } catch (error) {
-    console.error('创建配置目录失败:', error);
+    console.error("创建配置目录失败:", error);
   }
 }
 
 /**
- * 加载上次保存的悬浮窗位置
- * @returns {{x: number, y: number} | null}
+ * 加载上次保存的悬浮窗配置
+ * @returns {{x: number, y: number, width: number, height: number, alwaysOnTop: boolean} | null}
  */
-function loadFloatingPosition() {
+function loadFloatingConfig() {
   try {
     if (fs.existsSync(POSITION_FILE)) {
-      const data = fs.readFileSync(POSITION_FILE, 'utf8');
-      const position = JSON.parse(data);
-      
+      const data = fs.readFileSync(POSITION_FILE, "utf8");
+      const config = JSON.parse(data);
+
       // 验证位置是否在屏幕内
       const display = screen.getPrimaryDisplay();
-      const { width, height } = display.workAreaSize;
-      
+      const { width: screenWidth, height: screenHeight } = display.workAreaSize;
+
+      // 兼容旧版本（只有x,y的配置）
+      const finalConfig = {
+        x: config.x || 0,
+        y: config.y || 0,
+        width: config.width || 320,
+        height: config.height || 280,
+        alwaysOnTop:
+          config.alwaysOnTop !== undefined ? config.alwaysOnTop : true,
+      };
+
       if (
-        position.x >= 0 && 
-        position.x < width - 320 &&
-        position.y >= 0 && 
-        position.y < height - 280
+        finalConfig.x >= 0 &&
+        finalConfig.x < screenWidth - finalConfig.width &&
+        finalConfig.y >= 0 &&
+        finalConfig.y < screenHeight - finalConfig.height
       ) {
-        console.log('加载保存的悬浮窗位置:', position);
-        return position;
+        console.log("✅ 加载保存的悬浮窗配置:", finalConfig);
+        return finalConfig;
       }
     }
   } catch (error) {
-    console.error('加载悬浮窗位置失败:', error);
+    console.error("❌ 加载悬浮窗配置失败:", error);
   }
   return null;
 }
 
 /**
- * 保存悬浮窗位置
- * @param {{x: number, y: number}} position
+ * 保存悬浮窗配置
+ * @param {{x: number, y: number, width: number, height: number, alwaysOnTop: boolean}} config
  */
-function saveFloatingPosition(position) {
+function saveFloatingConfig(config) {
   try {
     ensureConfigDir();
-    fs.writeFileSync(POSITION_FILE, JSON.stringify(position, null, 2));
-    console.log('保存悬浮窗位置:', position);
+    fs.writeFileSync(POSITION_FILE, JSON.stringify(config, null, 2));
+    console.log("💾 保存悬浮窗配置:", config);
   } catch (error) {
-    console.error('保存悬浮窗位置失败:', error);
+    console.error("保存悬浮窗位置失败:", error);
   }
 }
 
@@ -83,11 +93,11 @@ function saveFloatingPosition(position) {
 function getDefaultPosition() {
   const display = screen.getPrimaryDisplay();
   const { width, height } = display.workAreaSize;
-  
+
   const WINDOW_WIDTH = 320;
   const WINDOW_HEIGHT = 280;
   const MARGIN = 20;
-  
+
   return {
     x: width - WINDOW_WIDTH - MARGIN,
     y: height - WINDOW_HEIGHT - MARGIN,
@@ -97,27 +107,27 @@ function getDefaultPosition() {
 /**
  * 边缘吸附检测
  * @param {number} x - X坐标
- * @param {number} y - Y坐标  
+ * @param {number} y - Y坐标
  * @returns {{x: number, y: number, snapped: boolean}}
  */
 function checkEdgeSnap(x, y) {
   const SNAP_THRESHOLD = 30;
-  
+
   // 🆕 获取窗口当前所在的显示器（支持多显示器）
   const display = screen.getDisplayNearestPoint({ x, y });
   const { x: displayX, y: displayY, width, height } = display.workArea;
-  
+
   const WINDOW_WIDTH = 320;
   const WINDOW_HEIGHT = 280;
-  
+
   let newX = x;
   let newY = y;
   let snapped = false;
-  
+
   // 🆕 相对于当前显示器的坐标
   const relativeX = x - displayX;
   const relativeY = y - displayY;
-  
+
   // 左边缘吸附（相对于当前显示器）
   if (relativeX < SNAP_THRESHOLD) {
     newX = displayX;
@@ -128,7 +138,7 @@ function checkEdgeSnap(x, y) {
     newX = displayX + width - WINDOW_WIDTH;
     snapped = true;
   }
-  
+
   // 上边缘吸附（相对于当前显示器）
   if (relativeY < SNAP_THRESHOLD) {
     newY = displayY;
@@ -139,7 +149,7 @@ function checkEdgeSnap(x, y) {
     newY = displayY + height - WINDOW_HEIGHT;
     snapped = true;
   }
-  
+
   return { x: newX, y: newY, snapped };
 }
 
@@ -155,46 +165,58 @@ function createFloatingWindow(rendererURL) {
     floatingWindow.focus();
     return floatingWindow;
   }
-  
-  console.log('🚀 创建独立悬浮窗...');
-  
-  // 获取位置（优先使用保存的位置）
-  const savedPosition = loadFloatingPosition();
-  const position = savedPosition || getDefaultPosition();
-  
-  // 创建独立窗口
-  floatingWindow = new BrowserWindow({
+
+  console.log("🚀 创建独立悬浮窗...");
+
+  // 获取配置（优先使用保存的配置）
+  const savedConfig = loadFloatingConfig();
+  const defaultPosition = getDefaultPosition();
+  const config = savedConfig || {
+    x: defaultPosition.x,
+    y: defaultPosition.y,
     width: 320,
     height: 280,
-    x: position.x,
-    y: position.y,
-    
+    alwaysOnTop: true,
+  };
+
+  // 创建独立窗口
+  floatingWindow = new BrowserWindow({
+    width: config.width,
+    height: config.height,
+    x: config.x,
+    y: config.y,
+    title: "提猫直播模式",
+    minWidth: 280, // 🆕 最小宽度
+    minHeight: 240, // 🆕 最小高度
+    maxWidth: 600, // 🆕 最大宽度
+    maxHeight: 800, // 🆕 最大高度
+
     // 窗口样式
-    frame: false,              // 无边框
-    transparent: true,         // 透明背景
-    alwaysOnTop: true,        // 始终置顶（关键！）
-    skipTaskbar: true,        // 不显示在任务栏
-    resizable: false,         // 不可调整大小
-    minimizable: false,       // 不可最小化
-    maximizable: false,       // 不可最大化
-    hasShadow: true,          // 显示阴影
-    
+    frame: false, // 无边框
+    transparent: true, // 透明背景
+    alwaysOnTop: config.alwaysOnTop, // 🆕 根据配置决定是否置顶
+    skipTaskbar: true, // 不显示在任务栏
+    resizable: true, // 🆕 可调整大小
+    minimizable: false, // 不可最小化
+    maximizable: false, // 不可最大化
+    hasShadow: true, // 显示阴影
+
     // 窗口行为
-    show: false,              // 创建时不显示（准备好后显示）
-    focusable: true,          // 可获得焦点
-    
+    show: false, // 创建时不显示（准备好后显示）
+    focusable: true, // 可获得焦点
+
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, "preload.js"),
       // 允许悬浮窗访问后端API
       webSecurity: true,
-    }
+    },
   });
-  
+
   // 判断是否开发环境
-  const isDev = !require('electron').app.isPackaged;
-  
+  const isDev = !require("electron").app.isPackaged;
+
   // 加载悬浮窗页面
   if (isDev) {
     // 开发环境：加载开发服务器
@@ -204,56 +226,84 @@ function createFloatingWindow(rendererURL) {
   } else {
     // 生产环境：加载打包后的文件
     floatingWindow.loadFile(
-      path.join(__dirname, 'renderer', 'dist', 'index.html'),
-      { hash: '/floating' }
+      path.join(__dirname, "renderer", "dist", "index.html"),
+      { hash: "/floating" },
     );
   }
-  
+
   // 窗口准备好后显示
-  floatingWindow.once('ready-to-show', () => {
-    console.log('✅ 悬浮窗准备完成，显示窗口');
+  floatingWindow.once("ready-to-show", () => {
+    console.log("✅ 悬浮窗准备完成，显示窗口");
     floatingWindow.show();
     floatingWindow.focus();
   });
-  
-  // 监听窗口移动，实现边缘吸附
-  let moveTimer = null;
-  floatingWindow.on('move', () => {
-    if (moveTimer) clearTimeout(moveTimer);
-    
-    // 防抖：100ms后检查是否需要吸附
-    moveTimer = setTimeout(() => {
+
+  // 🆕 监听窗口移动和大小变化
+  let saveTimer = null;
+
+  // 保存配置的通用函数
+  const saveCurrentConfig = () => {
+    if (!floatingWindow || floatingWindow.isDestroyed()) return;
+
+    const bounds = floatingWindow.getBounds();
+    const alwaysOnTop = floatingWindow.isAlwaysOnTop();
+
+    saveFloatingConfig({
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+      alwaysOnTop: alwaysOnTop,
+    });
+  };
+
+  // 监听窗口移动
+  floatingWindow.on("move", () => {
+    if (saveTimer) clearTimeout(saveTimer);
+
+    // 防抖：300ms后保存配置和检查边缘吸附
+    saveTimer = setTimeout(() => {
       if (!floatingWindow || floatingWindow.isDestroyed()) return;
-      
+
       const bounds = floatingWindow.getBounds();
       const result = checkEdgeSnap(bounds.x, bounds.y);
-      
+
       if (result.snapped) {
-        console.log('🧲 边缘吸附:', { from: { x: bounds.x, y: bounds.y }, to: { x: result.x, y: result.y } });
+        console.log("🧲 边缘吸附:", {
+          from: { x: bounds.x, y: bounds.y },
+          to: { x: result.x, y: result.y },
+        });
         floatingWindow.setBounds({
           x: result.x,
           y: result.y,
-          width: 320,
-          height: 280,
+          width: bounds.width, // 🆕 保持当前宽度
+          height: bounds.height, // 🆕 保持当前高度
         });
       }
-      
-      // 保存位置
-      saveFloatingPosition({ x: result.x, y: result.y });
-    }, 100);
+
+      // 保存配置
+      saveCurrentConfig();
+    }, 300);
   });
-  
+
+  // 🆕 监听窗口大小变化
+  floatingWindow.on("resize", () => {
+    if (saveTimer) clearTimeout(saveTimer);
+
+    // 防抖：300ms后保存配置
+    saveTimer = setTimeout(() => {
+      saveCurrentConfig();
+    }, 300);
+  });
+
   // 窗口关闭时清理
-  floatingWindow.on('closed', () => {
-    console.log('🔴 悬浮窗已关闭');
-    if (moveTimer) clearTimeout(moveTimer);
+  floatingWindow.on("closed", () => {
+    console.log("🔴 悬浮窗已关闭");
+    if (saveTimer) clearTimeout(saveTimer);
     floatingWindow = null;
   });
-  
-  // 防止窗口失去焦点时隐藏（确保始终可见）
-  floatingWindow.setAlwaysOnTop(true, 'screen-saver', 1);
-  
-  console.log('✅ 悬浮窗创建完成');
+
+  console.log("✅ 悬浮窗创建完成");
   return floatingWindow;
 }
 
@@ -264,9 +314,9 @@ function showFloatingWindow() {
   if (floatingWindow && !floatingWindow.isDestroyed()) {
     floatingWindow.show();
     floatingWindow.focus();
-    console.log('✅ 显示悬浮窗');
+    console.log("✅ 显示悬浮窗");
   } else {
-    console.warn('⚠️ 悬浮窗不存在，请先创建');
+    console.warn("⚠️ 悬浮窗不存在，请先创建");
   }
 }
 
@@ -276,7 +326,7 @@ function showFloatingWindow() {
 function hideFloatingWindow() {
   if (floatingWindow && !floatingWindow.isDestroyed()) {
     floatingWindow.hide();
-    console.log('🔴 隐藏悬浮窗');
+    console.log("🔴 隐藏悬浮窗");
   }
 }
 
@@ -287,7 +337,7 @@ function closeFloatingWindow() {
   if (floatingWindow && !floatingWindow.isDestroyed()) {
     floatingWindow.close();
     floatingWindow = null;
-    console.log('🔴 关闭悬浮窗');
+    console.log("🔴 关闭悬浮窗");
   }
 }
 
@@ -303,6 +353,46 @@ function sendDataToFloating(channel, data) {
 }
 
 /**
+ * 🆕 切换悬浮窗置顶状态
+ * @returns {boolean} 新的置顶状态
+ */
+function toggleAlwaysOnTop() {
+  if (!floatingWindow || floatingWindow.isDestroyed()) {
+    console.warn("⚠️ 悬浮窗不存在");
+    return false;
+  }
+
+  const currentState = floatingWindow.isAlwaysOnTop();
+  const newState = !currentState;
+
+  floatingWindow.setAlwaysOnTop(newState);
+  console.log(`📌 悬浮窗置顶状态切换: ${currentState} -> ${newState}`);
+
+  // 立即保存配置
+  const bounds = floatingWindow.getBounds();
+  saveFloatingConfig({
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+    alwaysOnTop: newState,
+  });
+
+  return newState;
+}
+
+/**
+ * 🆕 获取悬浮窗置顶状态
+ * @returns {boolean}
+ */
+function getAlwaysOnTopState() {
+  if (!floatingWindow || floatingWindow.isDestroyed()) {
+    return false;
+  }
+  return floatingWindow.isAlwaysOnTop();
+}
+
+/**
  * 获取悬浮窗实例
  * @returns {BrowserWindow | null}
  */
@@ -315,7 +405,11 @@ function getFloatingWindow() {
  * @returns {boolean}
  */
 function isFloatingWindowVisible() {
-  return floatingWindow && !floatingWindow.isDestroyed() && floatingWindow.isVisible();
+  return (
+    floatingWindow &&
+    !floatingWindow.isDestroyed() &&
+    floatingWindow.isVisible()
+  );
 }
 
 module.exports = {
@@ -326,5 +420,6 @@ module.exports = {
   sendDataToFloating,
   getFloatingWindow,
   isFloatingWindowVisible,
+  toggleAlwaysOnTop, // 🆕
+  getAlwaysOnTopState, // 🆕
 };
-

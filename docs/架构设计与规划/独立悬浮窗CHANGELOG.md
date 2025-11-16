@@ -1,5 +1,78 @@
 # 独立悬浮窗变更日志
 
+## [2.1.0] - 2025-11-16
+
+### ✨ 新功能
+
+#### 功能 #1: 钉子按钮切换置顶
+- **新增**: 悬浮窗顶部添加钉子按钮 (📌)
+- **功能**: 用户可随时切换悬浮窗是否置顶
+- **实现**:
+  - 后端: `toggleAlwaysOnTop()`, `getAlwaysOnTopState()`
+  - IPC: `toggle-floating-always-on-top`, `get-floating-always-on-top`
+  - 前端: 钉子按钮UI，置顶时紫色高亮，未置顶时灰色透明
+- **配置**: 置顶状态持久化到 `config/floating-position.json`
+- **文件**:
+  - `electron/floatingWindow.js`: 添加置顶控制函数
+  - `electron/main.js`: 添加IPC处理器
+  - `electron/preload.js`: 暴露API
+  - `electron/renderer/src/pages/FloatingWindowPage.tsx`: UI实现
+  - `electron/renderer/src/types/electron.d.ts`: 类型定义
+
+#### 功能 #2: 可调整窗口大小
+- **新增**: 悬浮窗边缘可拖拽调整尺寸
+- **尺寸限制**:
+  - 最小: 280x240px
+  - 最大: 600x800px
+  - 默认: 320x280px
+- **实现**:
+  - `resizable: true` - 启用原生调整大小
+  - 监听 `resize` 事件自动保存尺寸
+  - 四个角落可对角拖拽
+  - 四条边可调整宽度或高度
+- **配置**: 窗口尺寸持久化到配置文件
+- **文件**: `electron/floatingWindow.js`
+
+#### 功能 #3: 配置持久化增强
+- **升级**: 配置文件格式从 `{x, y}` 扩展为完整配置
+- **新增字段**:
+  - `width`: 窗口宽度
+  - `height`: 窗口高度
+  - `alwaysOnTop`: 置顶状态
+- **兼容性**: 自动兼容旧版本配置
+- **优化**:
+  - 防抖保存（300ms）
+  - 配置验证（防止无效值）
+  - 多显示器支持
+- **文件**: `electron/floatingWindow.js`
+
+### ♻️ 代码改进
+
+#### 多显示器支持增强
+- **优化**: 边缘吸附改用 `screen.getDisplayNearestPoint()`
+- **效果**: 
+  - ✅ 支持任意数量显示器
+  - ✅ 边缘吸附基于当前显示器
+  - ✅ 跨屏幕拖动流畅
+
+#### 配置加载/保存重构
+- **重命名**: `loadFloatingPosition()` → `loadFloatingConfig()`
+- **重命名**: `saveFloatingPosition()` → `saveFloatingConfig()`
+- **升级**: 返回/接收完整配置对象
+- **新增**: `saveCurrentConfig()` 统一保存函数
+
+### 📊 性能优化
+
+- **防抖优化**: 窗口移动/调整大小保存延迟300ms
+- **异步保存**: 配置保存不阻塞UI
+- **智能更新**: 只在配置改变时保存
+
+### 📝 文档
+
+- **新增**: `docs/架构设计与规划/悬浮窗可定制功能完成报告.md` - 详细功能说明和验证指南
+
+---
+
 ## [2.0.1] - 2025-11-16
 
 ### 🐛 Bug修复
