@@ -1,0 +1,50 @@
+{
+  "version": "1.0.0",
+  "models": [
+    {
+      "id": "sensevoice-small",
+      "name": "SenseVoice Small (中文语音识别)",
+      "version": "2024.11",
+      "files": [
+        {
+          "name": "model.pt",
+          "size": 2468666368,
+          "sha256": "PLACEHOLDER_HASH_UPDATE_WITH_REAL_VALUE",
+          "url": "https://cdn.example.com/models/sensevoice/v2024.11/model.pt",
+          "mirrors": [
+            "https://cdn2.example.com/models/sensevoice/v2024.11/model.pt"
+          ]
+        },
+        {
+          "name": "config.yaml",
+          "size": 10240,
+          "sha256": "PLACEHOLDER_HASH_UPDATE_WITH_REAL_VALUE",
+          "url": "https://cdn.example.com/models/sensevoice/v2024.11/config.yaml"
+        },
+        {
+          "name": "tokens.json",
+          "size": 2097152,
+          "sha256": "PLACEHOLDER_HASH_UPDATE_WITH_REAL_VALUE",
+          "url": "https://cdn.example.com/models/sensevoice/v2024.11/tokens.json"
+        }
+      ],
+      "required": true,
+      "features": ["语音转写", "实时字幕"]
+    },
+    {
+      "id": "vad-silero",
+      "name": "Silero VAD (语音活动检测)",
+      "version": "v3.1",
+      "files": [
+        {
+          "name": "silero_vad.onnx",
+          "size": 1887436,
+          "sha256": "PLACEHOLDER_HASH_UPDATE_WITH_REAL_VALUE",
+          "url": "https://cdn.example.com/models/vad/v3.1/silero_vad.onnx"
+        }
+      ],
+      "required": true,
+      "features": ["语音检测"]
+    }
+  ]
+}
