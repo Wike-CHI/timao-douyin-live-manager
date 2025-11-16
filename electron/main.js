@@ -2,6 +2,9 @@ const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
+// 🆕 模型管理器（按需下载）
+const modelManager = require('./main/model/model-manager');
+
 // 开发环境下跳过SSL证书验证，解决X509_V_FLAG_NOTIFY_POLICY错误
 if (process.env.NODE_ENV !== 'production') {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -145,6 +148,11 @@ app.on('activate', function () {
  * 应用准备就绪时创建窗口
  */
 app.whenReady().then(async () => {
+    // 🆕 初始化模型管理器 IPC
+    console.log('[electron] 初始化模型管理器...');
+    modelManager.setupIPC();
+    console.log('[electron] ✅ 模型管理器已就绪');
+    
     // 🆕 启动 Python 转写服务（如果可用）
     try {
         // 动态加载 Python 转写服务（TypeScript 编译后的 JS）
