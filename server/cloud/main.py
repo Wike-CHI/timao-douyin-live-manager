@@ -8,7 +8,10 @@
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import os
+from pathlib import Path
 
 # 导入云端路由
 from .routers import auth_router, profile_router, subscription_router
@@ -34,6 +37,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 静态文件配置
+STATIC_DIR = Path(__file__).parent / "static"
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+    logger.info(f"✅ 静态文件目录已挂载: {STATIC_DIR}")
+else:
+    logger.warning(f"⚠️  静态文件目录不存在: {STATIC_DIR}")
 
 # 注册云端路由
 app.include_router(auth_router)
@@ -70,15 +81,25 @@ async def health_check():
 
 @app.get("/")
 async def root():
-    return {
-        "service": "提猫直播助手 - 云端服务",
-        "endpoints": [
-            "/api/auth/*",
-            "/api/user/*",
-            "/api/payment/*",
-            "/api/admin/*"
-        ]
-    }
+    """返回云端服务控制台页面"""
+    index_file = STATIC_DIR / "index.html"
+    if index_file.exists():
+        return FileResponse(str(index_file))
+    else:
+        # 如果静态文件不存在，返回JSON
+        return {
+            "service": "提猫直播助手 - 云端服务",
+            "version": "1.0.0",
+            "status": "running",
+            "endpoints": [
+                "/api/auth/*   - 用户认证",
+                "/profile/*    - 用户资料",
+                "/api/subscription/* - 订阅管理",
+                "/api/payment/* - 支付处理",
+                "/docs         - API文档",
+                "/health       - 健康检查"
+            ]
+        }
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>提猫直播助手 - 云端服务</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+            overflow: hidden;
+            animation: fadeIn 0.6s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .logo-container {
+            margin-bottom: 20px;
+        }
+
+        .logo {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            object-fit: cover;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .status-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .status-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .status-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 16px;
+            background: #10b981;
+            color: white;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .status-badge::before {
+            content: "●";
+            margin-right: 8px;
+            animation: blink 1.5s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .info-item {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .info-label {
+            font-size: 12px;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .info-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .endpoints-section {
+            margin-top: 24px;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+        }
+
+        .section-title::before {
+            content: "🔌";
+            margin-right: 8px;
+        }
+
+        .endpoint-list {
+            list-style: none;
+        }
+
+        .endpoint-item {
+            background: white;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        .endpoint-item:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+            transform: translateX(4px);
+        }
+
+        .endpoint-method {
+            display: inline-block;
+            padding: 4px 8px;
+            background: #667eea;
+            color: white;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-right: 12px;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        .endpoint-path {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color: #4b5563;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .feature-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .feature-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .feature-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .footer {
+            padding: 24px 40px;
+            background: #f8f9fa;
+            text-align: center;
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        .health-check {
+            margin-top: 24px;
+            padding: 16px;
+            background: #ecfdf5;
+            border: 1px solid #10b981;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .health-check-text {
+            display: flex;
+            align-items: center;
+            color: #059669;
+            font-weight: 500;
+        }
+
+        .health-check-text::before {
+            content: "✓";
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            background: #10b981;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 24px;
+            margin-right: 12px;
+            font-weight: bold;
+        }
+
+        .test-button {
+            padding: 8px 16px;
+            background: white;
+            border: 1px solid #10b981;
+            color: #059669;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .test-button:hover {
+            background: #10b981;
+            color: white;
+        }
+
+        @media (max-width: 640px) {
+            .container {
+                border-radius: 0;
+            }
+
+            .header {
+                padding: 30px 20px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo-container">
+                <img src="/static/assets/icon.png" alt="TalkingCat Logo" class="logo">
+            </div>
+            <h1>提猫直播助手</h1>
+            <p>云端服务控制台 - Cloud Service Dashboard</p>
+        </div>
+
+        <!-- Content -->
+        <div class="content">
+            <!-- Status Card -->
+            <div class="status-card">
+                <div class="status-header">
+                    <div class="status-title">服务状态</div>
+                    <div class="status-badge" id="status-badge">运行中</div>
+                </div>
+
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">服务类型</div>
+                        <div class="info-value">云端服务</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">内存限制</div>
+                        <div class="info-value">&lt; 512MB</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">服务端口</div>
+                        <div class="info-value">15000</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">版本号</div>
+                        <div class="info-value" id="version">1.0.0</div>
+                    </div>
+                </div>
+
+                <div class="health-check">
+                    <div class="health-check-text">
+                        健康检查通过 - 所有系统正常运行
+                    </div>
+                    <button class="test-button" onclick="testHealth()">测试连接</button>
+                </div>
+            </div>
+
+            <!-- Features -->
+            <div class="section-title">🚀 核心功能</div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">👤</div>
+                    <div class="feature-title">用户系统</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔐</div>
+                    <div class="feature-title">身份认证</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">💳</div>
+                    <div class="feature-title">订阅管理</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">💰</div>
+                    <div class="feature-title">支付处理</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⭐</div>
+                    <div class="feature-title">积分系统</div>
+                </div>
+            </div>
+
+            <!-- API Endpoints -->
+            <div class="endpoints-section">
+                <div class="section-title">API 端点</div>
+                <ul class="endpoint-list">
+                    <li class="endpoint-item">
+                        <span class="endpoint-method">POST</span>
+                        <span class="endpoint-path">/api/auth/login</span>
+                    </li>
+                    <li class="endpoint-item">
+                        <span class="endpoint-method">POST</span>
+                        <span class="endpoint-path">/api/auth/register</span>
+                    </li>
+                    <li class="endpoint-item">
+                        <span class="endpoint-method">GET</span>
+                        <span class="endpoint-path">/profile/basic</span>
+                    </li>
+                    <li class="endpoint-item">
+                        <span class="endpoint-method">GET</span>
+                        <span class="endpoint-path">/api/subscription/plans</span>
+                    </li>
+                    <li class="endpoint-item">
+                        <span class="endpoint-method">POST</span>
+                        <span class="endpoint-path">/api/payment/create</span>
+                    </li>
+                    <li class="endpoint-item">
+                        <span class="endpoint-method">GET</span>
+                        <span class="endpoint-path">/docs</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>提猫直播助手 - Electron桌面应用 (React + TypeScript + Python FastAPI)</p>
+            <p style="margin-top: 8px;">
+                云端服务专注于用户管理、订阅和支付，本地服务处理音频转写和AI分析
+            </p>
+            <p style="margin-top: 12px;">
+                <a href="/docs" target="_blank">API文档</a> •
+                <a href="/health" target="_blank">健康检查</a> •
+                审查人：叶维哲
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // 测试健康检查
+        async function testHealth() {
+            const button = document.querySelector('.test-button');
+            const badge = document.getElementById('status-badge');
+            
+            button.textContent = '检测中...';
+            button.disabled = true;
+            
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                
+                if (data.status === 'healthy') {
+                    badge.textContent = '运行中';
+                    badge.style.background = '#10b981';
+                    alert('✅ 健康检查通过\n\n' + 
+                          '服务: ' + data.service + '\n' +
+                          'Python版本: ' + data.python_version + '\n' +
+                          '内存限制: ' + data.memory_limit);
+                } else {
+                    badge.textContent = '异常';
+                    badge.style.background = '#ef4444';
+                }
+            } catch (error) {
+                badge.textContent = '离线';
+                badge.style.background = '#6b7280';
+                alert('❌ 连接失败: ' + error.message);
+            }
+            
+            button.textContent = '测试连接';
+            button.disabled = false;
+        }
+
+        // 自动获取版本信息
+        async function fetchVersion() {
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                document.getElementById('version').textContent = data.python_version || '1.0.0';
+            } catch (error) {
+                console.error('Failed to fetch version:', error);
+            }
+        }
+
+        // 页面加载时获取版本
+        window.addEventListener('load', fetchVersion);
+
+        // 每30秒自动刷新状态
+        setInterval(async () => {
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                const badge = document.getElementById('status-badge');
+                
+                if (data.status === 'healthy') {
+                    badge.textContent = '运行中';
+                    badge.style.background = '#10b981';
+                } else {
+                    badge.textContent = '异常';
+                    badge.style.background = '#ef4444';
+                }
+            } catch (error) {
+                const badge = document.getElementById('status-badge');
+                badge.textContent = '离线';
+                badge.style.background = '#6b7280';
+            }
+        }, 30000);
+    </script>
+</body>
+</html>
+
