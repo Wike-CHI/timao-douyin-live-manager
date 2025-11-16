@@ -144,8 +144,9 @@ def ensure_ffmpeg() -> Optional[str]:
 
 def ensure_models() -> Dict[str, bool]:
     """Ensure SenseVoiceSmall and VAD directories exist; attempt download if missing."""
-    mdir = PROJECT_ROOT / "models" / "models" / "iic" / "SenseVoiceSmall"
-    vdir = PROJECT_ROOT / "models" / "models" / "iic" / "speech_fsmn_vad_zh-cn-16k-common-pytorch"
+    # 🔧 修复：使用正确的缓存路径
+    mdir = PROJECT_ROOT / "server" / "modules" / "models" / ".cache" / "models" / "iic" / "SenseVoiceSmall"
+    vdir = PROJECT_ROOT / "server" / "modules" / "models" / ".cache" / "models" / "iic" / "speech_fsmn_vad_zh-cn-16k-common-pytorch"
     ok_m = mdir.exists()
     ok_v = vdir.exists()
     with _status_lock:
@@ -161,7 +162,7 @@ def ensure_models() -> Dict[str, bool]:
     # Try running download scripts (best effort, only if Python deps available)
     py_exe = sys.executable or "python"
     try:
-        if not ok_m:##将引用路径改为server/tools/download_sensevoice.py 
+        if not ok_m:
             _log("Downloading SenseVoiceSmall model…")
             subprocess.run([py_exe, str(PROJECT_ROOT / "server" / "tools" / "download_sensevoice.py")], check=False, cwd=str(PROJECT_ROOT))
         if not ok_v:
@@ -183,9 +184,9 @@ def bootstrap_all() -> Dict[str, object]:
     # Suggestions for offline fallback
     sugg = []
     if not mv.get("model"):
-        sugg.append("手动放置 SenseVoiceSmall 到 models/models/iic/SenseVoiceSmall")
+        sugg.append("手动放置 SenseVoiceSmall 到 server/modules/models/.cache/models/iic/SenseVoiceSmall")
     if not mv.get("vad"):
-        sugg.append("手动放置 VAD 到 models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch")
+        sugg.append("手动放置 VAD 到 server/modules/models/.cache/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch")
     with _status_lock:
         _status["running"] = False
         _status["suggestions"] = sugg

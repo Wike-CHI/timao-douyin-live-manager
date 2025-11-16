@@ -1,21 +1,11 @@
-# Normalize line endings
-* text=auto eol=lf
+# 本地开发环境配置文件 - 合并时保留本地版本
+**/.env merge=ours
+**/config.json merge=ours
+**/app.json merge=ours
 
-# Keep common binary types as binary
-*.png binary
-*.jpg binary
-*.jpeg binary
-*.gif binary
-*.webp binary
-*.pdf binary
-*.zip binary
-*.7z binary
-*.mp4 binary
-*.mp3 binary
-*.wav binary
+# 运行脚本 - 合并时保留本地版本
+scripts/构建与启动/integrated-launcher.js merge=ours
+scripts/构建与启动/service_launcher.py merge=ours
 
-# Optional: Git LFS examples (uncomment when enabling LFS)
-# *.mp4 filter=lfs diff=lfs merge=lfs -text
-# *.mp3 filter=lfs diff=lfs merge=lfs -text
-# *.wav filter=lfs diff=lfs merge=lfs -text
-# *.zip filter=lfs diff=lfs merge=lfs -text
+# 本地配置目录
+config/local-*.json merge=ours

@@ -1,12 +1,15 @@
-import { buildServiceUrl } from './apiConfig';
-import { fetchJsonWithAuth } from './http';
-import { apiCall } from '../utils/error-handler';
+import { buildServiceUrl } from "./apiConfig";
+import { fetchJsonWithAuth } from "./http";
+import { apiCall } from "../utils/error-handler";
 import type {
   DouyinRelayStatus,
   DouyinRelayResponse,
   DouyinStreamEvent,
   StartDouyinRequest,
-} from '../types/api-types';
+} from "../types/api-types";
+
+// Re-export types for convenience
+export type { DouyinRelayStatus, DouyinStreamEvent } from "../types/api-types";
 
 export interface DouyinStreamHandlers {
   onEvent?: (event: DouyinStreamEvent) => void;
@@ -16,42 +19,47 @@ export interface DouyinStreamHandlers {
 
 export const startDouyinRelay = async (
   liveId: string,
-  cookie?: string
+  cookie?: string,
 ): Promise<DouyinRelayResponse> => {
   const body: StartDouyinRequest = { live_id: liveId };
   if (cookie) {
     body.cookie = cookie;
   }
-  
+
   return apiCall(
-    () => fetchJsonWithAuth('douyin', '/api/douyin/start', {
-    method: 'POST',
-    body: JSON.stringify(body),
-    }),
-    '启动抖音中继'
+    () =>
+      fetchJsonWithAuth("douyin", "/api/douyin/start", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    "启动抖音中继",
   );
 };
 
 export const stopDouyinRelay = async (): Promise<DouyinRelayResponse> => {
   return apiCall(
-    () => fetchJsonWithAuth('douyin', '/api/douyin/stop', {
-    method: 'POST',
-    }),
-    '停止抖音中继'
+    () =>
+      fetchJsonWithAuth("douyin", "/api/douyin/stop", {
+        method: "POST",
+      }),
+    "停止抖音中继",
   );
 };
 
 export const getDouyinRelayStatus = async (): Promise<DouyinRelayStatus> => {
   return apiCall(
-    () => fetchJsonWithAuth('douyin', '/api/douyin/status', {
-    method: 'GET',
-    }),
-    '获取抖音中继状态'
+    () =>
+      fetchJsonWithAuth("douyin", "/api/douyin/status", {
+        method: "GET",
+      }),
+    "获取抖音中继状态",
   );
 };
 
-export const openDouyinStream = (handlers: DouyinStreamHandlers): EventSource => {
-  const streamUrl = buildServiceUrl('douyin', '/api/douyin/stream');
+export const openDouyinStream = (
+  handlers: DouyinStreamHandlers,
+): EventSource => {
+  const streamUrl = buildServiceUrl("douyin", "/api/douyin/stream");
   const source = new EventSource(streamUrl);
 
   if (handlers.onOpen) {
@@ -68,7 +76,7 @@ export const openDouyinStream = (handlers: DouyinStreamHandlers): EventSource =>
       const data = JSON.parse(event.data) as DouyinStreamEvent;
       handlers.onEvent(data);
     } catch (error) {
-      console.error('解析 Douyin SSE 消息失败:', error);
+      console.error("解析 Douyin SSE 消息失败:", error);
     }
   };
 
@@ -80,10 +88,11 @@ export const updateDouyinPersist = async (payload: {
   persist_root?: string;
 }) => {
   return apiCall(
-    () => fetchJsonWithAuth('douyin', '/api/douyin/web/persist', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-    }),
-    '更新抖音持久化配置'
+    () =>
+      fetchJsonWithAuth("douyin", "/api/douyin/web/persist", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    "更新抖音持久化配置",
   );
 };

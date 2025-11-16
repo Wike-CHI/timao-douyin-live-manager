@@ -16,13 +16,25 @@ import requests
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+# 加载 .env 文件
+try:
+    from dotenv import load_dotenv
+    # 加载项目根目录和 server 目录的 .env 文件
+    project_root = Path(__file__).parent.parent.parent
+    load_dotenv(project_root / ".env")
+    load_dotenv(project_root / "server" / ".env")
+except ImportError:
+    print("⚠️ python-dotenv 未安装，将使用默认端口配置")
+    print("提示：运行 pip install python-dotenv 来支持 .env 文件")
+
 class ServiceManager:
     """服务管理器"""
     
     def __init__(self):
         self.services: Dict[str, subprocess.Popen] = {}
         self.running = False
-        self.base_dir = Path(__file__).parent.parent  # scripts/ -> 项目根目录
+        # 修正：从 scripts/构建与启动/ -> scripts -> 项目根目录
+        self.base_dir = Path(__file__).parent.parent.parent
         self.health_check_thread = None
         
         # 配置日志
@@ -89,13 +101,15 @@ class ServiceManager:
                     self.logger.error(f"无法为服务 {name} 找到可用端口")
                     return False
             
-            # 启动进程
+            # 启动进程（Windows 需要设置编码）
             process = subprocess.Popen(
                 cmd,
                 cwd=cwd or self.base_dir,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                encoding='utf-8',  # 明确指定 UTF-8 编码
+                errors='replace',  # 遇到无法解码的字符时替换
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
             )
             
@@ -114,14 +128,28 @@ class ServiceManager:
     def start_output_monitor(self, name: str, process: subprocess.Popen):
         """启动输出监控线程"""
         def monitor_stdout():
+            try:
             for line in iter(process.stdout.readline, ''):
                 if line.strip():
+                        # 尝试解码UTF-8，失败则忽略特殊字符
+                        try:
                     self.logger.info(f"[{name}] {line.strip()}")
+                        except UnicodeEncodeError:
+                            self.logger.info(f"[{name}] {line.encode('utf-8', errors='replace').decode('utf-8').strip()}")
+            except Exception as e:
+                self.logger.error(f"[{name}] 输出监控异常: {e}")
         
         def monitor_stderr():
+            try:
             for line in iter(process.stderr.readline, ''):
                 if line.strip():
-                    self.logger.error(f"[{name}] {line.strip()}")
+                        # 错误输出更重要，必须显示
+                        try:
+                            self.logger.error(f"[{name}] 错误: {line.strip()}")
+                        except UnicodeEncodeError:
+                            self.logger.error(f"[{name}] 错误: {line.encode('utf-8', errors='replace').decode('utf-8').strip()}")
+            except Exception as e:
+                self.logger.error(f"[{name}] 错误监控异常: {e}")
         
         threading.Thread(target=monitor_stdout, daemon=True).start()
         threading.Thread(target=monitor_stderr, daemon=True).start()
@@ -132,8 +160,8 @@ class ServiceManager:
         self.logger.info("[START] 开始启动所有后端服务...")
         
         # 1. 启动主FastAPI服务
-        # 使用环境变量 BACKEND_PORT，默认 11111（可按需覆盖）
-        backend_port = os.getenv("BACKEND_PORT", "11111")
+        # 🔧 硬编码端口 11111（演示测试）
+        backend_port = "11111"
         fastapi_success = self.start_service(
             "fastapi_main",
             [sys.executable, "-m", "uvicorn", "server.app.main:app", 
@@ -143,9 +171,9 @@ class ServiceManager:
         )
         
         if fastapi_success:
-            # 等待FastAPI服务启动
+            # 等待FastAPI服务启动（增加等待时间，确保数据库连接完成）
             self.logger.info("等待FastAPI服务启动...")
-            time.sleep(5)
+            time.sleep(10)  # 从5秒增加到10秒
         
         # 2. 启动StreamCap服务（已迁移到 server/modules/streamcap，不再需要独立启动）
         # StreamCap 功能已集成到主服务中，无需单独启动
@@ -172,8 +200,8 @@ class ServiceManager:
         
     def health_check(self):
         """健康检查"""
-        # 使用环境变量 BACKEND_PORT，默认 11111（可按需覆盖）
-        backend_port = os.getenv("BACKEND_PORT", "11111")
+        # 🔧 硬编码端口 11111（演示测试）
+        backend_port = "11111"
         services_to_check = [
             ("FastAPI主服务", f"http://127.0.0.1:{backend_port}/health"),
             # StreamCap 功能已集成到主服务中，无需单独检查
@@ -181,11 +209,19 @@ class ServiceManager:
         
         for name, url in services_to_check:
             try:
-                response = requests.get(url, timeout=5)
+                response = requests.get(url, timeout=10)  # 增加超时时间到10秒
                 if response.status_code == 200:
-                    self.logger.debug(f"[OK] {name} 健康检查通过")
+                    self.logger.info(f"[OK] {name} 健康检查通过")
                 else:
                     self.logger.warning(f"[WARN] {name} 健康检查异常: {response.status_code}")
+            except requests.exceptions.ConnectionError as e:
+                self.logger.error(f"[ERROR] {name} 连接失败（端口: {backend_port}）: {e}")
+                self.logger.error(f"       请检查：1) 端口是否正确 2) 服务是否启动成功 3) 防火墙是否阻止")
+                # 尝试重启服务
+                self.restart_service_by_url(name, url)
+            except requests.exceptions.Timeout as e:
+                self.logger.error(f"[ERROR] {name} 连接超时: {e}")
+                self.logger.error(f"       服务可能启动缓慢，建议检查日志")
             except requests.exceptions.RequestException as e:
                 self.logger.warning(f"[ERROR] {name} 健康检查失败: {e}")
                 # 尝试重启服务
@@ -193,7 +229,8 @@ class ServiceManager:
     
     def restart_service_by_url(self, service_name: str, url: str):
         """根据URL重启对应服务"""
-        backend_port = os.getenv("BACKEND_PORT", "11111")
+        # 🔧 硬编码端口 11111（演示测试）
+        backend_port = "11111"
         if backend_port in url and "fastapi_main" in self.services:
             self.logger.info(f"尝试重启 {service_name}...")
             self.restart_service("fastapi_main")
@@ -208,8 +245,8 @@ class ServiceManager:
             
             # 根据服务名重新启动
             if name == "fastapi_main":
-                # 使用环境变量 BACKEND_PORT，默认 11111（可按需覆盖）
-                backend_port = os.getenv("BACKEND_PORT", "11111")
+                # 🔧 硬编码端口 11111（演示测试）
+                backend_port = "11111"
                 self.start_service(
                     "fastapi_main",
                     [sys.executable, "-m", "uvicorn", "server.app.main:app", 

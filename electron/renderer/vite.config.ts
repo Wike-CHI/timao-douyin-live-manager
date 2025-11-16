@@ -4,12 +4,13 @@ import { resolve } from 'path';
 import { fileURLToPath } from 'url';
 
 const rootDir = fileURLToPath(new URL('.', import.meta.url));
+// 🔧 CSP 策略 - 只允许本地连接（硬编码端口 11111）
 const devCsp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
-  "connect-src 'self' ws://127.0.0.1:* ws://localhost:* ws://129.211.218.135 ws://129.211.218.135:11111 ws://129.211.218.135:* wss://129.211.218.135:* http://127.0.0.1:* http://localhost:* http://129.211.218.135 http://129.211.218.135:11111 http://129.211.218.135:* https:",
+  "connect-src 'self' ws://127.0.0.1:* ws://localhost:* http://127.0.0.1:* http://localhost:* http://127.0.0.1:11111 https:",
   "font-src 'self' data:",
 ];
 
@@ -18,7 +19,7 @@ export default defineConfig({
   base: './',
   server: {
     host: '127.0.0.1',
-    port: 10050, // 前端端口硬编码为 10050
+    port: 10200, // 🔧 硬编码前端端口 10200（避开 Windows 保留端口范围 10017-10116）
     strictPort: true, // 强制使用指定端口，不自动尝试其他端口
     headers: {
       'Content-Security-Policy': devCsp.join('; '),

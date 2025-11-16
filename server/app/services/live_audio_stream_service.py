@@ -804,13 +804,15 @@ class LiveAudioStreamService:
             return "iic/SenseVoiceSmall"
 
         def _resolve_vad_model_id() -> str:
+            # 🔧 修复：使用正确的缓存路径
             root = Path(__file__).resolve().parents[3]
-            local_vad = root / "server" / "models" / "models" / "iic" / "speech_fsmn_vad_zh-cn-16k-common-pytorch"
+            cache_vad = root / "server" / "modules" / "models" / ".cache" / "models" / "iic" / "speech_fsmn_vad_zh-cn-16k-common-pytorch"
             try:
-                if local_vad.exists():
-                    return str(local_vad)
+                if cache_vad.exists():
+                    return str(cache_vad)
             except Exception:
                 pass
+            # 回退到 ModelScope ID（FunASR 会自动下载）
             return "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
 
         desired_mid = _resolve_small_model_id()

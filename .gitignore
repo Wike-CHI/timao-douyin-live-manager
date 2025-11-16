@@ -58,6 +58,14 @@ release/
 .DS_Store
 desktop.ini
 
+# Windows保留设备名（防止Git错误）
+nul
+con
+prn
+aux
+com[0-9]
+lpt[0-9]
+
 # 备份文件
 *.bak
 *.backup

@@ -3,7 +3,7 @@
 const { spawn, exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const PortManager = require('./port-manager');
+const PortManager = require('../诊断与排障/port-manager');
 
 /**
  * 一体化启动器
@@ -12,7 +12,7 @@ class IntegratedLauncher {
     constructor() {
         this.portManager = new PortManager();
         this.processes = new Map();
-        this.projectRoot = path.resolve(__dirname, '..');
+        this.projectRoot = path.resolve(__dirname, '../..'); // scripts/构建与启动/ -> scripts -> 项目根目录
         this.isShuttingDown = false;
         
         // 绑定信号处理
@@ -172,7 +172,7 @@ class IntegratedLauncher {
      * 启动后端服务
      */
     async startBackend() {
-        // 后端端口硬编码为 11111
+        // 🔧 硬编码后端端口 11111（演示测试）
         const backendPort = '11111';
         const serverPath = path.join(this.projectRoot, 'server');
         
@@ -221,8 +221,8 @@ class IntegratedLauncher {
             rendererPath
         );
         
-        // 等待前端服务启动（前端端口硬编码为 10050）
-        const frontendPort = '10050';
+        // 🔧 硬编码前端端口 10200（避开 Windows 保留端口范围 10017-10116）
+        const frontendPort = '10200';
         const frontendReady = await this.waitForHealthCheck(`http://127.0.0.1:${frontendPort}`);
         if (!frontendReady) {
             throw new Error('前端服务启动失败');
@@ -268,9 +268,9 @@ class IntegratedLauncher {
             console.log('\n📋 第四步: 启动Electron应用');
             await this.startElectron();
             
-            // 端口硬编码
+            // 🔧 硬编码端口（演示测试）
             const backendPort = '11111';
-            const frontendPort = '10050';
+            const frontendPort = '10200';
             console.log('\n' + '='.repeat(60));
             console.log('🎉 所有服务启动完成！');
             console.log('');

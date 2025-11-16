@@ -42,13 +42,13 @@ DEFAULT_AST_CONFIG = None  # 延迟初始化
 
 def _autodetect_vad_model(base: Path) -> Optional[str]:
     """自动查找本地 VAD 模型目录。
-    约定优先路径：models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch
+    🔧 修复：约定优先路径改为 .cache/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch
     若未找到，则在 models 目录下模糊搜索包含 "vad" 的子目录。
     返回可供 FunASR 使用的目录字符串（存在 model.pt 即认为可用）。
     """
     try:
-        # 明确约定位置
-        prefer = base / 'models' / 'iic' / 'speech_fsmn_vad_zh-cn-16k-common-pytorch'
+        # 明确约定位置（修复：使用正确的缓存路径）
+        prefer = base / '.cache' / 'models' / 'iic' / 'speech_fsmn_vad_zh-cn-16k-common-pytorch'
         if (prefer / 'model.pt').exists() or prefer.exists():
             return str(prefer)
         # 模糊搜索
