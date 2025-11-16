@@ -8,7 +8,7 @@ contextBridge.exposeInMainWorld('electron', {
   ipcRenderer: {
     // 调用主进程方法
     invoke: (channel, ...args) => {
-      const validChannels = ['model:check', 'model:start-download', 'model:cancel-download'];
+      const validChannels = ['model:check', 'model:start-download', 'model:pause-download', 'model:resume-download', 'model:cancel-download'];
       if (validChannels.includes(channel)) {
         return ipcRenderer.invoke(channel, ...args);
       }

@@ -26,18 +26,24 @@ interface ModelInfo {
 }
 
 interface ModelStatus {
-  status: 'AVAILABLE' | 'MISSING' | 'DOWNLOADING' | 'VERIFYING' | 'ERROR';
+  status: 'AVAILABLE' | 'MISSING' | 'DOWNLOADING' | 'PAUSED' | 'VERIFYING' | 'ERROR';
   progress?: number;
   downloadedBytes?: number;
   totalBytes?: number;
+  speed?: number;        // 下载速度 (bytes/s)
+  eta?: number;          // 预计剩余时间 (秒)
   error?: string;
 }
 
 interface ProgressPayload {
   modelId: string;
+  state?: string;
   progress: number;
+  downloaded?: number;
   downloadedBytes: number;
   totalBytes: number;
+  speed?: number;
+  eta?: number;
 }
 
 /**
@@ -49,6 +55,22 @@ const formatBytes = (bytes: number): string => {
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
+};
+
+/**
+ * 格式化速度
+ */
+const formatSpeed = (bytesPerSecond: number): string => {
+  return `${formatBytes(bytesPerSecond)}/s`;
+};
+
+/**
+ * 格式化剩余时间
+ */
+const formatETA = (seconds: number): string => {
+  if (seconds < 60) return `${Math.round(seconds)}秒`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}分钟`;
+  return `${Math.round(seconds / 3600)}小时`;
 };
 
 /**
@@ -122,6 +144,46 @@ export const ModelDownloader: React.FC = () => {
   );
 
   /**
+   * 暂停下载
+   */
+  const pauseDownload = useCallback(
+    async (modelId: string) => {
+      if (!ipcRenderer) return;
+
+      try {
+        await ipcRenderer.invoke('model:pause-download', modelId);
+        setModelStatuses((prev) => ({
+          ...prev,
+          [modelId]: { ...prev[modelId], status: 'PAUSED' },
+        }));
+      } catch (error) {
+        console.error(`[ModelDownloader] 暂停下载失败:`, error);
+      }
+    },
+    [ipcRenderer]
+  );
+
+  /**
+   * 继续下载
+   */
+  const resumeDownload = useCallback(
+    async (modelId: string) => {
+      if (!ipcRenderer) return;
+
+      try {
+        await ipcRenderer.invoke('model:resume-download', modelId);
+        setModelStatuses((prev) => ({
+          ...prev,
+          [modelId]: { ...prev[modelId], status: 'DOWNLOADING' },
+        }));
+      } catch (error) {
+        console.error(`[ModelDownloader] 继续下载失败:`, error);
+      }
+    },
+    [ipcRenderer]
+  );
+
+  /**
    * 取消下载
    */
   const cancelDownload = useCallback(
@@ -145,15 +207,18 @@ export const ModelDownloader: React.FC = () => {
   useEffect(() => {
     if (!ipcRenderer) return;
 
-    const handleProgress = (_event: unknown, payload: ProgressPayload) => {
-      const { modelId, progress, downloadedBytes, totalBytes } = payload;
+    const handleProgress = (_event: unknown, ...args: unknown[]) => {
+      const payload = args[0] as ProgressPayload;
+      const { modelId, state, progress, downloaded, downloadedBytes, totalBytes, speed, eta } = payload;
       setModelStatuses((prev) => ({
         ...prev,
         [modelId]: {
-          status: 'DOWNLOADING',
+          status: (state as ModelStatus['status']) || 'DOWNLOADING',
           progress,
-          downloadedBytes,
+          downloadedBytes: downloaded || downloadedBytes,
           totalBytes,
+          speed,
+          eta,
         },
       }));
     };
@@ -197,8 +262,10 @@ export const ModelDownloader: React.FC = () => {
         {models.map((model) => {
           const status = modelStatuses[model.id];
           const isDownloading = status?.status === 'DOWNLOADING';
+          const isPaused = status?.status === 'PAUSED';
           const isAvailable = status?.status === 'AVAILABLE';
           const isMissing = status?.status === 'MISSING';
+          const isVerifying = status?.status === 'VERIFYING';
           const hasError = status?.status === 'ERROR';
 
           return (
@@ -212,7 +279,7 @@ export const ModelDownloader: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   {isAvailable && (
-                    <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                    <span className="px-3 py-1 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-full text-sm font-medium">
                       ✓ 已安装
                     </span>
                   )}
@@ -225,25 +292,56 @@ export const ModelDownloader: React.FC = () => {
                     </button>
                   )}
                   {isDownloading && (
-                    <button
-                      onClick={() => cancelDownload(model.id)}
-                      className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
-                    >
-                      取消
-                    </button>
+                    <>
+                      <button
+                        onClick={() => pauseDownload(model.id)}
+                        className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition"
+                      >
+                        暂停
+                      </button>
+                      <button
+                        onClick={() => cancelDownload(model.id)}
+                        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
+                      >
+                        取消
+                      </button>
+                    </>
+                  )}
+                  {isPaused && (
+                    <>
+                      <button
+                        onClick={() => resumeDownload(model.id)}
+                        className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition"
+                      >
+                        继续
+                      </button>
+                      <button
+                        onClick={() => cancelDownload(model.id)}
+                        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
+                      >
+                        取消
+                      </button>
+                    </>
+                  )}
+                  {isVerifying && (
+                    <span className="px-3 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-full text-sm font-medium animate-pulse">
+                      🔍 校验中...
+                    </span>
                   )}
                   {hasError && (
-                    <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium">
+                    <span className="px-3 py-1 bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded-full text-sm font-medium">
                       ✗ 错误
                     </span>
                   )}
                 </div>
               </div>
 
-              {isDownloading && status && (
-                <div className="mt-3">
+              {(isDownloading || isPaused) && status && (
+                <div className="mt-3 space-y-2">
                   <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 mb-1">
-                    <span>下载进度</span>
+                    <span className="font-medium">
+                      {isPaused ? '已暂停' : '下载进度'}
+                    </span>
                     <span>
                       {formatBytes(status.downloadedBytes || 0)} / {formatBytes(status.totalBytes || 0)} (
                       {(status.progress || 0).toFixed(1)}%)
@@ -251,10 +349,18 @@ export const ModelDownloader: React.FC = () => {
                   </div>
                   <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
                     <div
-                      className="bg-blue-500 h-2.5 rounded-full transition-all duration-300"
+                      className={`h-2.5 rounded-full transition-all duration-300 ${
+                        isPaused ? 'bg-yellow-500' : 'bg-blue-500'
+                      }`}
                       style={{ width: `${status.progress || 0}%` }}
                     />
                   </div>
+                  {isDownloading && status.speed !== undefined && status.eta !== undefined && (
+                    <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                      <span>速度: {formatSpeed(status.speed)}</span>
+                      <span>剩余时间: {formatETA(status.eta)}</span>
+                    </div>
+                  )}
                 </div>
               )}
 
