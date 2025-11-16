@@ -13,6 +13,8 @@ import useAuthStore from '../../store/useAuthStore';
 import { startAILiveAnalysis, stopAILiveAnalysis, openAILiveStream, generateAnswerScripts } from '../../services/ai';
 import { useLiveConsoleStore, getLiveConsoleSocket } from '../../store/useLiveConsoleStore';
 import { getSessionStatus, resumeSession, resumePausedSession, type LiveSessionState } from '../../services/liveSession';
+import { FloatingWindow } from '../../components/live-mode/FloatingWindow';
+import { useLiveModeStore } from '../../store/useLiveModeStore';
 
 // Note: Do not cap transcript items; persist to disk is handled by backend.
 // We keep full in-memory log for current session (may grow large for long sessions).
@@ -59,6 +61,14 @@ const LiveConsolePage = () => {
     connectWebSocket,
     disconnectWebSocket,
   } = useLiveConsoleStore();
+  
+  // ========== 直播模式Store ==========
+  const { 
+    currentMode, 
+    floatingVisible, 
+    switchToLiveMode, 
+    toggleFloating 
+  } = useLiveModeStore();
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1085,7 +1095,7 @@ const LiveConsolePage = () => {
             placeholder="直播地址或ID (e.g. https://live.douyin.com/xxxx)"
             disabled={isRunning || loading}
           />
-          {/* 简洁模式：不暴露“预设”选择，保持默认策略 */}
+          {/* 简洁模式：不暴露"预设"选择，保持默认策略 */}
           {/* 模式/引擎固定：稳妥（VAD）· 轻量（Small） */}
           {/* 开始转写按钮和停止转写按钮向右移动600px */}
           <button className="timao-primary-btn ml-[600px]" onClick={handleStart} disabled={loading || isRunning}>
@@ -1094,6 +1104,18 @@ const LiveConsolePage = () => {
           <button className="timao-outline-btn" onClick={handleStop} disabled={loading || !isRunning}>
             停止
           </button>
+          
+          {/* ========== 模式切换按钮 ========== */}
+          {isRunning && currentMode === 'full' && (
+            <button 
+              className="timao-outline-btn bg-purple-50 text-purple-600 hover:bg-purple-100 border-purple-300"
+              onClick={switchToLiveMode}
+              title="切换到直播模式（悬浮窗）"
+            >
+              <span className="mr-1">📱</span>
+              直播模式
+            </button>
+          )}
         </div>
         {/* 直播间状态信息（左下角，三行内联显示与输入框左对齐） */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
@@ -1845,6 +1867,11 @@ const LiveConsolePage = () => {
         </section>
 
       </div>
+      
+      {/* ========== 直播模式悬浮窗 ========== */}
+      {floatingVisible && (
+        <FloatingWindow onClose={toggleFloating} />
+      )}
     </div>
   );
 };
