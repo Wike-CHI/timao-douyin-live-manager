@@ -43,7 +43,69 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 系统信息
   platform: process.platform,
-  version: process.versions
+  version: process.versions,
+  
+  // ========== 🆕 悬浮窗控制API ==========
+  
+  /**
+   * 显示独立悬浮窗
+   * 主窗口启动服务时调用
+   */
+  showFloatingWindow: () => ipcRenderer.invoke('show-floating-window'),
+  
+  /**
+   * 隐藏悬浮窗
+   */
+  hideFloatingWindow: () => ipcRenderer.invoke('hide-floating-window'),
+  
+  /**
+   * 关闭悬浮窗
+   */
+  closeFloatingWindow: () => ipcRenderer.invoke('close-floating-window'),
+  
+  /**
+   * 检查悬浮窗是否可见
+   */
+  isFloatingWindowVisible: () => ipcRenderer.invoke('is-floating-window-visible'),
+  
+  /**
+   * 🆕 切换悬浮窗置顶状态
+   * @returns {Promise<{success: boolean, alwaysOnTop?: boolean, error?: string}>}
+   */
+  toggleFloatingAlwaysOnTop: () => ipcRenderer.invoke('toggle-floating-always-on-top'),
+  
+  /**
+   * 🆕 获取悬浮窗置顶状态
+   * @returns {Promise<boolean>}
+   */
+  getFloatingAlwaysOnTop: () => ipcRenderer.invoke('get-floating-always-on-top'),
+  
+  /**
+   * 推送数据到悬浮窗
+   * @param {object} data - 要推送的数据
+   */
+  sendFloatingData: (data) => ipcRenderer.send('floating-update-data', data),
+  
+  /**
+   * 监听来自主进程的数据（悬浮窗使用）
+   * @param {function} callback - 回调函数
+   * @returns {function} 清理函数
+   */
+  onFloatingData: (callback) => {
+    const handler = (event, data) => callback(data);
+    ipcRenderer.on('floating-data', handler);
+    // 返回清理函数
+    return () => {
+      ipcRenderer.removeListener('floating-data', handler);
+    };
+  },
+  
+  /**
+   * 移除悬浮窗数据监听
+   */
+  removeFloatingDataListener: () => {
+    ipcRenderer.removeAllListeners('floating-data');
+  }
 });
 
 /**

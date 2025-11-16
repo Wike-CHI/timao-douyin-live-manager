@@ -27,7 +27,7 @@ export interface ApiConfig {
 }
 
 // 默认服务配置
-// 🔧 硬编码端口（演示测试）- 后端 11111，前端 10065
+// 🔧 硬编码端口（演示测试）- 后端 11111，前端 10200
 const DEFAULT_CONFIG: ApiConfig = {
   services: {
     main: {

@@ -95,28 +95,28 @@ class AIGateway:
     # AI_FUNCTION_LIVE_REVIEW_PROVIDER, AI_FUNCTION_LIVE_REVIEW_MODEL
     FUNCTION_MODELS = {
         "live_analysis": {
-            "provider": os.getenv("AI_FUNCTION_LIVE_ANALYSIS_PROVIDER", "qwen"), # 已修正为 xunfei
-            "model": os.getenv("AI_FUNCTION_LIVE_ANALYSIS_MODEL", "qwen3-max")      # 已修正为 lite
+            "provider": os.getenv("AI_FUNCTION_LIVE_ANALYSIS_PROVIDER", "xunfei"), # 已修正为 xunfei
+            "model": os.getenv("AI_FUNCTION_LIVE_ANALYSIS_MODEL", "lite")      # 已修正为 lite
         },
         "style_profile": {
-            "provider": os.getenv("AI_FUNCTION_STYLE_PROFILE_PROVIDER", "qwen"),
-            "model": os.getenv("AI_FUNCTION_STYLE_PROFILE_MODEL", "qwen3-max")  # 直播间氛围与情绪识别：使用 qwen3-max
+            "provider": os.getenv("AI_FUNCTION_STYLE_PROFILE_PROVIDER", "xunfei"),
+            "model": os.getenv("AI_FUNCTION_STYLE_PROFILE_MODEL", "lite")  # 直播间氛围与情绪识别：使用 qwen3-max
         },
         "script_generation": {
-            "provider": os.getenv("AI_FUNCTION_SCRIPT_GENERATION_PROVIDER", "qwen"),
-            "model": os.getenv("AI_FUNCTION_SCRIPT_GENERATION_MODEL", "qwen3-max")  # 话术生成：使用 qwen3-max
+            "provider": os.getenv("AI_FUNCTION_SCRIPT_GENERATION_PROVIDER", "xunfei"),
+            "model": os.getenv("AI_FUNCTION_SCRIPT_GENERATION_MODEL", "lite")  # 话术生成：使用 qwen3-max
         },
         "live_review": {
             "provider": os.getenv("AI_FUNCTION_LIVE_REVIEW_PROVIDER", "gemini"),
             "model": os.getenv("AI_FUNCTION_LIVE_REVIEW_MODEL", "gemini-2.5-flash-preview-09-2025")  # 复盘：使用 Gemini 2.5 Flash Preview
         },
         "chat_focus": {
-            "provider": os.getenv("AI_FUNCTION_CHAT_FOCUS_PROVIDER", "qwen"),
-            "model": os.getenv("AI_FUNCTION_CHAT_FOCUS_MODEL", "qwen3-max")  # 聊天焦点摘要：使用 qwen3-max
+            "provider": os.getenv("AI_FUNCTION_CHAT_FOCUS_PROVIDER", "xunfei"),
+            "model": os.getenv("AI_FUNCTION_CHAT_FOCUS_MODEL", "lite")  # 聊天焦点摘要：使用 qwen3-max
         },
         "topic_generation": {
-            "provider": os.getenv("AI_FUNCTION_TOPIC_GENERATION_PROVIDER", "qwen"),
-            "model": os.getenv("AI_FUNCTION_TOPIC_GENERATION_MODEL", "qwen3-max")  # 智能话题生成：使用 qwen3-max
+            "provider": os.getenv("AI_FUNCTION_TOPIC_GENERATION_PROVIDER", "xunfei"),
+            "model": os.getenv("AI_FUNCTION_TOPIC_GENERATION_MODEL", "lite")  # 智能话题生成：使用 qwen3-max
         },
     }
     
