@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import ModelDownloader from '../../components/ModelDownloader';
 
-const FASTAPI_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:11111'; // 默认端口改为 11111，可通过环境变量覆盖
+const FASTAPI_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:11111'; // 默认端口改为 11111,可通过环境变量覆盖
 
 const HOTWORDS_PLACEHOLDER = '{ "replace": { "正确词": ["变体1", "变体2"] } }';
 
@@ -164,6 +165,9 @@ const ToolsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* 🆕 模型下载器组件 */}
+      <ModelDownloader />
+
       <div className="timao-card">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">

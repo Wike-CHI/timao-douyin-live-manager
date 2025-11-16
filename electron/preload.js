@@ -2,22 +2,37 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 /**
  * 向渲染进程暴露 Electron IPC 通信接口
- * 用于监听主进程的清理信号
+ * 用于监听主进程的清理信号和模型下载相关事件
  */
 contextBridge.exposeInMainWorld('electron', {
   ipcRenderer: {
+    // 调用主进程方法
+    invoke: (channel, ...args) => {
+      const validChannels = ['model:check', 'model:start-download', 'model:cancel-download'];
+      if (validChannels.includes(channel)) {
+        return ipcRenderer.invoke(channel, ...args);
+      }
+      return Promise.reject(new Error(`Invalid channel: ${channel}`));
+    },
     // 监听来自主进程的消息
     on: (channel, callback) => {
-      const validChannels = ['app-cleanup-request'];
+      const validChannels = ['app-cleanup-request', 'model:download-progress', 'model:download-complete', 'model:download-error'];
       if (validChannels.includes(channel)) {
         ipcRenderer.on(channel, callback);
       }
     },
     // 移除监听器
     removeListener: (channel, callback) => {
-      const validChannels = ['app-cleanup-request'];
+      const validChannels = ['app-cleanup-request', 'model:download-progress', 'model:download-complete', 'model:download-error'];
       if (validChannels.includes(channel)) {
         ipcRenderer.removeListener(channel, callback);
+      }
+    },
+    // 移除所有监听器
+    removeAllListeners: (channel) => {
+      const validChannels = ['app-cleanup-request', 'model:download-progress', 'model:download-complete', 'model:download-error'];
+      if (validChannels.includes(channel)) {
+        ipcRenderer.removeAllListeners(channel);
       }
     }
   }
