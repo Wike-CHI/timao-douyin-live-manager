@@ -29,7 +29,26 @@
     "!**/.vscode/**",
     "!**/.idea/**"
   ],
-  "extraResources": [],
+  "extraResources": [
+    {
+      "from": "server/local",
+      "to": "server/local",
+      "filter": [
+        "**/*",
+        "!**/__pycache__/**",
+        "!**/*.pyc",
+        "!**/*.pyo",
+        "!**/models/**",
+        "!**/*.bin",
+        "!**/*.pt",
+        "!**/*.onnx"
+      ]
+    },
+    {
+      "from": "electron/main/model",
+      "to": "electron/main/model"
+    }
+  ],
   "win": {
     "target": [
       {
