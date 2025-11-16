@@ -11,12 +11,12 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 
 from ..services.ai_live_analyzer import get_ai_live_analyzer
-from server.app.schemas import (
+from ..schemas import (
     StartAILiveAnalysisRequest,
     GenerateLiveAnswersRequest,
 )
-from server.app.schemas.common import BaseResponse
-from server.app.utils.api import success_response, handle_service_error
+from ..schemas.common import BaseResponse
+from ..utils.api import success_response, handle_service_error
 
 # TODO: 本地服务暂不需要认证，后续可添加
 # from .auth import get_current_user

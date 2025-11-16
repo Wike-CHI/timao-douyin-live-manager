@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 
 # 导入本地路由
-from server.local.routers import (
+from .routers import (
     live_audio_router,
     ai_live_router,
     live_session_router,

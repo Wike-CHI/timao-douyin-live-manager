@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..services.live_session_manager import get_session_manager
-from server.utils.service_logger import log_service_start, log_service_error
+from ..utils.service_logger import log_service_start, log_service_error
 
 router = APIRouter(prefix="/api/live_session", tags=["live-session"])
 logger = logging.getLogger(__name__)

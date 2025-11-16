@@ -1,0 +1,1003 @@
+"""
+AI API 使用量监控与计费系统
+监控所有 AI 调用的 Token 使用量和费用
+"""
+
+import json
+import logging
+import time
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass, asdict
+from collections import defaultdict
+import threading
+from decimal import Decimal, ROUND_HALF_UP
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class UsageRecord:
+    """单次 API 调用记录"""
+    timestamp: float
+    user_id: Optional[str]
+    anchor_id: Optional[str]
+    session_id: Optional[str]
+    model: str
+    function: str  # 功能：实时分析、话术生成、问答等
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+    cost: float
+    duration_ms: float
+    success: bool
+    error_msg: Optional[str] = None
+
+
+@dataclass
+class UsageSummary:
+    """使用量汇总"""
+    period: str  # hourly, daily, monthly
+    start_time: float
+    end_time: float
+    total_calls: int
+    successful_calls: int
+    failed_calls: int
+    total_input_tokens: int
+    total_output_tokens: int
+    total_tokens: int
+    total_cost: float
+    by_model: Dict[str, Dict[str, Any]]
+    by_function: Dict[str, Dict[str, Any]]
+    by_user: Dict[str, Dict[str, Any]]
+    by_anchor: Dict[str, Dict[str, Any]]
+
+
+class ModelPricing:
+    """AI 模型定价配置"""
+    
+    # 功能名称中文映射
+    FUNCTION_NAME_CN = {
+        "live_review": "直播复盘",
+        "gateway_qwen": "实时分析（通义千问）",
+        "gateway_openai": "实时分析（OpenAI）",
+        "gateway_deepseek": "实时分析（DeepSeek）",
+        "gateway_doubao": "实时分析（豆包）",
+        "gateway_glm": "实时分析（ChatGLM）",
+        "gateway_gemini": "直播复盘（Gemini）",
+        "实时分析": "实时分析",
+        "话术生成": "话术生成",
+        "问答": "问答",
+        "live_analysis": "实时分析",
+        "script_generation": "话术生成",
+        "qa": "问答",
+    }
+    
+    @classmethod
+    def get_function_name_cn(cls, function_name: str) -> str:
+        """获取功能名称的中文显示"""
+        return cls.FUNCTION_NAME_CN.get(function_name, function_name)
+    
+    # Qwen 系列定价（元/1K tokens）
+    QWEN_PRICING = {
+        "qwen-max": {
+            "input": 0.02,
+            "output": 0.06,
+            "display_name": "通义千问-Max"
+        },
+        "qwen3-max": {
+            "input": 0.006,
+            "output": 0.06,
+            "display_name": "通义千问3-Max",
+            "input_free_tokens": 32000,
+            "input_tiers": [
+                {
+                    "up_to": 32000,
+                    "price_per_1k": 0.0,
+                },
+                {
+                    "price_per_1k": 0.006,
+                },
+            ],
+        },
+        "qwen-plus": {
+            "input": 0.004,
+            "output": 0.012,
+            "display_name": "通义千问-Plus"
+        },
+        "qwen-turbo": {
+            "input": 0.002,
+            "output": 0.006,
+            "display_name": "通义千问-Turbo"
+        },
+    }
+    
+    # OpenAI 系列定价（元/1K tokens）
+    OPENAI_PRICING = {
+        "gpt-4": {
+            "input": 0.21,
+            "output": 0.42,
+            "display_name": "GPT-4"
+        },
+        "gpt-4-turbo": {
+            "input": 0.07,
+            "output": 0.21,
+            "display_name": "GPT-4 Turbo"
+        },
+        "gpt-4o": {
+            "input": 0.035,
+            "output": 0.105,
+            "display_name": "GPT-4o"
+        },
+        "gpt-4o-mini": {
+            "input": 0.001,
+            "output": 0.004,
+            "display_name": "GPT-4o Mini"
+        },
+        "gpt-3.5-turbo": {
+            "input": 0.0035,
+            "output": 0.007,
+            "display_name": "GPT-3.5 Turbo"
+        },
+    }
+    
+    # DeepSeek 系列定价（元/1K tokens）
+    DEEPSEEK_PRICING = {
+        "deepseek-chat": {
+            "input": 0.001,
+            "output": 0.002,
+            "display_name": "DeepSeek-Chat"
+        },
+        "deepseek-coder": {
+            "input": 0.001,
+            "output": 0.002,
+            "display_name": "DeepSeek-Coder"
+        },
+    }
+    
+    # 字节豆包系列定价（元/1K tokens）
+    DOUBAO_PRICING = {
+        "doubao-pro-32k": {
+            "input": 0.008,
+            "output": 0.008,
+            "display_name": "豆包-Pro-32K"
+        },
+        "doubao-lite-32k": {
+            "input": 0.003,
+            "output": 0.003,
+            "display_name": "豆包-Lite-32K"
+        },
+    }
+    
+    # ChatGLM 系列定价（元/1K tokens）
+    GLM_PRICING = {
+        "glm-4": {
+            "input": 0.10,
+            "output": 0.10,
+            "display_name": "ChatGLM-4"
+        },
+        "glm-4-flash": {
+            "input": 0.0,
+            "output": 0.0,
+            "display_name": "ChatGLM-4-Flash (免费)"
+        },
+        "glm-3-turbo": {
+            "input": 0.005,
+            "output": 0.005,
+            "display_name": "ChatGLM-3-Turbo"
+        },
+    }
+    
+    # 科大讯飞星火系列定价（元/1K tokens）
+    XUNFEI_PRICING = {
+        "lite": {
+            "input": 0.0,
+            "output": 0.0,
+            "display_name": "讯飞星火-Lite (免费)"
+        },
+        "generalv3": {
+            "input": 0.003,
+            "output": 0.003,
+            "display_name": "讯飞星火-V3.0"
+        },
+        "generalv3.5": {
+            "input": 0.0036,
+            "output": 0.0036,
+            "display_name": "讯飞星火-V3.5"
+        },
+        "4.0Ultra": {
+            "input": 0.005,
+            "output": 0.005,
+            "display_name": "讯飞星火-V4.0 Ultra"
+        },
+    }
+    
+    # Gemini 系列定价（美元/1K tokens，仅适用于 gemini-2.5-flash-preview-09-2025）
+    GEMINI_PRICING = {
+        "gemini-2.5-flash-preview-09-2025": {
+            "input": 0.000075,  # $0.075 / 1M tokens = $0.000075 / 1K tokens
+            "output": 0.0003,   # $0.30 / 1M tokens = $0.0003 / 1K tokens
+            "cache_read": 0.000999,  # $0.999 / 1M tokens = $0.000999 / 1K tokens
+            "web_search": 0.000249,  # $0.249 / 1M tokens = $0.000249 / 1K tokens
+            "cache_storage": 0.001,  # $1 / hour / 1M tokens，需要单独计算
+            "display_name": "Gemini 2.5 Flash Preview",
+            "currency": "USD",  # 标识为美元计价
+        },
+    }
+    
+    # 兼容别名（带后缀的版本号、长上下文等）
+    ALIAS_MAP = {
+        "qwen-max-longcontext": "qwen-max",
+        "qwen-plus-longcontext": "qwen-plus",
+        "qwen-turbo-longcontext": "qwen-turbo",
+        "gpt-4o": "gpt-4o",
+        "gpt-4o-mini": "gpt-4o-mini",
+        "gpt-4o-mini-preview": "gpt-4o-mini",
+        "gpt-4o-mini-latest": "gpt-4o-mini",
+        "gpt-4o-mini-2024-07-18": "gpt-4o-mini",
+        "gpt-4o-2024-08-06": "gpt-4o",
+        "gpt-4-1106-preview": "gpt-4-turbo",
+        "gpt-4-turbo-preview": "gpt-4-turbo",
+        "gpt-4.1-mini": "gpt-4o-mini",
+        "glm-4-plus": "glm-4",
+    }
+    
+    # 合并所有定价
+    ALL_PRICING = {
+        **QWEN_PRICING,
+        **OPENAI_PRICING,
+        **DEEPSEEK_PRICING,
+        **DOUBAO_PRICING,
+        **GLM_PRICING,
+        **GEMINI_PRICING,
+        **XUNFEI_PRICING,
+    }
+    
+    @classmethod
+    def _normalize_model_name(cls, model: Optional[str]) -> Optional[str]:
+        if not model:
+            return None
+        return model.strip().lower()
+    
+    @classmethod
+    def _resolve_pricing(cls, model: Optional[str]) -> Optional[Dict[str, Any]]:
+        """根据模型名称解析定价，兼容带版本号/别名的写法"""
+        normalized = cls._normalize_model_name(model)
+        if not normalized:
+            return None
+        
+        # 直接匹配
+        if normalized in cls.ALL_PRICING:
+            return cls.ALL_PRICING[normalized]
+        
+        # 别名映射
+        alias_target = cls.ALIAS_MAP.get(normalized)
+        if alias_target and alias_target in cls.ALL_PRICING:
+            return cls.ALL_PRICING[alias_target]
+        
+        # 去掉常见的版本号或后缀（"-2024-07-18"、":latest" 等）
+        separators = ["@", ":", "#", "?"]
+        candidate = normalized
+        for sep in separators:
+            if sep in candidate:
+                candidate = candidate.split(sep, 1)[0]
+                if candidate in cls.ALL_PRICING:
+                    return cls.ALL_PRICING[candidate]
+                alias_target = cls.ALIAS_MAP.get(candidate)
+                if alias_target and alias_target in cls.ALL_PRICING:
+                    return cls.ALL_PRICING[alias_target]
+        
+        # 逐步截短 "-" 后的后缀
+        candidate = normalized
+        while "-" in candidate:
+            candidate = candidate.rsplit("-", 1)[0]
+            if candidate in cls.ALL_PRICING:
+                return cls.ALL_PRICING[candidate]
+            alias_target = cls.ALIAS_MAP.get(candidate)
+            if alias_target and alias_target in cls.ALL_PRICING:
+                return cls.ALL_PRICING[alias_target]
+        
+        return None
+    
+    @staticmethod
+    def _calculate_tiered_cost(tokens: int, tiers: List[Dict[str, Any]]) -> Decimal:
+        """根据阶梯配置计算费用，up_to 表示累计 token 上限"""
+        if not tiers:
+            return Decimal("0")
+        
+        remaining = max(0, int(tokens or 0))
+        previous_cap = 0
+        total = Decimal("0")
+        
+        for tier in tiers:
+            if remaining <= 0:
+                break
+            
+            unit_price = Decimal(str(tier.get("price_per_1k", 0)))
+            cap = tier.get("up_to")
+            
+            if cap is not None:
+                try:
+                    cap_value = int(cap)
+                except (TypeError, ValueError):
+                    continue
+                if cap_value <= previous_cap:
+                    continue
+                capacity = cap_value - previous_cap
+                tier_tokens = min(remaining, capacity)
+                previous_cap = cap_value
+            else:
+                tier_tokens = remaining
+            
+            if tier_tokens > 0:
+                total += Decimal(tier_tokens) * unit_price / Decimal(1000)
+                remaining -= tier_tokens
+        
+        return total
+    
+    @classmethod
+    def _calculate_input_cost(cls, pricing: Dict[str, Any], tokens: int) -> Decimal:
+        """计算输入 token 成本，支持免费额度与阶梯定价"""
+        tiers = pricing.get("input_tiers")
+        if tiers:
+            return cls._calculate_tiered_cost(tokens, tiers)
+        
+        free_tokens = int(pricing.get("input_free_tokens") or 0)
+        billable_tokens = max(0, int(tokens or 0) - free_tokens)
+        rate = Decimal(str(pricing.get("input", 0)))
+        return Decimal(billable_tokens) * rate / Decimal(1000)
+    
+    @classmethod
+    def _calculate_output_cost(cls, pricing: Dict[str, Any], tokens: int) -> Decimal:
+        """计算输出 token 成本，预留阶梯扩展点"""
+        tiers = pricing.get("output_tiers")
+        if tiers:
+            return cls._calculate_tiered_cost(tokens, tiers)
+        
+        free_tokens = int(pricing.get("output_free_tokens") or 0)
+        billable_tokens = max(0, int(tokens or 0) - free_tokens)
+        rate = Decimal(str(pricing.get("output", 0)))
+        return Decimal(billable_tokens) * rate / Decimal(1000)
+    
+    @classmethod
+    def calculate_cost(
+        cls,
+        model: Optional[str],
+        input_tokens: int,
+        output_tokens: int
+    ) -> float:
+        """计算单次调用费用。如果没有匹配定价则返回 0."""
+        pricing = cls._resolve_pricing(model)
+        if not pricing:
+            logger.debug("未找到模型 %s 对应的定价，费用按 0 计入", model)
+            return 0.0
+        
+        input_tokens = max(0, int(input_tokens or 0))
+        output_tokens = max(0, int(output_tokens or 0))
+        
+        input_cost = cls._calculate_input_cost(pricing, input_tokens)
+        output_cost = cls._calculate_output_cost(pricing, output_tokens)
+        total = (input_cost + output_cost).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+        return float(total)
+    
+    @classmethod
+    def get_model_display_name(cls, model: str) -> str:
+        """获取模型显示名称"""
+        pricing = cls._resolve_pricing(model)
+        if pricing:
+            return pricing.get("display_name", model)
+        return model
+    
+    @classmethod
+    def get_pricing(cls, model: str) -> Optional[Dict[str, Any]]:
+        """获取模型定价信息"""
+        return cls._resolve_pricing(model)
+
+
+class AIUsageMonitor:
+    """AI 使用量监控器"""
+    
+    def __init__(self, data_dir: Path = None):
+        """
+        初始化监控器
+        
+        Args:
+            data_dir: 数据存储目录，默认为 records/ai_usage
+        """
+        self.data_dir = data_dir or Path("records") / "ai_usage"
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 内存缓存（最近 1000 条记录）
+        self._records: List[UsageRecord] = []
+        self._max_cache_size = 1000
+        
+        # 当前会话统计
+        self._session_stats = defaultdict(lambda: {
+            "calls": 0,
+            "tokens": 0,
+            "cost": 0.0
+        })
+        
+        # 线程锁
+        self._lock = threading.Lock()
+        
+        # 加载今日记录
+        self._load_today_records()
+        
+        logger.info(f"AI 使用量监控器已启动，数据目录: {self.data_dir}")
+    
+        # 初始化汇总统计
+        self._last_summary_time = time.time()
+        self._summary_interval = 300  # 每5分钟显示一次汇总
+    
+    def record_usage(
+        self,
+        model: Optional[str],
+        function: str,
+        input_tokens: int,
+        output_tokens: int,
+        duration_ms: float,
+        *,
+        cost: Optional[float] = None,
+        total_tokens: Optional[int] = None,
+        success: bool = True,
+        user_id: Optional[str] = None,
+        anchor_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        error_msg: Optional[str] = None
+    ) -> UsageRecord:
+        """
+        记录一次 API 调用
+        
+        Args:
+            model: 模型名称
+            function: 功能名称
+            input_tokens: 输入 Token 数
+            output_tokens: 输出 Token 数
+            duration_ms: 调用耗时（毫秒）
+            success: 是否成功
+            user_id: 用户 ID
+            anchor_id: 主播 ID
+            session_id: 会话 ID
+            error_msg: 错误信息
+            
+        Returns:
+            UsageRecord: 使用记录
+        """
+        sanitized_input = max(0, int(input_tokens or 0))
+        sanitized_output = max(0, int(output_tokens or 0))
+        calculated_total = sanitized_input + sanitized_output
+        total_tokens = (
+            max(int(total_tokens), calculated_total)
+            if total_tokens is not None
+            else calculated_total
+        )
+        
+        if cost is None:
+            cost_value = ModelPricing.calculate_cost(model, sanitized_input, sanitized_output)
+        else:
+            cost_value = float(cost)
+            if cost_value < 0:
+                cost_value = 0.0
+        
+        cost_decimal = Decimal(str(cost_value)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+        cost_value = float(cost_decimal)
+        
+        record = UsageRecord(
+            timestamp=time.time(),
+            user_id=user_id,
+            anchor_id=anchor_id,
+            session_id=session_id,
+            model=model,
+            function=function,
+            input_tokens=sanitized_input,
+            output_tokens=sanitized_output,
+            total_tokens=total_tokens,
+            cost=cost_value,
+            duration_ms=duration_ms,
+            success=success,
+            error_msg=error_msg
+        )
+        
+        numeric_user_id: Optional[int] = None
+        try:
+            if user_id is not None:
+                numeric_user_id = int(user_id)
+        except (TypeError, ValueError):
+            numeric_user_id = None
+        
+        with self._lock:
+            # 添加到缓存
+            self._records.append(record)
+            if len(self._records) > self._max_cache_size:
+                self._records.pop(0)
+            
+            # 更新会话统计
+            if session_id:
+                stats = self._session_stats[session_id]
+                stats["calls"] += 1
+                stats["tokens"] += total_tokens
+                stats["cost"] += cost_value
+            
+            # 持久化到文件
+            self._save_record(record)
+            
+            # 定期显示汇总统计（每5分钟或每20次调用）
+            current_time = time.time()
+            should_show_summary = (
+                (current_time - self._last_summary_time) >= self._summary_interval
+            ) or (len(self._records) % 20 == 0)
+            
+            if should_show_summary and len(self._records) > 0:
+                self._print_summary_stats()
+                self._last_summary_time = current_time
+        
+        if numeric_user_id is not None:
+            try:
+                # 本地服务不使用订阅服务
+        # from ..services.subscription_service import SubscriptionService
+                SubscriptionService.record_ai_usage(
+                    user_id=numeric_user_id,
+                    tokens=total_tokens,
+                    requests=1
+                )
+            except Exception as exc:  # pragma: no cover - 防御性记录
+                logger.debug(f"记录 AI 使用量失败: {exc}")
+        
+        # 格式化的日志输出，更易读
+        status_icon = "✅" if success else "❌"
+        cost_symbol = "¥" if cost_value > 0.001 else "$"  # 根据成本大小选择符号
+        
+        # 计算token速率（每秒）
+        duration_sec = duration_ms / 1000.0
+        tokens_per_sec = total_tokens / duration_sec if duration_sec > 0 else 0
+        
+        # 格式化显示
+        logger.info(
+            f"\n{'='*80}\n"
+            f"{status_icon} AI 调用记录\n"
+            f"{'─'*80}\n"
+            f"  功能: {function:20s} | 模型: {model or 'unknown':25s}\n"
+            f"  Token: {sanitized_input:6d} (输入) + {sanitized_output:6d} (输出) = {total_tokens:8d} (总计)\n"
+            f"  成本: {cost_symbol}{cost_value:10.6f} | 耗时: {duration_ms:8.1f}ms ({duration_sec:.2f}s)\n"
+            f"  速率: {tokens_per_sec:6.1f} tokens/s\n"
+            f"{'='*80}"
+        )
+        
+        return record
+    
+    def get_session_stats(self, session_id: str) -> Dict[str, Any]:
+        """获取会话统计"""
+        with self._lock:
+            return dict(self._session_stats.get(session_id, {}))
+    
+    def get_hourly_summary(self, hours_ago: int = 0) -> UsageSummary:
+        """获取小时汇总"""
+        now = datetime.now()
+        target_hour = now - timedelta(hours=hours_ago)
+        start = target_hour.replace(minute=0, second=0, microsecond=0)
+        end = start + timedelta(hours=1)
+        
+        return self._generate_summary(
+            period="hourly",
+            start_time=start.timestamp(),
+            end_time=end.timestamp()
+        )
+    
+    def get_daily_summary(self, days_ago: int = 0) -> UsageSummary:
+        """获取每日汇总"""
+        now = datetime.now()
+        target_day = now - timedelta(days=days_ago)
+        start = target_day.replace(hour=0, minute=0, second=0, microsecond=0)
+        end = start + timedelta(days=1)
+        
+        return self._generate_summary(
+            period="daily",
+            start_time=start.timestamp(),
+            end_time=end.timestamp()
+        )
+    
+    def get_monthly_summary(self, year: int = None, month: int = None) -> UsageSummary:
+        """获取月度汇总"""
+        now = datetime.now()
+        year = year or now.year
+        month = month or now.month
+        
+        start = datetime(year, month, 1)
+        if month == 12:
+            end = datetime(year + 1, 1, 1)
+        else:
+            end = datetime(year, month + 1, 1)
+        
+        return self._generate_summary(
+            period="monthly",
+            start_time=start.timestamp(),
+            end_time=end.timestamp()
+        )
+    
+    def get_top_users(self, limit: int = 10, days: int = 7) -> List[Dict[str, Any]]:
+        """获取 Token 消耗最多的用户"""
+        records = self._get_recent_records(days=days)
+        user_stats = defaultdict(lambda: {"tokens": 0, "cost": 0.0, "calls": 0})
+        
+        for record in records:
+            if record.user_id:
+                stats = user_stats[record.user_id]
+                stats["tokens"] += record.total_tokens
+                stats["cost"] += record.cost
+                stats["calls"] += 1
+        
+        sorted_users = sorted(
+            user_stats.items(),
+            key=lambda x: x[1]["tokens"],
+            reverse=True
+        )
+        
+        return [
+            {"user_id": uid, **stats}
+            for uid, stats in sorted_users[:limit]
+        ]
+    
+    def get_cost_trend(self, days: int = 30) -> List[Dict[str, Any]]:
+        """获取成本趋势（按天）"""
+        records = self._get_recent_records(days=days)
+        daily_cost = defaultdict(float)
+        
+        for record in records:
+            date_str = datetime.fromtimestamp(record.timestamp).strftime("%Y-%m-%d")
+            daily_cost[date_str] += record.cost
+        
+        sorted_dates = sorted(daily_cost.keys())
+        return [
+            {"date": date, "cost": round(daily_cost[date], 2)}
+            for date in sorted_dates
+        ]
+    
+    def export_report(self, output_path: Path = None, days: int = 7) -> Path:
+        """导出使用报告"""
+        if not output_path:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_path = self.data_dir / f"usage_report_{timestamp}.json"
+        
+        summary = self.get_daily_summary(days_ago=0)
+        top_users = self.get_top_users(days=days)
+        cost_trend = self.get_cost_trend(days=days)
+        
+        report = {
+            "generated_at": datetime.now().isoformat(),
+            "period_days": days,
+            "today_summary": asdict(summary),
+            "top_users": top_users,
+            "cost_trend": cost_trend,
+        }
+        
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(report, f, ensure_ascii=False, indent=2)
+        
+        logger.info(f"使用报告已导出: {output_path}")
+        return output_path
+    
+    def _generate_summary(
+        self,
+        period: str,
+        start_time: float,
+        end_time: float
+    ) -> UsageSummary:
+        """生成使用汇总"""
+        records = [
+            r for r in self._get_records_in_range(start_time, end_time)
+        ]
+        
+        total_calls = len(records)
+        successful_calls = sum(1 for r in records if r.success)
+        failed_calls = total_calls - successful_calls
+        
+        total_input_tokens = sum(r.input_tokens for r in records)
+        total_output_tokens = sum(r.output_tokens for r in records)
+        total_tokens = sum(r.total_tokens for r in records)
+        total_cost = sum(r.cost for r in records)
+        
+        # 按模型统计
+        by_model = defaultdict(lambda: {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "cost": 0.0,
+        })
+        for r in records:
+            stats = by_model[r.model]
+            stats["calls"] += 1
+            stats["input_tokens"] += r.input_tokens
+            stats["output_tokens"] += r.output_tokens
+            stats["total_tokens"] += r.total_tokens
+            stats["cost"] += r.cost
+        
+        # 按功能统计
+        by_function = defaultdict(lambda: {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "cost": 0.0,
+        })
+        for r in records:
+            stats = by_function[r.function]
+            stats["calls"] += 1
+            stats["input_tokens"] += r.input_tokens
+            stats["output_tokens"] += r.output_tokens
+            stats["total_tokens"] += r.total_tokens
+            stats["cost"] += r.cost
+        
+        # 按用户统计
+        by_user = defaultdict(lambda: {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "cost": 0.0,
+        })
+        for r in records:
+            if r.user_id:
+                stats = by_user[r.user_id]
+                stats["calls"] += 1
+                stats["input_tokens"] += r.input_tokens
+                stats["output_tokens"] += r.output_tokens
+                stats["total_tokens"] += r.total_tokens
+                stats["cost"] += r.cost
+        
+        # 按主播统计
+        by_anchor = defaultdict(lambda: {
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "cost": 0.0,
+        })
+        for r in records:
+            if r.anchor_id:
+                stats = by_anchor[r.anchor_id]
+                stats["calls"] += 1
+                stats["input_tokens"] += r.input_tokens
+                stats["output_tokens"] += r.output_tokens
+                stats["total_tokens"] += r.total_tokens
+                stats["cost"] += r.cost
+        
+        def finalize_cost(value: float, digits: str = "0.000001") -> float:
+            return float(Decimal(str(value)).quantize(Decimal(digits), rounding=ROUND_HALF_UP))
+        
+        def finalize_group(group: Dict[str, Dict[str, Any]], include_display: bool = False) -> Dict[str, Dict[str, Any]]:
+            result: Dict[str, Dict[str, Any]] = {}
+            for key, stats in group.items():
+                stats["cost"] = finalize_cost(stats["cost"])
+                if include_display:
+                    stats["display_name"] = ModelPricing.get_model_display_name(key)
+                result[key] = stats
+            return result
+        
+        return UsageSummary(
+            period=period,
+            start_time=start_time,
+            end_time=end_time,
+            total_calls=total_calls,
+            successful_calls=successful_calls,
+            failed_calls=failed_calls,
+            total_input_tokens=total_input_tokens,
+            total_output_tokens=total_output_tokens,
+            total_tokens=total_tokens,
+            total_cost=float(Decimal(str(total_cost)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            by_model=finalize_group(by_model, include_display=True),
+            by_function=finalize_group(by_function),
+            by_user=finalize_group(by_user),
+            by_anchor=finalize_group(by_anchor),
+        )
+    
+    def _save_record(self, record: UsageRecord):
+        """保存记录到文件"""
+        date_str = datetime.fromtimestamp(record.timestamp).strftime("%Y-%m-%d")
+        file_path = self.data_dir / f"usage_{date_str}.jsonl"
+        
+        try:
+            with open(file_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(asdict(record), ensure_ascii=False) + "\n")
+        except Exception as exc:
+            logger.error(f"保存使用记录失败: {exc}")
+    
+    def _load_today_records(self):
+        """加载今日记录到缓存"""
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        file_path = self.data_dir / f"usage_{date_str}.jsonl"
+        
+        if not file_path.exists():
+            return
+        
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip():
+                        data = json.loads(line)
+                        record = UsageRecord(**data)
+                        self._records.append(record)
+            
+            logger.info(f"加载今日记录: {len(self._records)} 条")
+        except Exception as exc:
+            logger.error(f"加载今日记录失败: {exc}")
+    
+    def _get_records_in_range(
+        self,
+        start_time: float,
+        end_time: float
+    ) -> List[UsageRecord]:
+        """获取时间范围内的记录"""
+        # 从内存缓存获取
+        records = [
+            r for r in self._records
+            if start_time <= r.timestamp < end_time
+        ]
+        
+        # 如果缓存不够，从文件加载
+        if not records or records[0].timestamp > start_time:
+            records = self._load_records_from_files(start_time, end_time)
+        
+        return records
+    
+    def _load_records_from_files(
+        self,
+        start_time: float,
+        end_time: float
+    ) -> List[UsageRecord]:
+        """从文件加载记录"""
+        start_date = datetime.fromtimestamp(start_time)
+        end_date = datetime.fromtimestamp(end_time)
+        
+        records = []
+        current_date = start_date
+        
+        while current_date <= end_date:
+            date_str = current_date.strftime("%Y-%m-%d")
+            file_path = self.data_dir / f"usage_{date_str}.jsonl"
+            
+            if file_path.exists():
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        for line in f:
+                            if line.strip():
+                                data = json.loads(line)
+                                record = UsageRecord(**data)
+                                if start_time <= record.timestamp < end_time:
+                                    records.append(record)
+                except Exception as exc:
+                    logger.error(f"加载文件 {file_path} 失败: {exc}")
+            
+            current_date += timedelta(days=1)
+        
+        return records
+    
+    def _get_recent_records(self, days: int) -> List[UsageRecord]:
+        """获取最近 N 天的记录"""
+        end_time = time.time()
+        start_time = end_time - (days * 24 * 3600)
+        return self._get_records_in_range(start_time, end_time)
+    
+    def _print_summary_stats(self) -> None:
+        """打印汇总统计信息（用于控制台显示）"""
+        if not self._records:
+            return
+        
+        # 获取最近1小时的记录
+        one_hour_ago = time.time() - 3600
+        recent_records = [r for r in self._records if r.timestamp >= one_hour_ago]
+        
+        if not recent_records:
+            return
+        
+        # 计算统计
+        total_calls = len(recent_records)
+        total_input_tokens = sum(r.input_tokens for r in recent_records)
+        total_output_tokens = sum(r.output_tokens for r in recent_records)
+        total_tokens = sum(r.total_tokens for r in recent_records)
+        total_cost = sum(r.cost for r in recent_records)
+        successful_calls = sum(1 for r in recent_records if r.success)
+        failed_calls = total_calls - successful_calls
+        
+        # 按功能统计
+        by_function = defaultdict(lambda: {"calls": 0, "tokens": 0, "cost": 0.0})
+        by_model = defaultdict(lambda: {"calls": 0, "tokens": 0, "cost": 0.0})
+        
+        for r in recent_records:
+            by_function[r.function]["calls"] += 1
+            by_function[r.function]["tokens"] += r.total_tokens
+            by_function[r.function]["cost"] += r.cost
+            
+            by_model[r.model]["calls"] += 1
+            by_model[r.model]["tokens"] += r.total_tokens
+            by_model[r.model]["cost"] += r.cost
+        
+        # 格式化显示
+        logger.info(
+            f"\n{'='*80}\n"
+            f"📊 AI 使用量汇总（最近1小时）\n"
+            f"{'─'*80}\n"
+            f"  总调用: {total_calls:4d} 次 (成功: {successful_calls:4d}, 失败: {failed_calls:4d})\n"
+            f"  总Token: {total_input_tokens:8d} (输入) + {total_output_tokens:8d} (输出) = {total_tokens:10d} (总计)\n"
+            f"  总成本: ¥{total_cost:10.6f} (人民币)\n"
+            f"{'─'*80}\n"
+            f"  按功能统计:\n"
+        )
+        
+        # 按功能排序显示
+        sorted_functions = sorted(
+            by_function.items(),
+            key=lambda x: x[1]["cost"],
+            reverse=True
+        )
+        for func, stats in sorted_functions[:5]:  # 显示前5个
+            avg_cost = stats["cost"] / stats["calls"] if stats["calls"] > 0 else 0
+            logger.info(
+                f"    {func:25s}: {stats['calls']:4d} 次 | "
+                f"{stats['tokens']:8d} tokens | "
+                f"¥{stats['cost']:8.6f} (平均: ¥{avg_cost:.6f}/次)"
+            )
+        
+        logger.info(f"{'─'*80}\n  按模型统计:\n")
+        
+        # 按模型排序显示
+        sorted_models = sorted(
+            by_model.items(),
+            key=lambda x: x[1]["cost"],
+            reverse=True
+        )
+        for model, stats in sorted_models[:5]:  # 显示前5个
+            avg_cost = stats["cost"] / stats["calls"] if stats["calls"] > 0 else 0
+            logger.info(
+                f"    {model:25s}: {stats['calls']:4d} 次 | "
+                f"{stats['tokens']:8d} tokens | "
+                f"¥{stats['cost']:8.6f} (平均: ¥{avg_cost:.6f}/次)"
+            )
+        
+        # 成本估算
+        hourly_rate = total_cost
+        daily_estimate = hourly_rate * 24
+        monthly_estimate = daily_estimate * 30
+        
+        logger.info(
+            f"{'─'*80}\n"
+            f"  💰 成本估算（基于当前速率）:\n"
+            f"    每小时: ¥{hourly_rate:10.6f}\n"
+            f"    每天:   ¥{daily_estimate:10.6f}\n"
+            f"    每月:   ¥{monthly_estimate:10.6f}\n"
+            f"{'='*80}\n"
+        )
+
+
+# 全局单例
+_monitor_instance: Optional[AIUsageMonitor] = None
+
+
+def get_usage_monitor() -> AIUsageMonitor:
+    """获取全局监控器实例"""
+    global _monitor_instance
+    if _monitor_instance is None:
+        _monitor_instance = AIUsageMonitor()
+    return _monitor_instance
+
+
+def record_ai_usage(
+    model: str,
+    function: str,
+    input_tokens: int,
+    output_tokens: int,
+    duration_ms: float,
+    **kwargs
+) -> UsageRecord:
+    """便捷方法：记录 AI 使用"""
+    monitor = get_usage_monitor()
+    return monitor.record_usage(
+        model=model,
+        function=function,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        duration_ms=duration_ms,
+        **kwargs
+    )

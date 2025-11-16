@@ -16,14 +16,14 @@ from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pathlib import Path
 
 from ..services.live_audio_stream_service import get_live_audio_service
-from server.utils.service_logger import log_service_start, log_service_stop, log_service_error
-from server.app.schemas import (
+from ..utils.service_logger import log_service_start, log_service_stop, log_service_error
+from ..schemas import (
     StartLiveAudioRequest,
     LiveAudioAdvancedRequest,
     LiveAudioPreloadRequest,
 )
-from server.app.schemas.common import BaseResponse
-from server.app.utils.api import success_response, handle_service_error
+from ..schemas.common import BaseResponse
+from ..utils.api import success_response, handle_service_error
 
 
 router = APIRouter(prefix="/api/live_audio", tags=["live-audio"])
@@ -117,7 +117,7 @@ async def get_stream_url(live_url_or_id: str):
     """
     try:
         # StreamCap platform handler (resolve real stream URL from live URL)
-        from server.modules.streamcap.platforms import get_platform_handler  # type: ignore
+        from ..modules.streamcap.platforms import get_platform_handler  # type: ignore
         
         def _parse_live_id(url_or_id: str) -> str | None:
             """Parse Douyin live ID from URL or ID string"""
@@ -452,19 +452,20 @@ async def upload_transcription(data: Dict[str, Any]):
         }
         
         # 写入 Redis Stream（用于实时消费和历史查询）
-        try:
-            from server.utils.redis_manager import get_redis
-            import json
-            
-            redis_mgr = get_redis()
-            if redis_mgr:
-                redis_key = f"timao:transcription:{session_id}:stream"
-                redis_mgr.rpush(redis_key, json.dumps(transcription_data, ensure_ascii=False))
-                # 设置过期时间（24小时）
-                redis_mgr.expire(redis_key, 86400)
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning(f"写入Redis失败: {e}")
+        # 本地服务暂时禁用Redis功能
+        # try:
+        #     from ..utils.redis_manager import get_redis
+        #     import json
+        #     
+        #     redis_mgr = get_redis()
+        #     if redis_mgr:
+        #         redis_key = f"timao:transcription:{session_id}:stream"
+        #         redis_mgr.rpush(redis_key, json.dumps(transcription_data, ensure_ascii=False))
+        #         # 设置过期时间（24小时）
+        #         redis_mgr.expire(redis_key, 86400)
+        # except Exception as e:
+        #     import logging
+        #     logging.getLogger(__name__).warning(f"写入Redis失败: {e}")
         
         # 广播到 WebSocket 前端（实时显示）
         svc = get_live_audio_service()

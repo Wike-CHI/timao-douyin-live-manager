@@ -26,17 +26,17 @@ from typing import Any, Awaitable, Callable, Deque, Dict, List, Optional
 
 
 # StreamCap platform handler (resolve real stream URL from live URL)
-from server.modules.streamcap.platforms import get_platform_handler  # type: ignore
+from ..modules.streamcap.platforms import get_platform_handler  # type: ignore
 
 # SenseVoice (batch API) - 本地PyTorch模型 + VAD
-from server.modules.ast.sensevoice_service import (  # type: ignore
+from ..modules.ast.sensevoice_service import (  # type: ignore
     SenseVoiceConfig,
     SenseVoiceService,
 )
 
 # ACRCloud (optional music recognition)
 try:
-    from server.modules.ast.acrcloud_client import (  # type: ignore
+    from ..modules.ast.acrcloud_client import (  # type: ignore
         ACRMusicMatch,
         load_acr_client_from_env,
     )
@@ -45,7 +45,7 @@ except Exception:  # pragma: no cover - optional依赖
     load_acr_client_from_env = None  # type: ignore
 
 # Postprocessing & light DSP helpers
-from server.modules.ast.postprocess import (  # type: ignore
+from ..modules.ast.postprocess import (  # type: ignore
     ChineseCleaner,
     HallucinationGuard,
     SentenceAssembler,
@@ -56,19 +56,19 @@ from asyncio import create_subprocess_exec
 AsyncProcess = None  # 本地服务不需要自定义AsyncProcess
 
 try:
-    from server.nlp.hotwords import HotwordReplacer  # type: ignore
+    from ..modules.nlp.hotwords import HotwordReplacer  # type: ignore
 except Exception:
     HotwordReplacer = None  # type: ignore
 try:
-    from server.nlp.phonetic_corrector import PhoneticCorrector  # type: ignore
+    from ..modules.nlp.phonetic_corrector import PhoneticCorrector  # type: ignore
 except Exception:
     PhoneticCorrector = None  # type: ignore
 try:
-    from server.app.services.online_diarizer import OnlineDiarizer  # type: ignore
+    from .online_diarizer import OnlineDiarizer  # type: ignore
 except Exception:
     OnlineDiarizer = None  # type: ignore
 try:
-    from server.utils.jsonl_writer import JSONLWriter  # type: ignore
+    from ..utils.jsonl_writer import JSONLWriter  # type: ignore
 except Exception:
     JSONLWriter = None  # type: ignore
 # Removed optional audio gate / diarizer dependencies to simplify pipeline
@@ -763,7 +763,8 @@ class LiveAudioStreamService:
             root = Path(__file__).resolve().parents[3]
             local_vad = root / "server" / "models" / "models" / "iic" / "speech_fsmn_vad_zh-cn-16k-common-pytorch"
             try:
-                if local_vad.exists():
+                # 检查VAD模型目录是否存在且包含必要文件
+                if local_vad.exists() and (local_vad / "model.pb").exists():
                     self.logger.info(f"使用本地VAD模型: {local_vad}")
                     return str(local_vad)
             except Exception:
@@ -1821,24 +1822,25 @@ class LiveAudioStreamService:
                 return
             
             # 写入Redis List（作为临时队列）
-            try:
-                from server.utils.redis_manager import get_redis
-                redis_mgr = get_redis()
-                if redis_mgr:
-                    session_id = self._status.session_id
-                    redis_key = f"transcription:{session_id}:stream"
-                    
-                    # 批量推入Redis List
-                    import json
-                    for item in batch_to_write:
-                        redis_mgr.rpush(redis_key, json.dumps(item, ensure_ascii=False))
-                    
-                    # 设置过期时间（24小时）
-                    redis_mgr.expire(redis_key, 86400)
-                    
-                    self.logger.info(f"批量写入Redis: {len(batch_to_write)}条转写记录 -> {redis_key}")
-            except Exception as e:
-                self.logger.error(f"写入Redis失败: {e}")
+            # 本地服务禁用Redis功能
+            # try:
+            #     from ..utils.redis_manager import get_redis
+            #     redis_mgr = get_redis()
+            #     if redis_mgr:
+            #         session_id = self._status.session_id
+            #         redis_key = f"transcription:{session_id}:stream"
+            #         
+            #         # 批量推入Redis List
+            #         import json
+            #         for item in batch_to_write:
+            #             redis_mgr.rpush(redis_key, json.dumps(item, ensure_ascii=False))
+            #         
+            #         # 设置过期时间（24小时）
+            #         redis_mgr.expire(redis_key, 86400)
+            #         
+            #         self.logger.info(f"批量写入Redis: {len(batch_to_write)}条转写记录 -> {redis_key}")
+            # except Exception as e:
+            #     self.logger.error(f"写入Redis失败: {e}")
             
             # TODO: 异步批量写MySQL（需要数据库模型支持）
             # 这里暂时只写Redis，MySQL批量写入需要在独立的数据持久化服务中实现
