@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 
 # 导入云端路由
-from server.cloud.routers import auth_router, profile_router, subscription_router
+from .routers import auth_router, profile_router, subscription_router
 
 # 配置日志
 logging.basicConfig(
