@@ -1165,18 +1165,6 @@ const LiveConsolePage = () => {
           <button className="timao-outline-btn" onClick={handleStop} disabled={loading || !isRunning}>
             停止
           </button>
-          
-          {/* ========== 模式切换按钮 ========== */}
-          {isRunning && currentMode === 'full' && (
-            <button 
-              className="timao-outline-btn bg-purple-50 text-purple-600 hover:bg-purple-100 border-purple-300"
-              onClick={switchToLiveMode}
-              title="切换到直播模式（悬浮窗）"
-            >
-              <span className="mr-1">📱</span>
-              直播模式
-            </button>
-          )}
         </div>
         {/* 直播间状态信息（左下角，三行内联显示与输入框左对齐） */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">

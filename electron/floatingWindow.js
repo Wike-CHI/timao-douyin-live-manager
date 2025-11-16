@@ -102,8 +102,10 @@ function getDefaultPosition() {
  */
 function checkEdgeSnap(x, y) {
   const SNAP_THRESHOLD = 30;
-  const display = screen.getPrimaryDisplay();
-  const { width, height } = display.workAreaSize;
+  
+  // 🆕 获取窗口当前所在的显示器（支持多显示器）
+  const display = screen.getDisplayNearestPoint({ x, y });
+  const { x: displayX, y: displayY, width, height } = display.workArea;
   
   const WINDOW_WIDTH = 320;
   const WINDOW_HEIGHT = 280;
@@ -112,25 +114,29 @@ function checkEdgeSnap(x, y) {
   let newY = y;
   let snapped = false;
   
-  // 左边缘吸附
-  if (x < SNAP_THRESHOLD) {
-    newX = 0;
+  // 🆕 相对于当前显示器的坐标
+  const relativeX = x - displayX;
+  const relativeY = y - displayY;
+  
+  // 左边缘吸附（相对于当前显示器）
+  if (relativeX < SNAP_THRESHOLD) {
+    newX = displayX;
     snapped = true;
   }
-  // 右边缘吸附
-  else if (width - (x + WINDOW_WIDTH) < SNAP_THRESHOLD) {
-    newX = width - WINDOW_WIDTH;
+  // 右边缘吸附（相对于当前显示器）
+  else if (width - (relativeX + WINDOW_WIDTH) < SNAP_THRESHOLD) {
+    newX = displayX + width - WINDOW_WIDTH;
     snapped = true;
   }
   
-  // 上边缘吸附
-  if (y < SNAP_THRESHOLD) {
-    newY = 0;
+  // 上边缘吸附（相对于当前显示器）
+  if (relativeY < SNAP_THRESHOLD) {
+    newY = displayY;
     snapped = true;
   }
-  // 下边缘吸附
-  else if (height - (y + WINDOW_HEIGHT) < SNAP_THRESHOLD) {
-    newY = height - WINDOW_HEIGHT;
+  // 下边缘吸附（相对于当前显示器）
+  else if (height - (relativeY + WINDOW_HEIGHT) < SNAP_THRESHOLD) {
+    newY = displayY + height - WINDOW_HEIGHT;
     snapped = true;
   }
   

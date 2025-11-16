@@ -69,11 +69,14 @@ const FloatingWindowPage: React.FC = () => {
       style={{
         width: '100vw',
         height: '100vh',
-        background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.95) 100%)',
-        backdropFilter: 'blur(20px)',
+        background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.75) 0%, rgba(30, 41, 59, 0.70) 100%)',
+        backdropFilter: 'blur(16px)',
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+        borderRadius: '12px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
       }}
     >
       {/* ========== 顶部拖拽区域 ========== */}
@@ -82,12 +85,14 @@ const FloatingWindowPage: React.FC = () => {
           // @ts-ignore - Electron特有属性
           WebkitAppRegion: 'drag', // 允许拖拽整个窗口
           height: 36,
-          background: 'rgba(0, 0, 0, 0.3)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          background: 'rgba(0, 0, 0, 0.2)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.15)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '0 12px',
+          borderTopLeftRadius: '12px',
+          borderTopRightRadius: '12px',
         }}
       >
         <div style={{ 
@@ -158,9 +163,12 @@ const FloatingWindowPage: React.FC = () => {
       <div
         style={{
           display: 'flex',
-          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+          borderTop: '1px solid rgba(255, 255, 255, 0.15)',
           padding: 8,
           gap: 4,
+          background: 'rgba(0, 0, 0, 0.15)',
+          borderBottomLeftRadius: '12px',
+          borderBottomRightRadius: '12px',
           // @ts-ignore - Electron特有属性
           WebkitAppRegion: 'no-drag', // Tab栏不拖拽
         }}
