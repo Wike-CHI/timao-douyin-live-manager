@@ -16,9 +16,9 @@ interface FloatingData {
   aiAnalysis?: any;
   script?: any;
   stats?: {
-    viewerCount: number;
-    giftValue: number;
-    engagementRate: number;
+    peak_viewers?: number; // 最高在线人数
+    follows?: number; // 新增关注
+    gifts?: Record<string, number>; // 礼物列表 {礼物名: 数量}
   };
   vibe?: any;
 }
@@ -229,13 +229,7 @@ const FloatingWindowPage: React.FC = () => {
           <AIAnalysisContent data={data.aiAnalysis} vibe={data.vibe} />
         )}
         {currentTab === "script" && <ScriptContent data={data.script} />}
-        {currentTab === "stats" && (
-          <StatsContent
-            data={
-              data.stats || { viewerCount: 0, giftValue: 0, engagementRate: 0 }
-            }
-          />
-        )}
+        {currentTab === "stats" && <StatsContent data={data.stats} />}
       </div>
 
       {/* ========== 底部Tab栏 ========== */}
@@ -436,34 +430,48 @@ const ScriptContent: React.FC<ScriptContentProps> = ({ data }) => {
  * 数据统计内容组件
  */
 interface StatsContentProps {
-  data: {
-    viewerCount: number;
-    giftValue: number;
-    engagementRate: number;
-  };
+  data: FloatingData["stats"];
 }
 
 const StatsContent: React.FC<StatsContentProps> = ({ data }) => {
+  // 计算礼物总价值（1钻石 ≈ ¥0.1）
+  const calculateGiftValue = (): number => {
+    if (!data?.gifts) return 0;
+    // 这里简化处理，假设礼物名称或数量可以映射到钻石价值
+    // 实际应该根据礼物价格表计算
+    const totalCount = Object.values(data.gifts).reduce(
+      (sum, count) => sum + count,
+      0,
+    );
+    return totalCount * 0.1; // 简化：每个礼物按1钻石计算
+  };
+
+  const giftValue = calculateGiftValue();
+
   return (
     <FloatingTabContent title="实时数据" icon="📈">
       <MetricCard
-        label="在线观众"
-        value={data.viewerCount.toLocaleString()}
+        label="最高在线"
+        value={data?.peak_viewers?.toLocaleString() || "0"}
         icon="👥"
       />
 
       <MetricCard
-        label="礼物价值"
-        value={`¥${data.giftValue.toLocaleString()}`}
-        icon="🎁"
+        label="新增关注"
+        value={data?.follows?.toLocaleString() || "0"}
+        icon="💖"
       />
 
-      <MetricCard label="互动率" value={`${data.engagementRate}%`} icon="💬" />
+      <MetricCard
+        label="礼物价值"
+        value={`¥${giftValue.toFixed(2)}`}
+        icon="🎁"
+      />
 
       {/* 数据说明 */}
       <div className="mt-4 p-3 bg-gray-800/30 rounded-lg border border-gray-700/50">
         <p className="text-xs text-gray-400 leading-relaxed">
-          数据每30秒更新一次，用于实时了解直播间状态
+          数据实时更新，礼物价值按1钻石≈¥0.1估算
         </p>
       </div>
     </FloatingTabContent>
