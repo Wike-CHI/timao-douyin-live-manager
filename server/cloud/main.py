@@ -42,12 +42,30 @@ app.include_router(subscription_router)
 
 logger.info("✅ 云端路由已注册: 认证、用户资料、订阅/支付")
 
+@app.on_event("startup")
+async def startup_event():
+    """云端服务启动事件"""
+    logger.info("=" * 60)
+    logger.info("🚀 云端服务启动中...")
+    logger.info(f"   服务类型: 云端(用户/鉴权/支付)")
+    logger.info(f"   内存目标: < 512MB")
+    logger.info("=" * 60)
+    logger.info("✅ 云端服务启动完成")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """云端服务关闭事件"""
+    logger.info("🛑 云端服务关闭中...")
+
 @app.get("/health")
 async def health_check():
+    """健康检查端点(无需认证)"""
+    import sys
     return {
         "status": "healthy", 
         "service": "cloud",
-        "memory_limit": "512MB"
+        "memory_limit": "512MB",
+        "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
     }
 
 @app.get("/")

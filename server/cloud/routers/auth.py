@@ -9,13 +9,13 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session  # pyright: ignore[reportMissingImports]
 
-from server.app.database import get_db_session
-from server.app.services.user_service import UserService
-from server.app.services.subscription_service import SubscriptionService
-from server.app.models.user import UserRoleEnum, UserStatusEnum
-from server.config import get_config
-from server.utils.service_logger import log_user_action
-from server.app.schemas import (
+from ...app.database import get_db_session
+from ...app.services.user_service import UserService
+from ...app.services.subscription_service import SubscriptionService
+from ...app.models.user import UserRoleEnum, UserStatusEnum
+from ...config import get_config
+from ...utils.service_logger import log_user_action
+from ...app.schemas import (
     UserRegisterRequest,
     UserLoginRequest,
     UserResponse,
@@ -25,8 +25,8 @@ from server.app.schemas import (
     EmailVerifyRequest,
     RegisterResponse,
 )
-from server.app.schemas.common import BaseResponse
-from server.app.utils.api import success_response
+from ...app.schemas.common import BaseResponse
+from ...app.utils.api import success_response
 
 
 # 创建路由器
@@ -65,7 +65,7 @@ async def get_current_user(
     
     # 2. JWT验证
     try:
-        from server.app.core.security import JWTManager
+        from ...app.core.security import JWTManager
         
         payload = JWTManager.verify_token(token_value, "access")
         user_id = payload.get("sub")
@@ -230,7 +230,7 @@ async def login_user(
         
         # 创建JWT token而不是session token
         logger.info(f"🔑 开始创建JWT token... (记住我: {request.remember_me})")
-        from server.app.core.security import JWTManager
+        from ...app.core.security import JWTManager
         from datetime import timedelta
         
         # 根据 remember_me 设置不同的 token 有效期
@@ -349,7 +349,7 @@ async def refresh_token(
     logger = logging.getLogger(__name__)
     
     try:
-        from server.app.core.security import JWTManager
+        from ...app.core.security import JWTManager
         config = get_config()
         
         # 验证refresh token

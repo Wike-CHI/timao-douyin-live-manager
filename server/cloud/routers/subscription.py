@@ -9,11 +9,11 @@ from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 
-from server.app.database import get_db_session
-from server.app.api.auth import get_current_user
-from server.app.services.subscription_service import SubscriptionService
-from server.utils.service_logger import log_subscription_event
-from server.app.schemas import (
+from ...app.database import get_db_session
+from ...app.api.auth import get_current_user
+from ...app.services.subscription_service import SubscriptionService
+from ...utils.service_logger import log_subscription_event
+from ...app.schemas import (
     SubscriptionPlanResponse,
     UserSubscriptionResponse,
     PaymentRecordResponse,
@@ -21,8 +21,8 @@ from server.app.schemas import (
     ConfirmPaymentRequest,
     UpdateSubscriptionRequest,
 )
-from server.app.schemas.common import BaseResponse
-from server.app.utils.api import success_response, handle_service_error
+from ...app.schemas.common import BaseResponse
+from ...app.utils.api import success_response, handle_service_error
 
 
 # 创建路由器
@@ -38,7 +38,7 @@ async def get_subscription_plans(
     """获取订阅套餐列表"""
     try:
         import json
-        from server.app.models.subscription import SubscriptionPlan
+        from ...app.models.subscription import SubscriptionPlan
         
         # 直接查询数据库
         query = db.query(SubscriptionPlan)
@@ -201,7 +201,7 @@ async def confirm_payment(
         )
         
         if success:
-            from server.app.models.payment import Payment
+            from ...app.models.payment import Payment
             payment = db.query(Payment).filter(Payment.id == request.payment_id).first()
             if payment:
                 log_subscription_event(
