@@ -15,7 +15,8 @@ from .routers import (
     live_audio_router,
     ai_live_router,
     live_session_router,
-    ai_gateway_router
+    ai_gateway_router,
+    douyin_web_router
 )
 
 # 配置日志
@@ -57,8 +58,9 @@ app.include_router(live_audio_router)
 app.include_router(ai_live_router)
 app.include_router(live_session_router)
 app.include_router(ai_gateway_router)
+app.include_router(douyin_web_router)
 
-logger.info("✅ 本地路由已注册: 直播转写、AI、弹幕")
+logger.info("✅ 本地路由已注册: 直播转写、AI、抖音弹幕")
 
 @app.get("/health")
 async def health_check():
