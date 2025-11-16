@@ -4,6 +4,22 @@ const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 module.exports = {
   packagerConfig: {
     asar: true,
+    extraResource: [
+      'python-runtime',
+      'server'
+    ],
+    ignore: [
+      /node_modules/,
+      /\.venv/,
+      /\.git/,
+      /\.pytest_cache/,
+      /__pycache__/,
+      /\.pyc$/,
+      /tests/,
+      /docs/,
+      /admin-dashboard/,
+      /mobile-prototype/
+    ]
   },
   rebuildConfig: {},
   makers: [

@@ -63,6 +63,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ========== 🆕 悬浮窗控制API ==========
   
   /**
+   * 获取 Python 本地服务状态
+   */
+  getPythonServiceStatus: () => ipcRenderer.invoke('get-python-service-status'),
+  
+  /**
+   * 重启 Python 本地服务
+   */
+  restartPythonService: () => ipcRenderer.invoke('restart-python-service'),
+  
+  /**
    * 显示独立悬浮窗
    * 主窗口启动服务时调用
    */

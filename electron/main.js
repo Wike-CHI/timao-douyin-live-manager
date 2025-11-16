@@ -5,6 +5,9 @@ const fs = require('fs');
 // 🆕 模型管理器（按需下载）
 const modelManager = require('./main/model/model-manager');
 
+// 🆕 Python本地服务
+const pythonService = require('./main/python-service');
+
 // 🆕 导入悬浮窗管理模块
 const {
   createFloatingWindow,
@@ -164,6 +167,19 @@ app.on('activate', function () {
  * 应用准备就绪时创建窗口
  */
 app.whenReady().then(async () => {
+    // 🆕 启动 Python 本地服务（优先级最高）
+    try {
+        console.log('[electron] 启动 Python 本地服务...');
+        await pythonService.start();
+        const status = pythonService.getStatus();
+        console.log('[electron] ✅ Python 本地服务已启动');
+        console.log(`[electron]    - PID: ${status.pid}`);
+        console.log(`[electron]    - URL: ${status.url}`);
+    } catch (error) {
+        console.error('[electron] ❌ Python 本地服务启动失败:', error);
+        console.log('[electron] 应用将继续运行，但本地功能可能不可用');
+    }
+    
     // 🆕 初始化模型管理器 IPC
     console.log('[electron] 初始化模型管理器...');
     modelManager.setupIPC();
@@ -247,6 +263,31 @@ app.whenReady().then(async () => {
     });
     
     // ========== 🆕 悬浮窗相关IPC处理器 ==========
+    
+    /**
+     * 获取 Python 本地服务状态
+     */
+    ipcMain.handle('get-python-service-status', async () => {
+        try {
+            return pythonService.getStatus();
+        } catch (error) {
+            return { running: false, error: error.message };
+        }
+    });
+    
+    /**
+     * 重启 Python 本地服务
+     */
+    ipcMain.handle('restart-python-service', async () => {
+        try {
+            console.log('[IPC] 收到重启 Python 服务请求');
+            await pythonService.restart();
+            return { success: true, status: pythonService.getStatus() };
+        } catch (error) {
+            console.error('[IPC] 重启 Python 服务失败:', error);
+            return { success: false, error: error.message };
+        }
+    });
     
     /**
      * 创建并显示独立悬浮窗
