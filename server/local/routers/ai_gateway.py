@@ -9,9 +9,11 @@ from pydantic import BaseModel, Field
 from typing import Dict, List, Optional, Any
 
 from server.ai.ai_gateway import get_gateway, AIProvider
-from server.app.api.auth import get_current_user
+# TODO: 本地服务暂不需要认证，后续可添加
+# from server.app.api.auth import get_current_user
+# router = APIRouter(prefix="/api/ai_gateway", tags=["AI网关管理"], dependencies=[Depends(get_current_user)])
 
-router = APIRouter(prefix="/api/ai_gateway", tags=["AI网关管理"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/api/ai_gateway", tags=["AI网关管理"])
 
 
 class RegisterProviderRequest(BaseModel):

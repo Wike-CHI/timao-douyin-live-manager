@@ -18,9 +18,10 @@ from server.app.schemas import (
 from server.app.schemas.common import BaseResponse
 from server.app.utils.api import success_response, handle_service_error
 
-
-from .auth import get_current_user
-router = APIRouter(prefix="/api/ai/live", tags=["ai-live"], dependencies=[Depends(get_current_user)])
+# TODO: 本地服务暂不需要认证，后续可添加
+# from .auth import get_current_user
+# router = APIRouter(prefix="/api/ai/live", tags=["ai-live"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/api/ai/live", tags=["ai-live"])
 
 
 @router.post("/start", response_model=BaseResponse[Dict[str, Any]])
