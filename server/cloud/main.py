@@ -5,9 +5,20 @@
 基于文档: docs/部分服务从服务器转移本地.md
 """
 
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
+
+# 导入云端路由
+from server.cloud.routers import auth_router, profile_router, subscription_router
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="提猫直播助手 - 云端服务",
@@ -24,10 +35,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# TODO: 注册路由（从现有 server/app/api 迁移）
-# app.include_router(auth.router, prefix="/api/auth", tags=["认证"])
-# app.include_router(user.router, prefix="/api/user", tags=["用户"])
-# app.include_router(payment.router, prefix="/api/payment", tags=["支付"])
+# 注册云端路由
+app.include_router(auth_router)
+app.include_router(profile_router)
+app.include_router(subscription_router)
+
+logger.info("✅ 云端路由已注册: 认证、用户资料、订阅/支付")
 
 @app.get("/health")
 async def health_check():
