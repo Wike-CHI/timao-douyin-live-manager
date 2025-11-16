@@ -24,8 +24,8 @@ for (const [key, value] of Object.entries(defaultAiEnv)) {
 }
 
 const isDev = !app.isPackaged;
-// 🔧 硬编码前端端口 10065（演示测试）
-const rendererDevServerURL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.0.1:10065';
+// 🔧 硬编码前端端口 10200（避开 Windows 保留端口范围 10017-10116）
+const rendererDevServerURL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.0.1:10200';
 
 // 保持对窗口对象的全局引用
 let mainWindow;

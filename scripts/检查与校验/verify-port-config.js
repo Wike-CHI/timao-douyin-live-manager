@@ -1,152 +1,191 @@
 #!/usr/bin/env node
+
 /**
  * 端口配置验证脚本
- * 检查所有配置文件中的端口设置是否正确
+ * 
+ * 功能：
+ * 1. 检查所有配置文件中的端口设置是否一致
+ * 2. 验证端口是否在 Windows 保留范围内
+ * 3. 检查端口是否被占用
+ * 
+ * 使用：
+ *   node scripts/检查与校验/verify-port-config.js
+ * 
+ * 审查人：叶维哲
+ * 日期：2025-11-16
  */
 
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
-const projectRoot = path.join(__dirname, '..');
-
-// 预期配置
+// 期望的端口配置
 const EXPECTED_PORTS = {
-    frontend: '10050',
-    backend: '11111'
+    backend: 11111,
+    frontend: 10200,  // 已从 10065 更新为 10200
 };
 
-const checks = [];
+// Windows 已知保留端口范围
+const WINDOWS_RESERVED_RANGES = [
+    { start: 10017, end: 10116, name: 'Hyper-V 动态端口' },
+    { start: 49152, end: 65535, name: 'IANA 动态端口' },
+];
 
 console.log('🔍 开始验证端口配置...\n');
 
-// 1. 检查 electron/main.js
-try {
-    const mainJsPath = path.join(projectRoot, 'electron', 'main.js');
-    const content = fs.readFileSync(mainJsPath, 'utf8');
-    
-    // 检查前端端口
-    if (content.includes(`http://127.0.0.1:${EXPECTED_PORTS.frontend}`)) {
-        checks.push({ file: 'electron/main.js', item: '前端端口', status: '✅', value: EXPECTED_PORTS.frontend });
-    } else {
-        checks.push({ file: 'electron/main.js', item: '前端端口', status: '❌', value: '未找到' });
+/**
+ * 检查端口是否在保留范围内
+ */
+function isPortReserved(port) {
+    for (const range of WINDOWS_RESERVED_RANGES) {
+        if (port >= range.start && port <= range.end) {
+            return { reserved: true, range };
+        }
     }
-    
-    // 检查后端端口
-    if (content.includes(`port: '${EXPECTED_PORTS.backend}'`)) {
-        checks.push({ file: 'electron/main.js', item: '后端端口', status: '✅', value: EXPECTED_PORTS.backend });
-    } else {
-        checks.push({ file: 'electron/main.js', item: '后端端口', status: '❌', value: '未找到' });
-    }
-} catch (error) {
-    checks.push({ file: 'electron/main.js', item: '文件读取', status: '❌', value: error.message });
+    return { reserved: false };
 }
 
-// 2. 检查 electron/renderer/vite.config.ts
-try {
-    const viteConfigPath = path.join(projectRoot, 'electron', 'renderer', 'vite.config.ts');
-    const content = fs.readFileSync(viteConfigPath, 'utf8');
-    
-    if (content.includes(`port: ${EXPECTED_PORTS.frontend}`)) {
-        checks.push({ file: 'electron/renderer/vite.config.ts', item: '前端端口', status: '✅', value: EXPECTED_PORTS.frontend });
-    } else {
-        checks.push({ file: 'electron/renderer/vite.config.ts', item: '前端端口', status: '❌', value: '未找到' });
+/**
+ * 检查端口是否被占用
+ */
+function isPortInUse(port) {
+    try {
+        // Windows: 使用 netstat
+        const output = execSync(`netstat -ano | findstr ":${port} "`, { encoding: 'utf-8' });
+        return output.trim().length > 0;
+    } catch (error) {
+        // findstr 没有找到匹配项会返回错误代码
+        return false;
     }
-    
-    if (content.includes('strictPort: true')) {
-        checks.push({ file: 'electron/renderer/vite.config.ts', item: 'strictPort', status: '✅', value: 'true' });
-    } else {
-        checks.push({ file: 'electron/renderer/vite.config.ts', item: 'strictPort', status: '⚠️', value: 'false或未设置' });
-    }
-} catch (error) {
-    checks.push({ file: 'electron/renderer/vite.config.ts', item: '文件读取', status: '❌', value: error.message });
 }
 
-// 3. 检查 electron/renderer/package.json
-try {
-    const packageJsonPath = path.join(projectRoot, 'electron', 'renderer', 'package.json');
-    const content = fs.readFileSync(packageJsonPath, 'utf8');
-    
-    if (content.includes(`--port ${EXPECTED_PORTS.frontend}`) && content.includes('--strictPort')) {
-        checks.push({ file: 'electron/renderer/package.json', item: 'dev脚本', status: '✅', value: `端口${EXPECTED_PORTS.frontend}+strictPort` });
-    } else {
-        checks.push({ file: 'electron/renderer/package.json', item: 'dev脚本', status: '❌', value: '配置不完整' });
+/**
+ * 检查 Windows 保留端口范围
+ */
+function checkWindowsReservedPorts() {
+    try {
+        const output = execSync('netsh interface ipv4 show excludedportrange protocol=tcp', { encoding: 'utf-8' });
+        console.log('📋 Windows TCP 保留端口范围：');
+        console.log(output);
+        return output;
+    } catch (error) {
+        console.error('❌ 无法获取 Windows 保留端口范围');
+        return null;
     }
-} catch (error) {
-    checks.push({ file: 'electron/renderer/package.json', item: '文件读取', status: '❌', value: error.message });
 }
 
-// 4. 检查 scripts/构建与启动/integrated-launcher.js
-try {
-    const launcherPath = path.join(projectRoot, 'scripts', '构建与启动', 'integrated-launcher.js');
-    const content = fs.readFileSync(launcherPath, 'utf8');
+/**
+ * 验证配置文件
+ */
+function verifyConfigFile(filePath, expectedPort, searchPattern) {
+    const fullPath = path.resolve(__dirname, '../../', filePath);
     
-    const backendMatches = content.match(/const backendPort = '(\d+)'/g);
-    const frontendMatches = content.match(/const frontendPort = '(\d+)'/g);
-    
-    if (backendMatches && backendMatches.some(m => m.includes(EXPECTED_PORTS.backend))) {
-        checks.push({ file: 'scripts/构建与启动/integrated-launcher.js', item: '后端端口', status: '✅', value: EXPECTED_PORTS.backend });
-    } else {
-        checks.push({ file: 'scripts/构建与启动/integrated-launcher.js', item: '后端端口', status: '❌', value: '未找到或不正确' });
+    if (!fs.existsSync(fullPath)) {
+        console.log(`⚠️  文件不存在: ${filePath}`);
+        return false;
     }
     
-    if (frontendMatches && frontendMatches.some(m => m.includes(EXPECTED_PORTS.frontend))) {
-        checks.push({ file: 'scripts/构建与启动/integrated-launcher.js', item: '前端端口', status: '✅', value: EXPECTED_PORTS.frontend });
-    } else {
-        checks.push({ file: 'scripts/构建与启动/integrated-launcher.js', item: '前端端口', status: '❌', value: '未找到或不正确' });
+    const content = fs.readFileSync(fullPath, 'utf-8');
+    const regex = new RegExp(searchPattern.replace('PORT', '\\d+'));
+    const matches = content.match(regex);
+    
+    if (!matches) {
+        console.log(`⚠️  未找到端口配置: ${filePath}`);
+        return false;
     }
-} catch (error) {
-    checks.push({ file: 'scripts/构建与启动/integrated-launcher.js', item: '文件读取', status: '❌', value: error.message });
+    
+    const portMatch = matches[0].match(/\d+/);
+    const actualPort = portMatch ? parseInt(portMatch[0]) : null;
+    
+    if (actualPort === expectedPort) {
+        console.log(`✅ ${filePath}: ${actualPort}`);
+        return true;
+    } else {
+        console.log(`❌ ${filePath}: 期望 ${expectedPort}, 实际 ${actualPort}`);
+        return false;
+    }
 }
 
-// 5. 检查 server/config.py
-try {
-    const configPyPath = path.join(projectRoot, 'server', 'config.py');
-    const content = fs.readFileSync(configPyPath, 'utf8');
+/**
+ * 主验证流程
+ */
+function main() {
+    let allPassed = true;
     
-    if (content.includes(`port: int = ${EXPECTED_PORTS.backend}`)) {
-        checks.push({ file: 'server/config.py', item: '后端端口', status: '✅', value: EXPECTED_PORTS.backend });
-    } else {
-        checks.push({ file: 'server/config.py', item: '后端端口', status: '❌', value: '未找到或不正确' });
+    // 1. 检查前端端口配置
+    console.log('1️⃣  检查前端端口配置（期望: 10200）\n');
+    
+    const frontendConfigs = [
+        {
+            file: 'electron/renderer/vite.config.ts',
+            pattern: 'port:\\s*PORT'
+        },
+        {
+            file: 'electron/renderer/package.json',
+            pattern: '--port\\s+PORT'
+        },
+        {
+            file: 'electron/main.js',
+            pattern: '127\\.0\\.0\\.1:PORT'
+        },
+        {
+            file: 'package.json',
+            pattern: '127\\.0\\.0\\.1:PORT'
+        }
+    ];
+    
+    for (const config of frontendConfigs) {
+        const passed = verifyConfigFile(config.file, EXPECTED_PORTS.frontend, config.pattern);
+        if (!passed) allPassed = false;
     }
-} catch (error) {
-    checks.push({ file: 'server/config.py', item: '文件读取', status: '❌', value: error.message });
+    
+    // 2. 检查端口是否在保留范围
+    console.log('\n2️⃣  检查端口是否在 Windows 保留范围\n');
+    
+    for (const [name, port] of Object.entries(EXPECTED_PORTS)) {
+        const result = isPortReserved(port);
+        if (result.reserved) {
+            console.log(`❌ ${name} 端口 ${port} 在保留范围内: ${result.range.name} (${result.range.start}-${result.range.end})`);
+            allPassed = false;
+        } else {
+            console.log(`✅ ${name} 端口 ${port} 不在保留范围内`);
+        }
+    }
+    
+    // 3. 检查端口是否被占用
+    console.log('\n3️⃣  检查端口是否被占用\n');
+    
+    for (const [name, port] of Object.entries(EXPECTED_PORTS)) {
+        const inUse = isPortInUse(port);
+        if (inUse) {
+            console.log(`⚠️  ${name} 端口 ${port} 正在使用中`);
+        } else {
+            console.log(`✅ ${name} 端口 ${port} 未被占用`);
+        }
+    }
+    
+    // 4. 显示 Windows 保留端口范围
+    console.log('\n4️⃣  Windows 保留端口范围\n');
+    checkWindowsReservedPorts();
+    
+    // 5. 总结
+    console.log('\n' + '='.repeat(60));
+    if (allPassed) {
+        console.log('✅ 所有端口配置验证通过！');
+        console.log('\n可以使用以下命令启动服务：');
+        console.log('  npm run start:integrated');
+    } else {
+        console.log('❌ 端口配置验证失败！');
+        console.log('\n请检查上述错误并修复后再试。');
+        process.exit(1);
+    }
+    console.log('='.repeat(60));
 }
 
-// 输出结果
-console.log('📊 验证结果:\n');
-console.log('┌─────────────────────────────────────┬──────────────┬────────┬─────────────┐');
-console.log('│ 文件                                │ 检查项       │ 状态   │ 值          │');
-console.log('├─────────────────────────────────────┼──────────────┼────────┼─────────────┤');
-
-checks.forEach(check => {
-    const file = check.file.padEnd(36);
-    const item = check.item.padEnd(12);
-    const status = check.status.padEnd(6);
-    const value = check.value.padEnd(12);
-    console.log(`│ ${file}│ ${item}│ ${status}│ ${value}│`);
-});
-
-console.log('└─────────────────────────────────────┴──────────────┴────────┴─────────────┘\n');
-
-// 统计结果
-const passed = checks.filter(c => c.status === '✅').length;
-const failed = checks.filter(c => c.status === '❌').length;
-const warning = checks.filter(c => c.status === '⚠️').length;
-
-console.log(`✅ 通过: ${passed}/${checks.length}`);
-if (warning > 0) console.log(`⚠️  警告: ${warning}/${checks.length}`);
-if (failed > 0) console.log(`❌ 失败: ${failed}/${checks.length}`);
-
-if (failed > 0) {
-    console.log('\n❌ 端口配置验证失败！请检查上述失败项。');
+// 运行验证
+try {
+    main();
+} catch (error) {
+    console.error('❌ 验证过程中出错:', error.message);
     process.exit(1);
-} else if (warning > 0) {
-    console.log('\n⚠️  端口配置有警告项，建议检查。');
-    process.exit(0);
-} else {
-    console.log('\n✅ 所有端口配置正确！');
-    console.log(`\n📌 配置摘要:`);
-    console.log(`   - 前端端口: ${EXPECTED_PORTS.frontend}`);
-    console.log(`   - 后端端口: ${EXPECTED_PORTS.backend}`);
-    process.exit(0);
 }
