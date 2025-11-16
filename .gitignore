@@ -169,3 +169,18 @@ server/models/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/fig/struct.png
 # Python wheelhouse 目录（包含所有预编译的wheel文件）
 wheelhouse/
 backend_dist/README.txt
+
+# 模型按需下载相关（本地服务架构）
+# Electron 用户数据目录下的模型文件与临时下载
+# Windows: C:\Users\<User>\AppData\Roaming\timao-live\models
+# macOS: ~/Library/Application Support/timao-live/models
+# Linux: ~/.config/timao-live/models
+*.part
+*.sha256
+**/models/**/*.bin
+**/models/**/*.pt
+**/models/**/*.onnx
+**/models/**/model.bin
+**/models/**/model.pt
+model_registry.json
+.download/
