@@ -14,6 +14,7 @@ import AIGatewayPage from './pages/ai/AIGatewayPage';
 import AIUsagePage from './pages/ai/AIUsagePage';
 import useAuthGuard from './hooks/useAuthGuard';
 import useAuthInterceptor from './hooks/useAuthInterceptor';
+import FloatingWindowPage from './pages/FloatingWindowPage';
 // 内部路由组件，在Router上下文中使用hooks
 const AppRoutes = () => {
   const { requireAuth, requirePayment, isAuthenticated } = useAuthGuard();
@@ -23,6 +24,9 @@ const AppRoutes = () => {
 
   return (
     <Routes>
+      {/* ========== 独立悬浮窗路由（无需认证/布局） ========== */}
+      <Route path="/floating" element={<FloatingWindowPage />} />
+      
       <Route path="/auth" element={<AuthLayout />}> 
         <Route index element={<Navigate to="login" replace />} />
         <Route path="login" element={<LoginPage />} />

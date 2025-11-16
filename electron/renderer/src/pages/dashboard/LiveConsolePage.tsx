@@ -13,8 +13,6 @@ import useAuthStore from '../../store/useAuthStore';
 import { startAILiveAnalysis, stopAILiveAnalysis, openAILiveStream, generateAnswerScripts } from '../../services/ai';
 import { useLiveConsoleStore, getLiveConsoleSocket } from '../../store/useLiveConsoleStore';
 import { getSessionStatus, resumeSession, resumePausedSession, type LiveSessionState } from '../../services/liveSession';
-import { FloatingWindow } from '../../components/live-mode/FloatingWindow';
-import { useLiveModeStore } from '../../store/useLiveModeStore';
 
 // Note: Do not cap transcript items; persist to disk is handled by backend.
 // We keep full in-memory log for current session (may grow large for long sessions).
@@ -62,13 +60,6 @@ const LiveConsolePage = () => {
     disconnectWebSocket,
   } = useLiveConsoleStore();
   
-  // ========== 直播模式Store ==========
-  const { 
-    currentMode, 
-    floatingVisible, 
-    switchToLiveMode, 
-    toggleFloating 
-  } = useLiveModeStore();
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -228,6 +219,48 @@ const LiveConsolePage = () => {
   useEffect(() => {
     refreshStatus();
   }, [refreshStatus]);
+  
+  // ========== 🆕 数据推送到悬浮窗 ==========
+  useEffect(() => {
+    // 只在有数据时推送
+    if (!latest && !vibe && !aiEvents.length && !answerScripts.length) {
+      return;
+    }
+    
+    // 准备悬浮窗数据
+    const floatingData = {
+      latestTranscript: latest?.text || '',
+      vibe: vibe,
+      aiAnalysis: {
+        suggestions: aiEvents
+          .filter(e => e.priority === 'high')
+          .map(e => e.analysis?.suggestion || '')
+          .filter(Boolean)
+          .slice(0, 3), // 最多3条
+        warnings: aiEvents
+          .filter(e => e.analysis?.warning)
+          .map(e => e.analysis?.warning || '')
+          .filter(Boolean)
+          .slice(0, 2), // 最多2条
+      },
+      script: answerScripts.length > 0 ? {
+        title: answerScripts[0].question || '智能话术',
+        text: answerScripts[0].answer || '',
+        type: answerScripts[0].tone || 'normal'
+      } : null,
+      stats: {
+        viewerCount: douyinStatus?.gift_data?.room_user_count || 0,
+        giftValue: douyinStatus?.gift_data?.total_gift_value || 0,
+        engagementRate: Math.round((douyinStatus?.gift_data?.gift_count || 0) / Math.max(douyinStatus?.gift_data?.room_user_count || 1, 1) * 100)
+      }
+    };
+    
+    // 推送到悬浮窗
+    if (window.electronAPI?.sendFloatingData) {
+      window.electronAPI.sendFloatingData(floatingData);
+      console.log('📤 推送数据到悬浮窗:', floatingData);
+    }
+  }, [latest, vibe, aiEvents, answerScripts, douyinStatus]);
 
   // 移除基于 isRunning 的自动清空，避免瞬时抖动导致首次点击被清空
   // useEffect(() => {
@@ -677,6 +710,20 @@ const LiveConsolePage = () => {
           } catch { setSaveInfo({ trDir, dmDir, videoDir: '' }); }
         }, 300);
       } catch {}
+      
+      // ========== 🆕 自动显示悬浮窗 ==========
+      if (window.electronAPI?.showFloatingWindow) {
+        try {
+          const result = await window.electronAPI.showFloatingWindow();
+          if (result.success) {
+            console.log('✅ 悬浮窗已显示');
+          } else {
+            console.warn('⚠️ 悬浮窗显示失败:', result.error);
+          }
+        } catch (error) {
+          console.error('❌ 显示悬浮窗时出错:', error);
+        }
+      }
     } catch (err) {
       console.error(err);
       setError((err as Error).message ?? '启动直播服务失败');
@@ -740,6 +787,20 @@ const LiveConsolePage = () => {
       setSelectedQuestions([]);
       setAnswerError(null);
       setAnswerScripts([]);
+      
+      // ========== 🆕 关闭悬浮窗 ==========
+      if (window.electronAPI?.closeFloatingWindow) {
+        try {
+          const result = await window.electronAPI.closeFloatingWindow();
+          if (result.success) {
+            console.log('✅ 悬浮窗已关闭');
+          } else {
+            console.warn('⚠️ 悬浮窗关闭失败:', result.error);
+          }
+        } catch (error) {
+          console.error('❌ 关闭悬浮窗时出错:', error);
+        }
+      }
     } catch (err) {
       console.error(err);
       setError((err as Error).message ?? '停止直播服务失败');
@@ -1867,11 +1928,6 @@ const LiveConsolePage = () => {
         </section>
 
       </div>
-      
-      {/* ========== 直播模式悬浮窗 ========== */}
-      {floatingVisible && (
-        <FloatingWindow onClose={toggleFloating} />
-      )}
     </div>
   );
 };

@@ -1,0 +1,385 @@
+import React, { useState, useEffect } from 'react';
+import {
+  FloatingTabContent,
+  AICard,
+  ScriptCard,
+  MetricCard,
+  EmptyState,
+  TranscriptDisplay
+} from '../components/floating';
+
+/**
+ * 悬浮窗数据类型
+ */
+interface FloatingData {
+  latestTranscript?: string;
+  aiAnalysis?: any;
+  script?: any;
+  stats?: {
+    viewerCount: number;
+    giftValue: number;
+    engagementRate: number;
+  };
+  vibe?: any;
+}
+
+/**
+ * Tab类型
+ */
+type TabType = 'ai' | 'script' | 'stats';
+
+/**
+ * 独立悬浮窗页面
+ * 
+ * 运行在独立的BrowserWindow中
+ * 特点：
+ * - 通过IPC接收主窗口推送的数据
+ * - 使用Electron原生窗口拖拽
+ * - 始终置顶，可覆盖OBS等全屏应用
+ */
+const FloatingWindowPage: React.FC = () => {
+  const [data, setData] = useState<FloatingData>({});
+  const [currentTab, setCurrentTab] = useState<TabType>('ai');
+  
+  // ========== IPC数据接收 ==========
+  
+  useEffect(() => {
+    console.log('🚀 悬浮窗页面加载完成');
+    
+    // 监听来自主窗口的数据推送
+    if (window.electronAPI?.onFloatingData) {
+      const cleanup = window.electronAPI.onFloatingData((newData: FloatingData) => {
+        console.log('📦 收到数据更新:', newData);
+        setData(prev => ({
+          ...prev,
+          ...newData
+        }));
+      });
+      
+      return cleanup;
+    } else {
+      console.warn('⚠️ electronAPI.onFloatingData 不可用');
+    }
+  }, []);
+  
+  // ========== 渲染 ==========
+  
+  return (
+    <div
+      style={{
+        width: '100vw',
+        height: '100vh',
+        background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.95) 100%)',
+        backdropFilter: 'blur(20px)',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {/* ========== 顶部拖拽区域 ========== */}
+      <div
+        style={{
+          // @ts-ignore - Electron特有属性
+          WebkitAppRegion: 'drag', // 允许拖拽整个窗口
+          height: 36,
+          background: 'rgba(0, 0, 0, 0.3)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 12px',
+        }}
+      >
+        <div style={{ 
+          fontSize: 12, 
+          fontWeight: 600, 
+          color: '#a855f7',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}>
+          <span>🎯</span>
+          <span>直播助手</span>
+        </div>
+        
+        {/* 关闭按钮 */}
+        <button
+          onClick={() => window.close()}
+          style={{
+            // @ts-ignore - Electron特有属性
+            WebkitAppRegion: 'no-drag', // 按钮区域不拖拽
+            width: 24,
+            height: 24,
+            borderRadius: 6,
+            border: 'none',
+            background: 'transparent',
+            color: '#94a3b8',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
+            e.currentTarget.style.color = '#ef4444';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.color = '#94a3b8';
+          }}
+        >
+          ✕
+        </button>
+      </div>
+      
+      {/* ========== 最新转写（始终显示） ========== */}
+      <div style={{ padding: 12, borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+        <TranscriptDisplay
+          text={data.latestTranscript || ''}
+          timestamp={new Date().toLocaleTimeString()}
+        />
+      </div>
+      
+      {/* ========== 内容区域 ========== */}
+      <div style={{ flex: 1, overflow: 'hidden' }}>
+        {currentTab === 'ai' && (
+          <AIAnalysisContent data={data.aiAnalysis} vibe={data.vibe} />
+        )}
+        {currentTab === 'script' && (
+          <ScriptContent data={data.script} />
+        )}
+        {currentTab === 'stats' && (
+          <StatsContent data={data.stats || { viewerCount: 0, giftValue: 0, engagementRate: 0 }} />
+        )}
+      </div>
+      
+      {/* ========== 底部Tab栏 ========== */}
+      <div
+        style={{
+          display: 'flex',
+          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+          padding: 8,
+          gap: 4,
+          // @ts-ignore - Electron特有属性
+          WebkitAppRegion: 'no-drag', // Tab栏不拖拽
+        }}
+      >
+        <TabButton
+          active={currentTab === 'ai'}
+          onClick={() => setCurrentTab('ai')}
+          icon="🤖"
+          label="AI"
+        />
+        <TabButton
+          active={currentTab === 'script'}
+          onClick={() => setCurrentTab('script')}
+          icon="💬"
+          label="话术"
+        />
+        <TabButton
+          active={currentTab === 'stats'}
+          onClick={() => setCurrentTab('stats')}
+          icon="📈"
+          label="数据"
+        />
+      </div>
+    </div>
+  );
+};
+
+// ========== 子组件 ==========
+
+/**
+ * Tab按钮组件
+ */
+interface TabButtonProps {
+  active: boolean;
+  onClick: () => void;
+  icon: string;
+  label: string;
+}
+
+const TabButton: React.FC<TabButtonProps> = ({ active, onClick, icon, label }) => (
+  <button
+    onClick={onClick}
+    className={`
+      flex-1 flex flex-col items-center gap-1 py-2 px-3
+      rounded-lg border transition-all cursor-pointer
+      ${active 
+        ? 'bg-purple-500/20 border-purple-500/40 text-purple-400' 
+        : 'bg-transparent border-transparent text-gray-400 hover:bg-white/5'
+      }
+    `}
+  >
+    <span className="text-base">{icon}</span>
+    <span className="text-xs">{label}</span>
+  </button>
+);
+
+/**
+ * AI分析内容组件
+ */
+interface AIAnalysisContentProps {
+  data: any;
+  vibe: any;
+}
+
+const AIAnalysisContent: React.FC<AIAnalysisContentProps> = ({ data, vibe }) => {
+  if (!data && !vibe) {
+    return <EmptyState icon="🤖" message="等待AI分析..." />;
+  }
+
+  return (
+    <FloatingTabContent title="AI分析" icon="🤖">
+      {/* 氛围评估 */}
+      {vibe && (
+        <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 mb-3">
+          <div className="text-xs text-purple-400 mb-1">氛围评分</div>
+          <div className="text-2xl font-bold text-white">
+            {vibe.score || 0} <span className="text-sm text-gray-400">/100</span>
+          </div>
+          {vibe.description && (
+            <div className="text-xs text-gray-300 mt-1">
+              {vibe.description}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* AI建议列表 */}
+      {data?.suggestions?.map((suggestion: string, idx: number) => (
+        <AICard
+          key={idx}
+          type="success"
+          title={`建议 ${idx + 1}`}
+          content={suggestion}
+        />
+      ))}
+      
+      {/* 风险提示 */}
+      {data?.warnings?.map((warning: string, idx: number) => (
+        <AICard
+          key={`warning-${idx}`}
+          type="warning"
+          title="⚠️ 注意"
+          content={warning}
+        />
+      ))}
+      
+      {/* 单个建议（兼容旧数据格式） */}
+      {!data?.suggestions && data?.suggestion && (
+        <AICard
+          type="info"
+          title="💡 AI建议"
+          content={data.suggestion}
+        />
+      )}
+    </FloatingTabContent>
+  );
+};
+
+/**
+ * 话术内容组件
+ */
+interface ScriptContentProps {
+  data: any;
+}
+
+const ScriptContent: React.FC<ScriptContentProps> = ({ data }) => {
+  const [copySuccess, setCopySuccess] = useState(false);
+  
+  if (!data) {
+    return <EmptyState icon="💬" message="等待智能话术..." />;
+  }
+  
+  const handleCopy = async () => {
+    try {
+      const textToCopy = data.text || data.line || '';
+      await navigator.clipboard.writeText(textToCopy);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (error) {
+      console.error('复制失败:', error);
+    }
+  };
+  
+  return (
+    <FloatingTabContent title="智能话术" icon="💬">
+      {/* 话术卡片 */}
+      <ScriptCard
+        title={data.title || '推荐话术'}
+        content={data.text || data.line || '暂无话术'}
+        isActive={true}
+      />
+      
+      {/* 话术类型标签 */}
+      {data.type && (
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs text-gray-400">类型:</span>
+          <span className="text-xs px-2 py-1 bg-purple-500/20 text-purple-400 rounded">
+            {data.type}
+          </span>
+        </div>
+      )}
+      
+      {/* 复制按钮 */}
+      <button
+        onClick={handleCopy}
+        className={`
+          w-full py-2.5 px-4 rounded-lg border text-sm font-medium transition-all
+          ${copySuccess 
+            ? 'bg-green-500/20 border-green-500/40 text-green-400' 
+            : 'bg-purple-500/20 border-purple-500/40 text-purple-400 hover:bg-purple-500/30'
+          }
+        `}
+      >
+        {copySuccess ? '✓ 已复制' : '📋 复制话术'}
+      </button>
+    </FloatingTabContent>
+  );
+};
+
+/**
+ * 数据统计内容组件
+ */
+interface StatsContentProps {
+  data: {
+    viewerCount: number;
+    giftValue: number;
+    engagementRate: number;
+  };
+}
+
+const StatsContent: React.FC<StatsContentProps> = ({ data }) => {
+  return (
+    <FloatingTabContent title="实时数据" icon="📈">
+      <MetricCard
+        label="在线观众"
+        value={data.viewerCount.toLocaleString()}
+        icon="👥"
+      />
+      
+      <MetricCard
+        label="礼物价值"
+        value={`¥${data.giftValue.toLocaleString()}`}
+        icon="🎁"
+      />
+      
+      <MetricCard
+        label="互动率"
+        value={`${data.engagementRate}%`}
+        icon="💬"
+      />
+      
+      {/* 数据说明 */}
+      <div className="mt-4 p-3 bg-gray-800/30 rounded-lg border border-gray-700/50">
+        <p className="text-xs text-gray-400 leading-relaxed">
+          数据每30秒更新一次，用于实时了解直播间状态
+        </p>
+      </div>
+    </FloatingTabContent>
+  );
+};
+
+export default FloatingWindowPage;

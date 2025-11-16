@@ -2,6 +2,16 @@ const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
+// 🆕 导入悬浮窗管理模块
+const {
+  createFloatingWindow,
+  showFloatingWindow,
+  hideFloatingWindow,
+  closeFloatingWindow,
+  sendDataToFloating,
+  isFloatingWindowVisible
+} = require('./floatingWindow');
+
 // 开发环境下跳过SSL证书验证，解决X509_V_FLAG_NOTIFY_POLICY错误
 if (process.env.NODE_ENV !== 'production') {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -99,6 +109,9 @@ function createWindow() {
 app.on('before-quit', async (event) => {
     console.log('[electron] App is about to quit. Cleaning up resources...');
     
+    // 🆕 关闭悬浮窗
+    closeFloatingWindow();
+    
     // 通知所有渲染进程清理资源
     const allWindows = BrowserWindow.getAllWindows();
     if (allWindows.length > 0) {
@@ -195,6 +208,67 @@ app.whenReady().then(() => {
             isDev: isDev,
             platform: process.platform
         };
+    });
+    
+    // ========== 🆕 悬浮窗相关IPC处理器 ==========
+    
+    /**
+     * 创建并显示独立悬浮窗
+     * 主窗口点击"开始转写"时调用
+     */
+    ipcMain.handle('show-floating-window', async () => {
+        try {
+            console.log('📱 [IPC] 收到显示悬浮窗请求');
+            const win = createFloatingWindow(rendererDevServerURL);
+            return { success: true };
+        } catch (error) {
+            console.error('❌ [IPC] 显示悬浮窗失败:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    
+    /**
+     * 隐藏悬浮窗
+     */
+    ipcMain.handle('hide-floating-window', async () => {
+        try {
+            console.log('🔴 [IPC] 收到隐藏悬浮窗请求');
+            hideFloatingWindow();
+            return { success: true };
+        } catch (error) {
+            console.error('❌ [IPC] 隐藏悬浮窗失败:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    
+    /**
+     * 关闭悬浮窗
+     */
+    ipcMain.handle('close-floating-window', async () => {
+        try {
+            console.log('🔴 [IPC] 收到关闭悬浮窗请求');
+            closeFloatingWindow();
+            return { success: true };
+        } catch (error) {
+            console.error('❌ [IPC] 关闭悬浮窗失败:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    
+    /**
+     * 推送数据到悬浮窗
+     * 主窗口实时调用，将WebSocket/SSE数据推送到悬浮窗
+     */
+    ipcMain.on('floating-update-data', (event, data) => {
+        // console.log('📡 [IPC] 推送数据到悬浮窗');
+        sendDataToFloating('floating-data', data);
+    });
+    
+    /**
+     * 检查悬浮窗是否可见
+     */
+    ipcMain.handle('is-floating-window-visible', async () => {
+        return isFloatingWindowVisible();
     });
     
     console.log('[electron] Application initialized successfully');

@@ -29,6 +29,47 @@ export interface ElectronAPI {
   // 系统信息
   platform: NodeJS.Platform;
   version: NodeJS.ProcessVersions;
+  
+  // ========== 悬浮窗控制API ==========
+  
+  /**
+   * 显示独立悬浮窗
+   * 主窗口启动服务时调用
+   */
+  showFloatingWindow: () => Promise<{ success: boolean; error?: string }>;
+  
+  /**
+   * 隐藏悬浮窗
+   */
+  hideFloatingWindow: () => Promise<{ success: boolean; error?: string }>;
+  
+  /**
+   * 关闭悬浮窗
+   */
+  closeFloatingWindow: () => Promise<{ success: boolean; error?: string }>;
+  
+  /**
+   * 检查悬浮窗是否可见
+   */
+  isFloatingWindowVisible: () => Promise<boolean>;
+  
+  /**
+   * 推送数据到悬浮窗
+   * @param data - 要推送的数据
+   */
+  sendFloatingData: (data: any) => void;
+  
+  /**
+   * 监听来自主进程的数据（悬浮窗使用）
+   * @param callback - 回调函数
+   * @returns 清理函数
+   */
+  onFloatingData: (callback: (data: any) => void) => (() => void);
+  
+  /**
+   * 移除悬浮窗数据监听
+   */
+  removeFloatingDataListener: () => void;
 }
 
 export interface ElectronIpcRenderer {
