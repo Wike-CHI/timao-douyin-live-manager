@@ -6,6 +6,7 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
+const dependencyInstaller = require('./install-deps');
 
 // 安全获取 Electron app（兼容非 Electron 环境）
 let app = null;
@@ -62,6 +63,18 @@ class PythonService {
     if (this.process) {
       console.log('[PythonService] 服务已运行');
       return;
+    }
+
+    // 首次启动时确保依赖已安装（仅生产环境）
+    if (this.isProduction) {
+      console.log('[PythonService] 检查 AI 依赖...');
+      try {
+        await dependencyInstaller.ensureDependencies();
+        console.log('[PythonService] AI 依赖检查完成');
+      } catch (error) {
+        console.error('[PythonService] AI 依赖安装失败:', error);
+        throw error;
+      }
     }
 
     const pythonPath = this.getPythonPath();

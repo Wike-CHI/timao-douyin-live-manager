@@ -129,11 +129,11 @@ class ServiceManager:
         """启动输出监控线程"""
         def monitor_stdout():
             try:
-            for line in iter(process.stdout.readline, ''):
-                if line.strip():
+                for line in iter(process.stdout.readline, ''):
+                    if line.strip():
                         # 尝试解码UTF-8，失败则忽略特殊字符
                         try:
-                    self.logger.info(f"[{name}] {line.strip()}")
+                            self.logger.info(f"[{name}] {line.strip()}")
                         except UnicodeEncodeError:
                             self.logger.info(f"[{name}] {line.encode('utf-8', errors='replace').decode('utf-8').strip()}")
             except Exception as e:
@@ -141,8 +141,8 @@ class ServiceManager:
         
         def monitor_stderr():
             try:
-            for line in iter(process.stderr.readline, ''):
-                if line.strip():
+                for line in iter(process.stderr.readline, ''):
+                    if line.strip():
                         # 错误输出更重要，必须显示
                         try:
                             self.logger.error(f"[{name}] 错误: {line.strip()}")
@@ -159,13 +159,13 @@ class ServiceManager:
         self.running = True
         self.logger.info("[START] 开始启动所有后端服务...")
         
-        # 1. 启动主FastAPI服务
+        # 1. 启动本地FastAPI服务（使用 server.local）
         # 🔧 硬编码端口 11111（演示测试）
         backend_port = "11111"
         fastapi_success = self.start_service(
-            "fastapi_main",
-            [sys.executable, "-m", "uvicorn", "server.app.main:app", 
-             "--host", "127.0.0.1", "--port", backend_port, "--log-level", "info"],
+            "fastapi_local",
+            [sys.executable, "-m", "uvicorn", "server.local.main:app", 
+             "--host", "127.0.0.1", "--port", backend_port, "--log-level", "info", "--reload"],
             cwd=self.base_dir,
             expected_port=int(backend_port)
         )
@@ -244,13 +244,13 @@ class ServiceManager:
             time.sleep(2)
             
             # 根据服务名重新启动
-            if name == "fastapi_main":
+            if name == "fastapi_local" or name == "fastapi_main":
                 # 🔧 硬编码端口 11111（演示测试）
                 backend_port = "11111"
                 self.start_service(
-                    "fastapi_main",
-                    [sys.executable, "-m", "uvicorn", "server.app.main:app", 
-                     "--host", "127.0.0.1", "--port", backend_port, "--log-level", "info"],
+                    "fastapi_local",
+                    [sys.executable, "-m", "uvicorn", "server.local.main:app", 
+                     "--host", "127.0.0.1", "--port", backend_port, "--log-level", "info", "--reload"],
                     cwd=self.base_dir,
                     expected_port=int(backend_port)
                 )

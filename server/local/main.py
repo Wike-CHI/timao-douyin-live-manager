@@ -84,5 +84,5 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("LOCAL_PORT", "16000"))
+    port = int(os.getenv("LOCAL_PORT", "11111"))
     uvicorn.run(app, host="127.0.0.1", port=port, workers=1)

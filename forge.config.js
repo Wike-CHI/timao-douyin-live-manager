@@ -3,7 +3,12 @@ const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 
 module.exports = {
   packagerConfig: {
-    asar: true,
+    asar: {
+      // Keep the app code in an asar but unpack large runtime folders so
+      // they are stored as normal files (prevents very large app.asar files
+      // which can cause Squirrel/installer extraction failures).
+      unpackDir: 'python-runtime/**'
+    },
     extraResource: [
       'python-runtime',
       'server'
