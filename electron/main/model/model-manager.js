@@ -39,17 +39,20 @@ class ModelManager {
    * 初始化 IPC 监听
    */
   setupIPC() {
-    ipcMain.handle('model:check', async (event, { modelId }) => {
+    ipcMain.handle('model:check', async (event, arg) => {
+      const modelId = typeof arg === 'string' ? arg : arg?.modelId;
       return await this.checkModel(modelId);
     });
 
-    ipcMain.handle('model:start-download', async (event, { modelId }) => {
+    ipcMain.handle('model:start-download', async (event, arg) => {
+      const modelId = typeof arg === 'string' ? arg : arg?.modelId;
       return await this.startDownload(modelId, (progress) => {
         event.sender.send('model:download-progress', { modelId, ...progress });
       });
     });
 
-    ipcMain.handle('model:cancel-download', async (event, { modelId }) => {
+    ipcMain.handle('model:cancel-download', async (event, arg) => {
+      const modelId = typeof arg === 'string' ? arg : arg?.modelId;
       return this.cancelDownload(modelId);
     });
 

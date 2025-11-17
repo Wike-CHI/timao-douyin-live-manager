@@ -41,7 +41,13 @@ for (const [key, value] of Object.entries(defaultAiEnv)) {
     }
 }
 
-const isDev = !app.isPackaged;
+// 开发时可以通过设置环境变量 `FORCE_PACKAGED=1` 来强制模拟已打包（production）模式，
+// 这在本地预览打包后 exe 双击行为时非常有用（不需要实际打包）。
+const forcePackaged = process.env.FORCE_PACKAGED === '1' || process.env.FORCE_PACKAGED === 'true';
+if (forcePackaged) {
+    console.log('[electron] FORCE_PACKAGED=1 — 在开发环境中强制模拟已打包模式');
+}
+const isDev = forcePackaged ? false : !app.isPackaged;
 // 🔧 硬编码前端端口 10200（避开 Windows 保留端口范围 10017-10116）
 const rendererDevServerURL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.0.1:10200';
 
@@ -227,6 +233,7 @@ app.whenReady().then(async () => {
     ipcMain.handle('get-logs-path', () => logsDir);
     
     ipcMain.handle('get-is-dev', () => isDev);
+    ipcMain.handle('get-force-packaged', () => forcePackaged);
     
     ipcMain.handle('app-quit', () => {
         app.quit();
