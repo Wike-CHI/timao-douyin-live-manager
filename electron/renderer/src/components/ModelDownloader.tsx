@@ -246,13 +246,13 @@ export const ModelDownloader: React.FC = () => {
   }
 
   return (
-    <div className="space-y-4 p-6 bg-white/95 border border-purple-100 rounded-xl shadow-sm">
+    <div className="timao-card space-y-4 p-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-purple-900">模型管理</h2>
+        <h2 className="text-2xl font-bold timao-heading">模型管理</h2>
         <button
           onClick={checkModels}
           disabled={checking}
-          className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+          className="timao-primary-btn disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {checking ? '检查中...' : '刷新状态'}
         </button>
@@ -269,24 +269,24 @@ export const ModelDownloader: React.FC = () => {
           const hasError = status?.status === 'ERROR';
 
           return (
-            <div key={model.id} className="p-4 border border-purple-200 bg-white/80 rounded-xl">
+            <div key={model.id} className="timao-soft-card">
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800">{model.name}</h3>
-                  <p className="text-sm text-gray-600">
+                  <h3 className="text-lg font-semibold" style={{ color: 'var(--accent-main)' }}>{model.name}</h3>
+                  <p className="text-sm timao-support-text">
                     {model.description} · {formatBytes(model.size)}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   {isAvailable && (
-                    <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                    <span className="timao-status-pill bg-green-50 text-green-600">
                       ✓ 已安装
                     </span>
                   )}
                   {isMissing && (
                     <button
                       onClick={() => startDownload(model.id)}
-                      className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition"
+                      className="timao-primary-btn"
                     >
                       下载模型
                     </button>
@@ -295,13 +295,13 @@ export const ModelDownloader: React.FC = () => {
                     <>
                       <button
                         onClick={() => pauseDownload(model.id)}
-                        className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition"
+                        className="timao-outline-btn text-yellow-600 border-yellow-400"
                       >
                         暂停
                       </button>
                       <button
                         onClick={() => cancelDownload(model.id)}
-                        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
+                        className="timao-outline-btn text-red-600 border-red-400"
                       >
                         取消
                       </button>
@@ -311,25 +311,25 @@ export const ModelDownloader: React.FC = () => {
                     <>
                       <button
                         onClick={() => resumeDownload(model.id)}
-                        className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition"
+                        className="timao-primary-btn bg-green-500"
                       >
                         继续
                       </button>
                       <button
                         onClick={() => cancelDownload(model.id)}
-                        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
+                        className="timao-outline-btn text-red-600 border-red-400"
                       >
                         取消
                       </button>
                     </>
                   )}
                   {isVerifying && (
-                    <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium animate-pulse">
+                    <span className="timao-status-pill animate-pulse">
                       🔍 校验中...
                     </span>
                   )}
                   {hasError && (
-                    <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-medium">
+                    <span className="timao-status-pill bg-red-50 text-red-600">
                       ✗ 错误
                     </span>
                   )}
@@ -338,7 +338,7 @@ export const ModelDownloader: React.FC = () => {
 
               {(isDownloading || isPaused) && status && (
                 <div className="mt-3 space-y-2">
-                  <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
+                  <div className="flex items-center justify-between text-sm timao-support-text mb-1">
                     <span className="font-medium">
                       {isPaused ? '已暂停' : '下载进度'}
                     </span>
@@ -347,16 +347,16 @@ export const ModelDownloader: React.FC = () => {
                       {(status.progress || 0).toFixed(1)}%)
                     </span>
                   </div>
-                  <div className="w-full bg-purple-100 rounded-full h-2.5">
+                  <div className="timao-progress-track">
                     <div
-                      className={`h-2.5 rounded-full transition-all duration-300 ${
-                        isPaused ? 'bg-yellow-500' : 'bg-purple-500'
+                      className={`timao-progress-fill ${
+                        isPaused ? 'bg-yellow-400' : ''
                       }`}
                       style={{ width: `${status.progress || 0}%` }}
                     />
                   </div>
                   {isDownloading && status.speed !== undefined && status.eta !== undefined && (
-                    <div className="flex items-center justify-between text-xs text-gray-500">
+                    <div className="flex items-center justify-between text-xs timao-support-text">
                       <span>速度: {formatSpeed(status.speed)}</span>
                       <span>剩余时间: {formatETA(status.eta)}</span>
                     </div>
@@ -365,8 +365,8 @@ export const ModelDownloader: React.FC = () => {
               )}
 
               {hasError && status?.error && (
-                <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded">
-                  <p className="text-sm text-red-700">错误: {status.error}</p>
+                <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-xl">
+                  <p className="text-sm text-red-600">错误: {status.error}</p>
                 </div>
               )}
             </div>
