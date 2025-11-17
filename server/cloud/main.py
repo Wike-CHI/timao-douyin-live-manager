@@ -61,6 +61,18 @@ async def startup_event():
     logger.info(f"   服务类型: 云端(用户/鉴权/支付)")
     logger.info(f"   内存目标: < 512MB")
     logger.info("=" * 60)
+    
+    # 初始化云端数据库连接
+    try:
+        from .db.crud import UserCRUD
+        logger.info("📦 初始化云端数据库连接...")
+        user_crud = UserCRUD()
+        app.state.user_crud = user_crud  # 保存到app.state供全局使用
+        logger.info("✅ 云端数据库连接初始化成功")
+    except Exception as e:
+        logger.error(f"❌ 云端数据库连接失败: {e}")
+        logger.warning("⚠️  云端服务将在无数据库模式下运行")
+    
     logger.info("✅ 云端服务启动完成")
 
 @app.on_event("shutdown")

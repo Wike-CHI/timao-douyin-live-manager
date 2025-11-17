@@ -71,13 +71,13 @@ class CloudDatabaseConfig:
         
         load_dotenv(env_path)
         
-        # 兼容MYSQL_*和DB_*两种配置格式
+        # 优先读取RDS_*环境变量，兼容MYSQL_*和DB_*
         self.db_type = os.getenv('DB_TYPE', 'mysql')
-        self.host = os.getenv('MYSQL_HOST') or os.getenv('DB_HOST')
-        self.port = int(os.getenv('MYSQL_PORT') or os.getenv('DB_PORT', 3306))
-        self.user = os.getenv('MYSQL_USER') or os.getenv('DB_USER')
-        self.password = os.getenv('MYSQL_PASSWORD') or os.getenv('DB_PASSWORD')
-        self.database = os.getenv('MYSQL_DATABASE') or os.getenv('DB_NAME')
+        self.host = os.getenv('RDS_HOST') or os.getenv('MYSQL_HOST') or os.getenv('DB_HOST')
+        self.port = int(os.getenv('RDS_PORT') or os.getenv('MYSQL_PORT') or os.getenv('DB_PORT', '3306'))
+        self.user = os.getenv('RDS_USER') or os.getenv('MYSQL_USER') or os.getenv('DB_USER')
+        self.password = os.getenv('RDS_PASSWORD') or os.getenv('MYSQL_PASSWORD') or os.getenv('DB_PASSWORD')
+        self.database = os.getenv('RDS_DATABASE') or os.getenv('MYSQL_DATABASE') or os.getenv('DB_NAME')
         self.charset = os.getenv('DB_CHARSET', 'utf8mb4')
         
         # 验证必需配置

@@ -4,7 +4,7 @@
 包含: 认证、用户资料、订阅/支付
 """
 
-from .auth import router as auth_router
+from .auth_cloud import router as auth_router
 from .profile import router as profile_router
 from .subscription import router as subscription_router
 

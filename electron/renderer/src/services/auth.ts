@@ -25,8 +25,9 @@ export type {
 
 const getAuthBaseUrl = () => import.meta.env?.VITE_AUTH_BASE_URL?.trim() || undefined;
 
+// 认证请求使用云端服务 (cloud) 而不是本地服务 (main)
 const buildAuthUrl = (path: string) =>
-  buildServiceUrl('main', path, getAuthBaseUrl());
+  buildServiceUrl('cloud', path, getAuthBaseUrl());
 
 export const login = async (payload: LoginRequest): Promise<LoginResponse> => {
   // 转换前端字段名到后端期望的字段名

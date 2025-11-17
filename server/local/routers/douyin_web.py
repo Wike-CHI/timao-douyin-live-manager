@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from ..services.douyin_web_relay import get_douyin_web_relay
 
-router = APIRouter(prefix="/api/douyin/web", tags=["douyin-web"])
+router = APIRouter(prefix="/api/douyin", tags=["douyin"])
 
 
 class StartRequest(BaseModel):

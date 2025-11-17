@@ -15,7 +15,8 @@ export interface ServiceConfig {
 
 export interface ApiConfig {
   services: {
-    main: ServiceConfig;
+    main: ServiceConfig;      // 本地业务服务 (11111)
+    cloud: ServiceConfig;     // 云端认证服务 (15000)
     streamcap: ServiceConfig;
     douyin: ServiceConfig;
   };
@@ -27,14 +28,21 @@ export interface ApiConfig {
 }
 
 // 默认服务配置
-// 🔧 硬编码端口（演示测试）- 后端 11111，前端 10200
+// 🔧 硬编码端口（演示测试）- 本地业务 11111，云端认证 15000，前端 10200
 const DEFAULT_CONFIG: ApiConfig = {
   services: {
     main: {
-      name: 'FastAPI主服务',
-      baseUrl: 'http://127.0.0.1:11111', // 🔧 硬编码后端端口 11111
+      name: 'FastAPI本地服务',
+      baseUrl: 'http://127.0.0.1:11111', // 🔧 本地业务端口 11111 (直播/AI/转写)
       healthEndpoint: '/health',
-      timeout: 30000, // 30秒超时（本地开发可能较慢）
+      timeout: 30000,
+      retryCount: 3
+    },
+    cloud: {
+      name: 'FastAPI云端服务',
+      baseUrl: 'http://127.0.0.1:15000', // 🔧 云端服务端口 15000 (认证/支付/积分)
+      healthEndpoint: '/health',
+      timeout: 30000,
       retryCount: 3
     },
     streamcap: {
@@ -85,6 +93,10 @@ class ApiConfigManager {
         main: {
           ...DEFAULT_CONFIG.services.main,
           baseUrl: import.meta.env?.VITE_FASTAPI_URL || DEFAULT_CONFIG.services.main.baseUrl
+        },
+        cloud: {
+          ...DEFAULT_CONFIG.services.cloud,
+          baseUrl: import.meta.env?.VITE_CLOUD_URL || DEFAULT_CONFIG.services.cloud.baseUrl
         },
         streamcap: {
           ...DEFAULT_CONFIG.services.streamcap,
