@@ -129,11 +129,11 @@ class ServiceManager:
         """启动输出监控线程"""
         def monitor_stdout():
             try:
-            for line in iter(process.stdout.readline, ''):
-                if line.strip():
+                for line in iter(process.stdout.readline, ''):
+                    if line.strip():
                         # 尝试解码UTF-8，失败则忽略特殊字符
                         try:
-                    self.logger.info(f"[{name}] {line.strip()}")
+                            self.logger.info(f"[{name}] {line.strip()}")
                         except UnicodeEncodeError:
                             self.logger.info(f"[{name}] {line.encode('utf-8', errors='replace').decode('utf-8').strip()}")
             except Exception as e:
@@ -141,8 +141,8 @@ class ServiceManager:
         
         def monitor_stderr():
             try:
-            for line in iter(process.stderr.readline, ''):
-                if line.strip():
+                for line in iter(process.stderr.readline, ''):
+                    if line.strip():
                         # 错误输出更重要，必须显示
                         try:
                             self.logger.error(f"[{name}] 错误: {line.strip()}")

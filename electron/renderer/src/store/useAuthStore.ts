@@ -34,7 +34,7 @@ const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
       refreshToken: null,
-      isPaid: false,
+      isPaid: true,  // 本地化模式：默认已付费
       isAuthenticated: false,
       rememberMe: true,
       setAuth: ({ user, token, refreshToken, isPaid = false }) =>

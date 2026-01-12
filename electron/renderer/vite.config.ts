@@ -19,8 +19,8 @@ export default defineConfig({
   base: './',
   server: {
     host: '127.0.0.1',
-    port: 10065, // 🔧 硬编码前端端口 10065（演示测试）
-    strictPort: true, // 强制使用指定端口，不自动尝试其他端口
+    port: 10066, // 🔧 硬编码前端端口 10065（演示测试）
+    strictPort: false, // 强制使用指定端口，不自动尝试其他端口
     headers: {
       'Content-Security-Policy': devCsp.join('; '),
     },

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-env node */
 
 const { spawn, exec } = require('child_process');
 const path = require('path');
@@ -222,7 +223,7 @@ class IntegratedLauncher {
         );
         
         // 🔧 硬编码前端端口 10065（演示测试）
-        const frontendPort = '10065';
+        const frontendPort = '10066';
         const frontendReady = await this.waitForHealthCheck(`http://127.0.0.1:${frontendPort}`);
         if (!frontendReady) {
             throw new Error('前端服务启动失败');
@@ -270,7 +271,7 @@ class IntegratedLauncher {
             
             // 🔧 硬编码端口（演示测试）
             const backendPort = '11111';
-            const frontendPort = '10065';
+            const frontendPort = '10066';
             console.log('\n' + '='.repeat(60));
             console.log('🎉 所有服务启动完成！');
             console.log('');

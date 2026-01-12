@@ -16,6 +16,7 @@ export interface ServiceConfig {
 export interface ApiConfig {
   services: {
     main: ServiceConfig;
+    backend: ServiceConfig;  // 添加backend别名，指向main
     streamcap: ServiceConfig;
     douyin: ServiceConfig;
   };
@@ -26,27 +27,62 @@ export interface ApiConfig {
   };
 }
 
-// 默认服务配置
-// 🔧 硬编码端口（演示测试）- 后端 11111，前端 10065
+/**
+ * 获取后端URL（支持动态端口）
+ */
+const getBackendBaseUrl = (): string => {
+  // 优先从环境变量读取
+  const envBackendPort = import.meta.env?.VITE_BACKEND_PORT || '11111';
+  const envBackendUrl = import.meta.env?.VITE_API_BASE_URL;
+  
+  if (envBackendUrl) {
+    return envBackendUrl;
+  }
+  
+  // 从localStorage读取用户自定义配置
+  const savedConfig = localStorage.getItem('port_config');
+  if (savedConfig) {
+    try {
+      const config = JSON.parse(savedConfig);
+      if (config.backend) {
+        return `http://127.0.0.1:${config.backend}`;
+      }
+    } catch (e) {
+      console.warn('解析端口配置失败:', e);
+    }
+  }
+  
+  // 默认端口
+  return `http://127.0.0.1:${envBackendPort}`;
+};
+
+// 默认服务配置（支持动态端口）
 const DEFAULT_CONFIG: ApiConfig = {
   services: {
     main: {
       name: 'FastAPI主服务',
-      baseUrl: 'http://127.0.0.1:11111', // 🔧 硬编码后端端口 11111
+      baseUrl: getBackendBaseUrl(),
       healthEndpoint: '/health',
       timeout: 30000, // 30秒超时（本地开发可能较慢）
       retryCount: 3
     },
+    backend: {  // backend别名，指向同一个服务
+      name: 'FastAPI主服务',
+      baseUrl: getBackendBaseUrl(),
+      healthEndpoint: '/health',
+      timeout: 30000,
+      retryCount: 3
+    },
     streamcap: {
       name: 'StreamCap服务',
-      baseUrl: 'http://127.0.0.1:11111', // 🔧 StreamCap 已集成到主服务
+      baseUrl: getBackendBaseUrl(), // StreamCap 已集成到主服务
       healthEndpoint: '/health',
       timeout: 30000,
       retryCount: 3
     },
     douyin: {
       name: 'Douyin服务',
-      baseUrl: 'http://127.0.0.1:11111', // 🔧 Douyin 已集成到主服务
+      baseUrl: getBackendBaseUrl(), // Douyin 已集成到主服务
       healthEndpoint: '/health',
       timeout: 30000,
       retryCount: 3
@@ -79,23 +115,27 @@ class ApiConfigManager {
    * 加载配置
    */
   private loadConfig(): ApiConfig {
+    // 动态获取后端URL
+    const backendUrl = getBackendBaseUrl();
+    
     // 从环境变量获取配置
     const envConfig = {
       services: {
         main: {
           ...DEFAULT_CONFIG.services.main,
-          baseUrl: import.meta.env?.VITE_FASTAPI_URL || DEFAULT_CONFIG.services.main.baseUrl
+          baseUrl: import.meta.env?.VITE_FASTAPI_URL || backendUrl
+        },
+        backend: {  // backend别名
+          ...DEFAULT_CONFIG.services.backend,
+          baseUrl: import.meta.env?.VITE_FASTAPI_URL || backendUrl
         },
         streamcap: {
           ...DEFAULT_CONFIG.services.streamcap,
-          // 如果环境变量设置为6006，强制使用主服务端口
-          baseUrl: import.meta.env?.VITE_STREAMCAP_URL === 'http://127.0.0.1:6006' 
-            ? DEFAULT_CONFIG.services.streamcap.baseUrl
-            : (import.meta.env?.VITE_STREAMCAP_URL || DEFAULT_CONFIG.services.streamcap.baseUrl)
+          baseUrl: import.meta.env?.VITE_STREAMCAP_URL || backendUrl
         },
         douyin: {
           ...DEFAULT_CONFIG.services.douyin,
-          baseUrl: import.meta.env?.VITE_DOUYIN_URL || import.meta.env?.VITE_FASTAPI_URL || DEFAULT_CONFIG.services.douyin.baseUrl
+          baseUrl: import.meta.env?.VITE_DOUYIN_URL || backendUrl
         }
       },
       healthCheck: DEFAULT_CONFIG.healthCheck

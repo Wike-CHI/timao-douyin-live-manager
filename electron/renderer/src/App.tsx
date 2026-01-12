@@ -1,10 +1,5 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
-import AuthLayout from './layout/AuthLayout';
-import PaymentLayout from './layout/PaymentLayout';
 import MainLayout from './layout/MainLayout';
-import LoginPage from './pages/auth/LoginPage';
-import RegisterPage from './pages/auth/RegisterPage';
-import SubscriptionPage from './pages/payment/SubscriptionPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import AboutPage from './pages/about/AboutPage';
 import LiveConsolePage from './pages/dashboard/LiveConsolePage';
@@ -12,53 +7,29 @@ import ReportsPage from './pages/dashboard/ReportsPage';
 import ToolsPage from './pages/settings/ToolsPage';
 import AIGatewayPage from './pages/ai/AIGatewayPage';
 import AIUsagePage from './pages/ai/AIUsagePage';
-import useAuthGuard from './hooks/useAuthGuard';
-import useAuthInterceptor from './hooks/useAuthInterceptor';
-// 内部路由组件，在Router上下文中使用hooks
-const AppRoutes = () => {
-  const { requireAuth, requirePayment, isAuthenticated } = useAuthGuard();
-  
-  // 使用认证拦截器（必须在Router上下文中）
-  useAuthInterceptor();
+import SetupWizard from './pages/setup/SetupWizard';
 
+// 本地化模式：简化路由，移除认证和付费检查
+const AppRoutes = () => {
   return (
     <Routes>
-      <Route path="/auth" element={<AuthLayout />}> 
-        <Route index element={<Navigate to="login" replace />} />
-        <Route path="login" element={<LoginPage />} />
-        <Route path="register" element={<RegisterPage />} />
-      </Route>
-
-      <Route
-        path="/pay"
-        element={requireAuth(<PaymentLayout />)}
-      >
-        <Route index element={<Navigate to="subscription" replace />} />
-        <Route path="subscription" element={<SubscriptionPage />} />
-      </Route>
-
-      <Route
-        path="/"
-        element={requireAuth(<MainLayout />)}
-      >
+      {/* 初次启动向导（独立路由，无Layout） */}
+      <Route path="/setup" element={<SetupWizard />} />
+      
+      {/* 本地化模式：所有页面直接可访问，无需认证和付费检查 */}
+      <Route path="/" element={<MainLayout />}>
         <Route index element={<Navigate to="dashboard" replace />} />
-        <Route path="dashboard" element={requirePayment(<DashboardPage />)} />
-        <Route path="live" element={requirePayment(<LiveConsolePage />)} />
-        <Route path="reports" element={requirePayment(<ReportsPage />)} />
-        <Route path="tools" element={requirePayment(<ToolsPage />)} />
-        <Route path="ai-gateway" element={requirePayment(<AIGatewayPage />)} />
-        <Route path="ai-usage" element={requirePayment(<AIUsagePage />)} />
+        <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="live" element={<LiveConsolePage />} />
+        <Route path="reports" element={<ReportsPage />} />
+        <Route path="tools" element={<ToolsPage />} />
+        <Route path="ai-gateway" element={<AIGatewayPage />} />
+        <Route path="ai-usage" element={<AIUsagePage />} />
         <Route path="about" element={<AboutPage />} />
       </Route>
 
-      <Route
-        path="*"
-        element={
-          isAuthenticated
-            ? <Navigate to="/dashboard" replace />
-            : <Navigate to="/auth/login" replace />
-        }
-      />
+      {/* 所有其他路径重定向到仪表板 */}
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
 };

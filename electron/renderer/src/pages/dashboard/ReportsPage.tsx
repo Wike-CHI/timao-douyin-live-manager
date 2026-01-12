@@ -11,6 +11,7 @@ import {
 } from '../../services/liveReport';
 import type { ReviewData, ReportArtifacts } from '../../services/liveReport';
 import ReviewReportPage from './ReviewReportPage';
+import { getServiceUrl } from '../../services/apiConfig';
 
 type Metrics = {
   follows?: number;
@@ -20,7 +21,7 @@ type Metrics = {
   gifts?: Record<string, number>;
 };
 
-const FASTAPI_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:11111'; // 默认端口改为 11111，可通过环境变量覆盖
+const FASTAPI_BASE_URL = getServiceUrl('main');
 
 const ReportsPage: React.FC = () => {
   const [liveInput, setLiveInput] = useState('');

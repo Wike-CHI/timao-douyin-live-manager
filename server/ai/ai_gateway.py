@@ -166,8 +166,10 @@ class AIGateway:
         self.current_provider: Optional[str] = None
         self.current_model: Optional[str] = None
         
-        # 从环境变量加载配置
-        self._load_from_env()
+        # 优先从本地配置加载，如果没有则从环境变量加载
+        self._load_from_local_config()
+        if not self.providers:
+            self._load_from_env()
         
     @classmethod
     def get_instance(cls) -> AIGateway:
@@ -175,6 +177,74 @@ class AIGateway:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
+    
+    def _load_from_local_config(self) -> None:
+        """从本地配置文件加载服务商配置"""
+        try:
+            from server.local.local_config import LocalAIConfig
+            
+            config = LocalAIConfig.get_config()
+            providers = config.get("providers", {})
+            
+            if not providers:
+                logger.info("📁 本地AI配置为空，将使用环境变量配置")
+                return
+            
+            # 加载已配置的服务商
+            for provider_id, provider_config in providers.items():
+                if not provider_config.get("enabled", False):
+                    continue
+                    
+                api_key = provider_config.get("api_key")
+                if not api_key:
+                    continue
+                
+                self.register_provider(
+                    provider=provider_id,
+                    api_key=api_key,
+                    base_url=provider_config.get("base_url"),
+                    default_model=provider_config.get("default_model"),
+                    enabled=True,
+                )
+            
+            # 设置当前活跃的服务商
+            active_provider = config.get("active_provider")
+            if active_provider and active_provider in self.providers:
+                active_config = self.providers[active_provider]
+                self.switch_provider(active_provider, active_config.default_model)
+            
+            # 加载功能模型配置
+            function_models = config.get("function_models", {})
+            for func_id, func_config in function_models.items():
+                if func_id in self.FUNCTION_MODELS:
+                    self.FUNCTION_MODELS[func_id] = func_config
+            
+            if self.providers:
+                logger.info(f"✅ 从本地配置加载了 {len(self.providers)} 个AI服务商")
+                
+        except ImportError:
+            logger.debug("本地配置模块不可用，将使用环境变量")
+        except Exception as e:
+            logger.warning(f"加载本地AI配置失败: {e}，将使用环境变量配置")
+    
+    def reload_from_local_config(self) -> bool:
+        """重新从本地配置文件加载（用于配置更新后刷新）"""
+        try:
+            # 清空当前配置
+            self.providers.clear()
+            self.clients.clear()
+            self.current_provider = None
+            self.current_model = None
+            
+            # 重新加载
+            self._load_from_local_config()
+            if not self.providers:
+                self._load_from_env()
+            
+            return bool(self.providers)
+        except Exception as e:
+            logger.error(f"重新加载AI配置失败: {e}")
+            return False
     
     def _load_from_env(self) -> None:
         """从环境变量加载配置"""
@@ -791,15 +861,30 @@ class AIGateway:
         cost: float = 0.0,
         duration_ms: float = 0.0,
     ) -> None:
-        """记录使用情况到监控系统"""
+        """记录使用情况到监控系统和本地存储"""
+        if not usage:
+            usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        
+        # 记录到本地存储
+        try:
+            from server.local.local_config import LocalAIConfig
+            LocalAIConfig.record_usage(
+                provider=provider,
+                model=model,
+                input_tokens=usage["prompt_tokens"],
+                output_tokens=usage["completion_tokens"],
+                cost=cost,
+                function=function or ""
+            )
+        except Exception as e:
+            logger.debug(f"记录到本地存储失败: {e}")
+        
+        # 同时记录到旧的监控系统（兼容性）
         try:
             from server.utils.ai_usage_monitor import record_ai_usage
             
             # 根据功能标识确定功能名称（包含模型信息）
             function_name = self._get_function_display_name(function, provider, model)
-            
-            if not usage:
-                usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
             
             record_ai_usage(
                 model=model,

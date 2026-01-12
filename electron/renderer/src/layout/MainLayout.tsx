@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import ThemeToggle from '../components/ThemeToggle';
 import useAuthStore from '../store/useAuthStore';
 import logoUrl from '../assets/logo.jpg';
+import { getServiceUrl } from '../services/apiConfig';
 
 const navItems = [
   { to: '/dashboard', label: '总览', icon: '📊' },
@@ -21,9 +22,8 @@ const MainLayout = () => {
   const [bootstrap, setBootstrap] = useState<any>(null);
   const [showBoot, setShowBoot] = useState<boolean>(true);
   const [wsOk, setWsOk] = useState<boolean | null>(null);
-  const defaultApiBase = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:11111'; // 默认端口改为 11111，可通过环境变量覆盖
-  const injectedApiBase = ((import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:11111').trim() || defaultApiBase; // 默认端口改为 11111，可通过环境变量覆盖
-  const [apiBase, setApiBase] = useState<string>(injectedApiBase);
+  const defaultApiBase = getServiceUrl('main');
+  const [apiBase, setApiBase] = useState<string>(defaultApiBase);
 
   const handleLogout = () => {
     logout();

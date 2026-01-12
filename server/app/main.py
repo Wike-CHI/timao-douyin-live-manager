@@ -37,10 +37,12 @@ def _load_env_once() -> None:
 # 预先加载环境变量，确保在配置模块导入前生效
 _load_env_once()
 
-from server.app.database import init_database, close_database
-from server.app.models import Base
+# 本地化模式：移除数据库依赖
+# from server.app.database import init_database, close_database
+# from server.app.models import Base
 from server.config import config_manager
 from server.utils.service_logger import log_service_start, log_service_stop
+from server.local.local_config import LocalAIConfig
 
 if os.name == "nt":
     try:
@@ -126,24 +128,32 @@ async def startup_event():
     logging.info("🚀 应用启动中...")
     logging.info("=" * 60)
     
-    # 初始化Redis管理器
-    try:
-        from server.utils.redis_manager import init_redis
-        from server.config import config_manager
-        
-        redis_config = config_manager.config.redis
-        redis_manager = init_redis(redis_config)
-        
-        if redis_manager:
-            logging.info("✅ Redis管理器已初始化")
-            logging.info(f"   - 主机: {redis_config.host}:{redis_config.port}")
-            logging.info(f"   - 数据库: {redis_config.db}")
-            logging.info(f"   - 最大连接数: {redis_config.max_connections}")
-        else:
-            logging.warning("⚠️  Redis管理器初始化失败，将使用内存回退")
-    except Exception as e:
-        logging.error(f"❌ Redis初始化失败: {e}")
-        logging.info("   将继续使用内存回退模式")
+    # 🔧 纯本地模式 - 禁用Redis连接
+    # 检查是否启用Redis（通过环境变量控制）
+    enable_redis = os.getenv("ENABLE_REDIS", "false").lower() == "true"
+    
+    if enable_redis:
+        # 初始化Redis管理器
+        try:
+            from server.utils.redis_manager import init_redis
+            from server.config import config_manager
+            
+            redis_config = config_manager.config.redis
+            redis_manager = init_redis(redis_config)
+            
+            if redis_manager:
+                logging.info("✅ Redis管理器已初始化")
+                logging.info(f"   - 主机: {redis_config.host}:{redis_config.port}")
+                logging.info(f"   - 数据库: {redis_config.db}")
+                logging.info(f"   - 最大连接数: {redis_config.max_connections}")
+            else:
+                logging.warning("⚠️  Redis管理器初始化失败，将使用内存回退")
+        except Exception as e:
+            logging.error(f"❌ Redis初始化失败: {e}")
+            logging.info("   将继续使用内存回退模式")
+    else:
+        logging.info("🔧 纯本地模式 - 已禁用Redis连接")
+        logging.info("   使用内存存储模式")
     
     logging.info("=" * 60)
     logging.info("✅ 应用启动完成")
@@ -156,13 +166,18 @@ async def shutdown_event():
     logging.info("🛑 应用关闭中...")
     logging.info("=" * 60)
     
-    # 关闭Redis连接
-    try:
-        from server.utils.redis_manager import close_redis
-        close_redis()
-        logging.info("✅ Redis连接已关闭")
-    except Exception as e:
-        logging.error(f"❌ Redis关闭失败: {e}")
+    # 关闭Redis连接（如果启用）
+    enable_redis = os.getenv("ENABLE_REDIS", "false").lower() == "true"
+    
+    if enable_redis:
+        try:
+            from server.utils.redis_manager import close_redis
+            close_redis()
+            logging.info("✅ Redis连接已关闭")
+        except Exception as e:
+            logging.error(f"❌ Redis关闭失败: {e}")
+    else:
+        logging.info("🔧 纯本地模式 - 无需关闭Redis连接")
     
     logging.info("=" * 60)
     logging.info("✅ 应用已关闭")
@@ -282,10 +297,10 @@ _include_router_safe("资源自检", "server.app.api.bootstrap")
 _include_router_safe("工具", "server.app.api.tools")
 _include_router_safe("AI 使用监控", "server.app.api.ai_usage")
 _include_router_safe("AI 网关管理", "server.app.api.ai_gateway_api")
-_include_router_safe("用户认证", "server.app.api.auth")
-_include_router_safe("订阅管理", "server.app.api.subscription")
-# payment.py 已移除，统一使用 subscription.py
-_include_router_safe("管理员", "server.app.api.admin")
+# 本地化模式：移除用户认证、订阅和管理员路由
+# _include_router_safe("用户认证", "server.app.api.auth")
+# _include_router_safe("订阅管理", "server.app.api.subscription")
+# _include_router_safe("管理员", "server.app.api.admin")
 _include_router_safe("直播评论管理", "server.app.api.live_comments")
 _include_router_safe("模型状态", "server.app.api.model_status")  # 🆕 SenseVoice+VAD 模型状态查询
 
@@ -440,21 +455,15 @@ async def startup_event():
     except Exception as e:
         logging.warning(f"⚠️ Redis 初始化失败: {e}")
     
-    # 初始化数据库
+    # 本地化模式：初始化本地AI配置
     try:
-        db_config = config_manager.config.database
-        # 确保使用MySQL（如果配置为mysql）
-        if db_config.db_type == "mysql":
-            logging.info(f"📊 数据库配置: MySQL - {db_config.mysql_user}@{db_config.mysql_host}:{db_config.mysql_port}/{db_config.mysql_database}")
+        if LocalAIConfig.is_initialized():
+            logging.info("✅ AI配置已就绪")
         else:
-            logging.warning(f"⚠️ 数据库配置: {db_config.db_type} (建议使用MySQL)")
-        init_database(db_config)
-        log_service_start("数据库服务")
-        logging.info("✅ 数据库已初始化")
+            logging.info("⚠️ AI配置未完成，需要通过向导配置")
+        log_service_start("本地存储服务")
     except Exception as e:
-        logging.error(f"❌ 数据库初始化失败: {e}")
-        import traceback
-        logging.error(traceback.format_exc())
+        logging.warning(f"⚠️ 本地配置检查失败: {e}")
     
     # 🆕 启动内存监控服务
     try:
@@ -524,12 +533,9 @@ async def shutdown_event():
     except Exception as e:
         logging.error(f"❌ WebSocket 服务停止失败: {e}")
     
-    try:
-        close_database()
-        log_service_stop("数据库服务")
-        logging.info("✅ 数据库连接已关闭")
-    except Exception as e:
-        logging.error(f"❌ 数据库关闭失败: {e}")
+    # 本地化模式：无需关闭数据库
+    log_service_stop("本地存储服务")
+    logging.info("✅ 本地存储服务已停止")
     logging.info("✅ FastAPI服务已关闭")
 
 

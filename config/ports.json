@@ -1,0 +1,30 @@
+{
+  "description": "动态端口配置文件 - 前后端端口设置",
+  "version": "1.0.0",
+  "ports": {
+    "backend": {
+      "default": 11111,
+      "development": 11111,
+      "production": 5001,
+      "description": "后端API服务端口"
+    },
+    "frontend": {
+      "default": 10065,
+      "development": 10065,
+      "production": 10050,
+      "description": "前端开发服务器端口"
+    },
+    "websocket": {
+      "default": 11112,
+      "development": 11112,
+      "production": 9021,
+      "description": "WebSocket服务端口（如果独立）"
+    }
+  },
+  "environment": "development",
+  "notes": [
+    "修改端口后需要重启服务",
+    "确保端口未被其他应用占用",
+    "可通过环境变量 BACKEND_PORT 和 FRONTEND_PORT 覆盖"
+  ]
+}

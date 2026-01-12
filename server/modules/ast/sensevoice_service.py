@@ -86,9 +86,8 @@ class SenseVoiceService:
         self._device: str = "cpu"
         self._global_hotwords: set[str] = set()
         self._session_hotwords: Dict[str, set[str]] = {}
-        # 🔧 性能监控：内存和调用统计
+        # 性能统计（本地化模式：仅统计调用次数）
         self._call_count: int = 0
-        self._last_memory_check: float = 0.0
         
         # 🔒 并发控制：防止多音频流死锁
         self._model_lock = asyncio.Lock()  # 模型调用互斥锁
@@ -374,38 +373,9 @@ class SenseVoiceService:
     ) -> Dict[str, Any]:
         """使用锁保护的转写实现，防止模型并发调用冲突"""
         
-        # 🔧 性能监控：每20次调用检查一次内存（更频繁监控）
+        # 本地化模式：移除内存监控，简化性能统计
         self._call_count += 1
-        current_time = time.time()
         
-        if self._call_count % 20 == 0 or (current_time - self._last_memory_check > 60):  # 1分钟
-            self._last_memory_check = current_time
-            try:
-                import gc
-                import psutil  # pyright: ignore[reportMissingModuleSource]
-                process = psutil.Process()
-                memory_mb = process.memory_info().rss / 1024 / 1024
-                
-                # 更积极的内存管理策略
-                if memory_mb > 2000:  # 超过2GB开始垃圾回收
-                    gc.collect()
-                    
-                if memory_mb > 2500:  # 超过2.5GB发出警告
-                    self.logger.warning(
-                        f"⚠️ SenseVoice内存: {memory_mb:.0f}MB, 活跃请求: {self._active_requests}, "
-                        f"调用: {self._call_count}, 超时: {self._total_timeouts}, 错误: {self._total_errors}"
-                    )
-                    
-                    if memory_mb > 3000:  # 超过3GB，记录严重警告
-                        self.logger.error(f"❌ SenseVoice内存占用严重: {memory_mb:.0f}MB，建议重启服务")
-                elif self._call_count % 100 == 0:  # 每100次正常记录
-                    self.logger.debug(
-                        f"✅ SenseVoice运行正常: 内存{memory_mb:.0f}MB, 活跃{self._active_requests}, "
-                        f"调用{self._call_count}次"
-                    )
-            except Exception as e:
-                self.logger.debug(f"内存监控失败: {e}")
-
         loop = asyncio.get_event_loop()
 
         def _infer() -> Dict[str, Any]:

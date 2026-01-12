@@ -37,6 +37,19 @@ export default [
       'no-empty': ['error', { allowEmptyCatch: true }],
     },
   },
+  // Scripts directory (Node.js scripts)
+  {
+    files: ['scripts/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'script',
+      globals: globals.node,
+    },
+    rules: {
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'no-console': 'off',
+    },
+  },
   // Electron preload runs in a hybrid context (renderer-like + Node APIs)
   {
     files: ['electron/preload.js'],

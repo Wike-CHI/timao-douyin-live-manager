@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getServiceUrl } from '../../services/apiConfig';
 
 interface Provider {
   provider: string;
@@ -37,7 +38,7 @@ const AIGatewayPage: React.FC = () => {
   const [updateApiKey, setUpdateApiKey] = useState('');
   const [testMessage, setTestMessage] = useState('你好，请用一句话介绍你自己');
 
-  const API_BASE = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:11111'; // 默认端口改为 11111，可通过环境变量覆盖
+  const API_BASE = getServiceUrl('main');
 
   useEffect(() => {
     loadStatus();
