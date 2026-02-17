@@ -79,3 +79,7 @@ urllib3==2.0.7
 uvicorn[standard]>=0.23.0
 websocket-client>=1.6.1
 websockets>=11.0.2
+
+# ==================== AI Gateway 2.0 新增依赖 ====================
+# GLM-5 和 MiniMax 已通过 OpenAI SDK 兼容，无需额外依赖
+# 使用现有的 openai>=1.43.0 即可
