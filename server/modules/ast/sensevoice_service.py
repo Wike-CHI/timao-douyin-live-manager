@@ -100,7 +100,8 @@ class SenseVoiceService:
 
             def _load_model():
                 return sherpa_onnx.OfflineRecognizer.from_sense_voice(
-                    model=str(model_path),
+                    model=str(model_path / "model.onnx"),
+                    tokens=str(model_path / "tokens.txt"),
                     language=self.config.language,
                     use_itn=self.config.use_itn,
                 )
