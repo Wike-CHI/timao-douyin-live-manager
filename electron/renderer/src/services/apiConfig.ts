@@ -26,27 +26,55 @@ export interface ApiConfig {
   };
 }
 
+// 检测是否在打包的 Electron 应用中运行
+const isElectronPackaged = (): boolean => {
+  // 通过 electronAPI 检测（通过 preload 注入）
+  if (typeof window !== 'undefined' && (window as any).electronAPI) {
+    try {
+      // 尝试获取 app.isPackaged 状态
+      const api = (window as any).electronAPI;
+      if (api.getIsDev) {
+        return !api.getIsDev();
+      }
+      return true; // 如果能获取到 electronAPI，认为是打包环境
+    } catch (e) {
+      return false;
+    }
+  }
+  return false;
+};
+
+// 检测是否在 Electron 环境中运行
+const isElectronApp = (): boolean => {
+  return typeof window !== 'undefined' && !!(window as any).electronAPI;
+};
+
+// 获取本地后端 URL（打包后使用）
+const getLocalBackendUrl = (): string => {
+  return 'http://127.0.0.1:11111';
+};
+
 // 默认服务配置
 // 🔧 硬编码端口（演示测试）- 后端 11111，前端 10200
 const DEFAULT_CONFIG: ApiConfig = {
   services: {
     main: {
       name: 'FastAPI主服务',
-      baseUrl: 'http://127.0.0.1:11111', // 🔧 硬编码后端端口 11111
+      baseUrl: isElectronPackaged() ? getLocalBackendUrl() : 'http://127.0.0.1:11111',
       healthEndpoint: '/health',
       timeout: 30000, // 30秒超时（本地开发可能较慢）
       retryCount: 3
     },
     streamcap: {
       name: 'StreamCap服务',
-      baseUrl: 'http://127.0.0.1:11111', // 🔧 StreamCap 已集成到主服务
+      baseUrl: isElectronPackaged() ? getLocalBackendUrl() : 'http://127.0.0.1:11111',
       healthEndpoint: '/health',
       timeout: 30000,
       retryCount: 3
     },
     douyin: {
       name: 'Douyin服务',
-      baseUrl: 'http://127.0.0.1:11111', // 🔧 Douyin 已集成到主服务
+      baseUrl: isElectronPackaged() ? getLocalBackendUrl() : 'http://127.0.0.1:11111',
       healthEndpoint: '/health',
       timeout: 30000,
       retryCount: 3
@@ -101,7 +129,10 @@ class ApiConfigManager {
       healthCheck: DEFAULT_CONFIG.healthCheck
     };
 
-    console.log('🔧 API配置已加载:', envConfig);
+    console.log('[API] 配置已加载:', {
+      env: isElectronPackaged() ? '打包应用' : '开发环境',
+      mainUrl: envConfig.services.main.baseUrl
+    });
     return envConfig;
   }
 
@@ -352,11 +383,14 @@ class ApiConfigManager {
 export const apiConfig = new ApiConfigManager();
 
 // 导出便捷方法
-export const getServiceUrl = (serviceName: keyof ApiConfig['services']) => 
+export const getServiceUrl = (serviceName: keyof ApiConfig['services']) =>
   apiConfig.getServiceUrl(serviceName);
 
-export const buildApiUrl = (serviceName: keyof ApiConfig['services'], path: string) => 
+export const buildApiUrl = (serviceName: keyof ApiConfig['services'], path: string) =>
   apiConfig.buildUrl(serviceName, path);
+
+// 导出环境检测函数
+export { isElectronApp, isElectronPackaged, getLocalBackendUrl };
 
 export const requestWithRetry = <T>(
   serviceName: keyof ApiConfig['services'],

@@ -7,11 +7,7 @@
     "buildResources": "assets"
   },
   "files": [
-    "electron/main.js",
-    "electron/preload.js",
-    "electron/renderer/dist/**/*",
-    "electron/package.json",
-    "package.json",
+    "electron/**/*",
     "!electron/renderer/src/**/*",
     "!electron/renderer/node_modules/**/*",
     "!electron/renderer/package.json",
@@ -29,7 +25,18 @@
     "!**/.vscode/**",
     "!**/.idea/**"
   ],
-  "extraResources": [],
+  "extraResources": [
+    {
+      "from": "backend_dist/",
+      "to": "backend",
+      "filter": ["*.exe", "*.dll"]
+    },
+    {
+      "from": "electron/python-transcriber/dist/",
+      "to": "python-transcriber",
+      "filter": ["transcriber_service.exe"]
+    }
+  ],
   "win": {
     "target": [
       {

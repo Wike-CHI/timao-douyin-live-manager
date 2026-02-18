@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
@@ -45,6 +46,180 @@ let mainWindow;
 // 日志目录
 const logsDir = path.join(__dirname, '..', 'logs');
 try { if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true }); } catch {}
+
+// 后端服务配置
+const BACKEND_PORT = 11111;
+const BACKEND_HOST = '127.0.0.1';
+let backendProcess = null;
+
+// 获取后端可执行文件路径
+function getBackendPath() {
+    if (app.isPackaged) {
+        return path.join(process.resourcesPath, 'backend', 'timao_backend_service.exe');
+    } else {
+        // 开发环境使用 Python
+        const venvPython = path.join(__dirname, '..', '..', '.venv', 'Scripts', 'python.exe');
+        if (fs.existsSync(venvPython)) {
+            return venvPython;
+        }
+        return 'python';
+    }
+}
+
+// 等待服务健康检查
+async function waitForHealthCheck(url, maxAttempts = 60, interval = 2000) {
+    const http = require('http');
+    return new Promise((resolve, reject) => {
+        let attempts = 0;
+        const check = () => {
+            attempts++;
+            const req = http.get(url, (res) => {
+                if (res.statusCode === 200) {
+                    resolve(true);
+                } else {
+                    if (attempts < maxAttempts) {
+                        setTimeout(check, interval);
+                    } else {
+                        resolve(false);
+                    }
+                }
+            });
+            req.on('error', () => {
+                if (attempts < maxAttempts) {
+                    setTimeout(check, interval);
+                } else {
+                    resolve(false);
+                }
+            });
+            req.setTimeout(5000, () => {
+                req.destroy();
+                if (attempts < maxAttempts) {
+                    setTimeout(check, interval);
+                } else {
+                    resolve(false);
+                }
+            });
+        };
+        check();
+    });
+}
+
+// 启动后端服务
+async function startBackend() {
+    if (backendProcess) {
+        console.log('[electron] 后端服务已在运行中');
+        return true;
+    }
+
+    const backendPath = getBackendPath();
+    console.log(`[electron] 后端服务路径: ${backendPath}`);
+
+    // 检查可执行文件是否存在
+    if (app.isPackaged && !fs.existsSync(backendPath)) {
+        console.error('[electron] 后端可执行文件不存在:', backendPath);
+        return false;
+    }
+
+    try {
+        const backendDir = app.isPackaged
+            ? path.dirname(backendPath)
+            : path.join(__dirname, '..', '..');
+
+        console.log('[electron] 启动后端服务...');
+
+        const spawnOptions = {
+            cwd: backendDir,
+            stdio: ['ignore', 'pipe', 'pipe'],
+            detached: false,
+            env: {
+                ...process.env,
+                PYTHONIOENCODING: 'utf-8',
+                PYTHONUTF8: '1',
+                BACKEND_PORT: BACKEND_PORT.toString()
+            }
+        };
+
+        if (app.isPackaged) {
+            // 生产环境：使用打包的可执行文件
+            backendProcess = spawn(backendPath, [], spawnOptions);
+        } else {
+            // 开发环境：使用 Python 运行 uvicorn
+            backendProcess = spawn(backendPath, [
+                '-m', 'uvicorn', 'app.main:app',
+                '--host', BACKEND_HOST,
+                '--port', BACKEND_PORT.toString()
+            ], spawnOptions);
+        }
+
+        // 监听输出
+        if (backendProcess.stdout) {
+            backendProcess.stdout.on('data', (data) => {
+                console.log(`[backend] ${data.toString().trim()}`);
+            });
+        }
+
+        if (backendProcess.stderr) {
+            backendProcess.stderr.on('data', (data) => {
+                console.error(`[backend] ${data.toString().trim()}`);
+            });
+        }
+
+        // 监听退出
+        backendProcess.on('exit', (code, signal) => {
+            console.log(`[electron] 后端服务已退出 (code=${code}, signal=${signal})`);
+            backendProcess = null;
+        });
+
+        backendProcess.on('error', (err) => {
+            console.error('[electron] 后端服务启动失败:', err);
+            backendProcess = null;
+        });
+
+        // 等待健康检查
+        console.log('[electron] 等待后端服务启动...');
+        const ready = await waitForHealthCheck(`http://${BACKEND_HOST}:${BACKEND_PORT}/health`);
+
+        if (ready) {
+            console.log('[electron] 后端服务启动成功');
+            return true;
+        } else {
+            console.warn('[electron] 后端服务健康检查未通过');
+            return false;
+        }
+
+    } catch (error) {
+        console.error('[electron] 启动后端服务失败:', error);
+        return false;
+    }
+}
+
+// 停止后端服务
+function stopBackend() {
+    if (backendProcess) {
+        console.log('[electron] 正在停止后端服务...');
+
+        try {
+            if (process.platform === 'win32') {
+                spawn('taskkill', ['/pid', backendProcess.pid.toString(), '/f', '/t']);
+            } else {
+                backendProcess.kill('SIGTERM');
+            }
+
+            // 设置超时强制终止
+            setTimeout(() => {
+                if (backendProcess && !backendProcess.killed) {
+                    console.warn('[electron] 强制终止后端服务');
+                    backendProcess.kill('SIGKILL');
+                }
+            }, 5000);
+
+        } catch (error) {
+            console.error('[electron] 停止后端服务失败:', error);
+        }
+
+        backendProcess = null;
+    }
+}
 
 /**
  * 解析生产环境的 index.html 路径
@@ -111,8 +286,11 @@ function createWindow() {
 app.on('before-quit', async (event) => {
     console.log('[electron] App is about to quit. Cleaning up resources...');
     
-    // 🆕 关闭悬浮窗
+    // 关闭悬浮窗
     closeFloatingWindow();
+    
+    // 停止后端服务
+    stopBackend();
     
     // 通知所有渲染进程清理资源
     const allWindows = BrowserWindow.getAllWindows();
@@ -161,7 +339,18 @@ app.on('activate', function () {
  * 应用准备就绪时创建窗口
  */
 app.whenReady().then(async () => {
-    // 🆕 启动 Python 转写服务（如果可用）
+    // 启动后端服务（仅在生产环境，打包后）
+    if (app.isPackaged) {
+        console.log('[electron] 检测到打包环境，尝试启动后端服务...');
+        const backendStarted = await startBackend();
+        if (!backendStarted) {
+            console.warn('[electron] 后端服务启动失败，应用将继续运行但部分功能可能不可用');
+        }
+    } else {
+        console.log('[electron] 开发模式，跳过后端服务启动（请手动启动后端）');
+    }
+    
+    // 启动 Python 转写服务（如果可用）
     try {
         // 动态加载 Python 转写服务（TypeScript 编译后的 JS）
         const pythonTranscriberPath = path.join(__dirname, 'services', 'pythonTranscriber.js');
@@ -236,6 +425,28 @@ app.whenReady().then(async () => {
             isDev: isDev,
             platform: process.platform
         };
+    });
+    
+    // 后端服务状态
+    ipcMain.handle('get-backend-status', async () => {
+        return {
+            running: backendProcess !== null && !backendProcess.killed,
+            port: BACKEND_PORT,
+            host: BACKEND_HOST,
+            url: `http://${BACKEND_HOST}:${BACKEND_PORT}`
+        };
+    });
+    
+    // 启动后端服务
+    ipcMain.handle('start-backend', async () => {
+        const success = await startBackend();
+        return { success };
+    });
+    
+    // 停止后端服务
+    ipcMain.handle('stop-backend', async () => {
+        stopBackend();
+        return { success: true };
     });
     
     // ========== 🆕 悬浮窗相关IPC处理器 ==========

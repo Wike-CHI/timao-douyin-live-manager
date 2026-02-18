@@ -1,0 +1,7 @@
+Requirement already satisfied: pyinstaller in d:\gsxm\timao-douyin-live-manager\.venv\lib\site-packages (6.16.0)
+Requirement already satisfied: altgraph in d:\gsxm\timao-douyin-live-manager\.venv\lib\site-packages (from pyinstaller) (0.17.4)
+Requirement already satisfied: packaging>=22.0 in d:\gsxm\timao-douyin-live-manager\.venv\lib\site-packages (from pyinstaller) (24.2)
+Requirement already satisfied: pefile!=2024.8.26,>=2022.5.30 in d:\gsxm\timao-douyin-live-manager\.venv\lib\site-packages (from pyinstaller) (2023.2.7)
+Requirement already satisfied: pyinstaller-hooks-contrib>=2025.8 in d:\gsxm\timao-douyin-live-manager\.venv\lib\site-packages (from pyinstaller) (2025.9)
+Requirement already satisfied: pywin32-ctypes>=0.2.1 in d:\gsxm\timao-douyin-live-manager\.venv\lib\site-packages (from pyinstaller) (0.2.3)
+Requirement already satisfied: setuptools>=42.0.0 in d:\gsxm\timao-douyin-live-manager\.venv\lib\site-packages (from pyinstaller) (80.9.0)

@@ -47,6 +47,7 @@
     "package:windows": "scripts\\构建与启动\\package-windows.bat",
     "package:windows:ps": "powershell -ExecutionPolicy Bypass -File scripts\\构建与启动\\package-windows.ps1",
     "package:windows:quick": "scripts\\构建与启动\\package-windows-quick.bat",
+    "package:full": "python scripts\\构建与启动\\build-electron-full.py",
     "setup:local": "npm install && pip install -r requirements.txt",
     "setup:dev": "npm ci && cd electron/renderer && npm ci && cd ../.. && pip install -r requirements.txt",
     "health:check": "curl http://127.0.0.1:11111/health || echo \"Backend not running\"",
