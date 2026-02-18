@@ -129,7 +129,14 @@ class AIGatewayV2:
             default_model: 默认模型
             models: 支持的模型列表
             enabled: 是否启用
+
+        Raises:
+            ValueError: API密钥为空
         """
+        # Validate API key
+        if not api_key or not api_key.strip():
+            raise ValueError(f"API key cannot be empty for provider: {provider}")
+
         provider = provider.lower()
 
         config = ProviderConfig(
@@ -182,6 +189,43 @@ class AIGatewayV2:
         self.current_model = model or config.default_model
 
         logger.info(f"已切换至: {provider} / {self.current_model}")
+
+    def smart_route(self, task_type: str, requirements: Dict[str, Any]) -> str:
+        """智能路由 - 只在GLM-5和MiniMax之间选择
+
+        Args:
+            task_type: 任务类型（live_analysis/style_profile等）
+            requirements: 任务需求（latency/quality等）
+
+        Returns:
+            格式为 "provider:model" 的字符串
+        """
+        # 实时分析任务 → MiniMax highspeed（100 TPS）
+        if task_type == "live_analysis":
+            latency = requirements.get("latency", "normal")
+            if latency == "fast":
+                return "minimax:MiniMax-M2.5-highspeed"
+            else:
+                return "minimax:MiniMax-M2.5"
+
+        # Agent工作流任务 → GLM-5（专为Agent打造）
+        elif task_type in ["style_profile", "script_generation", "topic_generation"]:
+            return "glm:glm-5"
+
+        # 反思和推理任务 → GLM-5（深度思考）
+        elif task_type == "reflection":
+            return "glm:glm-5"
+
+        # 复盘总结 → MiniMax M2.5（大上下文204K）
+        elif task_type == "live_review":
+            return "minimax:MiniMax-M2.5"
+
+        # 快速摘要 → MiniMax highspeed
+        elif task_type == "chat_focus":
+            return "minimax:MiniMax-M2.5-highspeed"
+
+        # 默认：MiniMax highspeed（性价比最高）
+        return "minimax:MiniMax-M2.5-highspeed"
 
 
 # 便捷函数
