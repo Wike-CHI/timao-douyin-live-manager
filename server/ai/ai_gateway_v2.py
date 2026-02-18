@@ -47,8 +47,19 @@ class AIGatewayV2:
 
     _instance: Optional[AIGatewayV2] = None
 
+    def __new__(cls):
+        """确保单例模式"""
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+
     def __init__(self):
         """初始化网关"""
+        if self._initialized:
+            return
+        self._initialized = True
+
         self.providers: Dict[str, ProviderConfig] = {}
         self.clients: Dict[str, OpenAI] = {}
         self.current_provider: Optional[str] = None
@@ -63,6 +74,11 @@ class AIGatewayV2:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
+
+    @classmethod
+    def _reset_instance(cls) -> None:
+        """重置单例实例（仅供测试使用）"""
+        cls._instance = None
 
     def _load_from_env(self) -> None:
         """从环境变量加载配置"""
