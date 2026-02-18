@@ -252,3 +252,44 @@ def setup_test_env():
     # Cleanup
     if "TESTING" in os.environ:
         del os.environ["TESTING"]
+
+
+# ==================== SenseVoice ONNX 测试夹具 ====================
+
+@pytest.fixture
+def sample_rate():
+    """采样率"""
+    return 16000
+
+
+@pytest.fixture
+def test_audio_silence(sample_rate):
+    """静音音频 (1秒, 16kHz)"""
+    import numpy as np
+    duration = 1.0
+    samples = int(sample_rate * duration)
+    # 全零的 16-bit PCM
+    audio = np.zeros(samples, dtype=np.int16)
+    return audio.tobytes()
+
+
+@pytest.fixture
+def test_audio_tone(sample_rate):
+    """正弦波音频 (1秒, 440Hz)"""
+    import numpy as np
+    duration = 1.0
+    t = np.linspace(0, duration, int(sample_rate * duration))
+    wave = np.sin(2 * np.pi * 440 * t)
+    audio = (wave * 32767 * 0.5).astype(np.int16)
+    return audio.tobytes()
+
+
+@pytest.fixture
+def mock_model_dir(tmp_path):
+    """模拟模型目录"""
+    model_dir = tmp_path / "sherpa-onnx-sense-voice"
+    model_dir.mkdir()
+    # 创建必要的模型文件
+    (model_dir / "model.onnx").touch()
+    (model_dir / "tokens.txt").write_text("你好\n世界\n", encoding="utf-8")
+    return str(model_dir)
