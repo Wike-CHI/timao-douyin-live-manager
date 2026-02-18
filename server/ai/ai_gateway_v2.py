@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import os
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Generator, Iterator, List, Optional
 from dataclasses import dataclass, field
 from enum import Enum
+
+from server.ai.thinking_mode import ThinkingMode
 
 try:
     from openai import OpenAI
@@ -226,6 +228,129 @@ class AIGatewayV2:
 
         # 默认：MiniMax highspeed（性价比最高）
         return "minimax:MiniMax-M2.5-highspeed"
+
+    def chat_completion(
+        self,
+        messages: List[Dict[str, str]],
+        model: Optional[str] = None,
+        enable_thinking: bool = False,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+        **kwargs
+    ) -> Dict[str, str]:
+        """执行聊天补全请求
+
+        Args:
+            messages: 对话消息列表
+            model: 模型名称（为空则使用当前模型）
+            enable_thinking: 是否启用思考模式
+            temperature: 温度参数
+            max_tokens: 最大token数
+            **kwargs: 其他传递给API的参数
+
+        Returns:
+            包含 content 和可选 reasoning 的字典
+
+        Raises:
+            ValueError: 未选择服务商或客户端不可用
+        """
+        if not self.current_provider:
+            raise ValueError("未选择服务商，请先调用 switch_provider()")
+
+        client = self.clients.get(self.current_provider)
+        if not client:
+            raise ValueError(f"服务商 {self.current_provider} 的客户端不可用")
+
+        use_model = model or self.current_model or "unknown"
+
+        # 准备API调用参数
+        api_kwargs = {
+            "model": use_model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            **kwargs
+        }
+
+        # 启用思考模式
+        if enable_thinking:
+            if self.current_provider == "glm":
+                api_kwargs = ThinkingMode.enable_for_glm5(api_kwargs)
+            elif self.current_provider == "minimax":
+                api_kwargs = ThinkingMode.enable_for_minimax(api_kwargs)
+
+        # 调用API
+        try:
+            response = client.chat.completions.create(**api_kwargs)
+        except Exception as e:
+            logger.error(f"API调用失败: provider={self.current_provider}, model={use_model}, error={e}")
+            raise RuntimeError(f"AI服务调用失败 ({self.current_provider}/{use_model}): {e}") from e
+
+        # 解析响应
+        if enable_thinking:
+            return ThinkingMode.parse_thinking_response(response, self.current_provider)
+        else:
+            if not response.choices:
+                raise ValueError("API返回空响应")
+            return {
+                "content": response.choices[0].message.content,
+                "reasoning": ""
+            }
+
+    def chat_completion_stream(
+        self,
+        messages: List[Dict[str, str]],
+        model: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+        **kwargs
+    ) -> Generator[str, None, None]:
+        """执行流式聊天补全请求
+
+        Args:
+            messages: 对话消息列表
+            model: 模型名称（为空则使用当前模型）
+            temperature: 温度参数
+            max_tokens: 最大token数
+            **kwargs: 其他传递给API的参数
+
+        Yields:
+            每个响应块的文本内容
+
+        Raises:
+            ValueError: 未选择服务商或客户端不可用
+        """
+        if not self.current_provider:
+            raise ValueError("未选择服务商，请先调用 switch_provider()")
+
+        client = self.clients.get(self.current_provider)
+        if not client:
+            raise ValueError(f"服务商 {self.current_provider} 的客户端不可用")
+
+        use_model = model or self.current_model or "unknown"
+
+        # 准备API调用参数
+        api_kwargs = {
+            "model": use_model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": True,  # 启用流式输出
+            **kwargs
+        }
+
+        # 调用API并迭代流式响应
+        try:
+            stream = client.chat.completions.create(**api_kwargs)
+            for chunk in stream:
+                if chunk.choices and len(chunk.choices) > 0:
+                    delta = chunk.choices[0].delta
+                    content = getattr(delta, 'content', None)
+                    if content:
+                        yield content
+        except Exception as e:
+            logger.error(f"流式API调用失败: provider={self.current_provider}, model={use_model}, error={e}")
+            raise RuntimeError(f"AI流式服务调用失败 ({self.current_provider}/{use_model}): {e}") from e
 
 
 # 便捷函数
