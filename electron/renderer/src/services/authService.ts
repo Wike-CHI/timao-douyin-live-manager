@@ -11,14 +11,22 @@ class AuthService {
    */
   private isTokenExpiringSoon(token: string): boolean {
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
+      // 检查 token 是否为有效的 JWT 格式
+      if (!token || typeof token !== 'string') {
+        return true;
+      }
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        return true; // 不是有效的 JWT 格式
+      }
+      const payload = JSON.parse(atob(parts[1]));
       const exp = payload.exp * 1000; // 转换为毫秒
       const now = Date.now();
       const tenMinutes = 10 * 60 * 1000; // 从5分钟延长到10分钟
-      
+
       return exp - now < tenMinutes;
     } catch (error) {
-      console.error('Error parsing token:', error);
+      // 静默处理错误，不打印日志
       return true; // 解析失败时认为需要刷新
     }
   }
@@ -28,11 +36,19 @@ class AuthService {
    */
   private isTokenExpired(token: string): boolean {
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
+      // 检查 token 是否为有效的 JWT 格式
+      if (!token || typeof token !== 'string') {
+        return true;
+      }
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        return true; // 不是有效的 JWT 格式
+      }
+      const payload = JSON.parse(atob(parts[1]));
       const exp = payload.exp * 1000;
       return Date.now() >= exp;
     } catch (error) {
-      console.error('Error parsing token:', error);
+      // 静默处理错误，不打印日志
       return true;
     }
   }

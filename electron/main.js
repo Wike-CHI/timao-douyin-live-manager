@@ -426,6 +426,29 @@ app.whenReady().then(async () => {
             platform: process.platform
         };
     });
+
+    // 运行时信息
+    ipcMain.handle('get-runtime-info', async () => {
+        return {
+            success: true,
+            info: {
+                env: {
+                    NODE_ENV: process.env.NODE_ENV,
+                    LIVE_FORCE_DEVICE: process.env.LIVE_FORCE_DEVICE || 'auto',
+                    SENSEVOICE_DEVICE: process.env.SENSEVOICE_DEVICE,
+                    BACKEND_PORT: process.env.BACKEND_PORT,
+                },
+                versions: {
+                    node: process.versions.node,
+                    electron: process.versions.electron,
+                    chrome: process.versions.chrome,
+                },
+                platform: process.platform,
+                arch: process.arch,
+                cwd: process.cwd(),
+            }
+        };
+    });
     
     // 后端服务状态
     ipcMain.handle('get-backend-status', async () => {

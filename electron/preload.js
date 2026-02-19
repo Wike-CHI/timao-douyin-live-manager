@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getLogsPath: () => ipcRenderer.invoke('get-logs-path'),
   getIsDev: () => ipcRenderer.invoke('get-is-dev'),
   getAppInfo: () => ipcRenderer.invoke('get-app-info'),
+  getRuntimeInfo: () => ipcRenderer.invoke('get-runtime-info'),
   
   // 系统信息
   platform: process.platform,
