@@ -7,6 +7,7 @@
 """
 import logging
 import os
+import threading
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -18,6 +19,17 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "SQLiteDatabaseManager",
+    "SQLiteConfig",
+    "get_sqlite_manager",
+    "close_sqlite",
+]
+
+# PRAGMA允许的值
+ALLOWED_SYNCHRONOUS = {"OFF", "NORMAL", "FULL"}
+ALLOWED_TEMP_STORE = {"FILE", "MEMORY"}
 
 
 @dataclass
@@ -34,6 +46,13 @@ class SQLiteConfig:
     # 连接池（SQLite单连接模式）
     pool_size: int = 1
     max_overflow: int = 0
+
+    def __post_init__(self):
+        """验证配置值"""
+        if self.synchronous.upper() not in ALLOWED_SYNCHRONOUS:
+            raise ValueError(f"synchronous must be one of {ALLOWED_SYNCHRONOUS}")
+        if self.temp_store.upper() not in ALLOWED_TEMP_STORE:
+            raise ValueError(f"temp_store must be one of {ALLOWED_TEMP_STORE}")
 
 
 class SQLiteDatabaseManager:
@@ -217,16 +236,19 @@ class SQLiteDatabaseManager:
         logger.info("✅ SQLite数据库连接已关闭")
 
 
-# 全局实例
+# 全局实例（线程安全）
 _db_manager: Optional[SQLiteDatabaseManager] = None
+_db_lock = threading.Lock()
 
 
 def get_sqlite_manager() -> SQLiteDatabaseManager:
-    """获取SQLite管理器实例"""
+    """获取SQLite管理器实例（线程安全）"""
     global _db_manager
     if _db_manager is None:
-        _db_manager = SQLiteDatabaseManager()
-        _db_manager.initialize()
+        with _db_lock:
+            if _db_manager is None:  # Double-check locking
+                _db_manager = SQLiteDatabaseManager()
+                _db_manager.initialize()
     return _db_manager
 
 

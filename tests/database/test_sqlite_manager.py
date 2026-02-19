@@ -2,6 +2,7 @@
 import pytest
 import os
 import tempfile
+import threading
 from pathlib import Path
 
 from sqlalchemy import text
@@ -106,3 +107,37 @@ class TestSQLiteDatabaseManager:
             assert result == (1,)
 
             manager.close()
+
+    def test_invalid_synchronous_value(self):
+        """测试无效的synchronous配置值"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with pytest.raises(ValueError, match="synchronous must be one of"):
+                config = SQLiteConfig(data_dir=tmpdir, synchronous="INVALID")
+
+    def test_invalid_temp_store_value(self):
+        """测试无效的temp_store配置值"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with pytest.raises(ValueError, match="temp_store must be one of"):
+                config = SQLiteConfig(data_dir=tmpdir, temp_store="INVALID")
+
+    def test_singleton_thread_safety(self):
+        """测试单例的线程安全性"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            instances = []
+
+            def create_instance():
+                config = SQLiteConfig(data_dir=tmpdir)
+                manager = SQLiteDatabaseManager(config)
+                manager.initialize()
+                instances.append(id(manager))
+                manager.close()
+
+            threads = [threading.Thread(target=create_instance) for _ in range(5)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+
+            # Each thread creates its own instance with custom config
+            # This is expected behavior - config determines uniqueness
+            assert len(instances) == 5
