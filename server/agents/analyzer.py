@@ -18,6 +18,8 @@ class AnalyzerAgent(BaseAgent):
             enable_thinking=False,  # 实时分析不需要思考过程
         )
         self.gateway = get_gateway()
+        # 在初始化时切换到正确的provider，避免每次run都切换
+        self.gateway.switch_provider("minimax", "MiniMax-M2.5-highspeed")
 
     def run(self, state: Dict[str, Any]) -> AgentResult:
         """执行实时分析"""
@@ -29,9 +31,7 @@ class AnalyzerAgent(BaseAgent):
         prompt = self._build_prompt(transcript, chat_signals, vibe)
 
         try:
-            # 切换到MiniMax高速模型
-            self.gateway.switch_provider("minimax", "MiniMax-M2.5-highspeed")
-
+            # provider已在__init__中切换，此处直接调用
             result = self.gateway.chat_completion(
                 messages=[
                     {"role": "system", "content": self._get_system_prompt()},
@@ -88,20 +88,3 @@ class AnalyzerAgent(BaseAgent):
 氛围状态：{vibe.get('level', 'neutral')} ({vibe.get('score', 0)}分)
 
 请提供分析。"""
-
-    def _call_ai(self, prompt: str) -> dict:
-        """调用AI进行分析（用于测试mock）"""
-        self.gateway.switch_provider("minimax", "MiniMax-M2.5-highspeed")
-        result = self.gateway.chat_completion(
-            messages=[
-                {"role": "system", "content": self._get_system_prompt()},
-                {"role": "user", "content": prompt},
-            ],
-            enable_thinking=False,
-            temperature=0.7,
-            max_tokens=1024,
-        )
-        return {
-            "analysis": result.get("content", ""),
-            "reasoning": result.get("reasoning", ""),
-        }
