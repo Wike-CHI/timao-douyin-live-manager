@@ -161,8 +161,11 @@ class LogConfig:
 class DatabaseConfig:
     """数据库配置"""
     # 数据库类型
-    db_type: str = "mysql"  # 仅支持mysql
-    
+    db_type: str = "mysql"  # 支持 'mysql' 或 'sqlite'
+
+    # SQLite配置
+    sqlite_data_dir: str = "data"
+
     # MySQL配置 - 优先使用环境变量，支持本地和RDS
     mysql_host: str = os.getenv("RDS_HOST", "localhost")
     mysql_port: int = int(os.getenv("RDS_PORT", "3306"))
@@ -242,6 +245,25 @@ Redis缓存配置"""
 
 
 @dataclass
+class PerformanceConfig:
+    """性能优化配置"""
+    # 内存池
+    audio_buffer_pool_enabled: bool = True
+    audio_buffer_pool_size: int = 50
+    audio_buffer_size: int = 25600  # 1.6s * 16kHz
+
+    # 异步任务
+    async_task_enabled: bool = True
+    max_concurrent_tasks: int = 10
+
+    # GC 优化
+    gc_optimization_enabled: bool = True
+    gc_threshold_0: int = 2000
+    gc_threshold_1: int = 20
+    gc_threshold_2: int = 20
+
+
+@dataclass
 class AppConfig:
     """应用总配置"""
     server: ServerConfig = field(default_factory=ServerConfig)
@@ -252,6 +274,7 @@ class AppConfig:
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     security: SecurityConfig = field(default_factory=SecurityConfig)
     redis: RedisConfig = field(default_factory=RedisConfig)
+    performance: PerformanceConfig = field(default_factory=PerformanceConfig)
     
     # 应用信息
     app_name: str = "提猫直播助手"
@@ -290,11 +313,6 @@ class ConfigManager:
         
         # 从环境变量覆盖配置
         self._load_env_variables()
-        
-        # 强制使用MySQL（SQLite已完全移除）
-        if self.config.database.db_type != "mysql":
-            logging.warning(f"⚠️ 检测到 db_type={self.config.database.db_type}，已强制设置为 mysql（SQLite已移除）")
-            self.config.database.db_type = "mysql"
     
     def _load_config(self) -> AppConfig:
         """加载配置文件"""
@@ -341,6 +359,8 @@ class ConfigManager:
                     config_dict[key] = SecurityConfig(**value)
                 elif key == "redis" and isinstance(value, dict):
                     config_dict[key] = RedisConfig(**value)
+                elif key == "performance" and isinstance(value, dict):
+                    config_dict[key] = PerformanceConfig(**value)
                 else:
                     config_dict[key] = value
             
