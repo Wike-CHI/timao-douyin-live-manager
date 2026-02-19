@@ -9,7 +9,14 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AgentResult:
-    """Agent执行结果"""
+    """Agent执行结果数据类。
+
+    Attributes:
+        success: 执行是否成功
+        data: 返回的数据字典
+        error: 错误信息，成功时为None
+        metadata: 元数据字典，包含duration_ms、agent_name等信息
+    """
     success: bool = True
     data: Dict[str, Any] = field(default_factory=dict)
     error: Optional[str] = None
@@ -25,7 +32,14 @@ class AgentResult:
 
 
 class BaseAgent:
-    """Agent基类"""
+    """Agent基类，提供LangGraph节点调用接口。
+
+    Args:
+        name: Agent名称，用于日志和标识
+        provider: AI服务提供商 (如 "glm", "qwen" 等)
+        model: 使用的模型名称
+        enable_thinking: 是否启用思考模式
+    """
 
     def __init__(
         self,
@@ -57,9 +71,13 @@ class BaseAgent:
 
             return result.data
         except Exception as e:
-            logger.error(f"Agent {self.name} exception: {e}")
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            logger.exception(f"Agent {self.name} exception: {e}")
             return AgentResult(
                 success=False,
                 error=str(e),
-                metadata={"agent_name": self.name}
+                metadata={
+                    "agent_name": self.name,
+                    "duration_ms": round(duration_ms, 2)
+                }
             ).data
