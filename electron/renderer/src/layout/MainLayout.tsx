@@ -150,10 +150,13 @@ const MainLayout = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 flex">
       {/* 侧边栏 */}
-      <aside className="w-64 bg-white/80 backdrop-blur-sm border-r border-gray-100 flex flex-col p-5 h-screen sticky top-0">
+      <aside className="w-64 bg-white/80 backdrop-blur-sm border-r border-gray-100 flex flex-col p-5 h-screen sticky top-0 animate-slide-in-left">
         {/* Logo 区域 */}
-        <div className="text-xl font-semibold text-gray-900 mb-8 flex items-center gap-3 flex-shrink-0 px-2">
-          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-rose-100 to-orange-100 flex items-center justify-center">
+        <div className="text-xl font-semibold text-gray-900 mb-8 flex items-center gap-3 flex-shrink-0 px-2 group">
+          <div
+            className="h-9 w-9 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3"
+            style={{ background: 'rgba(var(--accent-rgb), 0.1)' }}
+          >
             <img src={logoUrl} alt="TalkingCat" className="h-7 w-7 rounded-lg" />
           </div>
           <span className="leading-none tracking-tight">提猫直播助手</span>
@@ -161,22 +164,27 @@ const MainLayout = () => {
 
         {/* 导航 */}
         <nav className="flex-1 space-y-1 overflow-y-auto pr-1">
-          {navItems.map((item) => {
+          {navItems.map((item, index) => {
             const Icon = item.icon;
+            const staggerDelay = `${0.1 + index * 0.05}s`;
             return (
               <NavLink
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 ${
+                  `flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 animate-fade-in-up ${
                     isActive
                       ? 'text-white shadow-md'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 hover:translate-x-1'
                   }`
                 }
-                style={({ isActive }) => isActive ? { background: 'var(--theme-gradient)' } : {}}
+                style={({ isActive }) => ({
+                  background: isActive ? 'var(--theme-gradient)' : 'transparent',
+                  animationDelay: staggerDelay,
+                  opacity: 0
+                })}
               >
-                <Icon size={18} />
+                <Icon size={18} className="transition-transform duration-200 group-hover:scale-110" />
                 <span className="font-medium">{item.label}</span>
               </NavLink>
             );
@@ -187,7 +195,7 @@ const MainLayout = () => {
         <div className="mt-4 pt-4 border-t border-gray-100 flex-shrink-0">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 transition-all duration-200"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 transition-all duration-200 hover:translate-y-[-1px]"
           >
             <LogOut size={18} />
             退出登录
@@ -198,7 +206,7 @@ const MainLayout = () => {
       {/* 主内容区 */}
       <main className="flex-1 flex flex-col pr-4">
         {/* 顶部栏 */}
-        <header className="flex justify-between items-center px-8 py-6">
+        <header className="flex justify-between items-center px-8 py-6 animate-fade-in-down" style={{ animationDelay: '0.2s', opacity: 0 }}>
           <div>
             <div className="text-lg font-semibold text-gray-900">
               欢迎回来，{(user as any)?.nickname || (user as any)?.email || '主播'}
@@ -208,8 +216,7 @@ const MainLayout = () => {
           <div className="flex items-center gap-4">
             <NavLink
               to="/pay/subscription"
-              className="px-5 py-2.5 text-white rounded-xl hover:shadow-lg transition-all duration-200 text-sm font-medium"
-              style={{ background: 'var(--theme-gradient)' }}
+              className="timao-primary-btn text-sm font-medium"
             >
               订阅服务
             </NavLink>
@@ -219,12 +226,12 @@ const MainLayout = () => {
 
         {/* 启动状态提示 */}
         {showBoot && (
-          <div className="mx-8 -mt-2 mb-4 rounded-xl border border-amber-200/50 bg-amber-50/80 backdrop-blur-sm px-4 py-3 text-sm text-amber-800 flex items-center justify-between">
+          <div className="mx-8 -mt-2 mb-4 rounded-xl border border-amber-200/50 bg-amber-50/80 backdrop-blur-sm px-4 py-3 text-sm text-amber-800 flex items-center justify-between animate-fade-in" style={{ animationDelay: '0.3s' }}>
             <div className="flex items-center gap-3">
               {(bootstrap?.running || wsOk === null) ? (
                 <Loader2 size={16} className="animate-spin" />
               ) : (
-                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
               )}
               <span>
                 {bootstrap?.running ? '正在准备运行所需资源…' : '资源检查完成'}
@@ -247,7 +254,7 @@ const MainLayout = () => {
         )}
 
         {/* 内容区域 */}
-        <section className="flex-1 px-8 pb-12">
+        <section className="flex-1 px-8 pb-12 animate-fade-in-up" style={{ animationDelay: '0.4s', opacity: 0 }}>
           <Outlet />
         </section>
       </main>

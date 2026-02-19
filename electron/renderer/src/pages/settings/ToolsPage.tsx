@@ -166,11 +166,14 @@ const ToolsPage: React.FC = () => {
   return (
     <div className="space-y-5">
       {/* 运行环境 */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm">
+      <div
+        className="timao-card bg-white/70 backdrop-blur-sm p-6 animate-fade-in-up"
+        style={{ animationDelay: '0.1s', opacity: 0 }}
+      >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold text-gray-900 flex items-center gap-3">
             <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              className="w-8 h-8 rounded-lg flex items-center justify-center transition-transform duration-300 hover:scale-110 hover:rotate-6"
               style={{ background: 'rgba(var(--accent-rgb), 0.1)' }}
             >
               <Monitor size={16} style={{ color: 'var(--accent-main)' }} />
@@ -237,11 +240,14 @@ const ToolsPage: React.FC = () => {
       </div>
 
       {/* 缓存清理 */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm">
+      <div
+        className="timao-card bg-white/70 backdrop-blur-sm p-6 animate-fade-in-up"
+        style={{ animationDelay: '0.2s', opacity: 0 }}
+      >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold text-gray-900 flex items-center gap-3">
             <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              className="w-8 h-8 rounded-lg flex items-center justify-center transition-transform duration-300 hover:scale-110 hover:rotate-6"
               style={{ background: 'rgba(var(--accent-rgb), 0.1)' }}
             >
               <Trash2 size={16} style={{ color: 'var(--accent-main)' }} />
@@ -305,11 +311,14 @@ const ToolsPage: React.FC = () => {
       </div>
 
       {/* 系统自检 */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm">
+      <div
+        className="timao-card bg-white/70 backdrop-blur-sm p-6 animate-fade-in-up"
+        style={{ animationDelay: '0.3s', opacity: 0 }}
+      >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold text-gray-900 flex items-center gap-3">
             <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              className="w-8 h-8 rounded-lg flex items-center justify-center transition-transform duration-300 hover:scale-110 hover:rotate-6"
               style={{ background: 'rgba(var(--accent-rgb), 0.1)' }}
             >
               <FlaskConical size={16} style={{ color: 'var(--accent-main)' }} />
@@ -337,11 +346,14 @@ const ToolsPage: React.FC = () => {
       </div>
 
       {/* 模型管理 */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm">
+      <div
+        className="timao-card bg-white/70 backdrop-blur-sm p-6 animate-fade-in-up"
+        style={{ animationDelay: '0.4s', opacity: 0 }}
+      >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold text-gray-900 flex items-center gap-3">
             <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              className="w-8 h-8 rounded-lg flex items-center justify-center transition-transform duration-300 hover:scale-110 hover:rotate-6"
               style={{ background: 'rgba(var(--accent-rgb), 0.1)' }}
             >
               <Brain size={16} style={{ color: 'var(--accent-main)' }} />
@@ -374,11 +386,14 @@ const ToolsPage: React.FC = () => {
       </div>
 
       {/* 热词管理 */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm">
+      <div
+        className="timao-card bg-white/70 backdrop-blur-sm p-6 animate-fade-in-up"
+        style={{ animationDelay: '0.5s', opacity: 0 }}
+      >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold text-gray-900 flex items-center gap-3">
             <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              className="w-8 h-8 rounded-lg flex items-center justify-center transition-transform duration-300 hover:scale-110 hover:rotate-6"
               style={{ background: 'rgba(var(--accent-rgb), 0.1)' }}
             >
               <Type size={16} style={{ color: 'var(--accent-main)' }} />
@@ -436,11 +451,12 @@ const ToolsPage: React.FC = () => {
 
       {message ? (
         <div
-          className="rounded-xl border px-4 py-3 text-sm"
+          className="rounded-xl border px-4 py-3 text-sm animate-fade-in-up"
           style={{
             background: 'var(--accent-light)',
             borderColor: 'rgba(var(--accent-rgb), 0.2)',
-            color: 'var(--accent-main)'
+            color: 'var(--accent-main)',
+            animationDelay: '0.1s'
           }}
         >
           {message}

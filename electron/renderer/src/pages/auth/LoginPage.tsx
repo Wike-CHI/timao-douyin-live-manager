@@ -110,7 +110,7 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl shadow-gray-200/50 p-10 border border-gray-100">
+    <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl shadow-gray-200/50 p-10 border border-gray-100 animate-scale-in">
       <h2 className="text-2xl font-semibold text-gray-900 mb-2">
         欢迎回来
       </h2>

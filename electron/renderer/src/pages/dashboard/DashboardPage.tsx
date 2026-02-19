@@ -69,7 +69,7 @@ const DashboardPage: React.FC = () => {
   ];
 
   return (
-    <div className="h-full bg-white/60 backdrop-blur-sm rounded-2xl p-8 border border-gray-100">
+    <div className="h-full bg-white/60 backdrop-blur-sm rounded-2xl p-8 border border-gray-100 animate-fade-in">
       <h1 className="text-2xl font-semibold text-gray-900 mb-2">
         功能概览
       </h1>
@@ -79,10 +79,21 @@ const DashboardPage: React.FC = () => {
 
       {/* 订阅提示 */}
       {!isPaid && !isSuperAdmin && (
-        <div className="mb-8 border rounded-2xl p-6" style={{ background: 'var(--accent-light)', borderColor: 'rgba(var(--accent-rgb), 0.2)' }}>
+        <div
+          className="mb-8 border rounded-2xl p-6 animate-fade-in-up"
+          style={{
+            background: 'var(--accent-light)',
+            borderColor: 'rgba(var(--accent-rgb), 0.2)',
+            animationDelay: '0.1s',
+            opacity: 0
+          }}
+        >
           <div className="flex items-start gap-4">
             <div className="flex-shrink-0">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'rgba(var(--accent-rgb), 0.1)' }}>
+              <div
+                className="w-12 h-12 rounded-xl flex items-center justify-center transition-transform duration-300 hover:scale-110"
+                style={{ background: 'rgba(var(--accent-rgb), 0.1)' }}
+              >
                 <Sparkles size={22} style={{ color: 'var(--accent-main)' }} />
               </div>
             </div>
@@ -95,8 +106,7 @@ const DashboardPage: React.FC = () => {
               </p>
               <button
                 onClick={() => navigate('/pay/subscription')}
-                className="px-5 py-2.5 text-white rounded-xl hover:shadow-lg transition-all duration-200 text-sm font-medium"
-                style={{ background: 'var(--theme-gradient)' }}
+                className="timao-primary-btn text-sm font-medium"
               >
                 查看订阅套餐
               </button>
@@ -109,23 +119,22 @@ const DashboardPage: React.FC = () => {
       <div className="grid gap-5 xl:grid-cols-3 md:grid-cols-2">
         {features.map((feature, index) => {
           const Icon = feature.icon;
+          const staggerClass = `stagger-${Math.min(index + 1, 5)}` as const;
           return (
             <div
               key={index}
-              className="bg-white rounded-2xl p-6 border border-gray-100 hover:shadow-lg transition-all duration-200 group cursor-default"
-              style={{ transitionProperty: 'border-color, box-shadow' }}
+              className={`bg-white rounded-2xl p-6 border border-gray-100 transition-all duration-300 group cursor-default hover:scale-[1.02] timao-card-interactive animate-fade-in-up ${staggerClass}`}
+              style={{ opacity: 0 }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = 'rgba(var(--accent-rgb), 0.2)';
-                e.currentTarget.style.boxShadow = '0 10px 40px rgba(var(--accent-rgb), 0.08)';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.borderColor = '';
-                e.currentTarget.style.boxShadow = '';
               }}
             >
               <h2 className="text-base font-semibold text-gray-900 flex items-center gap-3 mb-4">
                 <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
+                  className="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:rotate-3"
                   style={{ background: 'rgba(var(--accent-rgb), 0.1)' }}
                 >
                   <Icon size={18} style={{ color: 'var(--accent-main)' }} />
@@ -134,7 +143,7 @@ const DashboardPage: React.FC = () => {
               </h2>
               <ul className="space-y-2.5 text-sm text-gray-600 leading-relaxed">
                 {feature.items.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2">
+                  <li key={i} className="flex items-start gap-2 transition-all duration-200 hover:translate-x-1">
                     <span
                       className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0"
                       style={{ background: 'var(--accent-main)' }}
@@ -143,7 +152,7 @@ const DashboardPage: React.FC = () => {
                   </li>
                 ))}
               </ul>
-              <div className="mt-5 pt-4 border-t border-gray-50 text-xs text-gray-400">
+              <div className="mt-5 pt-4 border-t border-gray-50 text-xs text-gray-400 group-hover:text-gray-500 transition-colors">
                 入口：{feature.entry}
               </div>
             </div>
