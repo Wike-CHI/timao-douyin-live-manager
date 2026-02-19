@@ -40,6 +40,7 @@ class AudioBufferPool:
 
         # 统计信息
         self._total_created = 0
+        self._stats = {'hits': 0, 'misses': 0, 'total_allocs': 0}
 
         # 线程安全锁
         self._lock = threading.Lock()
@@ -56,11 +57,14 @@ class AudioBufferPool:
         with self._lock:
             if self._pool:
                 # 复用池中的缓冲区
+                self._stats['hits'] += 1
                 return self._pool.pop()
             else:
                 # 创建新缓冲区
                 buffer = np.zeros(self.buffer_size, dtype=np.float32)
                 self._total_created += 1
+                self._stats['misses'] += 1
+                self._stats['total_allocs'] += 1
                 return buffer
 
     def release(self, buffer: np.ndarray) -> None:
@@ -87,13 +91,20 @@ class AudioBufferPool:
 
         Returns:
             Dict 包含:
-                - buffer_size: 缓冲区大小
-                - max_pool_size: 池最大容量
-                - available_buffers: 当前可用缓冲区数量
-                - total_created: 总共创建的缓冲区数量
+                - hits: 从池中复用的次数
+                - misses: 新分配的次数
+                - hit_rate: 命中率（百分比字符串，如 "80.0%"）
+                - pool_size: 当前池中缓冲区数量
         """
         with self._lock:
+            total = self._stats['hits'] + self._stats['misses']
+            hit_rate = self._stats['hits'] / total if total > 0 else 0.0
             return {
+                'hits': self._stats['hits'],
+                'misses': self._stats['misses'],
+                'hit_rate': f"{hit_rate:.1%}",  # 如 "80.0%"
+                'pool_size': len(self._pool),
+                # 保留旧字段以保持向后兼容
                 'buffer_size': self.buffer_size,
                 'max_pool_size': self.max_pool_size,
                 'available_buffers': len(self._pool),

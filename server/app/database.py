@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from server.app.models import Base
 from server.config import DatabaseConfig
+from server.database.sqlite_manager import SQLiteDatabaseManager, SQLiteConfig
 
 logger = logging.getLogger(__name__)
 
@@ -22,16 +23,24 @@ class DatabaseManager:
         self._engine: Optional[Engine] = None
         self._session_factory: Optional[sessionmaker] = None
 
+        # SQLite管理器
+        self._sqlite_manager: Optional[SQLiteDatabaseManager] = None
+
     def initialize(self) -> None:
         """初始化数据库连接并建表"""
         self._engine = None
         self._session_factory = None
+        self._sqlite_manager = None
+        backend_name = "unknown"
 
-        if self.config.db_type == "mysql":
+        if self.config.db_type == "sqlite":
+            self._init_sqlite()
+            backend_name = "SQLite"
+        elif self.config.db_type == "mysql":
             try:
                 # 先尝试创建MySQL用户（如果启用）
                 self._ensure_mysql_user()
-                
+
                 # 然后初始化MySQL引擎（会创建数据库和表）
                 self._init_mysql_engine()
                 backend_name = "MYSQL"
@@ -49,10 +58,9 @@ class DatabaseManager:
                 logger.error("❌ 初始化 MySQL 失败：%s", exc)
                 raise
         else:
-            # 强制使用MySQL，不允许SQLite
-            logger.error("❌ 数据库配置错误：当前配置要求使用MySQL，但db_type不是'mysql'")
+            logger.error("❌ 数据库配置错误：不支持的数据库类型 '%s'", self.config.db_type)
             logger.error("   请检查配置文件 server/app/config/app.json 中的 database.db_type 设置")
-            raise ValueError("数据库类型必须是 'mysql'，SQLite 已禁用")
+            raise ValueError(f"不支持的数据库类型: {self.config.db_type}")
 
         # 创建会话工厂
         self._session_factory = sessionmaker(
@@ -62,6 +70,20 @@ class DatabaseManager:
         # 创建所有表
         self.create_tables()
         logger.info("✅ 数据库初始化完成，当前后端：%s", backend_name)
+
+    def _init_sqlite(self) -> None:
+        """初始化SQLite数据库"""
+        sqlite_config = SQLiteConfig(data_dir=self.config.sqlite_data_dir)
+        self._sqlite_manager = SQLiteDatabaseManager(sqlite_config)
+        self._sqlite_manager.initialize()
+
+        self._engine = self._sqlite_manager._main_engine
+        self._session_factory = self._sqlite_manager._main_session_factory
+
+        logger.info(
+            "✅ 使用 SQLite 数据库: %s/timao.db",
+            self.config.sqlite_data_dir
+        )
 
     def _init_mysql_engine(self) -> None:
         """初始化 MySQL 数据库引擎"""
@@ -249,6 +271,10 @@ class DatabaseManager:
     
     def close(self) -> None:
         """关闭数据库连接"""
+        if self._sqlite_manager:
+            self._sqlite_manager.close()
+            self._sqlite_manager = None
+
         if self._engine:
             self._engine.dispose()
             self._engine = None

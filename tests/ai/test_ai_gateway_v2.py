@@ -134,3 +134,76 @@ def test_switch_to_unknown_provider_raises_error():
 
     # Cleanup
     AIGatewayV2._reset_instance()
+
+
+def test_register_provider_with_empty_api_key_raises_error():
+    """测试注册时使用空API密钥抛出错误"""
+    AIGatewayV2._reset_instance()
+
+    gateway = AIGatewayV2()
+
+    # Test with empty string
+    with pytest.raises(ValueError, match="API key cannot be empty"):
+        gateway.register_provider(
+            provider="glm",
+            api_key="",
+            base_url="https://test.api",
+            default_model="glm-5"
+        )
+
+    # Test with whitespace-only string
+    with pytest.raises(ValueError, match="API key cannot be empty"):
+        gateway.register_provider(
+            provider="minimax",
+            api_key="   ",
+            base_url="https://test.api",
+            default_model="MiniMax-M2.5"
+        )
+
+    # Verify no providers were registered
+    assert "glm" not in gateway.providers
+    assert "minimax" not in gateway.providers
+
+    AIGatewayV2._reset_instance()
+
+
+def test_switch_to_disabled_provider_raises_error():
+    """测试切换到已禁用的服务商时抛出错误"""
+    AIGatewayV2._reset_instance()
+
+    gateway = AIGatewayV2()
+    gateway.register_provider(
+        provider="glm",
+        api_key="test-key",
+        base_url="https://test.api",
+        default_model="glm-5",
+        enabled=False  # Disabled
+    )
+
+    with pytest.raises(ValueError, match="服务商已禁用"):
+        gateway.switch_provider("glm")
+
+    AIGatewayV2._reset_instance()
+
+
+def test_register_provider_handles_client_creation_failure():
+    """测试处理客户端创建失败的情况"""
+    AIGatewayV2._reset_instance()
+
+    gateway = AIGatewayV2()
+
+    with patch('server.ai.ai_gateway_v2.OpenAI', side_effect=Exception("Invalid API key")):
+        gateway.register_provider(
+            provider="glm",
+            api_key="invalid-key",
+            base_url="https://test.api",
+            default_model="glm-5"
+        )
+
+        # Provider should be registered but disabled
+        assert "glm" in gateway.providers
+        assert gateway.providers["glm"].enabled is False
+        assert "glm" not in gateway.clients
+
+    AIGatewayV2._reset_instance()
+

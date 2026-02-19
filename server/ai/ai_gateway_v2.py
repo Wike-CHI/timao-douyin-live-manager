@@ -301,6 +301,7 @@ class AIGatewayV2:
         self,
         messages: List[Dict[str, str]],
         model: Optional[str] = None,
+        enable_thinking: bool = False,
         temperature: float = 0.7,
         max_tokens: int = 4096,
         **kwargs
@@ -310,6 +311,7 @@ class AIGatewayV2:
         Args:
             messages: 对话消息列表
             model: 模型名称（为空则使用当前模型）
+            enable_thinking: 是否启用思考模式（注意：流式模式下思考输出可能不完整）
             temperature: 温度参数
             max_tokens: 最大token数
             **kwargs: 其他传递给API的参数
@@ -319,6 +321,13 @@ class AIGatewayV2:
 
         Raises:
             ValueError: 未选择服务商或客户端不可用
+
+        Note:
+            思考模式在流式输出下的行为因服务商而异：
+            - GLM-5: reasoning_content 可能作为独立流式块输出
+            - MiniMax: reasoning_details 的流式支持有限
+
+            建议在需要完整思考过程时使用 chat_completion() 非流式方法。
         """
         if not self.current_provider:
             raise ValueError("未选择服务商，请先调用 switch_provider()")
@@ -338,6 +347,18 @@ class AIGatewayV2:
             "stream": True,  # 启用流式输出
             **kwargs
         }
+
+        # 启用思考模式（流式支持有限）
+        if enable_thinking:
+            logger.warning(
+                f"流式模式下的思考模式支持有限 (provider={self.current_provider})。"
+                "思考过程可能不会完整输出，建议使用 chat_completion() 非流式方法获取完整思考过程。"
+            )
+            # 仍然传递thinking参数给API，让服务商尽力支持
+            if self.current_provider == "glm":
+                api_kwargs = ThinkingMode.enable_for_glm5(api_kwargs)
+            elif self.current_provider == "minimax":
+                api_kwargs = ThinkingMode.enable_for_minimax(api_kwargs)
 
         # 调用API并迭代流式响应
         try:

@@ -190,3 +190,80 @@ def test_chat_completion_stream_handles_empty_choices(gateway_with_mocked_stream
 
     # Empty choices should be skipped
     assert chunks == ["Valid"]
+
+
+def test_chat_completion_stream_thinking_mode_warning(gateway_with_mocked_stream):
+    """测试启用思考模式时产生警告"""
+    gateway = gateway_with_mocked_stream
+    gateway.switch_provider("glm")
+
+    with patch('server.ai.ai_gateway_v2.logger') as mock_logger:
+        messages = [{"role": "user", "content": "Hello"}]
+        list(gateway.chat_completion_stream(messages=messages, enable_thinking=True))
+
+        # Verify warning was logged
+        mock_logger.warning.assert_called_once()
+        warning_message = mock_logger.warning.call_args[0][0]
+        assert "流式模式下的思考模式支持有限" in warning_message
+        assert "provider=glm" in warning_message
+
+
+def test_chat_completion_stream_thinking_mode_warning_minimax(gateway_with_mocked_stream):
+    """测试启用思考模式时产生警告（MiniMax服务商）"""
+    gateway = gateway_with_mocked_stream
+    gateway.switch_provider("minimax")
+
+    with patch('server.ai.ai_gateway_v2.logger') as mock_logger:
+        messages = [{"role": "user", "content": "Hello"}]
+        list(gateway.chat_completion_stream(messages=messages, enable_thinking=True))
+
+        # Verify warning was logged
+        mock_logger.warning.assert_called_once()
+        warning_message = mock_logger.warning.call_args[0][0]
+        assert "流式模式下的思考模式支持有限" in warning_message
+        assert "provider=minimax" in warning_message
+
+
+def test_chat_completion_stream_no_warning_when_thinking_disabled(gateway_with_mocked_stream):
+    """测试禁用思考模式时不产生警告"""
+    gateway = gateway_with_mocked_stream
+    gateway.switch_provider("glm")
+
+    with patch('server.ai.ai_gateway_v2.logger') as mock_logger:
+        messages = [{"role": "user", "content": "Hello"}]
+        list(gateway.chat_completion_stream(messages=messages, enable_thinking=False))
+
+        # Verify no warning was logged about thinking mode
+        for call in mock_logger.warning.call_args_list:
+            assert "流式模式下的思考模式支持有限" not in call[0][0]
+
+
+def test_chat_completion_stream_thinking_mode_passes_params_glm(gateway_with_mocked_stream):
+    """测试GLM思考模式参数传递到API"""
+    gateway = gateway_with_mocked_stream
+    gateway.switch_provider("glm")
+
+    with patch('server.ai.ai_gateway_v2.logger'):
+        messages = [{"role": "user", "content": "Hello"}]
+        list(gateway.chat_completion_stream(messages=messages, enable_thinking=True))
+
+        # Verify thinking mode parameters were added
+        call_args = gateway.clients["glm"].chat.completions.create.call_args
+        # GLM-5 uses 'thinking' parameter
+        assert call_args.kwargs.get("thinking") is not None
+
+
+def test_chat_completion_stream_thinking_mode_passes_params_minimax(gateway_with_mocked_stream):
+    """测试MiniMax思考模式参数传递到API"""
+    gateway = gateway_with_mocked_stream
+    gateway.switch_provider("minimax")
+
+    with patch('server.ai.ai_gateway_v2.logger'):
+        messages = [{"role": "user", "content": "Hello"}]
+        list(gateway.chat_completion_stream(messages=messages, enable_thinking=True))
+
+        # Verify thinking mode parameters were added
+        call_args = gateway.clients["minimax"].chat.completions.create.call_args
+        # MiniMax uses 'extra_body' with 'reasoning_split'
+        assert call_args.kwargs.get("extra_body") is not None
+        assert call_args.kwargs["extra_body"].get("reasoning_split") is True
