@@ -110,14 +110,14 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="timao-card p-10">
+    <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl shadow-gray-200/50 p-10 border border-gray-100">
       <h2 className="text-2xl font-semibold text-gray-900 mb-2">
         欢迎回来
       </h2>
-      <p className="text-sm timao-support-text mb-6">使用已注册账号登录，体验 AI 直播助手。</p>
+      <p className="text-sm text-gray-500 mb-6">使用已注册账号登录，体验 AI 直播助手。</p>
       <form onSubmit={handleSubmit} className="space-y-5" noValidate>
         <div className="relative" ref={dropdownRef}>
-          <label htmlFor="login-email" className="block text-sm font-medium timao-support-text mb-2">
+          <label htmlFor="login-email" className="block text-sm font-medium text-gray-600 mb-2">
             邮箱
             {savedAccounts.length > 0 && (
               <span className="text-xs text-gray-400 ml-2">
@@ -141,7 +141,7 @@ const LoginPage = () => {
               <button
                 type="button"
                 onClick={() => setShowAccountDropdown(!showAccountDropdown)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500 transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-rose-500 transition-colors"
                 title="选择已保存的账号"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -150,26 +150,26 @@ const LoginPage = () => {
               </button>
             )}
           </div>
-          
+
           {/* 账号下拉列表 */}
           {showAccountDropdown && savedAccounts.length > 0 && (
-            <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+            <div className="absolute z-10 w-full mt-2 bg-white border border-gray-100 rounded-xl shadow-xl max-h-60 overflow-y-auto">
               {savedAccounts.map((account) => (
                 <div
                   key={account.email}
                   onClick={() => handleSelectAccount(account)}
-                  className="flex items-center justify-between px-4 py-3 hover:bg-orange-50 dark:hover:bg-orange-900/20 cursor-pointer transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                  className="flex items-center justify-between px-4 py-3 hover:bg-rose-50 cursor-pointer transition-colors border-b border-gray-50 last:border-b-0"
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400 text-sm font-medium">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-rose-100 to-orange-100 flex items-center justify-center text-rose-600 text-sm font-medium">
                         {(account.nickname || account.email)[0].toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                        <p className="text-sm font-medium text-gray-900 truncate">
                           {account.nickname || account.email.split('@')[0]}
                         </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        <p className="text-xs text-gray-400 truncate">
                           {account.email}
                         </p>
                       </div>
@@ -178,7 +178,7 @@ const LoginPage = () => {
                   <button
                     type="button"
                     onClick={(e) => handleDeleteAccount(account.email, e)}
-                    className="ml-2 p-1 text-gray-400 hover:text-red-500 transition-colors"
+                    className="ml-2 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                     title="删除此账号"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -191,7 +191,7 @@ const LoginPage = () => {
           )}
         </div>
         <div>
-          <label htmlFor="login-password" className="block text-sm font-medium timao-support-text mb-2">
+          <label htmlFor="login-password" className="block text-sm font-medium text-gray-600 mb-2">
             密码
           </label>
           <input
@@ -205,67 +205,73 @@ const LoginPage = () => {
             autoComplete="current-password"
           />
         </div>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
+        <div className="flex items-center justify-between pt-1">
+          <label className="flex items-center gap-2 cursor-pointer group">
             <input
               id="save-password"
               type="checkbox"
               checked={savePassword}
               onChange={(e) => setSavePassword(e.target.checked)}
-              className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+              className="w-4 h-4 rounded border-gray-300 text-rose-500 focus:ring-rose-500 focus:ring-offset-0"
             />
-            <label htmlFor="save-password" className="ml-2 block text-sm timao-support-text">
-              保存密码
-            </label>
-          </div>
-          <div className="flex items-center">
+            <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors">保存密码</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer group">
             <input
               id="remember-me"
               type="checkbox"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
-              className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+              className="w-4 h-4 rounded border-gray-300 text-rose-500 focus:ring-rose-500 focus:ring-offset-0"
             />
-            <label htmlFor="remember-me" className="ml-2 block text-sm timao-support-text">
-              记住登录
-            </label>
-          </div>
+            <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors">记住登录</span>
+          </label>
         </div>
         {error && (
-          <div className="text-sm text-red-500 bg-red-50 rounded-xl px-3 py-2" role="alert">
+          <div className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3 border border-red-100" role="alert">
             {error}
           </div>
         )}
-        <button type="submit" className="timao-primary-btn w-full" disabled={loading}>
+        <button
+          type="submit"
+          className="timao-primary-btn w-full flex items-center justify-center gap-2"
+          disabled={loading}
+        >
+          {loading && (
+            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+          )}
           {loading ? '登录中...' : '登录'}
         </button>
       </form>
-      <div className="text-sm timao-support-text mt-6">
+      <div className="text-sm text-gray-500 mt-6 text-center">
         还没有账号？
-        <Link className="text-orange-500 font-semibold ml-2" to="/auth/register">
+        <Link className="text-rose-500 font-medium ml-2 hover:text-rose-600 transition-colors" to="/auth/register">
           立即注册
         </Link>
       </div>
-      
+
       {/* 服务条款和隐私政策链接 */}
-      <div className="text-xs text-gray-500 mt-4 text-center leading-relaxed">
+      <div className="text-xs text-gray-400 mt-5 text-center leading-relaxed">
         登录即表示您同意我们的
-        <button 
+        <button
           onClick={() => openTermsModal('terms')}
-          className="text-orange-500 hover:text-orange-600 underline mx-1 font-medium"
+          className="text-rose-500 hover:text-rose-600 mx-1 transition-colors"
         >
           服务条款
         </button>
         和
-        <button 
+        <button
           onClick={() => openTermsModal('privacy')}
-          className="text-orange-500 hover:text-orange-600 underline mx-1 font-medium"
+          className="text-rose-500 hover:text-rose-600 mx-1 transition-colors"
         >
           隐私政策
         </button>
       </div>
-      
-      <TermsModal 
+
+      <TermsModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         type={modalType}

@@ -148,14 +148,19 @@ const MainLayout = () => {
   };
 
   return (
-    <div className="min-h-screen timao-surface flex">
-      <aside className="w-64 timao-card flex flex-col p-6 mr-4 h-screen sticky top-0">
-        <div className="text-xl font-semibold text-gray-900 mb-8 flex items-center gap-3 flex-shrink-0">
-          <img src={logoUrl} alt="TalkingCat" className="h-8 w-8 rounded-lg" />
-          <span className="leading-none">提猫直播助手</span>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-orange-50/30 to-rose-50/20 flex">
+      {/* 侧边栏 */}
+      <aside className="w-64 bg-white/80 backdrop-blur-sm border-r border-gray-100 flex flex-col p-5 h-screen sticky top-0">
+        {/* Logo 区域 */}
+        <div className="text-xl font-semibold text-gray-900 mb-8 flex items-center gap-3 flex-shrink-0 px-2">
+          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-rose-100 to-orange-100 flex items-center justify-center">
+            <img src={logoUrl} alt="TalkingCat" className="h-7 w-7 rounded-lg" />
+          </div>
+          <span className="leading-none tracking-tight">提猫直播助手</span>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto pr-2">
+        {/* 导航 */}
+        <nav className="flex-1 space-y-1 overflow-y-auto pr-1">
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
@@ -163,10 +168,10 @@ const MainLayout = () => {
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
+                  `flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 ${
                     isActive
-                      ? 'bg-gray-100 text-gray-900'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      ? 'bg-gradient-to-r from-rose-500 to-orange-500 text-white shadow-md shadow-rose-500/25'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                   }`
                 }
               >
@@ -177,10 +182,11 @@ const MainLayout = () => {
           })}
         </nav>
 
-        <div className="mt-4 pt-4 border-t border-gray-200 flex-shrink-0">
+        {/* 底部区域 */}
+        <div className="mt-4 pt-4 border-t border-gray-100 flex-shrink-0">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 transition-all duration-200"
           >
             <LogOut size={18} />
             退出登录
@@ -188,7 +194,9 @@ const MainLayout = () => {
         </div>
       </aside>
 
+      {/* 主内容区 */}
       <main className="flex-1 flex flex-col pr-4">
+        {/* 顶部栏 */}
         <header className="flex justify-between items-center px-8 py-6">
           <div>
             <div className="text-lg font-semibold text-gray-900">
@@ -199,7 +207,7 @@ const MainLayout = () => {
           <div className="flex items-center gap-4">
             <NavLink
               to="/pay/subscription"
-              className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium"
+              className="px-5 py-2.5 bg-gradient-to-r from-rose-500 to-orange-500 text-white rounded-xl hover:shadow-lg hover:shadow-rose-500/25 transition-all duration-200 text-sm font-medium"
             >
               订阅服务
             </NavLink>
@@ -207,8 +215,9 @@ const MainLayout = () => {
           </div>
         </header>
 
+        {/* 启动状态提示 */}
         {showBoot && (
-          <div className="mx-8 -mt-2 mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-center justify-between">
+          <div className="mx-8 -mt-2 mb-4 rounded-xl border border-amber-200/50 bg-amber-50/80 backdrop-blur-sm px-4 py-3 text-sm text-amber-800 flex items-center justify-between">
             <div className="flex items-center gap-3">
               {(bootstrap?.running || wsOk === null) ? (
                 <Loader2 size={16} className="animate-spin" />
@@ -222,19 +231,20 @@ const MainLayout = () => {
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <button className="timao-outline-btn text-xs px-2 py-1" onClick={runQuickSelfTest}>立即自检</button>
+              <button className="timao-outline-btn text-xs px-3 py-1.5" onClick={runQuickSelfTest}>立即自检</button>
               {Array.isArray(bootstrap?.suggestions) && bootstrap.suggestions.length ? (
                 <div className="text-xs text-gray-500 mr-2">
                   {bootstrap.suggestions.join('；')}
                 </div>
               ) : null}
               {bootstrap?.paths?.model_dir ? (
-                <button className="timao-outline-btn text-xs px-2 py-1" onClick={() => { try { (window as any).electronAPI?.openPath(bootstrap.paths.model_dir); } catch {} }}>打开模型目录</button>
+                <button className="timao-outline-btn text-xs px-3 py-1.5" onClick={() => { try { (window as any).electronAPI?.openPath(bootstrap.paths.model_dir); } catch {} }}>打开模型目录</button>
               ) : null}
             </div>
           </div>
         )}
 
+        {/* 内容区域 */}
         <section className="flex-1 px-8 pb-12">
           <Outlet />
         </section>

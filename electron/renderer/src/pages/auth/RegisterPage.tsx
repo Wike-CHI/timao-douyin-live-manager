@@ -66,14 +66,14 @@ const RegisterPage = () => {
   };
 
   return (
-    <div className="timao-card p-10">
+    <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl shadow-gray-200/50 p-10 border border-gray-100">
       <h2 className="text-2xl font-semibold text-gray-900 mb-2">
         注册提猫账号
       </h2>
-      <p className="text-sm timao-support-text mb-6">注册后即可体验直播管理与 AI 助手功能。</p>
+      <p className="text-sm text-gray-500 mb-6">注册后即可体验直播管理与 AI 助手功能。</p>
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <div>
-          <label htmlFor="register-email" className="block text-sm font-medium timao-support-text mb-2">
+          <label htmlFor="register-email" className="block text-sm font-medium text-gray-600 mb-2">
             邮箱
           </label>
           <input
@@ -87,7 +87,7 @@ const RegisterPage = () => {
           />
         </div>
         <div>
-          <label htmlFor="register-nickname" className="block text-sm font-medium timao-support-text mb-2">
+          <label htmlFor="register-nickname" className="block text-sm font-medium text-gray-600 mb-2">
             昵称
           </label>
           <input
@@ -101,7 +101,7 @@ const RegisterPage = () => {
           />
         </div>
         <div>
-          <label htmlFor="register-password" className="block text-sm font-medium timao-support-text mb-2">
+          <label htmlFor="register-password" className="block text-sm font-medium text-gray-600 mb-2">
             密码
           </label>
           <input
@@ -116,7 +116,7 @@ const RegisterPage = () => {
           />
         </div>
         <div>
-          <label htmlFor="register-confirm-password" className="block text-sm font-medium timao-support-text mb-2">
+          <label htmlFor="register-confirm-password" className="block text-sm font-medium text-gray-600 mb-2">
             确认密码
           </label>
           <input
@@ -130,59 +130,69 @@ const RegisterPage = () => {
             autoComplete="new-password"
           />
         </div>
-        
+
         {/* 同意条款复选框 */}
-        <div className="flex items-start space-x-3 py-3">
+        <label className="flex items-start gap-3 py-3 cursor-pointer group">
           <input
             id="agree-terms"
             type="checkbox"
             checked={agreeTerms}
             onChange={(e) => setAgreeTerms(e.target.checked)}
-            className="mt-1 w-4 h-4 text-orange-600 bg-gray-100 border-gray-300 rounded focus:ring-orange-500 focus:ring-2"
+            className="mt-0.5 w-4 h-4 rounded border-gray-300 text-rose-500 focus:ring-rose-500 focus:ring-offset-0"
             required
           />
-          <label htmlFor="agree-terms" className="text-sm text-gray-700 leading-relaxed">
+          <span className="text-sm text-gray-600 leading-relaxed">
             我已阅读并同意
-            <button 
+            <button
               type="button"
               onClick={() => openTermsModal('terms')}
-              className="text-orange-500 hover:text-purple-600 underline mx-1 font-medium"
+              className="text-rose-500 hover:text-rose-600 mx-1 transition-colors"
             >
               《服务条款》
             </button>
             和
-            <button 
+            <button
               type="button"
               onClick={() => openTermsModal('privacy')}
-              className="text-orange-500 hover:text-purple-600 underline mx-1 font-medium"
+              className="text-rose-500 hover:text-rose-600 mx-1 transition-colors"
             >
               《隐私政策》
             </button>
-          </label>
-        </div>
-        
+          </span>
+        </label>
+
         {error && (
-          <div className="text-sm text-red-500 bg-red-50 rounded-xl px-3 py-2" role="alert">
+          <div className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3 border border-red-100" role="alert">
             {error}
           </div>
         )}
         {success && (
-          <div className="text-sm text-green-500 bg-green-50 rounded-xl px-3 py-2" role="status">
+          <div className="text-sm text-emerald-600 bg-emerald-50 rounded-xl px-4 py-3 border border-emerald-100" role="status">
             注册成功，即将跳转登录
           </div>
         )}
-        <button type="submit" className="timao-primary-btn w-full" disabled={loading || !agreeTerms}>
+        <button
+          type="submit"
+          className="timao-primary-btn w-full flex items-center justify-center gap-2"
+          disabled={loading || !agreeTerms}
+        >
+          {loading && (
+            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+          )}
           {loading ? '注册中...' : '注册'}
         </button>
       </form>
-      <div className="text-sm timao-support-text mt-6">
+      <div className="text-sm text-gray-500 mt-6 text-center">
         已有账号？
-        <Link className="text-orange-500 font-semibold ml-2" to="/auth/login">
+        <Link className="text-rose-500 font-medium ml-2 hover:text-rose-600 transition-colors" to="/auth/login">
           立即登录
         </Link>
       </div>
-      
-      <TermsModal 
+
+      <TermsModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         type={modalType}

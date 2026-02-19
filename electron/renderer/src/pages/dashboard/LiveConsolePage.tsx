@@ -1131,110 +1131,73 @@ const LiveConsolePage = () => {
 
   // --------------- State persistence ---------------
   return (
-    <div className="space-y-8">
-      <div className="timao-soft-card relative min-h-[250px] flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
-        <div className="flex items-center gap-4">
-          <Radio size={36} className="text-purple-600" />
-          <div>
-            <div className="text-lg font-semibold text-purple-600">直播控制台</div>
-            <div className="text-sm timao-support-text">{isRunning ? '运行中' : '未开始'}</div>
+    <div className="space-y-6">
+      {/* 主控制卡片 */}
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-100 to-orange-100 flex items-center justify-center">
+              <Radio size={28} className="text-rose-500" />
+            </div>
+            <div>
+              <div className="text-lg font-semibold text-gray-900">直播控制台</div>
+              <div className={`text-sm ${isRunning ? 'text-emerald-600' : 'text-gray-400'}`}>
+                {isRunning ? '运行中' : '未开始'}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <input
+              value={liveInput}
+              onChange={(event) => setLiveInput(event.target.value)}
+              className="timao-input w-72 text-sm"
+              placeholder="直播地址或ID"
+              disabled={isRunning || loading}
+            />
+            <button className="timao-primary-btn px-6" onClick={handleStart} disabled={loading || isRunning}>
+              {loading ? '处理中...' : isRunning ? '运行中' : '开始'}
+            </button>
+            <button className="timao-outline-btn" onClick={handleStop} disabled={loading || !isRunning}>
+              停止
+            </button>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3 justify-center w-full lg:basis-full lg:justify-center">
-          <input
-            value={liveInput}
-            onChange={(event) => setLiveInput(event.target.value)}
-            className="timao-input w-64 text-sm"
-            placeholder="直播地址或ID (e.g. https://live.douyin.com/xxxx)"
-            disabled={isRunning || loading}
-          />
-          {/* 简洁模式：不暴露"预设"选择，保持默认策略 */}
-          {/* 模式/引擎固定：稳妥（VAD）· 轻量（Small） */}
-          {/* 开始转写按钮和停止转写按钮向右移动600px */}
-          <button className="timao-primary-btn ml-[600px]" onClick={handleStart} disabled={loading || isRunning}>
-            {loading ? '处理中...' : isRunning ? '运行中' : '开始转写'}
-          </button>
-          <button className="timao-outline-btn" onClick={handleStop} disabled={loading || !isRunning}>
-            停止
-          </button>
-        </div>
-        {/* 直播间状态信息（左下角，三行内联显示与输入框左对齐） */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-          {/* 第一行：连接状态 + 当前直播间ID */}
-          <div className="flex items-center gap-3">
-            <span className="text-gray-600">连接状态：</span>
-            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full font-medium transition-colors duration-200 ${
-              douyinConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+
+        {/* 状态信息 */}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-xs pt-4 border-t border-gray-100">
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500">连接状态：</span>
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+              douyinConnected ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-gray-100 text-gray-500'
             }`}>
-              <span className={`w-2 h-2 rounded-full ${douyinConnected ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+              <span className={`w-2 h-2 rounded-full ${douyinConnected ? 'bg-emerald-500' : 'bg-gray-400'}`}></span>
               {douyinConnected ? '运行中' : '已断开'}
             </span>
-            <span className="text-gray-600">当前直播间ID：</span>
-            <span className={`text-gray-800 font-mono text-xs px-2 py-1 rounded ${
-              douyinStatus?.live_id ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-500'
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500">直播间ID：</span>
+            <span className={`font-mono text-xs px-2 py-1 rounded ${
+              douyinStatus?.live_id ? 'bg-rose-50 text-rose-700' : 'bg-gray-50 text-gray-400'
             }`}>
               {douyinStatus?.live_id ?? '—'}
             </span>
           </div>
-          {/* 第二行：Room ID + 错误信息 */}
-          <div className="flex items-center gap-3">
-            <span className="text-gray-600">Room ID：</span>
-            <span className={`text-gray-800 font-mono text-xs px-2 py-1 rounded ${
-              douyinStatus?.room_id ? 'bg-purple-50 text-purple-700' : 'bg-gray-50 text-gray-500'
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500">Room ID：</span>
+            <span className={`font-mono text-xs px-2 py-1 rounded ${
+              douyinStatus?.room_id ? 'bg-purple-50 text-purple-700' : 'bg-gray-50 text-gray-400'
             }`}>
               {douyinStatus?.room_id ?? '—'}
             </span>
-            {douyinStatus?.last_error && (
-              <span className="text-xs text-rose-600 max-w-xs truncate inline-flex items-center gap-1" title={douyinStatus.last_error}>
-                <AlertTriangle size={12} />
+          </div>
+          {douyinStatus?.last_error && (
+            <div className="flex items-center gap-1.5 text-rose-600">
+              <AlertTriangle size={12} />
+              <span className="truncate max-w-[200px]" title={douyinStatus.last_error}>
                 {douyinStatus.last_error}
               </span>
-            )}
-          </div>
-          {/* 第三行：实时通道状态 + 停止按钮 */}
-          <div className="flex items-center gap-3">
-            <span className="text-gray-600">实时通道状态：</span>
-            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full font-medium transition-colors duration-200 ${
-              (douyinConnected && getLiveConsoleSocket()?.readyState === WebSocket.OPEN)
-                ? 'bg-emerald-100 text-emerald-700'
-                : 'bg-amber-100 text-amber-700'
-            }`}>
-              <span className={`w-2 h-2 rounded-full ${
-                (douyinConnected && getLiveConsoleSocket()?.readyState === WebSocket.OPEN)
-                  ? 'bg-emerald-500'
-                  : douyinConnected
-                    ? 'bg-amber-500'
-                    : 'bg-rose-500'
-              }`}></span>
-              {(douyinConnected && getLiveConsoleSocket()?.readyState === WebSocket.OPEN)
-                ? '已连接'
-                : douyinConnected
-                  ? '连接中'
-                  : '未连接'}
-            </span>
-            {douyinConnected && (
-              <button
-                className="timao-outline-btn text-xs px-3 py-1"
-                onClick={async () => {
-                  try {
-                    setLoading(true);
-                    setError(null);
-                    await stopDouyinRelay();
-                    await refreshStatus();
-                    console.log('抖音直播互动服务已手动停止');
-                  } catch (e) {
-                    console.error('停止抖音直播互动失败:', e);
-                    setError((e as Error).message || '停止失败');
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-                disabled={loading}
-              >
-                停止连接
-              </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 

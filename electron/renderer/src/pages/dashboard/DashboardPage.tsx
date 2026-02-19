@@ -69,32 +69,33 @@ const DashboardPage: React.FC = () => {
   ];
 
   return (
-    <div className="h-full timao-card p-8">
+    <div className="h-full bg-white/60 backdrop-blur-sm rounded-2xl p-8 border border-gray-100">
       <h1 className="text-2xl font-semibold text-gray-900 mb-2">
         功能概览
       </h1>
-      <p className="text-gray-500 mb-6">
+      <p className="text-gray-500 mb-8">
         这里列出当前版本适合主播的全部能力，方便快速了解还能做什么、该去哪个页面操作。
       </p>
 
+      {/* 订阅提示 */}
       {!isPaid && !isSuperAdmin && (
-        <div className="mb-6 bg-orange-50 border border-orange-200 rounded-lg p-5">
+        <div className="mb-8 bg-gradient-to-r from-rose-50 to-orange-50 border border-rose-100 rounded-2xl p-6">
           <div className="flex items-start gap-4">
             <div className="flex-shrink-0">
-              <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-                <Sparkles size={20} className="text-orange-600" />
+              <div className="w-12 h-12 bg-gradient-to-br from-rose-100 to-orange-100 rounded-xl flex items-center justify-center">
+                <Sparkles size={22} className="text-rose-500" />
               </div>
             </div>
             <div className="flex-1">
-              <h3 className="text-base font-semibold text-gray-900 mb-1">
-                解锁全部功能，开启AI直播新体验
+              <h3 className="text-base font-semibold text-gray-900 mb-1.5">
+                解锁全部功能，开启 AI 直播新体验
               </h3>
-              <p className="text-sm text-gray-600 mb-3">
-                订阅套餐后即可使用实时字幕、AI分析、话术生成等强大功能
+              <p className="text-sm text-gray-600 mb-4">
+                订阅套餐后即可使用实时字幕、AI 分析、话术生成等强大功能
               </p>
               <button
                 onClick={() => navigate('/pay/subscription')}
-                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium"
+                className="px-5 py-2.5 bg-gradient-to-r from-rose-500 to-orange-500 text-white rounded-xl hover:shadow-lg hover:shadow-rose-500/25 transition-all duration-200 text-sm font-medium"
               >
                 查看订阅套餐
               </button>
@@ -103,21 +104,30 @@ const DashboardPage: React.FC = () => {
         </div>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-3 md:grid-cols-2">
+      {/* 功能卡片 */}
+      <div className="grid gap-5 xl:grid-cols-3 md:grid-cols-2">
         {features.map((feature, index) => {
           const Icon = feature.icon;
           return (
-            <div key={index} className="timao-soft-card">
-              <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2 mb-3">
-                <Icon size={18} className="text-gray-500" />
+            <div
+              key={index}
+              className="bg-white rounded-2xl p-6 border border-gray-100 hover:border-rose-100 hover:shadow-lg hover:shadow-rose-500/5 transition-all duration-200 group cursor-default"
+            >
+              <h2 className="text-base font-semibold text-gray-900 flex items-center gap-3 mb-4">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-100 to-orange-100 flex items-center justify-center group-hover:from-rose-200 group-hover:to-orange-200 transition-colors">
+                  <Icon size={18} className="text-rose-500" />
+                </div>
                 {feature.title}
               </h2>
-              <ul className="space-y-2 text-sm text-gray-600">
+              <ul className="space-y-2.5 text-sm text-gray-600 leading-relaxed">
                 {feature.items.map((item, i) => (
-                  <li key={i}>{item}</li>
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-300 mt-2 flex-shrink-0" />
+                    <span>{item}</span>
+                  </li>
                 ))}
               </ul>
-              <div className="mt-4 text-xs text-gray-400">
+              <div className="mt-5 pt-4 border-t border-gray-50 text-xs text-gray-400">
                 入口：{feature.entry}
               </div>
             </div>

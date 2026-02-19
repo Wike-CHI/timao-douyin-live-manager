@@ -3,22 +3,30 @@
 @tailwind utilities;
 
 :root {
-  /* Primary Accent: Coral/Orange-Red */
-  --accent-main: #ff6b4a;
-  --accent-main-secondary: #ff8a6b;
-  --accent-light: #fff0eb;
+  /* Primary Accent: Warm Rose-Orange (情感主播温暖色调) */
+  --accent-main: #ff7a5c;
+  --accent-main-secondary: #ff9478;
+  --accent-light: #fff5f2;
   --accent-lighter: #fffcfa;
-  --accent-rgb: 255, 107, 74;
+  --accent-rgb: 255, 122, 92;
   --accent-contrast: #ffffff;
 
   /* Secondary Accent: Teal/Cyan */
   --accent-secondary: #0ea5a0;
   --accent-secondary-light: #14d9d2;
 
+  /* Semantic Colors */
+  --success-main: #22c55e;
+  --success-light: #f0fdf4;
+  --warning-main: #f59e0b;
+  --warning-light: #fffbeb;
+  --error-main: #ef4444;
+  --error-light: #fef2f2;
+
   /* Surface Colors */
   --surface-bg: #fafafa;
   --surface-card: #ffffff;
-  --border-color: rgba(0, 0, 0, 0.06);
+  --border-color: rgba(0, 0, 0, 0.05);
 
   /* Text Colors */
   --text-primary: #1e293b;
@@ -42,13 +50,22 @@ body[data-theme='teal'] {
   --accent-rgb: 14, 165, 160;
 }
 
+/* Rose Theme (情感主播蜜桃粉) */
+body[data-theme='rose'] {
+  --accent-main: #f472b6;
+  --accent-main-secondary: #fb7185;
+  --accent-light: #fdf2f8;
+  --accent-lighter: #fff1f2;
+  --accent-rgb: 244, 114, 182;
+}
+
 /* Dark Theme */
 body[data-theme='dark'] {
-  --accent-main: #ff6b4a;
-  --accent-main-secondary: #ff8a6b;
+  --accent-main: #ff7a5c;
+  --accent-main-secondary: #ff9478;
   --accent-light: #1e293b;
   --accent-lighter: #0f172a;
-  --accent-rgb: 255, 107, 74;
+  --accent-rgb: 255, 122, 92;
 
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
@@ -83,14 +100,26 @@ select {
 
 .timao-card {
   background: var(--surface-card);
-  border-radius: 16px;
+  border-radius: 20px;
   border: 1px solid var(--border-color);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.03),
+    0 4px 8px rgba(0, 0, 0, 0.04),
+    0 8px 16px rgba(0, 0, 0, 0.02);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.timao-card:hover {
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.03),
+    0 8px 16px rgba(0, 0, 0, 0.06),
+    0 16px 32px rgba(0, 0, 0, 0.04);
+  transform: translateY(-1px);
 }
 
 .timao-outline-card {
   background: var(--surface-card);
-  border-radius: 12px;
+  border-radius: 16px;
   border: 1px dashed rgba(var(--accent-rgb), 0.3);
   padding: 16px;
 }
@@ -98,44 +127,53 @@ select {
 .timao-primary-btn {
   background: var(--accent-main);
   color: var(--accent-contrast);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 10px 20px;
   font-weight: 500;
   border: none;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.2s ease, transform 0.15s ease;
 }
 
 .timao-primary-btn:hover {
   opacity: 0.9;
 }
 
+.timao-primary-btn:active {
+  transform: scale(0.98);
+}
+
 .timao-outline-btn {
   border: 1px solid rgba(var(--accent-rgb), 0.3);
   color: var(--accent-main);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 10px 20px;
   font-weight: 500;
   background: transparent;
-  transition: background 0.15s ease;
+  transition: background 0.2s ease, transform 0.15s ease;
 }
 
 .timao-outline-btn:hover {
   background: rgba(var(--accent-rgb), 0.08);
 }
 
+.timao-outline-btn:active {
+  transform: scale(0.98);
+}
+
 .timao-input {
   width: 100%;
-  border-radius: 10px;
+  border-radius: 12px;
   border: 1px solid var(--border-color);
   background: var(--surface-card);
   padding: 12px 16px;
   font-size: 14px;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .timao-input:focus {
   outline: none;
   border-color: var(--accent-main);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.1);
 }
 
 .timao-heading {
@@ -164,8 +202,8 @@ select {
 
 .timao-soft-card {
   background: var(--surface-card);
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 16px;
+  padding: 20px;
   border: 1px solid var(--border-color);
 }
 
@@ -272,4 +310,22 @@ body[data-theme='dark'] .timao-progress-track {
 
 .status-dot.idle {
   background: #94a3b8;
+}
+
+/* Smooth transitions for interactive elements */
+a, button, input, select, textarea {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-duration: 0.2s;
+  transition-timing-function: ease;
+}
+
+/* Respect user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

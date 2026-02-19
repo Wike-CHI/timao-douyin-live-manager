@@ -98,14 +98,14 @@ const FloatingWindowPage: React.FC = () => {
         width: "100vw",
         height: "100vh",
         background:
-          "linear-gradient(135deg, rgba(15, 23, 42, 0.75) 0%, rgba(30, 41, 59, 0.70) 100%)",
-        backdropFilter: "blur(16px)",
+          "linear-gradient(135deg, rgba(15, 23, 42, 0.85) 0%, rgba(30, 41, 59, 0.80) 50%, rgba(190, 24, 93, 0.15) 100%)",
+        backdropFilter: "blur(20px)",
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
-        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
-        borderRadius: "12px",
-        border: "1px solid rgba(255, 255, 255, 0.1)",
+        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.5), 0 0 60px rgba(244, 114, 182, 0.1)",
+        borderRadius: "16px",
+        border: "1px solid rgba(244, 114, 182, 0.2)",
       }}
     >
       {/* ========== 顶部拖拽区域 ========== */}
@@ -114,21 +114,21 @@ const FloatingWindowPage: React.FC = () => {
           // @ts-ignore - Electron特有属性
           WebkitAppRegion: "drag", // 允许拖拽整个窗口
           height: 36,
-          background: "rgba(0, 0, 0, 0.2)",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.15)",
+          background: "rgba(0, 0, 0, 0.25)",
+          borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           padding: "0 12px",
-          borderTopLeftRadius: "12px",
-          borderTopRightRadius: "12px",
+          borderTopLeftRadius: "16px",
+          borderTopRightRadius: "16px",
         }}
       >
         <div
           style={{
             fontSize: 12,
             fontWeight: 600,
-            color: "#ff6b4a",
+            color: "#f472b6",
             display: "flex",
             alignItems: "center",
             gap: 8,
@@ -153,12 +153,12 @@ const FloatingWindowPage: React.FC = () => {
             style={{
               width: 24,
               height: 24,
-              borderRadius: 6,
+              borderRadius: 8,
               border: "none",
               background: alwaysOnTop
-                ? "rgba(255, 107, 74, 0.2)"
+                ? "rgba(244, 114, 182, 0.25)"
                 : "transparent",
-              color: alwaysOnTop ? "#ff6b4a" : "#94a3b8",
+              color: alwaysOnTop ? "#f472b6" : "#94a3b8",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
@@ -168,12 +168,12 @@ const FloatingWindowPage: React.FC = () => {
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = alwaysOnTop
-                ? "rgba(255, 107, 74, 0.35)"
+                ? "rgba(244, 114, 182, 0.4)"
                 : "rgba(148, 163, 184, 0.2)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = alwaysOnTop
-                ? "rgba(255, 107, 74, 0.2)"
+                ? "rgba(244, 114, 182, 0.25)"
                 : "transparent";
             }}
           >
@@ -186,7 +186,7 @@ const FloatingWindowPage: React.FC = () => {
             style={{
               width: 24,
               height: 24,
-              borderRadius: 6,
+              borderRadius: 8,
               border: "none",
               background: "transparent",
               color: "#94a3b8",
@@ -197,7 +197,7 @@ const FloatingWindowPage: React.FC = () => {
               transition: "all 0.2s",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = "rgba(239, 68, 68, 0.2)";
+              e.currentTarget.style.background = "rgba(239, 68, 68, 0.25)";
               e.currentTarget.style.color = "#ef4444";
             }}
             onMouseLeave={(e) => {
@@ -236,12 +236,12 @@ const FloatingWindowPage: React.FC = () => {
       <div
         style={{
           display: "flex",
-          borderTop: "1px solid rgba(255, 255, 255, 0.15)",
-          padding: 8,
-          gap: 4,
-          background: "rgba(0, 0, 0, 0.15)",
-          borderBottomLeftRadius: "12px",
-          borderBottomRightRadius: "12px",
+          borderTop: "1px solid rgba(255, 255, 255, 0.1)",
+          padding: 10,
+          gap: 6,
+          background: "rgba(0, 0, 0, 0.2)",
+          borderBottomLeftRadius: "16px",
+          borderBottomRightRadius: "16px",
           // @ts-ignore - Electron特有属性
           WebkitAppRegion: "no-drag", // Tab栏不拖拽
         }}
@@ -291,10 +291,10 @@ const TabButton: React.FC<TabButtonProps> = ({
     onClick={onClick}
     className={`
       flex-1 flex flex-col items-center gap-1 py-2 px-3
-      rounded-lg border transition-all cursor-pointer
+      rounded-xl border transition-all cursor-pointer
       ${
         active
-          ? "bg-orange-500/20 border-orange-500/40 text-orange-400"
+          ? "bg-rose-500/25 border-rose-500/40 text-rose-400"
           : "bg-transparent border-transparent text-gray-400 hover:bg-white/5"
       }
     `}
@@ -324,8 +324,8 @@ const AIAnalysisContent: React.FC<AIAnalysisContentProps> = ({
     <FloatingTabContent title="AI分析" icon={Bot}>
       {/* 氛围评估 */}
       {vibe && (
-        <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 mb-3">
-          <div className="text-xs text-orange-400 mb-1">氛围评分</div>
+        <div className="bg-rose-500/15 border border-rose-500/30 rounded-xl p-3 mb-3">
+          <div className="text-xs text-rose-400 mb-1">氛围评分</div>
           <div className="text-2xl font-bold text-white">
             {vibe.score || 0}{" "}
             <span className="text-sm text-gray-400">/100</span>

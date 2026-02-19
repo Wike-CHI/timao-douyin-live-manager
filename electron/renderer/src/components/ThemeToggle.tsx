@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 
 const themes = [
-  { key: 'coral', label: '珊瑚橙', color: '#ff6b4a' },
-  { key: 'teal', label: '科技青', color: '#0ea5a0' },
+  { key: 'coral', label: '玫瑰橙', color: '#ff7a5c' },
+  { key: 'rose', label: '蜜桃粉', color: '#f472b6' },
   { key: 'dark', label: '暗夜', color: '#1e293b' },
 ];
 
@@ -26,20 +26,23 @@ const ThemeToggle = () => {
   };
 
   return (
-    <div className="inline-flex items-center gap-1 px-1 py-1 rounded-lg border border-gray-200 bg-white">
+    <div className="inline-flex items-center gap-0.5 px-1 py-1 rounded-xl border border-gray-200/80 bg-white/90 backdrop-blur-sm shadow-sm">
       {themes.map((item) => (
         <button
           key={item.key}
           onClick={() => handleChange(item.key)}
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
             theme === item.key
-              ? 'bg-gray-100 text-gray-900'
-              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              ? 'bg-gray-900 text-white shadow-sm'
+              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
           }`}
         >
           <span
-            className="w-2 h-2 rounded-full"
-            style={{ backgroundColor: item.color }}
+            className="w-2 h-2 rounded-full ring-2 ring-offset-1"
+            style={{
+              backgroundColor: item.color,
+              ringColor: theme === item.key ? item.color : 'transparent'
+            }}
           />
           {item.label}
         </button>
