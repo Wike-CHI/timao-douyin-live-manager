@@ -1,18 +1,24 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import {
+  LayoutDashboard,
+  Radio,
+  FileText,
+  Settings,
+  Info,
+  Loader2,
+  LogOut
+} from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 import useAuthStore from '../store/useAuthStore';
 import logoUrl from '../assets/logo.jpg';
 
 const navItems = [
-  { to: '/dashboard', label: '总览', icon: '📊' },
-  { to: '/live', label: '直播控制台', icon: '🎤' },
-  { to: '/reports', label: '直播报告', icon: '📑' },
-  { to: '/tools', label: '工具', icon: '🧰' },
-  // 管理后台功能，前端应用中隐藏
-  // { to: '/ai-gateway', label: 'AI网关', icon: '🚀' },
-  // { to: '/ai-usage', label: 'AI监控', icon: '📊' },
-  { to: '/about', label: '关于', icon: 'ℹ️' },
+  { to: '/dashboard', label: '总览', icon: LayoutDashboard },
+  { to: '/live', label: '直播控制台', icon: Radio },
+  { to: '/reports', label: '直播报告', icon: FileText },
+  { to: '/tools', label: '工具', icon: Settings },
+  { to: '/about', label: '关于', icon: Info },
 ];
 
 const MainLayout = () => {
@@ -21,8 +27,8 @@ const MainLayout = () => {
   const [bootstrap, setBootstrap] = useState<any>(null);
   const [showBoot, setShowBoot] = useState<boolean>(true);
   const [wsOk, setWsOk] = useState<boolean | null>(null);
-  const defaultApiBase = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:11111'; // 默认端口改为 11111，可通过环境变量覆盖
-  const injectedApiBase = ((import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:11111').trim() || defaultApiBase; // 默认端口改为 11111，可通过环境变量覆盖
+  const defaultApiBase = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:11111';
+  const injectedApiBase = ((import.meta.env?.VITE_FASTAPI_URL as string | undefined) || 'http://127.0.0.1:11111').trim() || defaultApiBase;
   const [apiBase, setApiBase] = useState<string>(injectedApiBase);
 
   const handleLogout = () => {
@@ -30,11 +36,9 @@ const MainLayout = () => {
     navigate('/auth/login');
   };
 
-  // 资源准备提示（启动后短暂轮询）
   useEffect(() => {
     let mounted = true;
     let t: any = null;
-    // quick WS probe (one-shot)
     const probeWS = () => {
       try {
         const wsUrl = apiBase.replace(/^http/i, 'ws').replace(/\/$/, '') + '/api/live_audio/ws';
@@ -71,7 +75,6 @@ const MainLayout = () => {
         const data = await resp.json();
         if (!mounted) return;
         setBootstrap(data || {});
-        // 隐藏条件：非运行状态且 ffmpeg/models 就绪
         const ok = data && data.ffmpeg?.state === 'ok' && data.models?.state === 'ok';
         if (!data?.running && ok) {
           setTimeout(() => setShowBoot(false), 2000);
@@ -91,15 +94,12 @@ const MainLayout = () => {
     return () => { mounted = false; if (t) clearTimeout(t); };
   }, [apiBase]);
 
-  // 立即自检（前端触发一次性检查：bootstrap状态 + WS ping + 模型健康）
   const runQuickSelfTest = async () => {
     setShowBoot(true);
     try {
-      // refresh bootstrap status
       const r0 = await fetch(`${apiBase}/api/bootstrap/status`).catch(() => null);
       const d0 = r0 ? await r0.json().catch(() => null) : null;
       if (d0) setBootstrap(d0);
-      // model/VAD health
       const r1 = await fetch(`${apiBase}/api/live_audio/health`).catch(() => null);
       const d1 = r1 ? await r1.json().catch(() => null) : null;
       if (d1 && bootstrap) {
@@ -109,7 +109,6 @@ const MainLayout = () => {
           suggestions: d1?.suggestions || bootstrap?.suggestions || [],
         });
       }
-      // WS probe
       try {
         const wsUrl = apiBase.replace(/^http/i, 'ws').replace(/\/$/, '') + '/api/live_audio/ws';
         const ws = new WebSocket(wsUrl);
@@ -150,54 +149,52 @@ const MainLayout = () => {
 
   return (
     <div className="min-h-screen timao-surface flex">
-      {/* 侧边栏 - 固定高度，退出登录按钮始终可见 */}
       <aside className="w-64 timao-card flex flex-col p-6 mr-4 h-screen sticky top-0">
-        {/* Logo 区域 */}
-        <div className="text-2xl font-semibold text-orange-500 mb-8 flex items-center gap-3 flex-shrink-0">
-          <img src={logoUrl} alt="TalkingCat" className="h-8 w-8 rounded-lg ring-2 ring-orange-300 shadow" />
-          <span className="leading-none">提猫直播助手 · TalkingCat</span>
+        <div className="text-xl font-semibold text-gray-900 mb-8 flex items-center gap-3 flex-shrink-0">
+          <img src={logoUrl} alt="TalkingCat" className="h-8 w-8 rounded-lg" />
+          <span className="leading-none">提猫直播助手</span>
         </div>
-        
-        {/* 导航菜单 - 可滚动区域 */}
-        <nav className="flex-1 space-y-2 overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin' }}>
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-150 ${
-                  isActive
-                    ? 'bg-orange-100/70 text-orange-600 shadow'
-                    : 'text-slate-500 hover:bg-orange-50/60'
-                }`
-              }
-            >
-              <span>{item.icon}</span>
-              <span className="font-medium">{item.label}</span>
-            </NavLink>
-          ))}
+
+        <nav className="flex-1 space-y-1 overflow-y-auto pr-2">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
+                    isActive
+                      ? 'bg-gray-100 text-gray-900'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  }`
+                }
+              >
+                <Icon size={18} />
+                <span className="font-medium">{item.label}</span>
+              </NavLink>
+            );
+          })}
         </nav>
-        
-        {/* 退出登录按钮 - 固定在底部，始终可见 */}
-        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
-          <button 
-            onClick={handleLogout} 
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+
+        <div className="mt-4 pt-4 border-t border-gray-200 flex-shrink-0">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
+            <LogOut size={18} />
             退出登录
           </button>
         </div>
       </aside>
+
       <main className="flex-1 flex flex-col pr-4">
         <header className="flex justify-between items-center px-8 py-6">
           <div>
-            <div className="text-lg font-semibold text-slate-700">
-              欢迎回来，{(user as any)?.nickname || (user as any)?.email || '提猫主播'}！
+            <div className="text-lg font-semibold text-gray-900">
+              欢迎回来，{(user as any)?.nickname || (user as any)?.email || '主播'}
             </div>
-            <div className="text-sm timao-support-text">祝你今晚直播顺利喵～</div>
+            <div className="text-sm text-gray-500">祝你直播顺利</div>
           </div>
           <div className="flex items-center gap-4">
             <NavLink
@@ -209,43 +206,35 @@ const MainLayout = () => {
             <ThemeToggle />
           </div>
         </header>
-        {/* 顶部资源提示条 */}
+
         {showBoot && (
-          <div className="mx-8 -mt-2 mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-center justify-between">
+          <div className="mx-8 -mt-2 mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="relative flex items-center justify-center">
-                {(bootstrap?.running || wsOk === null) ? (
-                  <span className="inline-block w-3.5 h-3.5 border-2 border-amber-300 border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <span>🧩</span>
-                )}
-              </span>
+              {(bootstrap?.running || wsOk === null) ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <span className="w-2 h-2 rounded-full bg-amber-500" />
+              )}
               <span>
                 {bootstrap?.running ? '正在准备运行所需资源…' : '资源检查完成'}
-                {bootstrap?.models ? `（模型: ${bootstrap.models.model_present ? 'OK' : '缺失'} · VAD: ${bootstrap.models.vad_present ? 'OK' : '缺失'}）` : ''}
+                {bootstrap?.models ? ` (模型: ${bootstrap.models.model_present ? 'OK' : '缺失'} · VAD: ${bootstrap.models.vad_present ? 'OK' : '缺失'})` : ''}
                 {wsOk != null ? ` · WS: ${wsOk ? '可用' : '不可用'}` : ' · 正在检测 WS'}
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <button className="timao-outline-btn text-[10px] px-2 py-0.5" onClick={runQuickSelfTest}>立即自检</button>
+              <button className="timao-outline-btn text-xs px-2 py-1" onClick={runQuickSelfTest}>立即自检</button>
               {Array.isArray(bootstrap?.suggestions) && bootstrap.suggestions.length ? (
-                <div className="text-xs timao-support-text mr-2">
+                <div className="text-xs text-gray-500 mr-2">
                   {bootstrap.suggestions.join('；')}
                 </div>
               ) : null}
-              {/* 快捷打开目录（如果已知） */}
               {bootstrap?.paths?.model_dir ? (
-                <button className="timao-outline-btn text-[10px] px-2 py-0.5" onClick={() => { try { (window as any).electronAPI?.openPath(bootstrap.paths.model_dir); } catch {} }}>打开模型目录</button>
-              ) : null}
-              {bootstrap?.paths?.vad_dir ? (
-                <button className="timao-outline-btn text-[10px] px-2 py-0.5" onClick={() => { try { (window as any).electronAPI?.openPath(bootstrap.paths.vad_dir); } catch {} }}>打开VAD目录</button>
-              ) : null}
-              {bootstrap?.paths?.ffmpeg_dir ? (
-                <button className="timao-outline-btn text-[10px] px-2 py-0.5" onClick={() => { try { (window as any).electronAPI?.openPath(bootstrap.paths.ffmpeg_dir); } catch {} }}>打开FFmpeg目录</button>
+                <button className="timao-outline-btn text-xs px-2 py-1" onClick={() => { try { (window as any).electronAPI?.openPath(bootstrap.paths.model_dir); } catch {} }}>打开模型目录</button>
               ) : null}
             </div>
           </div>
         )}
+
         <section className="flex-1 px-8 pb-12">
           <Outlet />
         </section>

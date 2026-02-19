@@ -1,4 +1,5 @@
 import { Outlet, Navigate, useNavigate } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 import useAuthStore from '../store/useAuthStore';
 
@@ -18,12 +19,10 @@ const PaymentLayout = () => {
             onClick={() => navigate('/dashboard')}
             className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
           >
-            <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
+            <ArrowLeft size={18} className="mr-2" />
             返回主界面
           </button>
-          <div className="text-xl font-semibold text-orange-500">🐾 订阅管理</div>
+          <div className="text-lg font-semibold text-gray-900">订阅管理</div>
         </div>
         <ThemeToggle />
       </header>

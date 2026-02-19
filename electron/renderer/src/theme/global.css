@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  /* Primary Accent: Coral/Orange-Red (Warm, Energetic, Professional) */
+  /* Primary Accent: Coral/Orange-Red */
   --accent-main: #ff6b4a;
   --accent-main-secondary: #ff8a6b;
   --accent-light: #fff0eb;
@@ -11,18 +11,20 @@
   --accent-rgb: 255, 107, 74;
   --accent-contrast: #ffffff;
 
-  /* Secondary Accent: Teal/Cyan (Trust, Tech, Analytics) */
+  /* Secondary Accent: Teal/Cyan */
   --accent-secondary: #0ea5a0;
   --accent-secondary-light: #14d9d2;
 
-  /* Surface Effects */
-  --surface-glow: rgba(255, 107, 74, 0.12);
+  /* Surface Colors */
+  --surface-bg: #fafafa;
+  --surface-card: #ffffff;
+  --border-color: rgba(0, 0, 0, 0.06);
 
   /* Text Colors */
   --text-primary: #1e293b;
   --text-secondary: #64748b;
 
-  /* Typography - Chinese-First Font Stack */
+  /* Typography */
   --font-display: "Noto Sans SC", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
   --font-body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", "Source Code Pro", monospace;
@@ -31,47 +33,37 @@
   color: var(--text-primary);
 }
 
-/* Teal Theme - Tech/Analytics Focus */
+/* Teal Theme */
 body[data-theme='teal'] {
   --accent-main: #0ea5a0;
   --accent-main-secondary: #14d9d2;
   --accent-light: #e0f7f6;
   --accent-lighter: #f0fafa;
   --accent-rgb: 14, 165, 160;
-  --surface-glow: rgba(14, 165, 160, 0.15);
 }
 
-/* Dark Theme - For Streamers in Dim Environments */
+/* Dark Theme */
 body[data-theme='dark'] {
   --accent-main: #ff6b4a;
   --accent-main-secondary: #ff8a6b;
   --accent-light: #1e293b;
   --accent-lighter: #0f172a;
   --accent-rgb: 255, 107, 74;
-  --surface-glow: rgba(255, 107, 74, 0.08);
 
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
 
   --surface-bg: #0f172a;
   --surface-card: #1e293b;
+  --border-color: rgba(255, 255, 255, 0.08);
 }
 
 html,
 body {
   margin: 0;
   min-height: 100%;
-  background: radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.2), transparent 40%),
-              radial-gradient(circle at bottom left, rgba(14, 165, 160, 0.1), transparent 60%),
-              linear-gradient(180deg, var(--accent-lighter) 0%, #ffffff 90%);
-  transition: background 0.4s ease;
-}
-
-/* Dark theme background override */
-body[data-theme='dark'] {
-  background: radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.15), transparent 40%),
-              radial-gradient(circle at bottom left, rgba(14, 165, 160, 0.08), transparent 60%),
-              linear-gradient(180deg, var(--accent-lighter) 0%, var(--surface-bg) 90%);
+  background: var(--surface-bg);
+  transition: background 0.2s ease;
 }
 
 button {
@@ -86,92 +78,72 @@ select {
 }
 
 .timao-surface {
-  background: radial-gradient(circle at 15% 20%, rgba(var(--accent-rgb), 0.18), transparent 45%),
-              radial-gradient(circle at 80% 85%, rgba(14, 165, 160, 0.1), transparent 55%),
-              linear-gradient(180deg, var(--accent-lighter) 0%, #ffffff 90%);
+  background: var(--surface-bg);
 }
 
 .timao-card {
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 24px;
-  box-shadow: 0 12px 32px rgba(var(--accent-rgb), 0.12);
-  border: 1px solid rgba(var(--accent-rgb), 0.08);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
-}
-
-body[data-theme='dark'] .timao-card {
-  background: rgba(30, 41, 59, 0.92);
-  border: 1px solid rgba(var(--accent-rgb), 0.15);
+  background: var(--surface-card);
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .timao-outline-card {
-  background: rgba(255, 255, 255, 0.8);
-  border-radius: 20px;
-  border: 1px dashed rgba(var(--accent-rgb), 0.35);
-  padding: 20px;
-}
-
-body[data-theme='dark'] .timao-outline-card {
-  background: rgba(30, 41, 59, 0.6);
+  background: var(--surface-card);
+  border-radius: 12px;
+  border: 1px dashed rgba(var(--accent-rgb), 0.3);
+  padding: 16px;
 }
 
 .timao-primary-btn {
-  background: linear-gradient(135deg, var(--accent-main), var(--accent-main-secondary));
+  background: var(--accent-main);
   color: var(--accent-contrast);
-  border-radius: 18px;
-  padding: 12px 24px;
-  font-weight: 600;
-  box-shadow: 0 8px 24px rgba(var(--accent-rgb), 0.28);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-weight: 500;
   border: none;
+  transition: opacity 0.15s ease;
 }
 
 .timao-primary-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 32px rgba(var(--accent-rgb), 0.38);
-}
-
-.timao-primary-btn:active {
-  transform: translateY(0);
+  opacity: 0.9;
 }
 
 .timao-outline-btn {
-  border: 2px solid rgba(var(--accent-rgb), 0.4);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
   color: var(--accent-main);
-  border-radius: 999px;
+  border-radius: 10px;
   padding: 10px 20px;
-  font-weight: 600;
+  font-weight: 500;
   background: transparent;
-  transition: background 0.2s ease, color 0.2s ease;
+  transition: background 0.15s ease;
 }
 
 .timao-outline-btn:hover {
-  background: rgba(var(--accent-rgb), 0.12);
+  background: rgba(var(--accent-rgb), 0.08);
 }
 
 .timao-input {
   width: 100%;
-  border-radius: 18px;
-  border: 1px solid rgba(var(--accent-rgb), 0.2);
-  background: rgba(255, 255, 255, 0.95);
-  padding: 14px 18px;
-  font-size: 15px;
-  transition: border 0.15s ease, box-shadow 0.15s ease;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--surface-card);
+  padding: 12px 16px;
+  font-size: 14px;
+  transition: border-color 0.15s ease;
 }
 
 .timao-input:focus {
   outline: none;
-  border-color: rgba(var(--accent-rgb), 0.45);
-  box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.15);
+  border-color: var(--accent-main);
 }
 
 .timao-heading {
-  color: var(--accent-main);
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .timao-support-text {
@@ -182,36 +154,36 @@ body[data-theme='dark'] .timao-outline-card {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  border-radius: 12px;
-  background: rgba(var(--accent-rgb), 0.18);
+  padding: 4px 12px;
+  border-radius: 8px;
+  background: rgba(var(--accent-rgb), 0.1);
   color: var(--accent-main);
-  font-weight: 600;
+  font-weight: 500;
+  font-size: 13px;
 }
 
 .timao-soft-card {
-  background: rgba(255, 255, 255, 0.8);
-  border-radius: 18px;
-  padding: 18px;
-  border: 1px solid rgba(var(--accent-rgb), 0.15);
-  box-shadow: 0 8px 24px rgba(var(--accent-rgb), 0.1);
-}
-
-body[data-theme='dark'] .timao-soft-card {
-  background: rgba(30, 41, 59, 0.7);
+  background: var(--surface-card);
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
 }
 
 .timao-progress-track {
   width: 100%;
-  height: 0.5rem;
-  background: rgba(148, 163, 184, 0.35);
-  border-radius: 999px;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
   overflow: hidden;
+}
+
+body[data-theme='dark'] .timao-progress-track {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .timao-progress-fill {
   height: 100%;
-  background: linear-gradient(135deg, var(--accent-main), var(--accent-main-secondary));
+  background: var(--accent-main);
   transition: width 0.3s ease;
 }
 
@@ -237,59 +209,67 @@ body[data-theme='dark'] .timao-soft-card {
 .timao-progress-fill.progress-95 { width: 95%; }
 .timao-progress-fill.progress-100 { width: 100%; }
 
+/* Scrollbar */
 *::-webkit-scrollbar {
   width: 6px;
 }
 
 *::-webkit-scrollbar-thumb {
+  background-color: rgba(var(--accent-rgb), 0.2);
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
   background-color: rgba(var(--accent-rgb), 0.35);
-  border-radius: 999px;
 }
 
 *::-webkit-scrollbar-track {
   background-color: transparent;
 }
 
-/* 第一宫格自定义滚动条样式 */
 .custom-scrollbar {
   scroll-behavior: smooth;
   scrollbar-width: thin;
-  scrollbar-color: rgba(var(--accent-rgb), 0.4) transparent;
+  scrollbar-color: rgba(var(--accent-rgb), 0.2) transparent;
 }
 
 .custom-scrollbar::-webkit-scrollbar {
-  width: 8px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  margin: 4px;
+  width: 6px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.6), rgba(var(--accent-rgb), 0.4));
-  border-radius: 10px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  transition: all 0.3s ease;
+  background: rgba(var(--accent-rgb), 0.25);
+  border-radius: 4px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.8), rgba(var(--accent-rgb), 0.6));
-  border-color: rgba(255, 255, 255, 0.3);
-  transform: scale(1.1);
+  background: rgba(var(--accent-rgb), 0.4);
 }
 
-.custom-scrollbar::-webkit-scrollbar-corner {
+.custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
 
-/* 滚动条动画效果 */
-.custom-scrollbar:hover::-webkit-scrollbar-thumb {
-  box-shadow: 0 2px 8px rgba(var(--accent-rgb), 0.3);
+/* Status indicators */
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
 }
 
-/* 自动滚动到底部的平滑效果 */
-.custom-scrollbar.auto-scroll {
-  scroll-behavior: smooth;
+.status-dot.success {
+  background: #22c55e;
+}
+
+.status-dot.error {
+  background: #ef4444;
+}
+
+.status-dot.warning {
+  background: #f59e0b;
+}
+
+.status-dot.idle {
+  background: #94a3b8;
 }

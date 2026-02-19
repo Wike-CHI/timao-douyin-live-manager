@@ -67,8 +67,7 @@ const RegisterPage = () => {
 
   return (
     <div className="timao-card p-10">
-      <h2 className="text-2xl font-semibold text-orange-500 mb-2 flex items-center gap-2">
-        <span>🐾</span>
+      <h2 className="text-2xl font-semibold text-gray-900 mb-2">
         注册提猫账号
       </h2>
       <p className="text-sm timao-support-text mb-6">注册后即可体验直播管理与 AI 助手功能。</p>

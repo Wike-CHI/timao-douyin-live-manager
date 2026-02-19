@@ -7,6 +7,7 @@ import {
   startDouyinRelay,
   stopDouyinRelay,
 } from "../../services/douyin";
+import { MessageSquare, Gift } from 'lucide-react';
 
 const DEFAULT_MAX_MESSAGES = 80;
 const DEFAULT_MAX_EVENTS = 120;
@@ -482,7 +483,7 @@ const DouyinRelayPanel = ({
           appendChat({
             id: `gift-${event.timestamp ?? Date.now()}-${Math.random()}`,
             nickname,
-            content: `🎁 送出 ${giftName}${count ? ` x${count}` : ""}`,
+            content: `送出 ${giftName}${count ? ` x${count}` : ""}`,
             timestamp: Date.now(),
             category: "gift",
           });
@@ -621,7 +622,7 @@ const DouyinRelayPanel = ({
       if (stored.length > 0) {
         setChatLog(stored);
         console.log(
-          `📦 已恢复 ${stored.length} 条弹幕记录（直播间: ${liveId}）`,
+          `已恢复 ${stored.length} 条弹幕记录（直播间: ${liveId}）`,
         );
       } else {
         // 切换直播间时，如果没有历史数据，清空当前显示
@@ -772,7 +773,7 @@ const DouyinRelayPanel = ({
       <div className="flex h-full flex-col">
         <div className="mb-3 flex items-center justify-between">
           <h4 className="flex items-center gap-2 text-sm font-semibold text-orange-600">
-            <span>💬</span>
+            <MessageSquare size={16} />
             实时弹幕
           </h4>
           <div className="flex items-center gap-2">

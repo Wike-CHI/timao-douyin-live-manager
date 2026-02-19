@@ -13,6 +13,7 @@ import useAuthStore from '../../store/useAuthStore';
 import { startAILiveAnalysis, stopAILiveAnalysis, openAILiveStream, generateAnswerScripts } from '../../services/ai';
 import { useLiveConsoleStore, getLiveConsoleSocket } from '../../store/useLiveConsoleStore';
 import { getSessionStatus, resumeSession, resumePausedSession, type LiveSessionState } from '../../services/liveSession';
+import { Radio, Package, AlertTriangle, Settings, FileText, Lightbulb, Paperclip } from 'lucide-react';
 
 // Note: Do not cap transcript items; persist to disk is handled by backend.
 // We keep full in-memory log for current session (may grow large for long sessions).
@@ -1133,7 +1134,7 @@ const LiveConsolePage = () => {
     <div className="space-y-8">
       <div className="timao-soft-card relative min-h-[250px] flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
         <div className="flex items-center gap-4">
-          <div className="text-4xl">📡</div>
+          <Radio size={36} className="text-purple-600" />
           <div>
             <div className="text-lg font-semibold text-purple-600">直播控制台</div>
             <div className="text-sm timao-support-text">{isRunning ? '运行中' : '未开始'}</div>
@@ -1162,10 +1163,11 @@ const LiveConsolePage = () => {
           {/* 第一行：连接状态 + 当前直播间ID */}
           <div className="flex items-center gap-3">
             <span className="text-gray-600">连接状态：</span>
-            <span className={`px-2 py-0.5 rounded-full font-medium transition-colors duration-200 ${
+            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full font-medium transition-colors duration-200 ${
               douyinConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
             }`}>
-              {douyinConnected ? '🟢 运行中' : '🔴 已断开'}
+              <span className={`w-2 h-2 rounded-full ${douyinConnected ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+              {douyinConnected ? '运行中' : '已断开'}
             </span>
             <span className="text-gray-600">当前直播间ID：</span>
             <span className={`text-gray-800 font-mono text-xs px-2 py-1 rounded ${
@@ -1183,24 +1185,32 @@ const LiveConsolePage = () => {
               {douyinStatus?.room_id ?? '—'}
             </span>
             {douyinStatus?.last_error && (
-              <span className="text-xs text-rose-600 max-w-xs truncate" title={douyinStatus.last_error}>
-                ⚠️ {douyinStatus.last_error}
+              <span className="text-xs text-rose-600 max-w-xs truncate inline-flex items-center gap-1" title={douyinStatus.last_error}>
+                <AlertTriangle size={12} />
+                {douyinStatus.last_error}
               </span>
             )}
           </div>
           {/* 第三行：实时通道状态 + 停止按钮 */}
           <div className="flex items-center gap-3">
             <span className="text-gray-600">实时通道状态：</span>
-            <span className={`px-2 py-0.5 rounded-full font-medium transition-colors duration-200 ${
-              (douyinConnected && getLiveConsoleSocket()?.readyState === WebSocket.OPEN) 
-                ? 'bg-emerald-100 text-emerald-700' 
+            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full font-medium transition-colors duration-200 ${
+              (douyinConnected && getLiveConsoleSocket()?.readyState === WebSocket.OPEN)
+                ? 'bg-emerald-100 text-emerald-700'
                 : 'bg-amber-100 text-amber-700'
             }`}>
-              {(douyinConnected && getLiveConsoleSocket()?.readyState === WebSocket.OPEN) 
-                ? '🟢 已连接' 
-                : douyinConnected 
-                  ? '🟡 连接中' 
-                  : '🔴 未连接'}
+              <span className={`w-2 h-2 rounded-full ${
+                (douyinConnected && getLiveConsoleSocket()?.readyState === WebSocket.OPEN)
+                  ? 'bg-emerald-500'
+                  : douyinConnected
+                    ? 'bg-amber-500'
+                    : 'bg-rose-500'
+              }`}></span>
+              {(douyinConnected && getLiveConsoleSocket()?.readyState === WebSocket.OPEN)
+                ? '已连接'
+                : douyinConnected
+                  ? '连接中'
+                  : '未连接'}
             </span>
             {douyinConnected && (
               <button
@@ -1237,7 +1247,7 @@ const LiveConsolePage = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full mx-4">
             <div className="flex items-center gap-3 mb-4">
-              <div className="text-3xl">📦</div>
+              <Package size={32} className="text-purple-600" />
               <div>
                 <h3 className="text-lg font-semibold text-purple-600">发现可恢复的会话</h3>
                 <p className="text-sm text-gray-500">检测到之前的直播会话，是否恢复？</p>
@@ -1740,7 +1750,7 @@ const LiveConsolePage = () => {
           <div className="timao-card hidden">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-                <span>🎛️</span>
+                <Settings size={20} />
                 音频增强
               </h3>
               <span className="text-xs text-slate-400">增益 {agcGain.toFixed(2)}</span>
@@ -1766,7 +1776,7 @@ const LiveConsolePage = () => {
           <div className="timao-card hidden">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-                <span>🧾</span>
+                <FileText size={20} />
                 整场回顾
               </h3>
               <button className="timao-primary-btn" onClick={handleReportGenerate} disabled={reportBusy}>生成回顾</button>
@@ -1793,7 +1803,7 @@ const LiveConsolePage = () => {
 
           <div className="timao-card hidden">
             <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2 mb-3">
-              <span>📎</span>
+              <Paperclip size={20} />
               使用提示
             </h3>
             <ul className="space-y-2 text-sm timao-support-text">
@@ -1809,7 +1819,7 @@ const LiveConsolePage = () => {
           <div className="timao-card hidden">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-                <span>💡</span>
+                <Lightbulb size={20} />
                 实时字幕
               </h3>
             </div>

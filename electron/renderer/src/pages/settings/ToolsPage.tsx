@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Monitor, Trash2, FlaskConical, Brain, Type } from 'lucide-react';
 
 const FASTAPI_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:11111'; // 默认端口改为 11111，可通过环境变量覆盖
 
@@ -167,7 +168,7 @@ const ToolsPage: React.FC = () => {
       <div className="timao-card">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-            <span>🖥️</span>
+            <Monitor size={20} />
             运行环境（Torch / 设备）
           </h3>
           <div className="flex items-center gap-3 text-xs timao-support-text">
@@ -232,7 +233,7 @@ const ToolsPage: React.FC = () => {
       <div className="timao-card">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-            <span>🧹</span>
+            <Trash2 size={20} />
             缓存清理（安全）
           </h3>
           <div className="flex items-center gap-3">
@@ -295,7 +296,7 @@ const ToolsPage: React.FC = () => {
       <div className="timao-card">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-            <span>🧪</span>
+            <FlaskConical size={20} />
             自检 · 前后端 + 模型（Small+VAD）
           </h3>
           <button className="timao-primary-btn" onClick={runSelfTest} disabled={busy}>一键自检</button>
@@ -320,7 +321,7 @@ const ToolsPage: React.FC = () => {
       <div className="timao-card">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-            <span>🧠</span>
+            <Brain size={20} />
             识别引擎 · 模型管理
           </h3>
         </div>
@@ -350,7 +351,7 @@ const ToolsPage: React.FC = () => {
       <div className="timao-card">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-semibold text-purple-600 flex items-center gap-2">
-            <span>🔤</span>
+            <Type size={20} />
             热词管理（品牌/人名/地名等）
           </h3>
         </div>

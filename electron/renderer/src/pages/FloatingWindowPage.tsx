@@ -7,6 +7,7 @@ import {
   EmptyState,
   TranscriptDisplay,
 } from "../components/floating";
+import { Pin, X, Bot, MessageSquare, BarChart3, Users, Heart, Gift, AlertTriangle, Lightbulb, Copy, Check } from 'lucide-react';
 
 /**
  * 悬浮窗数据类型
@@ -133,7 +134,6 @@ const FloatingWindowPage: React.FC = () => {
             gap: 8,
           }}
         >
-          <span>🎯</span>
           <span>直播助手</span>
         </div>
 
@@ -177,7 +177,7 @@ const FloatingWindowPage: React.FC = () => {
                 : "transparent";
             }}
           >
-            📌
+            <Pin size={14} />
           </button>
 
           {/* 关闭按钮 */}
@@ -205,7 +205,7 @@ const FloatingWindowPage: React.FC = () => {
               e.currentTarget.style.color = "#94a3b8";
             }}
           >
-            ✕
+            <X size={14} />
           </button>
         </div>
       </div>
@@ -249,19 +249,19 @@ const FloatingWindowPage: React.FC = () => {
         <TabButton
           active={currentTab === "ai"}
           onClick={() => setCurrentTab("ai")}
-          icon="🤖"
+          icon={Bot}
           label="AI"
         />
         <TabButton
           active={currentTab === "script"}
           onClick={() => setCurrentTab("script")}
-          icon="💬"
+          icon={MessageSquare}
           label="话术"
         />
         <TabButton
           active={currentTab === "stats"}
           onClick={() => setCurrentTab("stats")}
-          icon="📈"
+          icon={BarChart3}
           label="数据"
         />
       </div>
@@ -277,14 +277,14 @@ const FloatingWindowPage: React.FC = () => {
 interface TabButtonProps {
   active: boolean;
   onClick: () => void;
-  icon: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
   label: string;
 }
 
 const TabButton: React.FC<TabButtonProps> = ({
   active,
   onClick,
-  icon,
+  icon: Icon,
   label,
 }) => (
   <button
@@ -299,7 +299,7 @@ const TabButton: React.FC<TabButtonProps> = ({
       }
     `}
   >
-    <span className="text-base">{icon}</span>
+    <Icon size={16} className="text-base" />
     <span className="text-xs">{label}</span>
   </button>
 );
@@ -317,11 +317,11 @@ const AIAnalysisContent: React.FC<AIAnalysisContentProps> = ({
   vibe,
 }) => {
   if (!data && !vibe) {
-    return <EmptyState icon="🤖" message="等待AI分析..." />;
+    return <EmptyState icon={Bot} message="等待AI分析..." />;
   }
 
   return (
-    <FloatingTabContent title="AI分析" icon="🤖">
+    <FloatingTabContent title="AI分析" icon={Bot}>
       {/* 氛围评估 */}
       {vibe && (
         <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 mb-3">
@@ -351,14 +351,14 @@ const AIAnalysisContent: React.FC<AIAnalysisContentProps> = ({
         <AICard
           key={`warning-${idx}`}
           type="warning"
-          title="⚠️ 注意"
+          title="注意"
           content={warning}
         />
       ))}
 
       {/* 单个建议（兼容旧数据格式） */}
       {!data?.suggestions && data?.suggestion && (
-        <AICard type="info" title="💡 AI建议" content={data.suggestion} />
+        <AICard type="info" title="AI建议" content={data.suggestion} />
       )}
     </FloatingTabContent>
   );
@@ -375,7 +375,7 @@ const ScriptContent: React.FC<ScriptContentProps> = ({ data }) => {
   const [copySuccess, setCopySuccess] = useState(false);
 
   if (!data) {
-    return <EmptyState icon="💬" message="等待智能话术..." />;
+    return <EmptyState icon={MessageSquare} message="等待智能话术..." />;
   }
 
   const handleCopy = async () => {
@@ -390,7 +390,7 @@ const ScriptContent: React.FC<ScriptContentProps> = ({ data }) => {
   };
 
   return (
-    <FloatingTabContent title="智能话术" icon="💬">
+    <FloatingTabContent title="智能话术" icon={MessageSquare}>
       {/* 话术卡片 */}
       <ScriptCard
         title={data.title || "推荐话术"}
@@ -412,7 +412,7 @@ const ScriptContent: React.FC<ScriptContentProps> = ({ data }) => {
       <button
         onClick={handleCopy}
         className={`
-          w-full py-2.5 px-4 rounded-lg border text-sm font-medium transition-all
+          w-full py-2.5 px-4 rounded-lg border text-sm font-medium transition-all flex items-center justify-center gap-2
           ${
             copySuccess
               ? "bg-green-500/20 border-green-500/40 text-green-400"
@@ -420,7 +420,8 @@ const ScriptContent: React.FC<ScriptContentProps> = ({ data }) => {
           }
         `}
       >
-        {copySuccess ? "✓ 已复制" : "📋 复制话术"}
+        {copySuccess ? <Check size={14} /> : <Copy size={14} />}
+        {copySuccess ? "已复制" : "复制话术"}
       </button>
     </FloatingTabContent>
   );
@@ -449,23 +450,23 @@ const StatsContent: React.FC<StatsContentProps> = ({ data }) => {
   const giftValue = calculateGiftValue();
 
   return (
-    <FloatingTabContent title="实时数据" icon="📈">
+    <FloatingTabContent title="实时数据" icon={BarChart3}>
       <MetricCard
         label="最高在线"
         value={data?.peak_viewers?.toLocaleString() || "0"}
-        icon="👥"
+        icon={Users}
       />
 
       <MetricCard
         label="新增关注"
         value={data?.follows?.toLocaleString() || "0"}
-        icon="💖"
+        icon={Heart}
       />
 
       <MetricCard
         label="礼物价值"
         value={`¥${giftValue.toFixed(2)}`}
-        icon="🎁"
+        icon={Gift}
       />
 
       {/* 数据说明 */}

@@ -1,31 +1,32 @@
 import React from 'react';
+import { Mic } from 'lucide-react';
 
 /**
  * Tab内容属性
  */
 interface TabContentProps {
   title: string;
-  icon: React.ReactNode;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
   children: React.ReactNode;
 }
 
 /**
  * 悬浮窗Tab内容组件
- * 
+ *
  * 设计原则：
  * - 简洁明了，主播快速理解
  * - 高对比度，方便在直播中查看
  * - 大字体，不需要凑近屏幕
  */
-export const FloatingTabContent: React.FC<TabContentProps> = ({ title, icon, children }) => {
+export const FloatingTabContent: React.FC<TabContentProps> = ({ title, icon: Icon, children }) => {
   return (
     <div className="flex flex-col h-full">
       {/* 标题栏 */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-orange-500/20">
-        <div className="text-orange-400">{icon}</div>
+        <Icon size={16} className="text-orange-400" />
         <h3 className="text-sm font-medium text-white">{title}</h3>
       </div>
-      
+
       {/* 内容区域 */}
       <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
         {children}
@@ -97,17 +98,17 @@ interface MetricCardProps {
   label: string;
   value: string | number;
   change?: number; // 变化百分比
-  icon?: React.ReactNode;
+  icon?: React.ComponentType<{ size?: number; className?: string }>;
 }
 
-export const MetricCard: React.FC<MetricCardProps> = ({ label, value, change, icon }) => {
+export const MetricCard: React.FC<MetricCardProps> = ({ label, value, change, icon: Icon }) => {
   const isPositive = change !== undefined && change > 0;
-  
+
   return (
     <div className="bg-gray-800/50 rounded-lg p-3 mb-3">
       <div className="flex items-center justify-between mb-1">
         <span className="text-xs text-gray-400">{label}</span>
-        {icon && <div className="text-orange-400">{icon}</div>}
+        {Icon && <Icon size={14} className="text-orange-400" />}
       </div>
       <div className="flex items-end justify-between">
         <span className="text-2xl font-bold text-white">{value}</span>
@@ -125,14 +126,14 @@ export const MetricCard: React.FC<MetricCardProps> = ({ label, value, change, ic
  * 空状态组件
  */
 interface EmptyStateProps {
-  icon?: React.ReactNode;
+  icon?: React.ComponentType<{ size?: number; className?: string }>;
   message: string;
 }
 
-export const EmptyState: React.FC<EmptyStateProps> = ({ icon, message }) => {
+export const EmptyState: React.FC<EmptyStateProps> = ({ icon: Icon, message }) => {
   return (
     <div className="flex flex-col items-center justify-center h-full text-gray-500">
-      {icon && <div className="text-4xl mb-2">{icon}</div>}
+      {Icon && <Icon size={32} className="text-orange-400 mb-2" />}
       <p className="text-sm">{message}</p>
     </div>
   );
@@ -148,7 +149,7 @@ interface TranscriptDisplayProps {
 
 export const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({ text, timestamp }) => {
   if (!text) {
-    return <EmptyState icon="🎤" message="等待转写数据..." />;
+    return <EmptyState icon={Mic} message="等待转写数据..." />;
   }
   
   return (
