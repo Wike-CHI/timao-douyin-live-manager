@@ -8,10 +8,10 @@ const rootDir = fileURLToPath(new URL('.', import.meta.url));
 const devCsp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "img-src 'self' data: https:",
   "connect-src 'self' ws://127.0.0.1:* ws://localhost:* http://127.0.0.1:* http://localhost:* http://127.0.0.1:11111 https:",
-  "font-src 'self' data:",
+  "font-src 'self' data: https://fonts.gstatic.com",
 ];
 
 export default defineConfig({
