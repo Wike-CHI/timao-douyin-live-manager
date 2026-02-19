@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 
 const themes = [
   { key: 'mint', label: '薄荷绿', color: '#10b981', desc: '清新专业' },
@@ -10,6 +10,7 @@ const themes = [
 const ThemeToggle = () => {
   const [theme, setTheme] = useState<string>('mint');
   const [isOpen, setIsOpen] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -22,6 +23,24 @@ const ThemeToggle = () => {
       localStorage.setItem('timao_theme', nextTheme);
     }
   }, []);
+
+  // 更新下拉菜单位置
+  const updatePosition = useCallback(() => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right,
+      });
+    }
+  }, []);
+
+  // 打开时计算位置
+  useEffect(() => {
+    if (isOpen) {
+      updatePosition();
+    }
+  }, [isOpen, updatePosition]);
 
   // 点击外部关闭
   useEffect(() => {
@@ -52,6 +71,10 @@ const ThemeToggle = () => {
     setIsOpen(false);
   };
 
+  const handleToggle = () => {
+    setIsOpen(!isOpen);
+  };
+
   const currentTheme = themes.find(t => t.key === theme) || themes[0];
 
   return (
@@ -59,7 +82,7 @@ const ThemeToggle = () => {
       {/* 当前主题按钮 */}
       <button
         ref={buttonRef}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggle}
         className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200/80 bg-white shadow-sm hover:shadow-md transition-all duration-200"
       >
         <span
@@ -83,8 +106,8 @@ const ThemeToggle = () => {
           ref={dropdownRef}
           style={{
             position: 'fixed',
-            top: buttonRef.current ? buttonRef.current.getBoundingClientRect().bottom + 8 : 0,
-            right: buttonRef.current ? window.innerWidth - buttonRef.current.getBoundingClientRect().right : 0,
+            top: dropdownPosition.top,
+            right: dropdownPosition.right,
             width: 200,
             zIndex: 99999,
           }}
