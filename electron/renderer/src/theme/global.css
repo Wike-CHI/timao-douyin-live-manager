@@ -3,36 +3,75 @@
 @tailwind utilities;
 
 :root {
-  --accent-main: #a78bfa;
-  --accent-main-secondary: #c4b5fd;
-  --accent-light: #efe8ff;
-  --accent-lighter: #f8f5ff;
-  --accent-rgb: 167, 139, 250;
+  /* Primary Accent: Coral/Orange-Red (Warm, Energetic, Professional) */
+  --accent-main: #ff6b4a;
+  --accent-main-secondary: #ff8a6b;
+  --accent-light: #fff0eb;
+  --accent-lighter: #fffcfa;
+  --accent-rgb: 255, 107, 74;
   --accent-contrast: #ffffff;
-  --surface-glow: rgba(143, 215, 255, 0.16);
-  --text-primary: #36384c;
-  --text-secondary: #6b6b8a;
-  font-family: "Segoe UI", "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+
+  /* Secondary Accent: Teal/Cyan (Trust, Tech, Analytics) */
+  --accent-secondary: #0ea5a0;
+  --accent-secondary-light: #14d9d2;
+
+  /* Surface Effects */
+  --surface-glow: rgba(255, 107, 74, 0.12);
+
+  /* Text Colors */
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+
+  /* Typography - Chinese-First Font Stack */
+  --font-display: "Noto Sans SC", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "Source Code Pro", monospace;
+
+  font-family: var(--font-body);
   color: var(--text-primary);
 }
 
-body[data-theme='pink'] {
-  --accent-main: #ff8fbf;
-  --accent-main-secondary: #ffa8cc;
-  --accent-light: #ffe3f2;
-  --accent-lighter: #fff6fc;
-  --accent-rgb: 255, 143, 191;
-  --surface-glow: rgba(255, 143, 191, 0.18);
+/* Teal Theme - Tech/Analytics Focus */
+body[data-theme='teal'] {
+  --accent-main: #0ea5a0;
+  --accent-main-secondary: #14d9d2;
+  --accent-light: #e0f7f6;
+  --accent-lighter: #f0fafa;
+  --accent-rgb: 14, 165, 160;
+  --surface-glow: rgba(14, 165, 160, 0.15);
+}
+
+/* Dark Theme - For Streamers in Dim Environments */
+body[data-theme='dark'] {
+  --accent-main: #ff6b4a;
+  --accent-main-secondary: #ff8a6b;
+  --accent-light: #1e293b;
+  --accent-lighter: #0f172a;
+  --accent-rgb: 255, 107, 74;
+  --surface-glow: rgba(255, 107, 74, 0.08);
+
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+
+  --surface-bg: #0f172a;
+  --surface-card: #1e293b;
 }
 
 html,
 body {
   margin: 0;
   min-height: 100%;
-  background: radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.3), transparent 40%),
-              radial-gradient(circle at bottom left, rgba(143, 215, 255, 0.18), transparent 60%),
+  background: radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.2), transparent 40%),
+              radial-gradient(circle at bottom left, rgba(14, 165, 160, 0.1), transparent 60%),
               linear-gradient(180deg, var(--accent-lighter) 0%, #ffffff 90%);
   transition: background 0.4s ease;
+}
+
+/* Dark theme background override */
+body[data-theme='dark'] {
+  background: radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.15), transparent 40%),
+              radial-gradient(circle at bottom left, rgba(14, 165, 160, 0.08), transparent 60%),
+              linear-gradient(180deg, var(--accent-lighter) 0%, var(--surface-bg) 90%);
 }
 
 button {
@@ -47,41 +86,54 @@ select {
 }
 
 .timao-surface {
-  background: radial-gradient(circle at 15% 20%, rgba(var(--accent-rgb), 0.25), transparent 45%),
-              radial-gradient(circle at 80% 85%, rgba(143, 215, 255, 0.2), transparent 55%),
+  background: radial-gradient(circle at 15% 20%, rgba(var(--accent-rgb), 0.18), transparent 45%),
+              radial-gradient(circle at 80% 85%, rgba(14, 165, 160, 0.1), transparent 55%),
               linear-gradient(180deg, var(--accent-lighter) 0%, #ffffff 90%);
 }
 
 .timao-card {
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 28px;
-  box-shadow: 0 24px 40px rgba(var(--accent-rgb), 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 24px;
+  box-shadow: 0 12px 32px rgba(var(--accent-rgb), 0.12);
+  border: 1px solid rgba(var(--accent-rgb), 0.08);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
+body[data-theme='dark'] .timao-card {
+  background: rgba(30, 41, 59, 0.92);
+  border: 1px solid rgba(var(--accent-rgb), 0.15);
 }
 
 .timao-outline-card {
-  background: rgba(255, 255, 255, 0.75);
-  border-radius: 24px;
-  border: 1px dashed rgba(var(--accent-rgb), 0.3);
-  padding: 24px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 20px;
+  border: 1px dashed rgba(var(--accent-rgb), 0.35);
+  padding: 20px;
+}
+
+body[data-theme='dark'] .timao-outline-card {
+  background: rgba(30, 41, 59, 0.6);
 }
 
 .timao-primary-btn {
   background: linear-gradient(135deg, var(--accent-main), var(--accent-main-secondary));
   color: var(--accent-contrast);
-  border-radius: 22px;
-  padding: 14px 24px;
+  border-radius: 18px;
+  padding: 12px 24px;
   font-weight: 600;
-  box-shadow: 0 18px 28px rgba(var(--accent-rgb), 0.35);
+  box-shadow: 0 8px 24px rgba(var(--accent-rgb), 0.28);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   border: none;
 }
 
 .timao-primary-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 24px 34px rgba(var(--accent-rgb), 0.45);
+  box-shadow: 0 12px 32px rgba(var(--accent-rgb), 0.38);
+}
+
+.timao-primary-btn:active {
+  transform: translateY(0);
 }
 
 .timao-outline-btn {
@@ -138,11 +190,15 @@ select {
 }
 
 .timao-soft-card {
-  background: rgba(255, 255, 255, 0.75);
-  border-radius: 20px;
-  padding: 20px;
-  border: 1px solid rgba(var(--accent-rgb), 0.2);
-  box-shadow: 0 18px 34px rgba(var(--accent-rgb), 0.18);
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 18px;
+  padding: 18px;
+  border: 1px solid rgba(var(--accent-rgb), 0.15);
+  box-shadow: 0 8px 24px rgba(var(--accent-rgb), 0.1);
+}
+
+body[data-theme='dark'] .timao-soft-card {
+  background: rgba(30, 41, 59, 0.7);
 }
 
 .timao-progress-track {

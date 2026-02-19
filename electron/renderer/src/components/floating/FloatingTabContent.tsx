@@ -21,8 +21,8 @@ export const FloatingTabContent: React.FC<TabContentProps> = ({ title, icon, chi
   return (
     <div className="flex flex-col h-full">
       {/* 标题栏 */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-purple-500/20">
-        <div className="text-purple-400">{icon}</div>
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-orange-500/20">
+        <div className="text-orange-400">{icon}</div>
         <h3 className="text-sm font-medium text-white">{title}</h3>
       </div>
       
@@ -78,13 +78,13 @@ export const ScriptCard: React.FC<ScriptCardProps> = ({ title, content, isActive
     <div 
       className={`
         rounded-lg border p-3 mb-3 transition-all
-        ${isActive 
-          ? 'bg-purple-500/20 border-purple-500/50' 
-          : 'bg-gray-800/50 border-gray-700/50 hover:border-purple-500/30'
+        ${isActive
+          ? 'bg-orange-500/20 border-orange-500/50'
+          : 'bg-gray-800/50 border-gray-700/50 hover:border-orange-500/30'
         }
       `}
     >
-      <div className="text-xs font-medium text-purple-400 mb-1">{title}</div>
+      <div className="text-xs font-medium text-orange-400 mb-1">{title}</div>
       <div className="text-sm text-white/90 leading-relaxed">{content}</div>
     </div>
   );
@@ -107,7 +107,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({ label, value, change, ic
     <div className="bg-gray-800/50 rounded-lg p-3 mb-3">
       <div className="flex items-center justify-between mb-1">
         <span className="text-xs text-gray-400">{label}</span>
-        {icon && <div className="text-purple-400">{icon}</div>}
+        {icon && <div className="text-orange-400">{icon}</div>}
       </div>
       <div className="flex items-end justify-between">
         <span className="text-2xl font-bold text-white">{value}</span>
@@ -154,7 +154,7 @@ export const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({ text, time
   return (
     <div className="bg-gray-800/50 rounded-lg p-4">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs text-purple-400 font-medium">最新转写</span>
+        <span className="text-xs text-orange-400 font-medium">最新转写</span>
         {timestamp && <span className="text-xs text-gray-500">{timestamp}</span>}
       </div>
       <div className="text-sm text-white/90 leading-relaxed">

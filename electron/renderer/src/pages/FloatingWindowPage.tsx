@@ -127,7 +127,7 @@ const FloatingWindowPage: React.FC = () => {
           style={{
             fontSize: 12,
             fontWeight: 600,
-            color: "#a855f7",
+            color: "#ff6b4a",
             display: "flex",
             alignItems: "center",
             gap: 8,
@@ -156,9 +156,9 @@ const FloatingWindowPage: React.FC = () => {
               borderRadius: 6,
               border: "none",
               background: alwaysOnTop
-                ? "rgba(168, 85, 247, 0.2)"
+                ? "rgba(255, 107, 74, 0.2)"
                 : "transparent",
-              color: alwaysOnTop ? "#a855f7" : "#94a3b8",
+              color: alwaysOnTop ? "#ff6b4a" : "#94a3b8",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
@@ -168,12 +168,12 @@ const FloatingWindowPage: React.FC = () => {
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = alwaysOnTop
-                ? "rgba(168, 85, 247, 0.35)"
+                ? "rgba(255, 107, 74, 0.35)"
                 : "rgba(148, 163, 184, 0.2)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = alwaysOnTop
-                ? "rgba(168, 85, 247, 0.2)"
+                ? "rgba(255, 107, 74, 0.2)"
                 : "transparent";
             }}
           >
@@ -294,7 +294,7 @@ const TabButton: React.FC<TabButtonProps> = ({
       rounded-lg border transition-all cursor-pointer
       ${
         active
-          ? "bg-purple-500/20 border-purple-500/40 text-purple-400"
+          ? "bg-orange-500/20 border-orange-500/40 text-orange-400"
           : "bg-transparent border-transparent text-gray-400 hover:bg-white/5"
       }
     `}
@@ -324,8 +324,8 @@ const AIAnalysisContent: React.FC<AIAnalysisContentProps> = ({
     <FloatingTabContent title="AI分析" icon="🤖">
       {/* 氛围评估 */}
       {vibe && (
-        <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 mb-3">
-          <div className="text-xs text-purple-400 mb-1">氛围评分</div>
+        <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 mb-3">
+          <div className="text-xs text-orange-400 mb-1">氛围评分</div>
           <div className="text-2xl font-bold text-white">
             {vibe.score || 0}{" "}
             <span className="text-sm text-gray-400">/100</span>
@@ -402,7 +402,7 @@ const ScriptContent: React.FC<ScriptContentProps> = ({ data }) => {
       {data.type && (
         <div className="flex items-center gap-2 mb-3">
           <span className="text-xs text-gray-400">类型:</span>
-          <span className="text-xs px-2 py-1 bg-purple-500/20 text-purple-400 rounded">
+          <span className="text-xs px-2 py-1 bg-orange-500/20 text-orange-400 rounded">
             {data.type}
           </span>
         </div>
@@ -416,7 +416,7 @@ const ScriptContent: React.FC<ScriptContentProps> = ({ data }) => {
           ${
             copySuccess
               ? "bg-green-500/20 border-green-500/40 text-green-400"
-              : "bg-purple-500/20 border-purple-500/40 text-purple-400 hover:bg-purple-500/30"
+              : "bg-orange-500/20 border-orange-500/40 text-orange-400 hover:bg-orange-500/30"
           }
         `}
       >

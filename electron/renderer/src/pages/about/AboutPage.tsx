@@ -4,9 +4,9 @@ const AboutPage = () => {
   return (
     <div className="timao-card p-8 space-y-4">
       <div className="flex items-center gap-3">
-        <img src={logoUrl} alt="TalkingCat" className="h-12 w-12 rounded-xl ring-2 ring-purple-300 shadow" />
+        <img src={logoUrl} alt="TalkingCat" className="h-12 w-12 rounded-xl ring-2 ring-orange-300 shadow" />
         <div>
-          <div className="text-xl font-semibold text-purple-600">提猫直播助手 · TalkingCat</div>
+          <div className="text-xl font-semibold text-orange-600">提猫直播助手 · TalkingCat</div>
           <div className="text-sm timao-support-text">本地语音转写 + 抖音直播互动 · 隐私不出机</div>
         </div>
       </div>

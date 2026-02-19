@@ -23,7 +23,7 @@ const PaymentLayout = () => {
             </svg>
             返回主界面
           </button>
-          <div className="text-xl font-semibold text-purple-500">🐾 订阅管理</div>
+          <div className="text-xl font-semibold text-orange-500">🐾 订阅管理</div>
         </div>
         <ThemeToggle />
       </header>

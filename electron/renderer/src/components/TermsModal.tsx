@@ -70,7 +70,7 @@ const TermsModal: React.FC<TermsModalProps> = ({ isOpen, onClose, type }) => {
         <div className="flex justify-end p-4 sm:p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
           <button
             onClick={onClose}
-            className="px-4 sm:px-6 py-2 bg-purple-500 text-white rounded-xl hover:bg-purple-600 transition-colors font-medium text-sm sm:text-base"
+            className="px-4 sm:px-6 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors font-medium text-sm sm:text-base"
           >
             我已阅读
           </button>

@@ -10,7 +10,7 @@ const AuthLayout = () => {
       <aside className="hidden md:flex flex-col justify-between w-96 p-10 timao-card relative overflow-hidden">
         <div className="absolute -top-6 -right-6 text-6xl opacity-20 select-none">🐾</div>
         <div>
-          <div className="text-4xl mb-6 text-purple-500">🐱 提猫直播助手</div>
+          <div className="text-4xl mb-6 text-orange-500">🐱 提猫直播助手</div>
           <p className="timao-support-text leading-relaxed">
             提升主播效率的桌面助手。实时弹幕洞察、AI 话术与冷场守护，一站式完成。
           </p>
@@ -18,11 +18,11 @@ const AuthLayout = () => {
         <div className="text-sm timao-support-text">
           尚未拥有账号？
           {isLogin ? (
-            <Link className="text-purple-500 font-semibold ml-2" to="/auth/register">
+            <Link className="text-orange-500 font-semibold ml-2" to="/auth/register">
               立即注册
             </Link>
           ) : (
-            <Link className="text-purple-500 font-semibold ml-2" to="/auth/login">
+            <Link className="text-orange-500 font-semibold ml-2" to="/auth/login">
               返回登录
             </Link>
           )}

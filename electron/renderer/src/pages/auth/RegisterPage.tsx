@@ -67,7 +67,7 @@ const RegisterPage = () => {
 
   return (
     <div className="timao-card p-10">
-      <h2 className="text-2xl font-semibold text-purple-500 mb-2 flex items-center gap-2">
+      <h2 className="text-2xl font-semibold text-orange-500 mb-2 flex items-center gap-2">
         <span>🐾</span>
         注册提猫账号
       </h2>
@@ -139,7 +139,7 @@ const RegisterPage = () => {
             type="checkbox"
             checked={agreeTerms}
             onChange={(e) => setAgreeTerms(e.target.checked)}
-            className="mt-1 w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500 focus:ring-2"
+            className="mt-1 w-4 h-4 text-orange-600 bg-gray-100 border-gray-300 rounded focus:ring-orange-500 focus:ring-2"
             required
           />
           <label htmlFor="agree-terms" className="text-sm text-gray-700 leading-relaxed">
@@ -147,7 +147,7 @@ const RegisterPage = () => {
             <button 
               type="button"
               onClick={() => openTermsModal('terms')}
-              className="text-purple-500 hover:text-purple-600 underline mx-1 font-medium"
+              className="text-orange-500 hover:text-purple-600 underline mx-1 font-medium"
             >
               《服务条款》
             </button>
@@ -155,7 +155,7 @@ const RegisterPage = () => {
             <button 
               type="button"
               onClick={() => openTermsModal('privacy')}
-              className="text-purple-500 hover:text-purple-600 underline mx-1 font-medium"
+              className="text-orange-500 hover:text-purple-600 underline mx-1 font-medium"
             >
               《隐私政策》
             </button>
@@ -178,7 +178,7 @@ const RegisterPage = () => {
       </form>
       <div className="text-sm timao-support-text mt-6">
         已有账号？
-        <Link className="text-purple-500 font-semibold ml-2" to="/auth/login">
+        <Link className="text-orange-500 font-semibold ml-2" to="/auth/login">
           立即登录
         </Link>
       </div>

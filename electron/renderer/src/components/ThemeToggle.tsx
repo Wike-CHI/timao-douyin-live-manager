@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 
 const themes = [
-  { key: 'purple', label: '紫罗兰', emoji: '🌌' },
-  { key: 'pink', label: '猫爪粉', emoji: '🌸' },
+  { key: 'coral', label: '珊瑚橙', emoji: '🔥' },
+  { key: 'teal', label: '科技青', emoji: '💎' },
+  { key: 'dark', label: '暗夜', emoji: '🌙' },
 ];
 
 const ThemeToggle = () => {
-  const [theme, setTheme] = useState<string>('purple');
+  const [theme, setTheme] = useState<string>('coral');
 
   useEffect(() => {
     const stored = localStorage.getItem('timao_theme');
@@ -32,8 +33,8 @@ const ThemeToggle = () => {
           onClick={() => handleChange(item.key)}
           className={`px-3 py-1 rounded-full text-sm font-medium transition-all ${
             theme === item.key
-              ? 'bg-gradient-to-r from-purple-400 to-pink-400 text-white shadow'
-              : 'text-slate-500 hover:text-purple-500'
+              ? 'bg-gradient-to-r from-[#ff6b4a] to-[#ff8a6b] text-white shadow'
+              : 'text-slate-500 hover:text-[#ff6b4a]'
           }`}
         >
           <span className="mr-1">{item.emoji}</span>

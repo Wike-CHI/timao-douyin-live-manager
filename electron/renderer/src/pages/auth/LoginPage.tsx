@@ -111,7 +111,7 @@ const LoginPage = () => {
 
   return (
     <div className="timao-card p-10">
-      <h2 className="text-2xl font-semibold text-purple-500 mb-2 flex items-center gap-2">
+      <h2 className="text-2xl font-semibold text-orange-500 mb-2 flex items-center gap-2">
         <span>😺</span>
         欢迎回来
       </h2>
@@ -142,7 +142,7 @@ const LoginPage = () => {
               <button
                 type="button"
                 onClick={() => setShowAccountDropdown(!showAccountDropdown)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-purple-500 transition-colors"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500 transition-colors"
                 title="选择已保存的账号"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -159,11 +159,11 @@ const LoginPage = () => {
                 <div
                   key={account.email}
                   onClick={() => handleSelectAccount(account)}
-                  className="flex items-center justify-between px-4 py-3 hover:bg-purple-50 dark:hover:bg-purple-900/20 cursor-pointer transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                  className="flex items-center justify-between px-4 py-3 hover:bg-orange-50 dark:hover:bg-orange-900/20 cursor-pointer transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400 text-sm font-medium">
+                      <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400 text-sm font-medium">
                         {(account.nickname || account.email)[0].toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -213,7 +213,7 @@ const LoginPage = () => {
               type="checkbox"
               checked={savePassword}
               onChange={(e) => setSavePassword(e.target.checked)}
-              className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+              className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
             />
             <label htmlFor="save-password" className="ml-2 block text-sm timao-support-text">
               保存密码
@@ -225,7 +225,7 @@ const LoginPage = () => {
               type="checkbox"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
-              className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+              className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
             />
             <label htmlFor="remember-me" className="ml-2 block text-sm timao-support-text">
               记住登录
@@ -243,7 +243,7 @@ const LoginPage = () => {
       </form>
       <div className="text-sm timao-support-text mt-6">
         还没有账号？
-        <Link className="text-purple-500 font-semibold ml-2" to="/auth/register">
+        <Link className="text-orange-500 font-semibold ml-2" to="/auth/register">
           立即注册
         </Link>
       </div>
@@ -253,14 +253,14 @@ const LoginPage = () => {
         登录即表示您同意我们的
         <button 
           onClick={() => openTermsModal('terms')}
-          className="text-purple-500 hover:text-purple-600 underline mx-1 font-medium"
+          className="text-orange-500 hover:text-orange-600 underline mx-1 font-medium"
         >
           服务条款
         </button>
         和
         <button 
           onClick={() => openTermsModal('privacy')}
-          className="text-purple-500 hover:text-purple-600 underline mx-1 font-medium"
+          className="text-orange-500 hover:text-orange-600 underline mx-1 font-medium"
         >
           隐私政策
         </button>

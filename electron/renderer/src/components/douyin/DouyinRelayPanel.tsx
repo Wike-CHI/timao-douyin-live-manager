@@ -720,15 +720,18 @@ const DouyinRelayPanel = ({
   }, [refreshStatus, disconnectStream, liveId]); // 移除 chatLog 依赖，避免频繁重新运行
 
   // 定期保存弹幕数据到本地存储（作为备份，防止意外丢失）
+  // 注意：使用 chatLogRef 而非 chatLog，避免依赖数组频繁变化导致 interval 重复创建
   useEffect(() => {
-    if (!liveId || chatLog.length === 0) return;
+    if (!liveId) return;
 
     const saveInterval = setInterval(() => {
-      saveChatLogToStorage(liveId, chatLog);
+      if (chatLogRef.current.length > 0) {
+        saveChatLogToStorage(liveId, chatLogRef.current);
+      }
     }, 30000); // 每30秒保存一次
 
     return () => clearInterval(saveInterval);
-  }, [liveId, chatLog]);
+  }, [liveId]); // 仅依赖 liveId，不依赖 chatLog
 
   const currentStatusText = useMemo(() => {
     if (isRunning) {
@@ -768,7 +771,7 @@ const DouyinRelayPanel = ({
       {/* 只显示弹幕数据，隐藏互动事件和粉丝贡献榜 */}
       <div className="flex h-full flex-col">
         <div className="mb-3 flex items-center justify-between">
-          <h4 className="flex items-center gap-2 text-sm font-semibold text-purple-600">
+          <h4 className="flex items-center gap-2 text-sm font-semibold text-orange-600">
             <span>💬</span>
             实时弹幕
           </h4>
@@ -809,7 +812,7 @@ const DouyinRelayPanel = ({
                   <span>{chatCategoryLabel[item.category]}</span>
                 </div>
                 <div className="text-sm leading-relaxed text-slate-700">
-                  <span className="font-medium text-purple-500">
+                  <span className="font-medium text-orange-500">
                     {item.nickname}
                   </span>
                   <span className="ml-2 text-slate-600">{item.content}</span>

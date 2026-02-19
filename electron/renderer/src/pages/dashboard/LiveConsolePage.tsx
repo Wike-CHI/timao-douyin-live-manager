@@ -127,6 +127,20 @@ const LiveConsolePage = () => {
       .join(' · ');
   }, []);
 
+  // 🆕 缓存过滤后的 AI 分析数据，避免每次渲染重新计算
+  const memoizedAiAnalysis = useMemo(() => ({
+    suggestions: aiEvents
+      .filter(e => e.priority === 'high')
+      .map(e => e.analysis?.suggestion || '')
+      .filter(Boolean)
+      .slice(0, 3),
+    warnings: aiEvents
+      .filter(e => e.analysis?.warning)
+      .map(e => e.analysis?.warning || '')
+      .filter(Boolean)
+      .slice(0, 2),
+  }), [aiEvents]);
+
   useEffect(() => {
     if (collapsed) {
       const first = log[0];
@@ -226,23 +240,12 @@ const LiveConsolePage = () => {
     if (!latest && !vibe && !aiEvents.length && !answerScripts.length) {
       return;
     }
-    
-    // 准备悬浮窗数据
+
+    // 准备悬浮窗数据（使用缓存的 AI 分析数据）
     const floatingData = {
       latestTranscript: latest?.text || '',
       vibe: vibe,
-      aiAnalysis: {
-        suggestions: aiEvents
-          .filter(e => e.priority === 'high')
-          .map(e => e.analysis?.suggestion || '')
-          .filter(Boolean)
-          .slice(0, 3), // 最多3条
-        warnings: aiEvents
-          .filter(e => e.analysis?.warning)
-          .map(e => e.analysis?.warning || '')
-          .filter(Boolean)
-          .slice(0, 2), // 最多2条
-      },
+      aiAnalysis: memoizedAiAnalysis,
       script: answerScripts.length > 0 ? {
         title: answerScripts[0].question || '智能话术',
         text: answerScripts[0].answer || '',
@@ -254,13 +257,13 @@ const LiveConsolePage = () => {
         engagementRate: Math.round((douyinStatus?.gift_data?.gift_count || 0) / Math.max(douyinStatus?.gift_data?.room_user_count || 1, 1) * 100)
       }
     };
-    
+
     // 推送到悬浮窗
     if (window.electronAPI?.sendFloatingData) {
       window.electronAPI.sendFloatingData(floatingData);
       console.log('📤 推送数据到悬浮窗:', floatingData);
     }
-  }, [latest, vibe, aiEvents, answerScripts, douyinStatus]);
+  }, [latest, vibe, memoizedAiAnalysis, answerScripts, douyinStatus]);
 
   // 移除基于 isRunning 的自动清空，避免瞬时抖动导致首次点击被清空
   // useEffect(() => {
@@ -271,68 +274,56 @@ const LiveConsolePage = () => {
   //   }
   // }, [isRunning, setAnswerScripts, setAnswerError]);
 
-  // Poll backend live status while running to update累计片段/平均置信度
+  // 统一轮询管理：根据运行状态调整轮询频率
+  // 运行时：3秒高频轮询；未运行：5秒低频轮询
   useEffect(() => {
-    if (!isRunning) return;
-    const id = setInterval(() => {
-      getLiveAudioStatus()
-        .then((result) => {
-          const audioStatus = (result as any)?.data || result;
-          setStatus(audioStatus);
-        })
-        .catch(() => {});
-      // 同时轮询抖音状态
-      getDouyinRelayStatus()
-        .then((douyinResult) => {
-          const douyinData = (douyinResult as any)?.data || douyinResult;
-          setDouyinStatus(douyinData);
-          setDouyinConnected(!!(douyinData.is_running || douyinData.is_monitoring));
-        })
-        .catch(() => {
-          setDouyinStatus(null);
-          setDouyinConnected(false);
-        });
-    }, 2000);
-    return () => clearInterval(id);
-  }, [isRunning, setStatus]);
+    const pollAll = async () => {
+      // 始终轮询抖音状态和复盘状态
+      const promises = [
+        getDouyinRelayStatus()
+          .then((douyinResult) => {
+            const douyinData = (douyinResult as any)?.data || douyinResult;
+            // 应用重启后不保留上次直播间信息：当未运行时，清空 live_id/room_id
+            const normalized = (douyinData?.is_running || douyinData?.is_monitoring)
+              ? douyinData
+              : { ...douyinData, live_id: null, room_id: null };
+            setDouyinStatus(normalized);
+            setDouyinConnected(!!(normalized.is_running || normalized.is_monitoring));
+          })
+          .catch((err) => {
+            console.warn('获取抖音状态失败:', err);
+            setDouyinStatus({ is_running: false, live_id: null, room_id: null, last_error: null });
+            setDouyinConnected(false);
+          }),
+        getLiveReportStatus()
+          .then((s) => setReportStatus(s))
+          .catch(() => {}),
+      ];
 
-  // 定期刷新抖音状态（即使不在运行状态也刷新，用于显示服务状态）
-  useEffect(() => {
-    const id = setInterval(() => {
-      getDouyinRelayStatus()
-        .then((douyinResult) => {
-          // 处理 API 响应格式
-          const douyinData = (douyinResult as any)?.data || douyinResult;
-          // 应用重启后不保留上次直播间信息：当未运行时，清空 live_id/room_id
-          const normalized = (douyinData?.is_running || douyinData?.is_monitoring)
-            ? douyinData
-            : { ...douyinData, live_id: null, room_id: null };
-          setDouyinStatus(normalized);
-          setDouyinConnected(!!(normalized.is_running || normalized.is_monitoring));
-        })
-        .catch((err) => {
-          // 如果获取状态失败，可能是服务未启动或网络问题
-          console.warn('获取抖音状态失败:', err);
-          setDouyinStatus({ is_running: false, live_id: null, room_id: null, last_error: null });
-          setDouyinConnected(false);
-        });
-    }, 3000); // 每3秒刷新一次状态
-    return () => clearInterval(id);
-  }, []);
+      // 仅在运行时轮询音频状态
+      if (isRunning) {
+        promises.push(
+          getLiveAudioStatus()
+            .then((result) => {
+              const audioStatus = (result as any)?.data || result;
+              setStatus(audioStatus);
+            })
+            .catch(() => {})
+        );
+      }
 
-  // 复盘状态轮询
-  useEffect(() => {
-    let timer: any = null;
-    const poll = async () => {
-      try {
-        const s = await getLiveReportStatus();
-        setReportStatus(s);
-      } catch {}
+      await Promise.allSettled(promises);
     };
-    poll();
-    timer = setInterval(poll, 5000);
-    return () => clearInterval(timer);
-  }, [setReportStatus]);
+
+    // 首次立即执行
+    pollAll();
+
+    // 根据运行状态设置轮询间隔
+    const interval = isRunning ? 3000 : 5000;
+    const id = setInterval(pollAll, interval);
+
+    return () => clearInterval(id);
+  }, [isRunning, setStatus, setDouyinStatus, setDouyinConnected, setReportStatus]);
 
   // 🆕 页面加载时检查是否有可恢复的会话
   useEffect(() => {

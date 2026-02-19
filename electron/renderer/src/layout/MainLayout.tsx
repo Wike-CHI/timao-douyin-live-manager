@@ -153,8 +153,8 @@ const MainLayout = () => {
       {/* 侧边栏 - 固定高度，退出登录按钮始终可见 */}
       <aside className="w-64 timao-card flex flex-col p-6 mr-4 h-screen sticky top-0">
         {/* Logo 区域 */}
-        <div className="text-2xl font-semibold text-purple-500 mb-8 flex items-center gap-3 flex-shrink-0">
-          <img src={logoUrl} alt="TalkingCat" className="h-8 w-8 rounded-lg ring-2 ring-purple-300 shadow" />
+        <div className="text-2xl font-semibold text-orange-500 mb-8 flex items-center gap-3 flex-shrink-0">
+          <img src={logoUrl} alt="TalkingCat" className="h-8 w-8 rounded-lg ring-2 ring-orange-300 shadow" />
           <span className="leading-none">提猫直播助手 · TalkingCat</span>
         </div>
         
@@ -167,8 +167,8 @@ const MainLayout = () => {
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-150 ${
                   isActive
-                    ? 'bg-purple-100/70 text-purple-600 shadow'
-                    : 'text-slate-500 hover:bg-purple-50/60'
+                    ? 'bg-orange-100/70 text-orange-600 shadow'
+                    : 'text-slate-500 hover:bg-orange-50/60'
                 }`
               }
             >
@@ -202,7 +202,7 @@ const MainLayout = () => {
           <div className="flex items-center gap-4">
             <NavLink
               to="/pay/subscription"
-              className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm font-medium"
+              className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium"
             >
               订阅服务
             </NavLink>
