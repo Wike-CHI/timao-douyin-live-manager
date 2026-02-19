@@ -87,16 +87,6 @@ body[data-theme='dark'] {
   --border-color: rgba(255, 255, 255, 0.1);
 }
 
-/* 经典科技蓝 - 专业商务风格 */
-body[data-theme='ocean'] {
-  --accent-main: #3b82f6;
-  --accent-main-secondary: #60a5fa;
-  --accent-light: #eff6ff;
-  --accent-lighter: #f0f9ff;
-  --accent-rgb: 59, 130, 246;
-  --theme-gradient: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
-}
-
 html,
 body {
   margin: 0;

@@ -1,16 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 const themes = [
   { key: 'mint', label: '薄荷绿', color: '#10b981', desc: '清新专业' },
   { key: 'peach', label: '蜜桃粉', color: '#f472b6', desc: '温暖浪漫' },
   { key: 'coral', label: '珊瑚橙', color: '#f97316', desc: '活力阳光' },
-  { key: 'ocean', label: '深海蓝', color: '#3b82f6', desc: '商务专业' },
   { key: 'dark', label: '暗夜', color: '#1e293b', desc: '护眼深色' },
 ];
 
 const ThemeToggle = () => {
   const [theme, setTheme] = useState<string>('mint');
   const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem('timao_theme');
@@ -22,6 +23,28 @@ const ThemeToggle = () => {
     }
   }, []);
 
+  // 点击外部关闭
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
   const handleChange = (value: string) => {
     setTheme(value);
     document.body.setAttribute('data-theme', value);
@@ -32,11 +55,12 @@ const ThemeToggle = () => {
   const currentTheme = themes.find(t => t.key === theme) || themes[0];
 
   return (
-    <div className="relative z-[100]">
+    <div className="relative">
       {/* 当前主题按钮 */}
       <button
+        ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
-        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200/80 bg-white/90 backdrop-blur-sm shadow-sm hover:shadow-md transition-all duration-200"
+        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200/80 bg-white shadow-sm hover:shadow-md transition-all duration-200"
       >
         <span
           className="w-3 h-3 rounded-full ring-2 ring-white shadow-sm"
@@ -53,9 +77,19 @@ const ThemeToggle = () => {
         </svg>
       </button>
 
-      {/* 下拉菜单 */}
+      {/* 下拉菜单 - 使用 fixed 定位确保在最上层 */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 py-2 bg-white rounded-xl border border-gray-100 shadow-xl z-[9999]">
+        <div
+          ref={dropdownRef}
+          style={{
+            position: 'fixed',
+            top: buttonRef.current ? buttonRef.current.getBoundingClientRect().bottom + 8 : 0,
+            right: buttonRef.current ? window.innerWidth - buttonRef.current.getBoundingClientRect().right : 0,
+            width: 200,
+            zIndex: 99999,
+          }}
+          className="py-2 bg-white rounded-xl border border-gray-200 shadow-2xl"
+        >
           {themes.map((item) => (
             <button
               key={item.key}
@@ -82,14 +116,6 @@ const ThemeToggle = () => {
             </button>
           ))}
         </div>
-      )}
-
-      {/* 点击外部关闭 */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-[9998]"
-          onClick={() => setIsOpen(false)}
-        />
       )}
     </div>
   );
