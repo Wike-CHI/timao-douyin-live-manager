@@ -34,9 +34,9 @@ class MemorySnapshot:
 class MemoryMonitorState:
     """内存监控状态"""
     enabled: bool = True
-    check_interval_sec: int = 300  # 5分钟检查一次
-    warning_threshold_mb: float = 3500  # 3.5GB警告
-    critical_threshold_mb: float = 4000  # 4GB严重警告
+    check_interval_sec: int = 60  # 1分钟检查一次
+    warning_threshold_mb: float = 3072  # 3GB警告
+    critical_threshold_mb: float = 3584  # 3.5GB严重警告
     gc_count: int = 0
     snapshots: List[MemorySnapshot] = field(default_factory=list)
     max_snapshots: int = 100  # 最多保留100个快照
@@ -157,19 +157,31 @@ class MemoryMonitor:
     async def _perform_gc(self):
         """执行垃圾回收"""
         try:
-            logger.info("🧹 开始执行垃圾回收...")
-            
+            # 获取当前内存
+            if psutil:
+                process = psutil.Process()
+                mem_before = process.memory_info().rss / 1024 / 1024
+            else:
+                mem_before = 0
+
+            logger.info(f"🧹 开始执行垃圾回收... (当前内存: {mem_before:.0f}MB)")
+
             # 在线程池中执行GC，避免阻塞事件循环
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, gc.collect)
-            
+            collected = await loop.run_in_executor(None, gc.collect)
+
             self._state.gc_count += 1
-            
+
             # GC后再次检查内存
             if psutil:
                 process = psutil.Process()
-                memory_mb = process.memory_info().rss / 1024 / 1024
-                logger.info(f"✅ 垃圾回收完成，当前内存: {memory_mb:.0f}MB (GC次数: {self._state.gc_count})")
+                mem_after = process.memory_info().rss / 1024 / 1024
+                freed = mem_before - mem_after
+                logger.info(
+                    f"✅ 垃圾回收完成: 回收 {collected} 个对象, "
+                    f"释放 {freed:.0f}MB, 当前内存: {mem_after:.0f}MB "
+                    f"(GC次数: {self._state.gc_count})"
+                )
         except Exception as e:
             logger.error(f"执行垃圾回收失败: {e}")
     
@@ -180,7 +192,7 @@ class MemoryMonitor:
                 "enabled": False,
                 "reason": "psutil not available"
             }
-        
+
         current_memory = None
         if psutil:
             try:
@@ -193,7 +205,16 @@ class MemoryMonitor:
                 }
             except Exception:
                 pass
-        
+
+        # 新增：获取内存池状态
+        pool_stats = None
+        try:
+            from server.utils.audio_buffer_pool import get_audio_pool
+            pool = get_audio_pool()
+            pool_stats = pool.get_stats()
+        except Exception as e:
+            logger.debug(f"获取内存池状态失败: {e}")
+
         return {
             "enabled": self._state.enabled,
             "check_interval_sec": self._state.check_interval_sec,
@@ -202,6 +223,7 @@ class MemoryMonitor:
             "gc_count": self._state.gc_count,
             "snapshots_count": len(self._state.snapshots),
             "current_memory": current_memory,
+            "buffer_pool": pool_stats,
         }
     
     def get_recent_snapshots(self, count: int = 10) -> List[Dict[str, Any]]:
