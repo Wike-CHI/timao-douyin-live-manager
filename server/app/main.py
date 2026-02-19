@@ -42,6 +42,19 @@ from server.app.models import Base
 from server.config import config_manager
 from server.utils.service_logger import log_service_start, log_service_stop
 
+# ========== GC 优化 ==========
+import gc
+
+# 调整 GC 阈值（减少 GC 暂停频率）
+# 默认: (700, 10, 10) → 优化后: (2000, 20, 20)
+# 0代阈值从700提高到2000，减少触发频率
+_gc_threshold = gc.get_threshold()
+if os.getenv("GC_OPTIMIZATION_ENABLED", "true").lower() != "false":
+    gc.set_threshold(2000, 20, 20)
+    logging.info(f"🔧 GC 阈值优化: {_gc_threshold} → {gc.get_threshold()}")
+else:
+    logging.info(f"⏭️ GC 优化已禁用，使用默认阈值: {_gc_threshold}")
+
 if os.name == "nt":
     try:
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
