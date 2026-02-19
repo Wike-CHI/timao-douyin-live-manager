@@ -519,11 +519,13 @@ async def startup_event():
     # 初始化数据库
     try:
         db_config = config_manager.config.database
-        # 确保使用MySQL（如果配置为mysql）
-        if db_config.db_type == "mysql":
+        # 显示数据库配置
+        if db_config.db_type == "sqlite":
+            logging.info(f"📊 数据库配置: SQLite - {db_config.sqlite_data_dir}/")
+        elif db_config.db_type == "mysql":
             logging.info(f"📊 数据库配置: MySQL - {db_config.mysql_user}@{db_config.mysql_host}:{db_config.mysql_port}/{db_config.mysql_database}")
         else:
-            logging.warning(f"⚠️ 数据库配置: {db_config.db_type} (建议使用MySQL)")
+            logging.warning(f"⚠️ 数据库配置: {db_config.db_type}")
         init_database(db_config)
         log_service_start("数据库服务")
         logging.info("✅ 数据库已初始化")

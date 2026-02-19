@@ -160,8 +160,8 @@ class LogConfig:
 @dataclass
 class DatabaseConfig:
     """数据库配置"""
-    # 数据库类型
-    db_type: str = "mysql"  # 支持 'mysql' 或 'sqlite'
+    # 数据库类型 - 默认使用SQLite（适合Electron桌面应用）
+    db_type: str = "sqlite"  # 支持 'mysql' 或 'sqlite'
 
     # SQLite配置
     sqlite_data_dir: str = "data"
