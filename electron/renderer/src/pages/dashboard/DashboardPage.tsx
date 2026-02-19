@@ -79,11 +79,11 @@ const DashboardPage: React.FC = () => {
 
       {/* 订阅提示 */}
       {!isPaid && !isSuperAdmin && (
-        <div className="mb-8 bg-gradient-to-r from-rose-50 to-orange-50 border border-rose-100 rounded-2xl p-6">
+        <div className="mb-8 border rounded-2xl p-6" style={{ background: 'var(--accent-light)', borderColor: 'rgba(var(--accent-rgb), 0.2)' }}>
           <div className="flex items-start gap-4">
             <div className="flex-shrink-0">
-              <div className="w-12 h-12 bg-gradient-to-br from-rose-100 to-orange-100 rounded-xl flex items-center justify-center">
-                <Sparkles size={22} className="text-rose-500" />
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'rgba(var(--accent-rgb), 0.1)' }}>
+                <Sparkles size={22} style={{ color: 'var(--accent-main)' }} />
               </div>
             </div>
             <div className="flex-1">
@@ -95,7 +95,8 @@ const DashboardPage: React.FC = () => {
               </p>
               <button
                 onClick={() => navigate('/pay/subscription')}
-                className="px-5 py-2.5 bg-gradient-to-r from-rose-500 to-orange-500 text-white rounded-xl hover:shadow-lg hover:shadow-rose-500/25 transition-all duration-200 text-sm font-medium"
+                className="px-5 py-2.5 text-white rounded-xl hover:shadow-lg transition-all duration-200 text-sm font-medium"
+                style={{ background: 'var(--theme-gradient)' }}
               >
                 查看订阅套餐
               </button>
@@ -111,18 +112,33 @@ const DashboardPage: React.FC = () => {
           return (
             <div
               key={index}
-              className="bg-white rounded-2xl p-6 border border-gray-100 hover:border-rose-100 hover:shadow-lg hover:shadow-rose-500/5 transition-all duration-200 group cursor-default"
+              className="bg-white rounded-2xl p-6 border border-gray-100 hover:shadow-lg transition-all duration-200 group cursor-default"
+              style={{ transitionProperty: 'border-color, box-shadow' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'rgba(var(--accent-rgb), 0.2)';
+                e.currentTarget.style.boxShadow = '0 10px 40px rgba(var(--accent-rgb), 0.08)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '';
+                e.currentTarget.style.boxShadow = '';
+              }}
             >
               <h2 className="text-base font-semibold text-gray-900 flex items-center gap-3 mb-4">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-100 to-orange-100 flex items-center justify-center group-hover:from-rose-200 group-hover:to-orange-200 transition-colors">
-                  <Icon size={18} className="text-rose-500" />
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
+                  style={{ background: 'rgba(var(--accent-rgb), 0.1)' }}
+                >
+                  <Icon size={18} style={{ color: 'var(--accent-main)' }} />
                 </div>
                 {feature.title}
               </h2>
               <ul className="space-y-2.5 text-sm text-gray-600 leading-relaxed">
                 {feature.items.map((item, i) => (
                   <li key={i} className="flex items-start gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-300 mt-2 flex-shrink-0" />
+                    <span
+                      className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0"
+                      style={{ background: 'var(--accent-main)' }}
+                    />
                     <span>{item}</span>
                   </li>
                 ))}

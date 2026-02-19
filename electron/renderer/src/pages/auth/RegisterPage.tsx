@@ -138,7 +138,8 @@ const RegisterPage = () => {
             type="checkbox"
             checked={agreeTerms}
             onChange={(e) => setAgreeTerms(e.target.checked)}
-            className="mt-0.5 w-4 h-4 rounded border-gray-300 text-rose-500 focus:ring-rose-500 focus:ring-offset-0"
+            className="mt-0.5 w-4 h-4 rounded border-gray-300 focus:ring-offset-0"
+            style={{ accentColor: 'var(--accent-main)' }}
             required
           />
           <span className="text-sm text-gray-600 leading-relaxed">
@@ -146,7 +147,8 @@ const RegisterPage = () => {
             <button
               type="button"
               onClick={() => openTermsModal('terms')}
-              className="text-rose-500 hover:text-rose-600 mx-1 transition-colors"
+              className="mx-1 transition-colors"
+              style={{ color: 'var(--accent-main)' }}
             >
               《服务条款》
             </button>
@@ -154,7 +156,8 @@ const RegisterPage = () => {
             <button
               type="button"
               onClick={() => openTermsModal('privacy')}
-              className="text-rose-500 hover:text-rose-600 mx-1 transition-colors"
+              className="mx-1 transition-colors"
+              style={{ color: 'var(--accent-main)' }}
             >
               《隐私政策》
             </button>
@@ -187,7 +190,11 @@ const RegisterPage = () => {
       </form>
       <div className="text-sm text-gray-500 mt-6 text-center">
         已有账号？
-        <Link className="text-rose-500 font-medium ml-2 hover:text-rose-600 transition-colors" to="/auth/login">
+        <Link
+          className="font-medium ml-2 transition-colors"
+          style={{ color: 'var(--accent-main)' }}
+          to="/auth/login"
+        >
           立即登录
         </Link>
       </div>

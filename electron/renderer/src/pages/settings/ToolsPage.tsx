@@ -169,8 +169,11 @@ const ToolsPage: React.FC = () => {
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold text-gray-900 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-100 to-orange-100 flex items-center justify-center">
-              <Monitor size={16} className="text-rose-500" />
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: 'rgba(var(--accent-rgb), 0.1)' }}
+            >
+              <Monitor size={16} style={{ color: 'var(--accent-main)' }} />
             </div>
             运行环境
           </h3>
@@ -237,8 +240,11 @@ const ToolsPage: React.FC = () => {
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold text-gray-900 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-100 to-orange-100 flex items-center justify-center">
-              <Trash2 size={16} className="text-rose-500" />
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: 'rgba(var(--accent-rgb), 0.1)' }}
+            >
+              <Trash2 size={16} style={{ color: 'var(--accent-main)' }} />
             </div>
             缓存清理
           </h3>
@@ -302,8 +308,11 @@ const ToolsPage: React.FC = () => {
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold text-gray-900 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-100 to-orange-100 flex items-center justify-center">
-              <FlaskConical size={16} className="text-rose-500" />
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: 'rgba(var(--accent-rgb), 0.1)' }}
+            >
+              <FlaskConical size={16} style={{ color: 'var(--accent-main)' }} />
             </div>
             系统自检
           </h3>
@@ -331,8 +340,11 @@ const ToolsPage: React.FC = () => {
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold text-gray-900 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-100 to-orange-100 flex items-center justify-center">
-              <Brain size={16} className="text-rose-500" />
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: 'rgba(var(--accent-rgb), 0.1)' }}
+            >
+              <Brain size={16} style={{ color: 'var(--accent-main)' }} />
             </div>
             模型管理
           </h3>
@@ -365,8 +377,11 @@ const ToolsPage: React.FC = () => {
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl border border-gray-100 p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold text-gray-900 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-100 to-orange-100 flex items-center justify-center">
-              <Type size={16} className="text-rose-500" />
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: 'rgba(var(--accent-rgb), 0.1)' }}
+            >
+              <Type size={16} style={{ color: 'var(--accent-main)' }} />
             </div>
             热词管理
           </h3>
@@ -420,7 +435,16 @@ const ToolsPage: React.FC = () => {
       </div>
 
       {message ? (
-        <div className="rounded-xl border border-purple-200 bg-purple-50 px-4 py-3 text-sm text-purple-700">{message}</div>
+        <div
+          className="rounded-xl border px-4 py-3 text-sm"
+          style={{
+            background: 'var(--accent-light)',
+            borderColor: 'rgba(var(--accent-rgb), 0.2)',
+            color: 'var(--accent-main)'
+          }}
+        >
+          {message}
+        </div>
       ) : null}
     </div>
   );

@@ -141,7 +141,10 @@ const LoginPage = () => {
               <button
                 type="button"
                 onClick={() => setShowAccountDropdown(!showAccountDropdown)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-rose-500 transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-colors"
+                style={{ '--hover-color': 'var(--accent-main)' } as React.CSSProperties}
+                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent-main)'}
+                onMouseLeave={(e) => e.currentTarget.style.color = ''}
                 title="选择已保存的账号"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -158,11 +161,20 @@ const LoginPage = () => {
                 <div
                   key={account.email}
                   onClick={() => handleSelectAccount(account)}
-                  className="flex items-center justify-between px-4 py-3 hover:bg-rose-50 cursor-pointer transition-colors border-b border-gray-50 last:border-b-0"
+                  className="flex items-center justify-between px-4 py-3 cursor-pointer transition-colors border-b border-gray-50 last:border-b-0"
+                  style={{ transitionProperty: 'background-color' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent-light)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = ''}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-rose-100 to-orange-100 flex items-center justify-center text-rose-600 text-sm font-medium">
+                      <div
+                        className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-medium"
+                        style={{
+                          background: 'rgba(var(--accent-rgb), 0.1)',
+                          color: 'var(--accent-main)'
+                        }}
+                      >
                         {(account.nickname || account.email)[0].toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -212,7 +224,8 @@ const LoginPage = () => {
               type="checkbox"
               checked={savePassword}
               onChange={(e) => setSavePassword(e.target.checked)}
-              className="w-4 h-4 rounded border-gray-300 text-rose-500 focus:ring-rose-500 focus:ring-offset-0"
+              className="w-4 h-4 rounded border-gray-300 focus:ring-offset-0"
+              style={{ accentColor: 'var(--accent-main)' }}
             />
             <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors">保存密码</span>
           </label>
@@ -222,7 +235,8 @@ const LoginPage = () => {
               type="checkbox"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
-              className="w-4 h-4 rounded border-gray-300 text-rose-500 focus:ring-rose-500 focus:ring-offset-0"
+              className="w-4 h-4 rounded border-gray-300 focus:ring-offset-0"
+              style={{ accentColor: 'var(--accent-main)' }}
             />
             <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors">记住登录</span>
           </label>
@@ -248,7 +262,11 @@ const LoginPage = () => {
       </form>
       <div className="text-sm text-gray-500 mt-6 text-center">
         还没有账号？
-        <Link className="text-rose-500 font-medium ml-2 hover:text-rose-600 transition-colors" to="/auth/register">
+        <Link
+          className="font-medium ml-2 transition-colors"
+          style={{ color: 'var(--accent-main)' }}
+          to="/auth/register"
+        >
           立即注册
         </Link>
       </div>
@@ -258,14 +276,16 @@ const LoginPage = () => {
         登录即表示您同意我们的
         <button
           onClick={() => openTermsModal('terms')}
-          className="text-rose-500 hover:text-rose-600 mx-1 transition-colors"
+          className="mx-1 transition-colors"
+          style={{ color: 'var(--accent-main)' }}
         >
           服务条款
         </button>
         和
         <button
           onClick={() => openTermsModal('privacy')}
-          className="text-rose-500 hover:text-rose-600 mx-1 transition-colors"
+          className="mx-1 transition-colors"
+          style={{ color: 'var(--accent-main)' }}
         >
           隐私政策
         </button>

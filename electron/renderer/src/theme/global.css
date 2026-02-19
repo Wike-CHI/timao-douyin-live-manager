@@ -3,17 +3,14 @@
 @tailwind utilities;
 
 :root {
-  /* Primary Accent: Warm Rose-Orange (情感主播温暖色调) */
-  --accent-main: #ff7a5c;
-  --accent-main-secondary: #ff9478;
-  --accent-light: #fff5f2;
-  --accent-lighter: #fffcfa;
-  --accent-rgb: 255, 122, 92;
+  /* Default: 清新薄荷绿 - 专业、清爽 */
+  --accent-main: #10b981;
+  --accent-main-secondary: #34d399;
+  --accent-light: #ecfdf5;
+  --accent-lighter: #f0fdf4;
+  --accent-rgb: 16, 185, 129;
   --accent-contrast: #ffffff;
-
-  /* Secondary Accent: Teal/Cyan */
-  --accent-secondary: #0ea5a0;
-  --accent-secondary-light: #14d9d2;
+  --theme-gradient: linear-gradient(135deg, #10b981 0%, #34d399 100%);
 
   /* Semantic Colors */
   --success-main: #22c55e;
@@ -24,12 +21,12 @@
   --error-light: #fef2f2;
 
   /* Surface Colors */
-  --surface-bg: #fafafa;
+  --surface-bg: #f8fafc;
   --surface-card: #ffffff;
-  --border-color: rgba(0, 0, 0, 0.05);
+  --border-color: rgba(0, 0, 0, 0.06);
 
   /* Text Colors */
-  --text-primary: #1e293b;
+  --text-primary: #0f172a;
   --text-secondary: #64748b;
 
   /* Typography */
@@ -41,38 +38,63 @@
   color: var(--text-primary);
 }
 
-/* Teal Theme */
-body[data-theme='teal'] {
-  --accent-main: #0ea5a0;
-  --accent-main-secondary: #14d9d2;
-  --accent-light: #e0f7f6;
-  --accent-lighter: #f0fafa;
-  --accent-rgb: 14, 165, 160;
+/* ==================== 主题配色系统 ==================== */
+
+/* 清新薄荷绿 - 默认主题，专业清爽 */
+body[data-theme='mint'] {
+  --accent-main: #10b981;
+  --accent-main-secondary: #34d399;
+  --accent-light: #ecfdf5;
+  --accent-lighter: #f0fdf4;
+  --accent-rgb: 16, 185, 129;
+  --theme-gradient: linear-gradient(135deg, #10b981 0%, #34d399 100%);
 }
 
-/* Rose Theme (情感主播蜜桃粉) */
-body[data-theme='rose'] {
+/* 浪漫蜜桃粉 - 情感主播温暖风格 */
+body[data-theme='peach'] {
   --accent-main: #f472b6;
   --accent-main-secondary: #fb7185;
   --accent-light: #fdf2f8;
   --accent-lighter: #fff1f2;
   --accent-rgb: 244, 114, 182;
+  --theme-gradient: linear-gradient(135deg, #f472b6 0%, #fb7185 100%);
 }
 
-/* Dark Theme */
-body[data-theme='dark'] {
-  --accent-main: #ff7a5c;
-  --accent-main-secondary: #ff9478;
-  --accent-light: #1e293b;
-  --accent-lighter: #0f172a;
-  --accent-rgb: 255, 122, 92;
+/* 活力珊瑚橙 - 温暖阳光风格 */
+body[data-theme='coral'] {
+  --accent-main: #f97316;
+  --accent-main-secondary: #fb923c;
+  --accent-light: #fff7ed;
+  --accent-lighter: #ffedd5;
+  --accent-rgb: 249, 115, 22;
+  --theme-gradient: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
+}
 
-  --text-primary: #f8fafc;
+/* 深邃暗夜 - 护眼深色模式 */
+body[data-theme='dark'] {
+  --accent-main: #60a5fa;
+  --accent-main-secondary: #93c5fd;
+  --accent-light: #1e3a5f;
+  --accent-lighter: #0f172a;
+  --accent-rgb: 96, 165, 250;
+  --theme-gradient: linear-gradient(135deg, #60a5fa 0%, #93c5fd 100%);
+
+  --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
 
   --surface-bg: #0f172a;
   --surface-card: #1e293b;
-  --border-color: rgba(255, 255, 255, 0.08);
+  --border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* 经典科技蓝 - 专业商务风格 */
+body[data-theme='ocean'] {
+  --accent-main: #3b82f6;
+  --accent-main-secondary: #60a5fa;
+  --accent-light: #eff6ff;
+  --accent-lighter: #f0f9ff;
+  --accent-rgb: 59, 130, 246;
+  --theme-gradient: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
 }
 
 html,

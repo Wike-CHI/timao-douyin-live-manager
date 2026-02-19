@@ -148,7 +148,7 @@ const MainLayout = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-orange-50/30 to-rose-50/20 flex">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 flex">
       {/* 侧边栏 */}
       <aside className="w-64 bg-white/80 backdrop-blur-sm border-r border-gray-100 flex flex-col p-5 h-screen sticky top-0">
         {/* Logo 区域 */}
@@ -170,10 +170,11 @@ const MainLayout = () => {
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 ${
                     isActive
-                      ? 'bg-gradient-to-r from-rose-500 to-orange-500 text-white shadow-md shadow-rose-500/25'
+                      ? 'text-white shadow-md'
                       : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                   }`
                 }
+                style={({ isActive }) => isActive ? { background: 'var(--theme-gradient)' } : {}}
               >
                 <Icon size={18} />
                 <span className="font-medium">{item.label}</span>
@@ -207,7 +208,8 @@ const MainLayout = () => {
           <div className="flex items-center gap-4">
             <NavLink
               to="/pay/subscription"
-              className="px-5 py-2.5 bg-gradient-to-r from-rose-500 to-orange-500 text-white rounded-xl hover:shadow-lg hover:shadow-rose-500/25 transition-all duration-200 text-sm font-medium"
+              className="px-5 py-2.5 text-white rounded-xl hover:shadow-lg transition-all duration-200 text-sm font-medium"
+              style={{ background: 'var(--theme-gradient)' }}
             >
               订阅服务
             </NavLink>

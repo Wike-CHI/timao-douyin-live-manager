@@ -6,13 +6,13 @@ const AuthLayout = () => {
   const isLogin = location.pathname.includes('login');
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-rose-50 to-amber-50 flex items-stretch">
-      {/* 左侧品牌区域 - 温暖渐变背景 */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 flex items-stretch">
+      {/* 左侧品牌区域 - 中性渐变背景 */}
       <aside className="hidden md:flex flex-col justify-between w-96 p-10 relative overflow-hidden">
         {/* 柔和渐变背景 */}
-        <div className="absolute inset-0 bg-gradient-to-br from-rose-100/80 via-orange-50 to-amber-50/50" />
-        <div className="absolute top-0 right-0 w-64 h-64 bg-rose-200/30 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-orange-200/40 rounded-full blur-2xl" />
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-100 via-gray-50 to-slate-50" />
+        <div className="absolute top-0 right-0 w-64 h-64 bg-slate-200/30 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-gray-200/40 rounded-full blur-2xl" />
 
         {/* 内容 */}
         <div className="relative z-10">
@@ -28,7 +28,8 @@ const AuthLayout = () => {
             <>
               尚未拥有账号？
               <Link
-                className="text-rose-500 font-medium ml-2 hover:text-rose-600 transition-colors"
+                className="font-medium ml-2 transition-colors"
+                style={{ color: 'var(--accent-main)' }}
                 to="/auth/register"
               >
                 立即注册
@@ -38,7 +39,8 @@ const AuthLayout = () => {
             <>
               已有账号？
               <Link
-                className="text-rose-500 font-medium ml-2 hover:text-rose-600 transition-colors"
+                className="font-medium ml-2 transition-colors"
+                style={{ color: 'var(--accent-main)' }}
                 to="/auth/login"
               >
                 返回登录
