@@ -95,14 +95,16 @@ class LiveAnalysisWorkflowV2:
             state: 工作流状态
             config: LangGraph配置，可包含thread_id等
         """
-        state.setdefault("retry_count", 0)
-        state.setdefault("max_retries", self.MAX_RETRIES)
+        # 创建副本避免修改输入
+        workflow_state = dict(state)
+        workflow_state.setdefault("retry_count", 0)
+        workflow_state.setdefault("max_retries", self.MAX_RETRIES)
 
         # 提供默认的thread_id配置
         if config is None:
             config = {"configurable": {"thread_id": "default"}}
 
-        return self.workflow.invoke(state, config)
+        return self.workflow.invoke(workflow_state, config)
 
     # 节点实现
     def _memory_loader_node(self, state: WorkflowState) -> dict:
@@ -110,6 +112,10 @@ class LiveAnalysisWorkflowV2:
         load_state = dict(state)
         load_state["memory_action"] = "load"
         result = self.memory_agent.run(load_state)
+
+        if not result.success:
+            return {"memory_result": {"error": result.error}, "persona": {}}
+
         memories = result.data.get("memories", [])
         persona = memories[0] if memories else {}
         return {"memory_result": result.data, "persona": persona}
@@ -117,16 +123,31 @@ class LiveAnalysisWorkflowV2:
     def _analyzer_node(self, state: WorkflowState) -> dict:
         """分析节点"""
         result = self.analyzer_agent.run(state)
+
+        if not result.success:
+            return {"analysis_result": {"error": result.error}}
+
         return {"analysis_result": result.data}
 
     def _decision_node(self, state: WorkflowState) -> dict:
         """决策节点"""
         result = self.decision_agent.run(state)
+
+        if not result.success:
+            return {"decision_result": {"error": result.error}}
+
         return {"decision_result": result.data}
 
     def _reflection_node(self, state: WorkflowState) -> dict:
         """反思节点"""
         result = self.reflection_agent.run(state)
+
+        if not result.success:
+            return {
+                "reflection_result": {"error": result.error, "needs_retry": False},
+                "retry_count": state.get("retry_count", 0),
+            }
+
         return {
             "reflection_result": result.data,
             "retry_count": state.get("retry_count", 0) + 1,
@@ -140,6 +161,10 @@ class LiveAnalysisWorkflowV2:
         save_state["memory_type"] = "feedback"
 
         result = self.memory_agent.run(save_state)
+
+        if not result.success:
+            return {"memory_result": {"error": result.error}}
+
         return {"memory_result": result.data}
 
     # 条件判断
