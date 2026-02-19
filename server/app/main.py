@@ -402,6 +402,69 @@ async def health_check():
     }
 
 
+@app.get("/api/health/performance")
+async def performance_health():
+    """
+    性能健康检查端点
+
+    返回内存、GC、缓冲池、任务队列等性能指标
+    """
+    result = {
+        "status": "healthy",
+        "memory": None,
+        "gc": None,
+        "buffer_pool": None,
+        "task_manager": None,
+    }
+
+    # 内存信息
+    try:
+        import psutil
+        process = psutil.Process()
+        mem_info = process.memory_info()
+        result["memory"] = {
+            "rss_mb": round(mem_info.rss / 1024 / 1024, 2),
+            "vms_mb": round(mem_info.vms / 1024 / 1024, 2),
+            "percent": round(process.memory_percent(), 2),
+        }
+
+        # 判断健康状态
+        if mem_info.rss / 1024 / 1024 > 3584:  # 3.5GB
+            result["status"] = "critical"
+        elif mem_info.rss / 1024 / 1024 > 3072:  # 3GB
+            result["status"] = "warning"
+    except Exception as e:
+        result["memory"] = {"error": str(e)}
+
+    # GC 信息
+    try:
+        result["gc"] = {
+            "threshold": gc.get_threshold(),
+            "count": gc.get_count(),
+            "enabled": gc.isenabled(),
+        }
+    except Exception as e:
+        result["gc"] = {"error": str(e)}
+
+    # 缓冲池信息
+    try:
+        from server.utils.audio_buffer_pool import get_audio_pool
+        pool = get_audio_pool()
+        result["buffer_pool"] = pool.get_stats()
+    except Exception as e:
+        result["buffer_pool"] = {"error": str(e)}
+
+    # 任务管理器信息
+    try:
+        from server.utils.async_task_manager import get_task_manager
+        manager = get_task_manager()
+        result["task_manager"] = manager.get_stats()
+    except Exception as e:
+        result["task_manager"] = {"error": str(e)}
+
+    return result
+
+
 @app.get("/api/streamcap/health")
 async def streamcap_health_check():
     """StreamCap 模块健康检查（已集成到主服务）"""
