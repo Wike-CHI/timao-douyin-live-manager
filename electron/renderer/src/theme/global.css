@@ -128,7 +128,7 @@ select {
     0 1px 2px rgba(0, 0, 0, 0.03),
     0 4px 8px rgba(0, 0, 0, 0.04),
     0 8px 16px rgba(0, 0, 0, 0.02);
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  transition: all 0.3s ease-out;
 }
 
 .timao-card:hover {
@@ -136,6 +136,24 @@ select {
     0 2px 4px rgba(0, 0, 0, 0.03),
     0 8px 16px rgba(0, 0, 0, 0.06),
     0 16px 32px rgba(0, 0, 0, 0.04);
+  transform: translateY(-2px);
+  border-color: rgba(var(--accent-rgb), 0.15);
+}
+
+/* 可点击卡片 */
+.timao-card-interactive {
+  cursor: pointer;
+}
+
+.timao-card-interactive:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 4px 8px rgba(0, 0, 0, 0.04),
+    0 12px 24px rgba(0, 0, 0, 0.08),
+    0 24px 48px rgba(0, 0, 0, 0.04);
+}
+
+.timao-card-interactive:active {
   transform: translateY(-1px);
 }
 
@@ -144,6 +162,12 @@ select {
   border-radius: 16px;
   border: 1px dashed rgba(var(--accent-rgb), 0.3);
   padding: 16px;
+  transition: all 0.2s ease-out;
+}
+
+.timao-outline-card:hover {
+  border-color: rgba(var(--accent-rgb), 0.5);
+  background: rgba(var(--accent-rgb), 0.02);
 }
 
 .timao-primary-btn {
@@ -153,49 +177,116 @@ select {
   padding: 10px 20px;
   font-weight: 500;
   border: none;
-  transition: opacity 0.2s ease, transform 0.15s ease;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease-out;
 }
 
 .timao-primary-btn:hover {
-  opacity: 0.9;
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(var(--accent-rgb), 0.3);
 }
 
 .timao-primary-btn:active {
-  transform: scale(0.98);
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 2px 4px rgba(var(--accent-rgb), 0.2);
+}
+
+.timao-primary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* 按钮涟漪效果 */
+.timao-btn-ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  animation: ripple 0.6s ease-out forwards;
+  pointer-events: none;
 }
 
 .timao-outline-btn {
-  border: 1px solid rgba(var(--accent-rgb), 0.3);
+  border: 1.5px solid rgba(var(--accent-rgb), 0.4);
   color: var(--accent-main);
   border-radius: 12px;
   padding: 10px 20px;
   font-weight: 500;
   background: transparent;
-  transition: background 0.2s ease, transform 0.15s ease;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease-out;
 }
 
 .timao-outline-btn:hover {
   background: rgba(var(--accent-rgb), 0.08);
+  border-color: var(--accent-main);
+  transform: translateY(-1px);
 }
 
 .timao-outline-btn:active {
-  transform: scale(0.98);
+  transform: translateY(0) scale(0.98);
+  background: rgba(var(--accent-rgb), 0.12);
+}
+
+.timao-outline-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .timao-input {
   width: 100%;
   border-radius: 12px;
-  border: 1px solid var(--border-color);
+  border: 1.5px solid var(--border-color);
   background: var(--surface-card);
   padding: 12px 16px;
   font-size: 14px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.2s ease-out;
+}
+
+.timao-input:hover {
+  border-color: rgba(var(--accent-rgb), 0.3);
 }
 
 .timao-input:focus {
   outline: none;
   border-color: var(--accent-main);
-  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.1);
+  box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.1), 0 2px 8px rgba(var(--accent-rgb), 0.08);
+  transform: translateY(-1px);
+}
+
+.timao-input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
+/* 输入框标签动画 */
+.timao-input-group {
+  position: relative;
+}
+
+.timao-input-label {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+  font-size: 14px;
+  pointer-events: none;
+  transition: all 0.2s ease-out;
+  background: var(--surface-card);
+  padding: 0 4px;
+}
+
+.timao-input-group:focus-within .timao-input-label,
+.timao-input-group.has-value .timao-input-label {
+  top: 0;
+  font-size: 12px;
+  color: var(--accent-main);
 }
 
 .timao-heading {
@@ -341,7 +432,140 @@ a, button, input, select, textarea {
   transition-timing-function: ease;
 }
 
-/* Respect user's motion preferences */
+/* ==================== 动画系统 ==================== */
+
+/* 关键帧动画 */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+/* 动画工具类 */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s ease-out forwards;
+}
+
+.animate-fade-in-down {
+  animation: fadeInDown 0.4s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.3s ease-out forwards;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s ease-out forwards;
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.3s ease-out forwards;
+}
+
+/* 骨架屏动画 */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(var(--accent-rgb), 0.05) 25%,
+    rgba(var(--accent-rgb), 0.1) 50%,
+    rgba(var(--accent-rgb), 0.05) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* 交错动画延迟 */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }
+
+/* 平滑滚动 */
+html {
+  scroll-behavior: smooth;
+}
+
+/* 尊重用户减少动画偏好 */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -349,5 +573,6 @@ a, button, input, select, textarea {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
