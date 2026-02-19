@@ -32,7 +32,7 @@ const ThemeToggle = () => {
   const currentTheme = themes.find(t => t.key === theme) || themes[0];
 
   return (
-    <div className="relative">
+    <div className="relative z-[100]">
       {/* 当前主题按钮 */}
       <button
         onClick={() => setIsOpen(!isOpen)}
@@ -55,7 +55,7 @@ const ThemeToggle = () => {
 
       {/* 下拉菜单 */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 py-2 bg-white rounded-xl border border-gray-100 shadow-lg shadow-gray-200/50 z-50">
+        <div className="absolute right-0 mt-2 w-48 py-2 bg-white rounded-xl border border-gray-100 shadow-xl z-[9999]">
           {themes.map((item) => (
             <button
               key={item.key}
@@ -87,7 +87,7 @@ const ThemeToggle = () => {
       {/* 点击外部关闭 */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-40"
+          className="fixed inset-0 z-[9998]"
           onClick={() => setIsOpen(false)}
         />
       )}
