@@ -11,15 +11,14 @@ from __future__ import annotations
 import os
 from typing import Any, Dict
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException
 
 from ..services.ai_live_analyzer import get_ai_live_analyzer
 from server.app.schemas import GenerateOneScriptRequest, SubmitScriptFeedbackRequest
 from server.app.schemas.common import BaseResponse
 from server.app.utils.api import success_response, handle_service_error
 
-from .auth import get_current_user
-router = APIRouter(prefix="/api/ai/scripts", tags=["ai-scripts"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/api/ai/scripts", tags=["ai-scripts"])
 
 
 @router.post("/generate_one", response_model=BaseResponse[Dict[str, Any]])

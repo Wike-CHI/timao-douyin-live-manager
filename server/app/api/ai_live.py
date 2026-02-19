@@ -7,7 +7,7 @@ import asyncio
 import json
 from typing import Any, AsyncGenerator, Dict
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from ..services.ai_live_analyzer import get_ai_live_analyzer
@@ -18,9 +18,7 @@ from server.app.schemas import (
 from server.app.schemas.common import BaseResponse
 from server.app.utils.api import success_response, handle_service_error
 
-
-from .auth import get_current_user
-router = APIRouter(prefix="/api/ai/live", tags=["ai-live"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/api/ai/live", tags=["ai-live"])
 
 
 @router.post("/start", response_model=BaseResponse[Dict[str, Any]])

@@ -295,10 +295,7 @@ _include_router_safe("资源自检", "server.app.api.bootstrap")
 _include_router_safe("工具", "server.app.api.tools")
 _include_router_safe("AI 使用监控", "server.app.api.ai_usage")
 _include_router_safe("AI 网关管理", "server.app.api.ai_gateway_api")
-_include_router_safe("用户认证", "server.app.api.auth")
-_include_router_safe("订阅管理", "server.app.api.subscription")
-# payment.py 已移除，统一使用 subscription.py
-_include_router_safe("管理员", "server.app.api.admin")
+# 用户认证、订阅管理、管理员路由已移除 - 本地应用无需用户系统
 _include_router_safe("直播评论管理", "server.app.api.live_comments")
 _include_router_safe("模型状态", "server.app.api.model_status")  # 🆕 SenseVoice+VAD 模型状态查询
 

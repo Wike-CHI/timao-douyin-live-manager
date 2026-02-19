@@ -1,26 +1,8 @@
-"""Unified Pydantic schema exports for FastAPI routes."""
+"""Unified Pydantic schema exports for FastAPI routes.
+简化版 - 无用户系统
+"""
 
 from .common import BaseResponse, ErrorResponse, PaginationParams, PaginatedResponse, success_response
-from .auth import (
-    UserRegisterRequest,
-    UserLoginRequest,
-    RefreshTokenRequest,
-    ChangePasswordRequest,
-    EmailVerifyRequest,
-    UserResponse,
-    LoginResponse,
-    RegisterResponse,
-)
-from .subscription import (
-    SubscriptionPlanResponse,
-    UserSubscriptionResponse,
-    PaymentRecordResponse,
-    CreatePaymentRequest,
-    ConfirmPaymentRequest,
-    UpdateSubscriptionRequest,
-    CreateSubscriptionRequest,
-    CancelSubscriptionRequest,
-)
 from .live_audio import (
     StartLiveAudioRequest,
     LiveAudioAdvancedRequest,
@@ -44,22 +26,6 @@ __all__ = [
     "PaginationParams",
     "PaginatedResponse",
     "success_response",
-    "UserRegisterRequest",
-    "UserLoginRequest",
-    "RefreshTokenRequest",
-    "ChangePasswordRequest",
-    "EmailVerifyRequest",
-    "UserResponse",
-    "LoginResponse",
-    "RegisterResponse",
-    "SubscriptionPlanResponse",
-    "UserSubscriptionResponse",
-    "PaymentRecordResponse",
-    "CreatePaymentRequest",
-    "ConfirmPaymentRequest",
-    "UpdateSubscriptionRequest",
-    "CreateSubscriptionRequest",
-    "CancelSubscriptionRequest",
     "StartLiveAudioRequest",
     "LiveAudioAdvancedRequest",
     "LiveAudioPreloadRequest",
@@ -71,4 +37,3 @@ __all__ = [
     "GenerateOneScriptRequest",
     "SubmitScriptFeedbackRequest",
 ]
-
