@@ -1,19 +1,15 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Mic,
   MessageSquare,
   Bot,
   User,
-  Settings,
-  Sparkles
+  Settings
 } from 'lucide-react';
 import useAuthStore from '../../store/useAuthStore';
 
 const DashboardPage: React.FC = () => {
-  const navigate = useNavigate();
-  const { isPaid, user } = useAuthStore();
-  const isSuperAdmin = user?.role === 'super_admin';
+  const { user } = useAuthStore();
 
   const features = [
     {
@@ -76,44 +72,6 @@ const DashboardPage: React.FC = () => {
       <p className="text-gray-500 mb-8">
         这里列出当前版本适合主播的全部能力，方便快速了解还能做什么、该去哪个页面操作。
       </p>
-
-      {/* 订阅提示 */}
-      {!isPaid && !isSuperAdmin && (
-        <div
-          className="mb-8 border rounded-2xl p-6 animate-fade-in-up"
-          style={{
-            background: 'var(--accent-light)',
-            borderColor: 'rgba(var(--accent-rgb), 0.2)',
-            animationDelay: '0.1s',
-            opacity: 0
-          }}
-        >
-          <div className="flex items-start gap-4">
-            <div className="flex-shrink-0">
-              <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center transition-transform duration-300 hover:scale-110"
-                style={{ background: 'rgba(var(--accent-rgb), 0.1)' }}
-              >
-                <Sparkles size={22} style={{ color: 'var(--accent-main)' }} />
-              </div>
-            </div>
-            <div className="flex-1">
-              <h3 className="text-base font-semibold text-gray-900 mb-1.5">
-                解锁全部功能，开启 AI 直播新体验
-              </h3>
-              <p className="text-sm text-gray-600 mb-4">
-                订阅套餐后即可使用实时字幕、AI 分析、话术生成等强大功能
-              </p>
-              <button
-                onClick={() => navigate('/pay/subscription')}
-                className="timao-primary-btn text-sm font-medium"
-              >
-                查看订阅套餐
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 功能卡片 */}
       <div className="grid gap-5 xl:grid-cols-3 md:grid-cols-2">

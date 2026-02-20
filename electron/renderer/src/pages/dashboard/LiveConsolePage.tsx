@@ -82,10 +82,9 @@ const LiveConsolePage = () => {
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const [resumingSession, setResumingSession] = useState(false);
   const navigate = useNavigate();
-  const { isPaid, user } = useAuthStore();
+  const { user } = useAuthStore();
 
   const isRunning = status?.is_running ?? false;
-  const isSuperAdmin = user?.role === 'super_admin';
   const generatingRef = useRef(false);
   const sessionCheckedRef = useRef(false);
 
@@ -468,14 +467,6 @@ const LiveConsolePage = () => {
     setLoading(true);
     setError(null);
     try {
-      // 检查付费状态（超级管理员不受限制）
-      if (!isPaid && !isSuperAdmin) {
-        setError('功能暂时不可用，请订阅套餐后使用');
-        setLoading(false);
-        setIsStarting(false);
-        return;
-      }
-
       const input = liveInput.trim();
       if (!input) throw new Error('请填写直播地址或直播间ID');
       const idMatch = input.match(/live\.douyin\.com\/([A-Za-z0-9_\-]+)/);
