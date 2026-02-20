@@ -4,7 +4,7 @@ const themes = [
   { key: 'mint', label: '薄荷绿', color: '#10b981' },
   { key: 'peach', label: '蜜桃粉', color: '#f472b6' },
   { key: 'coral', label: '珊瑚橙', color: '#f97316' },
-  { key: 'dark', label: '暗夜', color: '#64748b' },
+  { key: 'dark', label: '暗夜', color: '#fbbf24' },
 ];
 
 const ThemeToggle = () => {
