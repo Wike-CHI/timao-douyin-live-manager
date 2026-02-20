@@ -130,23 +130,6 @@ class ServiceLogger:
         if extra_info:
             info_str += f" | {extra_info}"
         logger.info(info_str)
-    
-    @staticmethod
-    def log_subscription_event(event_type: str, user_id: Optional[int] = None, **kwargs) -> None:
-        """记录订阅事件
-        
-        Args:
-            event_type: 事件类型（如 "订阅"、"续费"、"取消"、"升级"）
-            user_id: 用户ID
-            **kwargs: 额外信息（如 plan, amount, duration 等）
-        """
-        extra_info = ", ".join([f"{k}={v}" for k, v in kwargs.items() if v is not None])
-        info_str = f"💳 [订阅事件] {event_type}"
-        if user_id:
-            info_str += f" | user_id={user_id}"
-        if extra_info:
-            info_str += f" | {extra_info}"
-        logger.info(info_str)
 
 
 # 便捷函数
@@ -183,11 +166,6 @@ def log_generation_error(service_name: str, target: str, error: str, **kwargs) -
 def log_user_action(action: str, user_id: Optional[int] = None, username: Optional[str] = None, **kwargs) -> None:
     """记录用户操作"""
     ServiceLogger.log_user_action(action, user_id, username, **kwargs)
-
-
-def log_subscription_event(event_type: str, user_id: Optional[int] = None, **kwargs) -> None:
-    """记录订阅事件"""
-    ServiceLogger.log_subscription_event(event_type, user_id, **kwargs)
 
 
 def timed_generation(service_name: str):

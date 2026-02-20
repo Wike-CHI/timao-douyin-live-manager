@@ -533,16 +533,7 @@ class AIUsageMonitor:
                 self._print_summary_stats()
                 self._last_summary_time = current_time
         
-        if numeric_user_id is not None:
-            try:
-                from server.app.services.subscription_service import SubscriptionService
-                SubscriptionService.record_ai_usage(
-                    user_id=numeric_user_id,
-                    tokens=total_tokens,
-                    requests=1
-                )
-            except Exception as exc:  # pragma: no cover - 防御性记录
-                logger.debug(f"记录 AI 使用量失败: {exc}")
+        # 订阅服务已移除 - 本地应用无需记录用户使用量
         
         # 格式化的日志输出，更易读
         status_icon = "✅" if success else "❌"
