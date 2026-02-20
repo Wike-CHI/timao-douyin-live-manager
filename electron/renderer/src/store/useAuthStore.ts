@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export interface UserInfo {
-  id: number;  // 修改为number类型，与后端保持一致
+  id: string;
   username: string;
   email: string;
   nickname?: string;
@@ -11,9 +11,14 @@ export interface UserInfo {
   status: string;
   email_verified: boolean;
   phone_verified: boolean;
-  created_at: string; // 日期时间在JSON中会转换为字符串
+  created_at: string;
 }
 
+/**
+ * 认证状态管理（简化版 - 本地桌面应用模式）
+ *
+ * 默认已认证，使用本地用户身份
+ */
 interface AuthState {
   user: UserInfo | null;
   token: string | null;
@@ -28,67 +33,53 @@ interface AuthState {
   setRememberMe: (value: boolean) => void;
 }
 
+// 默认本地用户
+const DEFAULT_LOCAL_USER: UserInfo = {
+  id: 'local_user',
+  username: 'local_user',
+  email: 'local@localhost',
+  nickname: '本地用户',
+  role: 'user',
+  status: 'active',
+  email_verified: true,
+  phone_verified: false,
+  created_at: new Date().toISOString(),
+};
+
 const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
-      user: null,
-      token: null,
+      // 默认已认证（本地桌面应用模式）
+      user: DEFAULT_LOCAL_USER,
+      token: 'local_token',
       refreshToken: null,
-      isPaid: false,
-      isAuthenticated: false,
+      isPaid: true,  // 本地应用默认已付费
+      isAuthenticated: true,  // 默认已认证
       rememberMe: true,
       setAuth: ({ user, token, refreshToken, isPaid = false }) =>
         set({ user, token, refreshToken, isPaid, isAuthenticated: true }),
       clearAuth: () =>
-        set({ user: null, token: null, refreshToken: null, isPaid: false, isAuthenticated: false }),
+        // 本地模式不清除认证状态
+        set({ user: DEFAULT_LOCAL_USER, token: 'local_token', refreshToken: null, isPaid: true, isAuthenticated: true }),
       logout: () => {
-        // 清除所有状态
-        set({ user: null, token: null, refreshToken: null, isPaid: false, isAuthenticated: false });
-        // 清除持久化存储（根据 rememberMe 状态清除对应的存储）
-        try {
-          localStorage.removeItem('timao-auth');
-          sessionStorage.removeItem('timao-auth');
-        } catch (e) {
-          console.warn('清除认证缓存失败:', e);
-        }
+        // 本地模式保持认证状态
+        set({ user: DEFAULT_LOCAL_USER, token: 'local_token', refreshToken: null, isPaid: true, isAuthenticated: true });
       },
-      setPaid: (value: boolean) => set({ isPaid: value }),
+      setPaid: (value: boolean) => set({ isPaid: true }),  // 本地模式始终为已付费
       setRememberMe: (value: boolean) => set({ rememberMe: value }),
     }),
     {
       name: 'timao-auth',
-      // 根据 rememberMe 状态决定使用 localStorage 还是 sessionStorage
       getStorage: () => {
-        // 创建自定义存储适配器
         return {
           getItem: (name: string): string | null => {
-            // 先尝试从 localStorage 读取（长期登录）
             const localValue = localStorage.getItem(name);
             if (localValue) return localValue;
-            
-            // 再尝试从 sessionStorage 读取（短期登录）
             const sessionValue = sessionStorage.getItem(name);
             return sessionValue;
           },
           setItem: (name: string, value: string): void => {
-            try {
-              const state = JSON.parse(value);
-              // 根据 rememberMe 决定存储位置
-              if (state.state?.rememberMe !== false) {
-                // 勾选"记住我"：使用 localStorage（持久化）
-                localStorage.setItem(name, value);
-                // 清除 sessionStorage 中的数据
-                sessionStorage.removeItem(name);
-              } else {
-                // 未勾选"记住我"：使用 sessionStorage（关闭浏览器后清除）
-                sessionStorage.setItem(name, value);
-                // 清除 localStorage 中的数据
-                localStorage.removeItem(name);
-              }
-            } catch (e) {
-              // 解析失败，默认使用 localStorage
-              localStorage.setItem(name, value);
-            }
+            localStorage.setItem(name, value);
           },
           removeItem: (name: string): void => {
             localStorage.removeItem(name);

@@ -1,10 +1,5 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
-import AuthLayout from './layout/AuthLayout';
-import PaymentLayout from './layout/PaymentLayout';
 import MainLayout from './layout/MainLayout';
-import LoginPage from './pages/auth/LoginPage';
-import RegisterPage from './pages/auth/RegisterPage';
-import SubscriptionPage from './pages/payment/SubscriptionPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import AboutPage from './pages/about/AboutPage';
 import LiveConsolePage from './pages/dashboard/LiveConsolePage';
@@ -15,54 +10,41 @@ import AIUsagePage from './pages/ai/AIUsagePage';
 import useAuthGuard from './hooks/useAuthGuard';
 import useAuthInterceptor from './hooks/useAuthInterceptor';
 import FloatingWindowPage from './pages/FloatingWindowPage';
-// 内部路由组件，在Router上下文中使用hooks
+
+/**
+ * 路由配置（简化版 - 本地桌面应用模式）
+ *
+ * 移除了登录/注册/订阅路由，直接进入主应用
+ */
 const AppRoutes = () => {
   const { requireAuth, requirePayment, isAuthenticated } = useAuthGuard();
-  
-  // 使用认证拦截器（必须在Router上下文中）
+
+  // 使用认证拦截器
   useAuthInterceptor();
 
   return (
     <Routes>
-      {/* ========== 独立悬浮窗路由（无需认证/布局） ========== */}
+      {/* 悬浮窗路由（独立窗口） */}
       <Route path="/floating" element={<FloatingWindowPage />} />
-      
-      <Route path="/auth" element={<AuthLayout />}> 
-        <Route index element={<Navigate to="login" replace />} />
-        <Route path="login" element={<LoginPage />} />
-        <Route path="register" element={<RegisterPage />} />
-      </Route>
 
-      <Route
-        path="/pay"
-        element={requireAuth(<PaymentLayout />)}
-      >
-        <Route index element={<Navigate to="subscription" replace />} />
-        <Route path="subscription" element={<SubscriptionPage />} />
-      </Route>
-
-      <Route
-        path="/"
-        element={requireAuth(<MainLayout />)}
-      >
+      {/* 主应用路由（无需认证） */}
+      <Route path="/" element={<MainLayout />}>
         <Route index element={<Navigate to="dashboard" replace />} />
-        <Route path="dashboard" element={requirePayment(<DashboardPage />)} />
-        <Route path="live" element={requirePayment(<LiveConsolePage />)} />
-        <Route path="reports" element={requirePayment(<ReportsPage />)} />
-        <Route path="tools" element={requirePayment(<ToolsPage />)} />
-        <Route path="ai-gateway" element={requirePayment(<AIGatewayPage />)} />
-        <Route path="ai-usage" element={requirePayment(<AIUsagePage />)} />
+        <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="live" element={<LiveConsolePage />} />
+        <Route path="reports" element={<ReportsPage />} />
+        <Route path="tools" element={<ToolsPage />} />
+        <Route path="ai-gateway" element={<AIGatewayPage />} />
+        <Route path="ai-usage" element={<AIUsagePage />} />
         <Route path="about" element={<AboutPage />} />
       </Route>
 
-      <Route
-        path="*"
-        element={
-          isAuthenticated
-            ? <Navigate to="/dashboard" replace />
-            : <Navigate to="/auth/login" replace />
-        }
-      />
+      {/* 兼容旧路由：重定向到主页面 */}
+      <Route path="/auth/*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/pay/*" element={<Navigate to="/dashboard" replace />} />
+
+      {/* 未知路由：重定向到仪表板 */}
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
 };
