@@ -1892,41 +1892,24 @@ class LiveAudioStreamService:
             self.logger.error(f"批量转写任务异常: {e}")
 
     async def _flush_transcription_batch(self) -> None:
-        """将缓冲的转写结果批量写入Redis和MySQL"""
+        """将缓冲的转写结果批量处理（已移除Redis写入，保留批量处理框架）"""
         try:
             async with self._redis_batch_lock:
                 if not self._redis_batch_buffer:
                     return
-                
+
                 batch_to_write = self._redis_batch_buffer.copy()
                 self._redis_batch_buffer.clear()
-            
+
             if not batch_to_write:
                 return
-            
-            # 写入Redis List（作为临时队列）
-            try:
-                from server.utils.redis_manager import get_redis
-                redis_mgr = get_redis()
-                if redis_mgr:
-                    session_id = self._status.session_id
-                    redis_key = f"transcription:{session_id}:stream"
-                    
-                    # 批量推入Redis List
-                    import json
-                    for item in batch_to_write:
-                        redis_mgr.rpush(redis_key, json.dumps(item, ensure_ascii=False))
-                    
-                    # 设置过期时间（24小时）
-                    redis_mgr.expire(redis_key, 86400)
-                    
-                    self.logger.info(f"批量写入Redis: {len(batch_to_write)}条转写记录 -> {redis_key}")
-            except Exception as e:
-                self.logger.error(f"写入Redis失败: {e}")
-            
-            # TODO: 异步批量写MySQL（需要数据库模型支持）
-            # 这里暂时只写Redis，MySQL批量写入需要在独立的数据持久化服务中实现
-            
+
+            # 批量处理转写结果（不再写入Redis）
+            # 转写数据已通过JSONL持久化，这里仅记录日志
+            self.logger.debug(f"批量处理: {len(batch_to_write)}条转写记录")
+
+            # 注意：MySQL批量写入需要在独立的数据持久化服务中实现
+
         except Exception as e:
             self.logger.error(f"刷新转写批次失败: {e}")
 
