@@ -219,32 +219,6 @@ class SecurityConfig:
 
 
 @dataclass
-class RedisConfig:
-    """
-Redis缓存配置"""
-    # 基本配置
-    enabled: bool = True
-    host: str = "localhost"
-    port: int = 6379
-    db: int = 0
-    password: str = ""
-    
-    # 连接池配置
-    max_connections: int = 10
-    socket_timeout: int = 5
-    socket_connect_timeout: int = 5
-    socket_keepalive: bool = True
-    
-    # 缓存配置
-    default_ttl: int = 3600  # 默认过期时间（秒）
-    key_prefix: str = "timao:"  # 键前缀
-    
-    # 重连配置
-    retry_on_timeout: bool = True
-    health_check_interval: int = 30
-
-
-@dataclass
 class PerformanceConfig:
     """性能优化配置"""
     # 内存池
@@ -273,7 +247,6 @@ class AppConfig:
     log: LogConfig = field(default_factory=LogConfig)
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     security: SecurityConfig = field(default_factory=SecurityConfig)
-    redis: RedisConfig = field(default_factory=RedisConfig)
     performance: PerformanceConfig = field(default_factory=PerformanceConfig)
     
     # 应用信息
@@ -357,8 +330,6 @@ class ConfigManager:
                     config_dict[key] = DatabaseConfig(**value)
                 elif key == "security" and isinstance(value, dict):
                     config_dict[key] = SecurityConfig(**value)
-                elif key == "redis" and isinstance(value, dict):
-                    config_dict[key] = RedisConfig(**value)
                 elif key == "performance" and isinstance(value, dict):
                     config_dict[key] = PerformanceConfig(**value)
                 else:
@@ -413,16 +384,7 @@ class ConfigManager:
                 'RDS_USER': ('database', 'mysql_user'),
                 'RDS_PASSWORD': ('database', 'mysql_password'),
                 'RDS_DATABASE': ('database', 'mysql_database'),
-                
-                # Redis配置
-                'REDIS_ENABLED': ('redis', 'enabled', bool),
-                'REDIS_HOST': ('redis', 'host'),
-                'REDIS_PORT': ('redis', 'port', int),
-                'REDIS_DB': ('redis', 'db', int),
-                'REDIS_PASSWORD': ('redis', 'password'),
-                'REDIS_MAX_CONNECTIONS': ('redis', 'max_connections', int),
-                'REDIS_CACHE_TTL': ('redis', 'default_ttl', int),
-                
+
                 # 安全配置
                 'API_KEY': ('security', 'api_key'),
                 'API_RATE_LIMIT': ('security', 'api_rate_limit', int),
@@ -604,13 +566,6 @@ RDS_PORT=3306
 RDS_USER=your-rds-user
 RDS_PASSWORD=your-rds-password
 RDS_DATABASE=timao_live
-
-# ==================== Redis配置 ====================
-REDIS_ENABLED=true
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_DB=0
-REDIS_PASSWORD=
 
 # ==================== 安全配置 ====================
 API_KEY=your-api-key
