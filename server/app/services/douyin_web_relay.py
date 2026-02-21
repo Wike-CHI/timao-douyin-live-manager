@@ -818,108 +818,30 @@ class DouyinWebRelay:
             logger.error(f"批量弹幕任务异常: {e}")
 
     async def _flush_danmu_batch(self) -> None:
-        """将缓冲的弹幕数据批量写入Redis"""
+        """将缓冲的弹幕数据批量处理（已移除Redis写入，保留批量处理框架）"""
         try:
             async with self._lock:
                 if not self._redis_batch_buffer:
                     return
-                
+
                 batch_to_write = self._redis_batch_buffer.copy()
                 self._redis_batch_buffer.clear()
-            
+
             if not batch_to_write:
                 return
-            
-            # 写入Redis（按类型分类存储）
-            try:
-                from server.utils.redis_manager import get_redis
-                redis_mgr = get_redis()
-                if redis_mgr:
-                    live_id = self._status.live_id or "unknown"
-                    
-                    import json
-                    # 分类统计
-                    chat_count = 0
-                    gift_count = 0
-                    like_count = 0
-                    
-                    for event in batch_to_write:
-                        event_type = event.get("type", "")
-                        
-                        # 弹幕消息 -> Redis List队列
-                        if event_type == "chat":
-                            redis_key = f"danmu:{live_id}:queue"
-                            redis_mgr.rpush(redis_key, json.dumps(event, ensure_ascii=False))
-                            chat_count += 1
-                        
-                        # 礼物消息 -> Redis List队列
-                        elif event_type == "gift":
-                            redis_key = f"gift:{live_id}:queue"
-                            redis_mgr.rpush(redis_key, json.dumps(event, ensure_ascii=False))
-                            gift_count += 1
-                        
-                        # 点赞消息 -> Redis计数器
-                        elif event_type == "like":
-                            redis_key = f"like:{live_id}:count"
-                            payload = event.get("payload", {})
-                            count = payload.get("count", 1)
-                            redis_mgr.incr(redis_key, count)
-                            like_count += count
-                        
-                        # 其他互动消息 -> Redis List队列
-                        else:
-                            redis_key = f"interaction:{live_id}:queue"
-                            redis_mgr.rpush(redis_key, json.dumps(event, ensure_ascii=False))
-                    
-                    # 设置过期时间（24小时）
-                    for key_prefix in ["danmu", "gift", "like", "interaction"]:
-                        redis_key = f"{key_prefix}:{live_id}:queue" if key_prefix != "like" else f"{key_prefix}:{live_id}:count"
-                        redis_mgr.expire(redis_key, 86400)
-                    
-                    # 热词统计（使用Sorted Set）
-                    if chat_count > 0:
-                        await self._update_hotwords_in_redis(batch_to_write, live_id, redis_mgr)
-                    
-                    logger.info(
-                        f"批量写入Redis: 弹幕{chat_count}条, 礼物{gift_count}条, "
-                        f"点赞{like_count}次 -> {live_id}"
-                    )
-            except Exception as e:
-                logger.error(f"写入Redis失败: {e}")
-            
+
+            # 批量处理弹幕数据（不再写入Redis）
+            # 分类统计
+            chat_count = sum(1 for e in batch_to_write if e.get("type") == "chat")
+            gift_count = sum(1 for e in batch_to_write if e.get("type") == "gift")
+            like_count = sum(e.get("payload", {}).get("count", 1) for e in batch_to_write if e.get("type") == "like")
+
+            logger.debug(
+                f"批量处理弹幕: 弹幕{chat_count}条, 礼物{gift_count}条, 点赞{like_count}次"
+            )
+
         except Exception as e:
             logger.error(f"刷新弹幕批次失败: {e}")
-
-    async def _update_hotwords_in_redis(
-        self, batch: List[Dict[str, Any]], live_id: str, redis_mgr
-    ) -> None:
-        """更新热词统计到Redis Sorted Set"""
-        try:
-            import re
-            word_counter: Dict[str, int] = {}
-            
-            # 简单分词（按空格和标点分割）
-            for event in batch:
-                if event.get("type") != "chat":
-                    continue
-                
-                content = event.get("payload", {}).get("content", "")
-                if not content:
-                    continue
-                
-                # 简单的中文分词（2-4字词）
-                words = re.findall(r'[\u4e00-\u9fff]{2,4}', content)
-                for word in words:
-                    word_counter[word] = word_counter.get(word, 0) + 1
-            
-            # 批量更新到Redis Sorted Set
-            if word_counter:
-                redis_key = f"hotwords:{live_id}:sorted_set"
-                for word, count in word_counter.items():
-                    redis_mgr.zadd(redis_key, {word: count})
-                redis_mgr.expire(redis_key, 86400)
-        except Exception as e:
-            logger.error(f"更新热词统计失败: {e}")
 
 
 _relay_instance: Optional[DouyinWebRelay] = None
