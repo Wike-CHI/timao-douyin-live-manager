@@ -78,11 +78,7 @@ class AILiveAnalyzer:
         self._script_responder = None
         self._workflow = None
         self._session_id: Optional[str] = None  # 🔧 初始化session_id，防止stop()时访问不存在的属性
-        
-        # 🆕 Redis缓存配置（AI分析结果）
-        self._redis_cache_enabled: bool = bool(int(os.getenv("AI_CACHE_ENABLED", "1")))
-        self._redis_cache_ttl: int = int(os.getenv("AI_CACHE_TTL", "3600"))  # 1小时
-        
+
         self._init_workflow()
 
     # -------------- Public API --------------
@@ -328,51 +324,16 @@ class AILiveAnalyzer:
         scripts = self._script_responder.generate(context)
         return {"scripts": scripts}
 
-    # 🆕 Redis缓存辅助方法
+    # 缓存辅助方法（已移除Redis，保留接口兼容）
     async def _get_cached_analysis(self, cache_key: str) -> Optional[Dict[str, Any]]:
-        """从Redis获取缓存的AI分析结果"""
-        if not self._redis_cache_enabled:
-            return None
-        
-        try:
-            from server.utils.redis_manager import get_redis
-            import json
-            redis_mgr = get_redis()
-            if redis_mgr:
-                cached = redis_mgr.get(cache_key)
-                if cached:
-                    logger.info(f"✅ 命中AI分析缓存: {cache_key}")
-                    # 兼容Redis管理器返回字符串或dict的情况
-                    if isinstance(cached, dict):
-                        return cached
-                    elif isinstance(cached, (str, bytes)):
-                        return json.loads(cached if isinstance(cached, str) else cached.decode('utf-8'))
-                    else:
-                        logger.warning(f"未知的缓存数据类型: {type(cached)}")
-                        return None
-        except Exception as e:
-            logger.warning(f"获取AI分析缓存失败: {e}")
-        
+        """获取缓存的AI分析结果（已禁用缓存）"""
+        # Redis缓存已移除，直接返回None
         return None
 
     async def _cache_analysis_result(self, cache_key: str, result: Dict[str, Any]) -> None:
-        """将AI分析结果缓存到Redis"""
-        if not self._redis_cache_enabled:
-            return
-        
-        try:
-            from server.utils.redis_manager import get_redis
-            import json
-            redis_mgr = get_redis()
-            if redis_mgr:
-                redis_mgr.set(
-                    cache_key, 
-                    json.dumps(result, ensure_ascii=False), 
-                    ttl=self._redis_cache_ttl
-                )
-                logger.debug(f"✅ AI分析结果已缓存: {cache_key}")
-        except Exception as e:
-            logger.warning(f"缓存AI分析结果失败: {e}")
+        """缓存AI分析结果（已禁用缓存）"""
+        # Redis缓存已移除，不执行任何操作
+        pass
 
     def _generate_cache_key(self, sentences: List[str], comments: List[Dict[str, Any]]) -> str:
         """生成缓存键（基于输入内容的哈希）"""
