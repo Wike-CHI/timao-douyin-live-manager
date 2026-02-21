@@ -270,100 +270,30 @@ class LiveSessionManager:
             return session
     
     async def _save_session_state(self):
-        """保存会话状态到文件和Redis"""
+        """保存会话状态到文件"""
         if not self._current_session:
             return
-        
+
         try:
             state_data = asdict(self._current_session)
-            
-            # 1. 保存到文件（保持原有功能）
+
+            # 保存到文件
             with open(self._state_file, 'w', encoding='utf-8') as f:
                 json.dump(state_data, f, ensure_ascii=False, indent=2)
-            
-            # 2. 🆕 同步到Redis（优先读取，定期同步到MySQL）
-            try:
-                from server.utils.redis_manager import get_redis
-                redis_mgr = get_redis()
-                if redis_mgr:
-                    session_id = self._current_session.session_id
-                    redis_key = f"session:{session_id}:state"
-                    
-                    # 使用Hash存储会话详情（方便部分更新）
-                    redis_mgr.hset(redis_key, mapping=state_data)
-                    
-                    # 设置过期时间（48小时，超过会话可能的生命周期）
-                    redis_mgr.expire(redis_key, 172800)
-                    
-                    # 添加到活跃会话集合
-                    if self._current_session.status in ["recording", "paused"]:
-                        redis_mgr.sadd("active_sessions", session_id)
-                    else:
-                        redis_mgr.srem("active_sessions", session_id)
-                    
-                    logger.debug(f"✅ 会话状态已保存到Redis: {session_id}")
-            except Exception as e:
-                logger.warning(f"保存会话状态到Redis失败（将继续使用文件）: {e}")
-            
+
             logger.debug(f"✅ 会话状态已保存: {self._current_session.session_id}")
         except Exception as e:
             logger.error(f"保存会话状态失败: {e}", exc_info=True)
     
     async def _load_session_state(self) -> Optional[LiveSessionState]:
-        """从Redis或文件加载会话状态（优先Redis）"""
-        # 1. 🆕 尝试从Redis加载
-        try:
-            from server.utils.redis_manager import get_redis
-            redis_mgr = get_redis()
-            if redis_mgr:
-                # 从活跃会话集合中获取最近的会话
-                active_sessions = redis_mgr.smembers("active_sessions")
-                if active_sessions:
-                    # 取第一个活跃会话（实际可能需要更复杂的逻辑）
-                    for session_id_bytes in active_sessions:
-                        session_id = session_id_bytes if isinstance(session_id_bytes, str) else session_id_bytes.decode('utf-8')
-                        redis_key = f"session:{session_id}:state"
-                        state_data = redis_mgr.hgetall(redis_key)
-                        
-                        if state_data:
-                            # 转换字节类型的键值
-                            if state_data and any(isinstance(k, bytes) for k in state_data.keys()):
-                                state_data = {
-                                    k.decode('utf-8') if isinstance(k, bytes) else k: 
-                                    v.decode('utf-8') if isinstance(v, bytes) else v
-                                    for k, v in state_data.items()
-                                }
-                            
-                            # 类型转换（Redis存储的都是字符串）
-                            for int_field in ['started_at', 'last_updated_at']:
-                                if int_field in state_data:
-                                    state_data[int_field] = int(state_data[int_field])
-                            for bool_field in ['recording_active', 'audio_transcription_active', 
-                                             'ai_analysis_active', 'douyin_relay_active']:
-                                if bool_field in state_data:
-                                    state_data[bool_field] = state_data[bool_field] in ['True', 'true', '1', True]
-                            
-                            # 恢复metadata（如果是JSON字符串）
-                            if 'metadata' in state_data and isinstance(state_data['metadata'], str):
-                                try:
-                                    state_data['metadata'] = json.loads(state_data['metadata'])
-                                except:
-                                    state_data['metadata'] = {}
-                            
-                            session = LiveSessionState(**state_data)
-                            logger.debug(f"✅ 从Redis加载会话状态: {session.session_id}")
-                            return session
-        except Exception as e:
-            logger.warning(f"从Redis加载会话状态失败（将尝试从文件加载）: {e}")
-        
-        # 2. 回退到文件加载
+        """从文件加载会话状态"""
         if not self._state_file.exists():
             return None
-        
+
         try:
             with open(self._state_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            
+
             session = LiveSessionState(**data)
             logger.debug(f"✅ 从文件加载会话状态: {session.session_id}")
             return session
@@ -372,30 +302,12 @@ class LiveSessionManager:
             return None
     
     async def _clear_session_state(self):
-        """清除会话状态文件和Redis"""
+        """清除会话状态文件"""
         try:
-            # 1. 清除文件
+            # 清除文件
             if self._state_file.exists():
                 self._state_file.unlink()
                 logger.debug("✅ 会话状态文件已清除")
-            
-            # 2. 🆕 清除Redis中的会话数据
-            try:
-                from server.utils.redis_manager import get_redis
-                redis_mgr = get_redis()
-                if redis_mgr and self._current_session:
-                    session_id = self._current_session.session_id
-                    redis_key = f"session:{session_id}:state"
-                    
-                    # 删除会话状态Hash
-                    redis_mgr.delete(redis_key)
-                    
-                    # 从活跃会话集合中移除
-                    redis_mgr.srem("active_sessions", session_id)
-                    
-                    logger.debug(f"✅ Redis会话状态已清除: {session_id}")
-            except Exception as e:
-                logger.warning(f"清除Redis会话状态失败: {e}")
         except Exception as e:
             logger.error(f"清除会话状态失败: {e}")
     
