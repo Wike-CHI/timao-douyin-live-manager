@@ -138,26 +138,9 @@ async def startup_event():
     logging.info("=" * 60)
     logging.info("🚀 应用启动中...")
     logging.info("=" * 60)
-    
-    # 初始化Redis管理器
-    try:
-        from server.utils.redis_manager import init_redis
-        from server.config import config_manager
-        
-        redis_config = config_manager.config.redis
-        redis_manager = init_redis(redis_config)
-        
-        if redis_manager:
-            logging.info("✅ Redis管理器已初始化")
-            logging.info(f"   - 主机: {redis_config.host}:{redis_config.port}")
-            logging.info(f"   - 数据库: {redis_config.db}")
-            logging.info(f"   - 最大连接数: {redis_config.max_connections}")
-        else:
-            logging.warning("⚠️  Redis管理器初始化失败，将使用内存回退")
-    except Exception as e:
-        logging.error(f"❌ Redis初始化失败: {e}")
-        logging.info("   将继续使用内存回退模式")
-    
+
+    # Redis已移除，使用纯内存缓存
+
     logging.info("=" * 60)
     logging.info("✅ 应用启动完成")
     logging.info("=" * 60)
@@ -168,15 +151,9 @@ async def shutdown_event():
     logging.info("=" * 60)
     logging.info("🛑 应用关闭中...")
     logging.info("=" * 60)
-    
-    # 关闭Redis连接
-    try:
-        from server.utils.redis_manager import close_redis
-        close_redis()
-        logging.info("✅ Redis连接已关闭")
-    except Exception as e:
-        logging.error(f"❌ Redis关闭失败: {e}")
-    
+
+    # Redis已移除，无需关闭连接
+
     logging.info("=" * 60)
     logging.info("✅ 应用已关闭")
     logging.info("=" * 60)
@@ -489,30 +466,9 @@ async def startup_event():
     """应用启动"""
     logging.info("🐱 提猫直播助手启动中...")
     log_service_start("FastAPI主服务")
-    
-    # 初始化 Redis
-    try:
-        from server.utils.redis_manager import init_redis
-        from server.config import RedisConfig
-        
-        # 确保传递 RedisConfig 对象
-        redis_config = config_manager.config.redis
-        if isinstance(redis_config, dict):
-            redis_config = RedisConfig(**redis_config)
-        # 如果禁用，则跳过连接，直接进入内存模式
-        if not redis_config.enabled:
-            redis_client = init_redis(redis_config)
-            logging.info("⏭️ 已跳过 Redis 启动，使用内存缓存")
-        else:
-            redis_client = init_redis(redis_config)
-            if redis_client.is_enabled():
-                log_service_start("Redis缓存服务")
-                logging.info("✅ Redis 缓存已启用")
-            else:
-                logging.warning("⚠️ Redis 连接失败，已回退到内存缓存")
-    except Exception as e:
-        logging.warning(f"⚠️ Redis 初始化失败: {e}")
-    
+
+    # Redis已移除，使用纯内存缓存
+
     # 初始化数据库
     try:
         db_config = config_manager.config.database
@@ -582,16 +538,9 @@ async def shutdown_event():
         logging.info("✅ 内存监控服务已停止")
     except Exception as e:
         logging.warning(f"⚠️ 内存监控服务停止失败: {e}")
-    
-    # 关闭 Redis 连接
-    try:
-        from server.utils.redis_manager import close_redis
-        close_redis()
-        log_service_stop("Redis缓存服务")
-        logging.info("✅ Redis 连接已关闭")
-    except Exception as e:
-        logging.error(f"❌ Redis 关闭失败: {e}")
-    
+
+    # Redis已移除，无需关闭连接
+
     try:
         stop_websocket_services()
         log_service_stop("WebSocket服务")
