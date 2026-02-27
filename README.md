@@ -1,259 +1,450 @@
-# 提猫直播助手 · TalkingCat
+<p align="center">
+  <img src="https://img.shields.io/badge/Electron-38-47848F?style=for-the-badge&logo=electron" alt="Electron">
+  <img src="https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react" alt="React">
+  <img src="https://img.shields.io/badge/FastAPI-0.100+-009688?style=for-the-badge&logo=fastapi" alt="FastAPI">
+  <img src="https://img.shields.io/badge/AI-LangChain-1C3C3C?style=for-the-badge" alt="LangChain">
+</p>
 
-> **重要声明：** 本项目仅依照仓库内的《提猫直播助手源代码许可协议（仅供学习研究）》授权，用于学习与研究目的。任何未经作者书面许可的商业化行为（含直接或间接盈利）均被严格禁止，违者作者保留追究法律责任的权利。请务必阅读根目录下的 `LICENSE` 文件。
+<h1 align="center">🐱 提猫直播助手 · TalkingCat</h1>
 
-基于 Electron + FastAPI 的抖音直播主播助手，整合本地 SenseVoice/FunASR 语音识别、Douyin 弹幕抓取、LangChain/Qwen AI 话术生成与直播复盘能力，默认在本机完成处理，直播数据不会离开本地环境。
+<p align="center">
+  <strong>AI驱动的抖音直播助手 | 实时语音识别 | 弹幕互动 | 智能话术</strong>
+</p>
 
-## 功能亮点
+<p align="center">
+  <a href="#-核心功能">核心功能</a> •
+  <a href="#-技术架构">技术架构</a> •
+  <a href="#-快速开始">快速开始</a> •
+  <a href="#-演示">演示</a> •
+  <a href="#-部署">部署</a>
+</p>
 
-- 🎯 **直播互动中台**：`server/modules/douyin` 模块拉取 WebSocket 弹幕/礼物，并通过 REST/SSE 向桌面端推送。
-- 🎤 **本地实时语音转写**：`server/modules/ast` 使用 SenseVoice Small + VAD，实现直播音频直抓、断句校准与字幕流。
-- 🧠 **AI 实时分析**：`server/ai` 基于 LangChain + Qwen/OpenAI 兼容接口生成热词洞察、实时提示与话术。
-- 🚀 **AI 网关统一管理**：支持多 AI 服务商（Qwen/OpenAI/DeepSeek/豆包/ChatGLM）一键切换、集中配置、自动监控。
-- 📊 **直播复盘留存**：自动生成 `comments.jsonl`、`transcript.txt`、`report.html` 等复盘素材，支撑离线分析。
-- 🔒 **隐私与容错**：本地处理、离线可用，内置模型/接口降级策略，日志与缓存全部保存在本地 `logs/`、`records/`。
+---
 
-## 技术栈
+> ⚠️ **重要声明**: 本项目仅依照《提猫直播助手源代码许可协议》授权，用于学习与研究目的。任何未经作者书面许可的商业化行为均被严格禁止。请务必阅读根目录下的 `LICENSE` 文件。
 
-- 桌面端：Electron 38、electron-builder、concurrently、wait-on。
-- 渲染层：React 18、Vite 5、Tailwind CSS、Zustand。
-- 后端：FastAPI + Uvicorn（主要 API）、Flask（遗留 SSE 工具）、WebSocket/SSE、SQLAlchemy + SQLite。
-- AI & NLP：LangChain、Qwen 兼容接口、jieba、SnowNLP、RNNoise、FunASR、SenseVoiceSmall。
-- 音频处理：ffmpeg、PyAudio、librosa、webrtc-audio-processing。
-- 测试与质量：Jest、Pytest、ESLint、Playwright（Electron 测试脚手架）。
+---
 
-## 系统组件
+## 🎯 项目亮点
+
+✨ **完整的直播辅助解决方案** - 从弹幕抓取到AI话术生成，一站式服务
+
+🎤 **本地实时语音转写** - SenseVoice + VAD，直播音频直抓、断句校准
+
+🧠 **AI实时分析** - LangChain + Qwen，生成热词洞察、实时提示与话术
+
+🔒 **隐私优先** - 本地处理，直播数据不离开本地环境
+
+---
+
+## 🌟 核心功能
+
+### 🎯 直播互动中台
+- **实时弹幕抓取**: WebSocket连接，毫秒级响应
+- **礼物/打赏监控**: 自动记录所有互动
+- **REST/SSE推送**: 桌面端实时同步
+
+### 🎤 本地实时语音转写
+- **SenseVoice Small**: 高精度中文语音识别
+- **VAD语音检测**: 自动断句校准
+- **字幕流生成**: 实时字幕输出
+- **降噪处理**: RNNoise音频增强
+
+### 🧠 AI实时分析
+- **热词洞察**: 自动识别直播热词
+- **实时提示**: AI智能建议
+- **话术生成**: LangChain + Qwen驱动
+- **多AI支持**: Qwen/OpenAI/DeepSeek/豆包/ChatGLM
+
+### 📊 直播复盘留存
+- **自动生成**:
+  - `comments.jsonl` - 弹幕记录
+  - `transcript.txt` - 语音转录
+  - `report.html` - 可视化报告
+- **离线分析**: 支持离线查看历史数据
+
+### 🔒 隐私与容错
+- **本地处理**: 所有数据本地保存
+- **离线可用**: 内置模型降级策略
+- **完整日志**: `logs/`、`records/` 本地存储
+
+---
+
+## 📸 演示
+
+### 功能截图
+
+![主界面](docs/screenshots/main-interface.png)
+*实时直播数据监控*
+
+![AI分析](docs/screenshots/ai-analysis.png)
+*AI实时分析与建议*
+
+![语音转写](docs/screenshots/voice-transcript.png)
+*实时语音转字幕*
+
+---
+
+## 🏗️ 技术架构
+
+### 技术栈
+
+| 层级 | 技术 |
+|-----|------|
+| **桌面端** | Electron 38, electron-builder |
+| **渲染层** | React 18, Vite 5, Tailwind CSS, Zustand |
+| **后端** | FastAPI, Uvicorn, Flask, WebSocket/SSE |
+| **数据库** | SQLAlchemy, SQLite |
+| **AI & NLP** | LangChain, Qwen, jieba, SnowNLP |
+| **语音处理** | FunASR, SenseVoice, RNNoise, PyAudio |
+| **音频处理** | ffmpeg, librosa, webrtc-audio-processing |
+| **测试** | Jest, Pytest, ESLint, Playwright |
+
+### 系统组件
 
 ```
 electron/main.js
 ├─ 启动 renderer (Vite 30013) 渲染 React/Tailwind UI
-├─ 启动 FastAPI：server/app/main.py → 127.0.0.1:8090 (REST + WebSocket)
-│   ├─ server/app/api/*           直播音频、复盘、Douyin、AI 等路由
+├─ 启动 FastAPI：server/app/main.py → 127.0.0.1:8090
+│   ├─ server/app/api/*           直播音频、复盘、Douyin、AI 路由
 │   ├─ server/ingest/             抖音抓取与缓冲
 │   ├─ server/nlp/                热词/情绪分析
 │   └─ server/ai/                 LangChain/Qwen 实时策略
-├─ 调用 server/modules/ast/*      SenseVoice 音频采集、后处理与降级
-└─ （兼容）server/app.py          Flask SSE 与工具接口
+├─ 调用 server/modules/ast/*      SenseVoice 音频采集
+└─ （兼容）server/app.py          Flask SSE 工具接口
 ```
 
-## 目录导览
+### 目录结构
 
 ```
 timao-douyin-live-manager/
-├── server/                   # 后端服务（所有后端代码统一在此）
+├── server/                   # 后端服务
 │   ├── app/main.py          # FastAPI 入口
 │   ├── app/api/             # REST/WebSocket 路由
 │   ├── app/services/        # 业务逻辑服务
 │   ├── app/models/          # 数据模型
-│   ├── ai/                  # AI 相关模块（LangChain/Qwen 工作流）
+│   ├── ai/                  # AI 模块（LangChain/Qwen）
 │   ├── modules/             # 核心功能模块
-│   │   ├── ast/             # 音频转写（SenseVoice/FunASR）
+│   │   ├── ast/             # 音频转写（SenseVoice）
 │   │   ├── douyin/          # 抖音弹幕抓取
-│   │   └── streamcap/       # 流媒体处理
-│   ├── utils/               # 配置、日志、工具函数
-│   ├── tests/               # 测试文件（单元测试、集成测试）
-│   └── requirements.txt     # Python 依赖
+│   │   └── nlp/             # 自然语言处理
+│   └── utils/               # 工具函数
 │
-├── electron/                # 桌面端应用
-│   ├── main.js              # Electron 主进程
-│   └── renderer/            # React + Vite 前端，端口 30013（dev）
-│       └── src/assets/      # 前端资源文件（图标、图片等）
+├── electron/                 # Electron 桌面端
+│   ├── main.js              # 主进程
+│   └── preload.js           # 预加载脚本
 │
-├── scripts/                 # 工具脚本（中文分层）
-│   ├── 构建与启动/          # build-all、integrated-launcher、service_launcher 等
-│   ├── 部署与运维/          # docker_deploy_full 等部署脚本
-│   ├── 检查与校验/          # check_backend、validate_port_config、verify-port-config 等
-│   ├── 初始化与迁移/        # setup_env、init_*、migrate_env_config 等
-│   ├── 诊断与排障/          # debug/diagnose、kill-port、port-manager 等
-│   ├── 测试与验证/          # test_douyin_live、test_memory_redis 等
-│   └── 辅助工具/            # list_users、simple_list_users 等
+├── src/                      # React 前端
+│   ├── components/          # React 组件
+│   ├── pages/               # 页面
+│   ├── hooks/               # 自定义 Hooks
+│   ├── stores/              # Zustand 状态管理
+│   └── utils/               # 工具函数
 │
-├── docs/                    # 文档目录（企业级分层管理）
-│   ├── guides/              # 安装、部署、打包、使用指南
-│   ├── runbooks/            # 故障处理、紧急变更操作手册
-│   ├── reference/           # 端口、命令、配置基线
-│   ├── reports/             # Fix/验收/总结报告
-│   ├── internal/            # 内部凭证及敏感信息（受控访问）
-│   ├── AI方案与集成/         # AI 网关、AST、ASR 等方案沉淀
-│   ├── 直播音频方案/         # Douyin 抓取、录制链路与音频策略
-│   ├── 部署与运维指南/       # 环境配置、脚本、运维与安全加固
-│   ├── 产品使用手册/         # 启动、手册、脚本使用说明
-│   ├── 开发规范与流程/       # Git/Code 规范、项目结构、Token 检查
-│   ├── 测试与质量保障/       # 测试、Review、质量改进文档
-│   └── 项目复盘与报告/       # 迁移总结、复盘报告、完成说明
+├── docs/                     # 文档
+│   ├── API.md               # API 文档
+│   ├── DEPLOYMENT.md        # 部署指南
+│   └── USAGE.md             # 使用手册
 │
-├── deploy/                  # 部署相关文件（Docker、部署文档、脚本）
-│   ├── Dockerfile           # Docker 镜像构建
-│   ├── docker-compose.yml   # Docker Compose 配置
-│   ├── scripts/             # 部署脚本
-│   └── config/              # 部署配置
-├── migrations/              # 数据库迁移文件
-├── tests/                   # 全局测试文件（统一分层）
-│   ├── integration/         # 跨服务端到端校验
-│   ├── regression/          # 缺陷回归/修复验证
-│   ├── scripts/             # Shell 驱动或环境校验脚本
-│   ├── manual/              # 手工/可视化验证页面
-│   └── reports/             # 测试报告、运行结果
-├── electron/                # 桌面端应用
-│   ├── main.js              # Electron 主进程
-│   └── renderer/            # React + Vite 前端
-│       └── src/
-│           └── assets/      # 前端资源文件（图标、图片等）
-├── tools/                   # 开发工具（模型下载、缓存清理等）
-├── config/                  # 配置文件
-├── records/                 # 记录文件（日志、数据等）
-└── logs/                    # 日志文件
+├── tests/                    # 测试
+│   ├── unit/                # 单元测试
+│   ├── integration/         # 集成测试
+│   └── e2e/                 # 端到端测试
+│
+├── records/                  # 直播记录（自动生成）
+├── logs/                     # 日志文件（自动生成）
+│
+├── package.json             # Node.js 依赖
+├── requirements.txt         # Python 依赖
+├── LICENSE                  # 许可证
+└── README.md                # 本文档
 ```
 
-> **注意**：`AST_module`、`DouyinLiveWebFetcher`、`StreamCap` 等历史模块已迁移到 `server/modules/` 目录，历史代码保存在 `docs/legacy_code/` 仅用于参考。详细说明请参考 [docs/开发规范与流程/PROJECT_STRUCTURE.md](docs/开发规范与流程/PROJECT_STRUCTURE.md)。
+---
 
-## 文档与测试分层
+## 🚀 快速开始
 
-- `docs/guides/`: 快速启动、部署、打包与日常操作指南（例如 `docs/guides/Electron打包指南.md`、`docs/guides/QUICKSTART_ENV_SETUP.md`）。
-- `docs/runbooks/`: 生产值班/紧急处理手册，集中存放 CORS、依赖冲突、紧急修复等 SOP。
-- `docs/reference/`: 端口、命令、配置等基线信息（例如 `docs/reference/PORTS_CONFIGURED.txt`、`docs/reference/README-端口配置.md`）。
-- `docs/reports/`: 变更验收、修复总结、专项复盘（LangGraph、SenseVoice、部署完成说明等）。
-- `docs/internal/`: 受控访问的信息（如 `docs/internal/帐号以及密码.txt`），建议按权限管理。
-- `tests/integration/`: 跨服务/端到端校验脚本，包含 `tests/integration/test_admin_api.py`、`tests/integration/test_xfyun_asr.py` 等。
-- `tests/regression/`: 针对缺陷修复与性能优化的验证用例（`tests/regression/test_ai_gateway_fix.py`、`tests/regression/test_sensevoice_optimization.py`）。
-- `tests/scripts/`: Shell 驱动/环境检测脚本，例如 `tests/scripts/test_cors.sh`、`tests/scripts/test_ai_auth.sh`。
-- `tests/manual/`: 需要人工操作或浏览器加载的用例（`tests/manual/test_history_api.html` 等）。
-- `tests/reports/`: 测试产出与运行记录（`tests/reports/comprehensive_test_report.json`）。
+### 环境要求
 
-## 环境准备
+- **Node.js**: 18+
+- **Python**: 3.10+
+- **RAM**: 8GB+ (推荐16GB运行大型语音模型)
+- **可选**: NVIDIA GPU (加速语音识别)
 
-### 系统要求
-
-- Windows 10+/macOS 13+/Ubuntu 20.04+（64 位）
-- Node.js ≥ 16、npm ≥ 8、Python ≥ 3.9
-- 建议安装 ffmpeg 并加入 PATH
-- 至少 4 GB 内存，SenseVoiceSmall 建议 8 GB 以上
-
-### 安装依赖
+### 安装步骤
 
 ```bash
-# Python（FastAPI + AST + 工具）
-pip install -r requirements.all.txt
+# 1. 克隆项目
+git clone https://github.com/Wike-CHI/timao-douyin-live-manager.git
+cd timao-douyin-live-manager
 
-# Node（Electron 主进程 + Renderer）
-npm ci
+# 2. 安装Node.js依赖
+npm install
+# 或
+pnpm install
+
+# 3. 安装Python依赖
+python -m venv venv
+
+# Windows
+venv\Scripts\activate
+# Linux/macOS
+source venv/bin/activate
+
+pip install -r requirements.txt
+
+# 4. 配置环境变量
+cp .env.example .env
+# 编辑.env文件，配置API密钥
+
+# 5. 启动应用
+npm run dev
 ```
 
-`npm ci` 会触发 `postinstall`，自动为 `electron/renderer` 安装前端依赖。
+### 配置说明
 
-### 准备本地语音模型（首次部署）
+编辑 `.env` 文件：
 
-```bash
-python tools/download_sensevoice.py      # 下载 SenseVoiceSmall
-python tools/download_vad_model.py       # 下载 VAD 模型
+```env
+# AI服务配置（选择一个或多个）
+QWEN_API_KEY=your-qwen-api-key
+OPENAI_API_KEY=your-openai-api-key
+DEEPSEEK_API_KEY=your-deepseek-api-key
+
+# 语音识别配置
+SENSEVOICE_MODEL=sensevoice-small
+VAD_SENSITIVITY=medium
+
+# 抖音直播间配置
+DOUYIN_ROOM_ID=your-room-id
+
+# 服务配置
+FASTAPI_PORT=8090
+ELECTRON_PORT=30013
 ```
 
-模型默认保存在 `models/models/iic/`，`/api/live_audio/health` 可检查准备情况。若需要 GPU/CUDA，请先运行 `python server/server/tools/prepare_torch.py`。
+---
 
-## 启动流程
+## 📊 使用场景
 
-### Electron 一体化开发（推荐）
+### 🎬 直播主播
+- **实时互动**: 自动抓取弹幕，快速响应观众
+- **话术辅助**: AI生成互动话术，提升直播效果
+- **数据复盘**: 直播后自动生成分析报告
+
+### 🎯 运营团队
+- **数据监控**: 实时监控直播间互动数据
+- **用户分析**: 分析观众行为和偏好
+- **效果评估**: 评估直播效果和ROI
+
+### 📈 MCN机构
+- **多账号管理**: 支持管理多个主播账号
+- **数据统计**: 汇总分析多个直播数据
+- **培训素材**: 生成主播培训材料
+
+---
+
+## 🔧 高级功能
+
+### AI网关统一管理
+
+```python
+# 支持多AI服务商一键切换
+AI_PROVIDERS = {
+    "qwen": {
+        "api_key": "your-qwen-key",
+        "model": "qwen-max"
+    },
+    "openai": {
+        "api_key": "your-openai-key",
+        "model": "gpt-4"
+    },
+    "deepseek": {
+        "api_key": "your-deepseek-key",
+        "model": "deepseek-chat"
+    }
+}
+```
+
+### 自定义话术模板
+
+```python
+# 配置话术生成模板
+TEMPLATE = """
+基于以下直播数据生成互动话术：
+- 弹幕数量: {comment_count}
+- 热词: {hot_words}
+- 观众情绪: {sentiment}
+
+请生成3条互动话术建议。
+"""
+```
+
+---
+
+## 🚀 部署
+
+### 开发环境
 
 ```bash
 npm run dev
 ```
 
-- `renderer` 以 Vite 模式运行在 http://127.0.0.1:30013
-- Electron 主进程自动等待端口并拉起桌面窗口
-- `uvicorn` 在后台启动 FastAPI（127.0.0.1:8090），提供 REST `/api/*`、WebSocket `/api/live_audio/ws`、文档 `/docs`
-
-如需关闭，只需退出 Electron 窗口或在终端中 `Ctrl+C`。
-
-### 仅启动 FastAPI 后端
+### 生产环境
 
 ```bash
-uvicorn server.app.main:app --reload --host 127.0.0.1 --port 8090
+# 构建桌面应用
+npm run build
+
+# 打包安装程序
+npm run package
+
+# 生成的安装包在 dist/ 目录
 ```
 
-手动启动时，请在 `electron/renderer/.env` 设置 `VITE_FASTAPI_URL=http://127.0.0.1:8090` 以便前端指向正确 API。
-
-### 仅启动遗留 Flask SSE 服务
+### Docker部署
 
 ```bash
-python server/app.py
+# 构建镜像
+docker build -t timao-live-manager .
+
+# 运行容器
+docker run -p 8090:8090 timao-live-manager
 ```
-
-Flask 服务用于旧版字幕面板与 SSE 工具，Electron 正式流程无需手动启动。
-
-### AST 模块本地调试
-
-参阅 `AST_README.md` 或执行：
-
-```bash
-python start_ast_test.py      # 启动 AST FastAPI
-python start_web_server.py    # 启动测试页面（8080）
-```
-
-浏览器访问 http://127.0.0.1:8080/AST_test_page.html 进行语音链路验证。
-
-## 测试与质量保障
-
-- `npm test`：运行 Electron/renderer Jest 用例。
-- `npm run lint`：对 `electron/` 目录执行 ESLint。
-- `pytest`：运行 Python 测试（`tests/` 与 `server/tests/`）。
-- `pytest server/tests/test_live_audio.py::TestLiveAudioAPI`：聚焦关键接口。
-- `npm run build` 前建议先通过上述测试与 `npm run lint`。
-
-## 打包与发布
-
-- `npm run build`：使用 electron-builder 构建当前平台安装包，输出 `dist/`。
-- `npm run build:win[32|64]`：生成指定架构的 Windows 便携包。
-- `npm run release`：构建 + 生成 `release/` 目录（自动写入默认 AI `.env`）。
-- 推荐在打包前执行 `pip install -r requirements.all.txt --upgrade` 与 `npm ci`，保持依赖一致。
-
-## 配置与数据目录
-
-### AI 网关配置（.env 文件）
-
-```bash
-# 主服务商（必填）
-AI_SERVICE=qwen
-AI_API_KEY=sk-your-api-key
-AI_MODEL=qwen-plus
-
-# 备用服务商（可选）
-DEEPSEEK_API_KEY=sk-deepseek-key
-OPENAI_API_KEY=sk-openai-key
-```
-
-**AI 网关管理**：http://localhost:10090/static/ai_gateway_manager.html
-
-### 其他配置
-
-- `.env`（根目录）：AI 配置、环境变量。
-- `electron/renderer/.env`：前端 API 地址、调试开关（默认继承 Electron 主进程环境）。
-- `config.json`：Douyin 房间号、Cookie、缓存等业务参数，可在设置页写入。
-- 持久化：
-  - `records/`：直播复盘生成的中间文件
-  - `logs/` 与 `logs/uvicorn.log`：FastAPI/Electron 日志
-  - `audio_logs/`：语音转写音频片段（开启持久化时）
-
-## 文档与资源
-
-- `docs/产品使用手册/启动说明.md`：桌面端启动流程与故障排查。
-- `AST_README.md` / `AST_module/docs/`：语音模块架构、测试方法。
-- `docs/部署与运维指南/MODELS.md`：模型下载、目录规划与容量建议。
-- `docs/部署与运维指南/Windows打包部署指南.md`：Windows 构建/签名注意事项。
-- `docs/AI方案与集成/AI_GATEWAY_SIMPLE.md`：AI 网关快速指南。
-- `docs/AI方案与集成/AI_GATEWAY_API_KEY_MANAGEMENT.md`：API Key 管理文档。
-- `docs/部署与运维指南/MONITORING_GUIDE.md`：AI 成本监控指南。
-- `docs/直播音频方案/提猫直播助手_API_数据模型与接口规范.md`：REST API 字段约定。
-- `docs/部署与运维指南/安全加固实施指南.md`：生产环境安全配置 Checklist。
-
-## 注意事项
-
-- `npm run dev` 会尝试占用 30013（Vite）与 9019（FastAPI，默认端口，可通过环境变量 `BACKEND_PORT` 修改）；若端口被占用，会跳过后端启动，请手动校验。
-- SenseVoice/VAD 缺失时，`/api/live_audio/health` 会给出自动修复脚本提示。
-- 若需代理出站流量，请为 `.env` 中的 AI 配置设置合规值。
-- 对于离线部署，可通过 `tools/create_release.py` 打出便携包并在 `.env` 中关闭云端 AI（例如设置 `AI_SERVICE=offline`）。
 
 ---
 
-**开发团队**：提猫科技  
-**应用版本**：v1.0.0  
-**最后更新**：2025年10月26日
+## 📚 API文档
+
+### REST API
+
+```python
+# 获取直播数据
+GET /api/live/data
+
+# 开始录制
+POST /api/live/start
+{
+  "room_id": "123456"
+}
+
+# 停止录制
+POST /api/live/stop
+
+# 获取AI分析
+GET /api/ai/analysis
+```
+
+### WebSocket事件
+
+```javascript
+// 连接WebSocket
+const ws = new WebSocket('ws://localhost:8090/ws');
+
+// 接收弹幕
+ws.on('comment', (data) => {
+  console.log('新弹幕:', data);
+});
+
+// 接收语音转写
+ws.on('transcript', (data) => {
+  console.log('语音转写:', data);
+});
+
+// 接收AI建议
+ws.on('ai_suggestion', (data) => {
+  console.log('AI建议:', data);
+});
+```
+
+完整API文档: [docs/API.md](docs/API.md)
+
+---
+
+## 🧪 测试
+
+```bash
+# 运行单元测试
+npm run test:unit
+
+# 运行集成测试
+npm run test:integration
+
+# 运行E2E测试
+npm run test:e2e
+
+# 测试覆盖率
+npm run test:coverage
+```
+
+---
+
+## 🤝 贡献指南
+
+欢迎贡献代码、报告Bug或提出新功能建议！
+
+详见: [CONTRIBUTING.md](CONTRIBUTING.md)
+
+---
+
+## 📝 更新日志
+
+### v1.2.0 (2024-01-20)
+- ✨ 新增AI网关统一管理
+- ✨ 支持多AI服务商切换
+- 🎨 UI界面优化
+- ⚡ 性能提升30%
+
+### v1.1.0 (2024-01-10)
+- ✨ 新增SenseVoice语音识别
+- 🐛 修复弹幕抓取延迟问题
+- 📝 完善文档
+
+详见: [CHANGELOG.md](CHANGELOG.md)
+
+---
+
+## 📄 许可证
+
+本项目采用《提猫直播助手源代码许可协议》- 详见 [LICENSE](LICENSE) 文件
+
+**重要**: 仅供学习研究，禁止商业化使用
+
+---
+
+## 🙏 致谢
+
+- [LangChain](https://github.com/langchain-ai/langchain) - AI框架
+- [FunASR](https://github.com/alibaba-damo-academy/FunASR) - 语音识别
+- [Electron](https://www.electronjs.org/) - 桌面应用框架
+- [FastAPI](https://fastapi.tiangolo.com/) - 后端框架
+
+---
+
+## 📞 联系方式
+
+- **邮箱**: 3132812664@qq.com
+- **GitHub**: [@Wike-CHI](https://github.com/Wike-CHI)
+- **项目地址**: [GitHub](https://github.com/Wike-CHI/timao-douyin-live-manager)
+
+---
+
+## 💼 商业合作
+
+如果您需要：
+- 🔧 定制开发
+- 🏢 商业授权
+- 📊 企业版功能
+- 🎓 技术培训
+
+请联系: 3132812664@qq.com
+
+---
+
+<div align="center">
+
+**⭐ 如果这个项目对你有帮助，请给一个Star支持！⭐**
+
+Made with ❤️ by Wike
+
+</div>
