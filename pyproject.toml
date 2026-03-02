@@ -1,0 +1,96 @@
+[project]
+name = "timao-douyin-live-manager"
+version = "1.1.0"
+description = "抖音直播评论实时分析与AI话术生成工具"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+
+# 核心依赖 - 最小化运行时 (~50MB)
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.23.0",
+    "websockets>=11.0.2",
+    "websocket-client>=1.6.1",
+    "httpx>=0.27.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.0.0",
+    "loguru>=0.7.0",
+    "python-dotenv>=1.0.0",
+]
+
+# 可选依赖分组 - 按需安装
+[project.optional-dependencies]
+# AI 功能 (~200MB)
+ai = [
+    "pydantic-ai>=1.0.0",
+    "langchain>=0.3.0",
+    "langchain-openai>=0.2.0",
+    "openai>=1.43.0",
+    "dashscope>=1.14.0",
+]
+
+# 语音识别 - sherpa-onnx 轻量方案 (~80MB)
+audio = [
+    "sherpa-onnx>=1.10.0",
+    "onnxruntime>=1.23.0",
+    "soundfile>=0.12.0",
+]
+
+# 中文 NLP
+nlp = [
+    "jieba>=0.42.1",
+    "snownlp>=0.12.3",
+]
+
+# 数据处理
+data = [
+    "numpy>=1.24.0,<2.0.0",
+    "pandas>=2.1.0",
+]
+
+# 桌面 GUI
+desktop = [
+    "plyer>=2.1.0",
+    "pystray>=0.19.5",
+]
+
+# 开发工具
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.6.0",
+]
+
+# 全部安装
+all = [
+    "timao-douyin-live-manager[ai,audio,nlp,data,desktop]",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# uv 工作区
+[tool.uv.workspace]
+members = ["Mini-Agent"]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.6.0",
+]
+
+# Ruff (替代 black + flake8 + isort)
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+# Pytest
+[tool.pytest.ini_options]
+testpaths = ["tests", "server/tests"]
+asyncio_mode = "auto"
