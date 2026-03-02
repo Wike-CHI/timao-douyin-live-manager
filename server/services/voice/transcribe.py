@@ -63,40 +63,41 @@ class SenseVoiceTranscriber(TranscriberBase):
         return self._model
 
     async def transcribe(self, audio_path: str) -> TranscribeResult:
-        """转写音频文件"""
+        """转写音频文件
+
+        Raises:
+            FileNotFoundError: 音频文件不存在
+            RuntimeError: 转写失败
+        """
         import time
+        import os
         start = time.perf_counter()
 
-        try:
-            model = self._load_model()
-            stream = model.create_stream()
+        # 检查文件是否存在
+        if not os.path.exists(audio_path):
+            raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
-            # 读取音频
-            import soundfile as sf
-            samples, sample_rate = sf.read(audio_path)
+        model = self._load_model()
+        stream = model.create_stream()
 
-            # 处理
-            stream.accept_waveform(sample_rate, samples)
-            model.decode(stream)
+        # 读取音频
+        import soundfile as sf
+        samples, sample_rate = sf.read(audio_path)
 
-            result = stream.result
-            duration_ms = (time.perf_counter() - start) * 1000
+        # 处理
+        stream.accept_waveform(sample_rate, samples)
+        model.decode(stream)
 
-            return TranscribeResult(
-                text=result.text,
-                confidence=0.95,  # SenseVoice 不返回置信度，使用默认值
-                language="zh",
-                segments=[],
-                duration_ms=duration_ms
-            )
-        except Exception as e:
-            return TranscribeResult(
-                text="",
-                confidence=0.0,
-                language="auto",
-                segments=[],
-                duration_ms=(time.perf_counter() - start) * 1000
-            )
+        result = stream.result
+        duration_ms = (time.perf_counter() - start) * 1000
+
+        return TranscribeResult(
+            text=result.text,
+            confidence=0.95,  # SenseVoice 不返回置信度，使用默认值
+            language="zh",
+            segments=[],
+            duration_ms=duration_ms
+        )
 
     async def transcribe_stream(
         self, audio_stream
