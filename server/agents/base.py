@@ -1,28 +1,86 @@
-"""Agent基础类定义"""
-from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+"""Agent基础类定义 - Pydantic AI 兼容"""
+from abc import ABC, abstractmethod
+from pydantic import BaseModel, Field
+from typing import TypeVar, Generic, Any, Optional
 import time
 import logging
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T", bound=BaseModel)
 
-@dataclass
-class AgentResult:
-    """Agent执行结果数据类。
+
+class AgentResult(BaseModel):
+    """Agent执行结果基类 (Pydantic)
 
     Attributes:
         success: 执行是否成功
-        data: 返回的数据字典
         error: 错误信息，成功时为None
-        metadata: 元数据字典，包含duration_ms、agent_name等信息
+        duration_ms: 执行耗时(毫秒)
     """
     success: bool = True
-    data: Dict[str, Any] = field(default_factory=dict)
     error: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    duration_ms: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    class Config:
+        extra = "allow"
+
+
+class BaseAgent(ABC, Generic[T]):
+    """Agent基类 - 支持异步和Pydantic类型
+
+    Args:
+        name: Agent名称，用于日志和标识
+    """
+
+    def __init__(self, name: str):
+        self.name = name
+
+    @abstractmethod
+    async def run(self, input_data: dict) -> T:
+        """执行Agent逻辑（子类实现）- 异步版本"""
+        pass
+
+    @abstractmethod
+    async def health_check(self) -> bool:
+        """健康检查"""
+        pass
+
+    async def __call__(self, input_data: dict) -> T:
+        """调用接口 - 自动计时"""
+        start_time = time.perf_counter()
+        try:
+            result = await self.run(input_data)
+            duration_ms = (time.perf_counter() - start_time) * 1000
+
+            # 如果结果是AgentResult子类，设置duration
+            if isinstance(result, AgentResult):
+                result.duration_ms = round(duration_ms, 2)
+
+            return result
+        except Exception as e:
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            logger.exception(f"Agent {self.name} exception: {e}")
+            raise
+
+
+# === 向后兼容的旧版 BaseAgent ===
+
+class LegacyAgentResult:
+    """旧版AgentResult (dataclass) - 向后兼容"""
+    def __init__(
+        self,
+        success: bool = True,
+        data: dict = None,
+        error: Optional[str] = None,
+        metadata: dict = None
+    ):
+        self.success = success
+        self.data = data or {}
+        self.error = error
+        self.metadata = metadata or {}
+
+    def to_dict(self) -> dict:
         return {
             "success": self.success,
             "data": self.data,
@@ -31,15 +89,8 @@ class AgentResult:
         }
 
 
-class BaseAgent:
-    """Agent基类，提供LangGraph节点调用接口。
-
-    Args:
-        name: Agent名称，用于日志和标识
-        provider: AI服务提供商 (如 "glm", "qwen" 等)
-        model: 使用的模型名称
-        enable_thinking: 是否启用思考模式
-    """
+class LegacyBaseAgent:
+    """旧版Agent基类 - 向后兼容 LangGraph 节点"""
 
     def __init__(
         self,
@@ -53,11 +104,11 @@ class BaseAgent:
         self.model = model
         self.enable_thinking = enable_thinking
 
-    def run(self, state: Dict[str, Any]) -> AgentResult:
+    def run(self, state: dict) -> LegacyAgentResult:
         """执行Agent逻辑（子类实现）"""
         raise NotImplementedError("Subclasses must implement run()")
 
-    def __call__(self, state: Dict[str, Any]) -> Dict[str, Any]:
+    def __call__(self, state: dict) -> dict:
         """LangGraph节点调用接口"""
         start_time = time.perf_counter()
         try:
@@ -73,7 +124,7 @@ class BaseAgent:
         except Exception as e:
             duration_ms = (time.perf_counter() - start_time) * 1000
             logger.exception(f"Agent {self.name} exception: {e}")
-            return AgentResult(
+            return LegacyAgentResult(
                 success=False,
                 error=str(e),
                 metadata={
