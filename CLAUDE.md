@@ -10,30 +10,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Full development (recommended)
-npm run dev                    # Start backend + frontend + Electron
+pnpm run dev                    # Start backend + frontend + Electron
 
 # Individual services
-npm run dev:renderer           # Vite dev server only (port 10200)
-npm run dev:backend            # Backend only (port 11111)
-npm run dev:electron           # Electron only (waits for renderer)
+pnpm run dev:renderer           # Vite dev server only (port 10200)
+pnpm run dev:backend            # Backend only (port 11111)
+pnpm run dev:electron           # Electron only (waits for renderer)
 
 # Build and release
-npm run build                  # Build frontend + electron-builder
-npm run build:win64            # Windows x64 portable build
-npm run release                # Build for release with defaults
+pnpm run build                  # Build frontend + electron-builder
+pnpm run build:win64            # Windows x64 portable build
+pnpm run release                # Build for release with defaults
 
 # Testing
-pytest                         # Python tests (tests/, server/tests/)
-pytest server/tests/test_live_audio.py::TestLiveAudioAPI  # Specific test
-npm run lint                   # ESLint for electron/
+pnpm run test                   # Python tests via uv
+uv run pytest tests/            # Run specific test path
+uv run pytest server/tests/test_live_audio.py::TestLiveAudioAPI  # Specific test
+pnpm run lint                   # ESLint for electron/
 
 # Port and process management
-npm run kill:ports             # Kill ports 11111 and 10200
-npm run health:all             # Check all services health
+pnpm run kill:ports             # Kill ports 11111 and 10200
+pnpm run health:all             # Check all services health
 
 # Clean
-npm run clean                  # Clean dist folders
-npm run clean:apply            # Clean with Python cache cleaner
+pnpm run clean                  # Clean dist folders
+pnpm run clean:apply            # Clean with Python cache cleaner
+
+# Dependency management
+pnpm run deps:install           # Install all deps (pnpm + uv)
+pnpm run deps:update            # Update all deps
 ```
 
 ## Architecture
@@ -108,18 +113,17 @@ AI gateway manager UI: http://localhost:10090/static/ai_gateway_manager.html
 
 ## Testing
 
-Pytest markers defined in `pytest.ini`:
+Pytest markers defined in `pyproject.toml`:
 - `asyncio` - Async tests
 - `integration` - Integration tests
 - `unit` - Unit tests
-- `redis` - Redis-related tests
 - `slow` - Slow-running tests
 
 Run specific tests:
 ```bash
-pytest tests/                           # All tests
-pytest tests/ -k "live"                 # Filter by keyword
-pytest tests/ --co                      # List tests without running
+uv run pytest tests/                    # All tests
+uv run pytest tests/ -k "live"          # Filter by keyword
+uv run pytest tests/ --co               # List tests without running
 ```
 
 ## Port Reference
@@ -141,22 +145,43 @@ Chinese documentation in `docs/`:
 
 ## Important Notes
 
-- Python dependencies: `requirements.txt` (轻量级，使用 sherpa-onnx 替代 PyTorch)
-- Node dependencies are managed separately in `electron/renderer/`
-- Model files for SenseVoice ONNX are stored in `models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/`
-- Logs are stored in `logs/` directory
-- Replay files are stored in `records/` directory
-- The project uses `loguru` for logging with UTF-8 encoding support
+- **Python**: `pyproject.toml` (uv, 轻量级核心依赖 ~50MB)
+- **Node**: `pnpm-workspace.yaml` (pnpm workspace)
+- **Mini-Agent**: `Mini-Agent/` (uv workspace member)
+- **Models**: `models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/`
+- **Logs**: `logs/` directory
+- **Records**: `records/` directory
 
 ## Dependencies Installation
 
+### Quick Start
 ```bash
-# Python (轻量级依赖，约80MB)
-pip install -r requirements.txt
+# 1. Install tools (if not installed)
+npm install -g pnpm
+pip install uv
 
-# Node (automatically installs electron/renderer deps via postinstall)
-npm ci
+# 2. Install core dependencies (minimal ~50MB)
+pnpm run setup
+
+# 3. Add optional features as needed
+uv sync --extra ai          # AI features (~200MB)
+uv sync --extra audio       # Speech recognition (~80MB)
+uv sync --extra nlp         # Chinese NLP
+uv sync --extra data        # Data processing (numpy, pandas)
+
+# Or install everything
+uv sync --all-extras
 ```
+
+### Dependency Groups
+| Group | Size | Description |
+|-------|------|-------------|
+| core | ~50MB | FastAPI, pydantic, httpx, loguru |
+| ai | ~200MB | langchain, openai, dashscope |
+| audio | ~80MB | sherpa-onnx, onnxruntime |
+| nlp | ~20MB | jieba, snownlp |
+| data | ~100MB | numpy, pandas |
+| dev | ~50MB | pytest, ruff |
 
 ## AST (Audio Speech Transcription)
 
@@ -164,3 +189,66 @@ AST 模块使用 sherpa-onnx 进行语音识别：
 - 模型: SenseVoice ONNX (~200MB)
 - 依赖: sherpa-onnx + onnxruntime (~80MB)
 - 无需 PyTorch/FunASR (减少依赖体积约2.6GB)
+
+## Agent Architecture (v2)
+
+项目正在迁移到 **Pydantic AI Agent 架构**，提供更清晰的代码结构和更好的可维护性。
+
+### 新 API (v2)
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/v2/settings/voice` | 获取语音设置 |
+| `PUT /api/v2/settings/voice` | 更新语音设置 |
+| `POST /api/v2/settings/voice/reset` | 重置语音设置 |
+| `GET /api/v2/settings/ai` | 获取 AI 设置 |
+| `PUT /api/v2/settings/ai` | 更新 AI 设置 |
+| `POST /api/v2/voice/transcribe` | 语音转写 |
+
+### 使用 Agent
+
+```python
+from server.agents.voice import VoiceAgent, VoiceAgentConfig
+
+# 创建 Agent
+config = VoiceAgentConfig(
+    model="sensevoice",  # sensevoice, whisper, funasr
+    language="auto",     # auto, zh, en, ja, ko, yue
+    enable_vad=True,
+)
+agent = VoiceAgent(config)
+
+# 执行转写
+result = await agent.transcribe("audio.wav")
+print(result.text)
+```
+
+### 运行时配置
+
+前端可实时切换语音模型，无需重启服务：
+
+```typescript
+import { settingsService } from './services/settingsService';
+
+// 更新语音模型
+await settingsService.updateVoiceSettings({
+  model: 'whisper',
+  language: 'en',
+});
+```
+
+### Agent 目录结构
+
+```
+server/agents/
+├── __init__.py
+├── base.py              # BaseAgent, AgentResult 基类
+└── voice/
+    ├── __init__.py
+    └── agent.py         # VoiceAgent, VoiceAgentConfig
+
+server/services/voice/
+├── __init__.py
+└── transcribe.py        # TranscriberBase, SenseVoiceTranscriber
+```
+
