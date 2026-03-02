@@ -276,6 +276,11 @@ _include_router_safe("AI 网关管理", "server.app.api.ai_gateway_api")
 _include_router_safe("直播评论管理", "server.app.api.live_comments")
 _include_router_safe("模型状态", "server.app.api.model_status")  # 🆕 SenseVoice+VAD 模型状态查询
 
+# V2 API (Pydantic AI 架构)
+_include_router_safe("V2 设置 API", "server.app.api.v2.settings")
+_include_router_safe("V2 语音 API", "server.app.api.v2.voice")
+_include_router_safe("V2 直播音频 API", "server.app.api.v2.live_audio")
+
 # WebSocket 服务已迁移到 FastAPI 原生 WebSocket 实现
 # 原 Flask WebSocket 处理器已归档到 docs/legacy_flask_code/
 def start_websocket_services():

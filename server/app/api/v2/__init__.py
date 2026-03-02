@@ -3,5 +3,6 @@
 
 from .settings import router as settings_router
 from .voice import router as voice_router
+from .live_audio import router as live_audio_router
 
-__all__ = ["settings_router", "voice_router"]
+__all__ = ["settings_router", "voice_router", "live_audio_router"]
