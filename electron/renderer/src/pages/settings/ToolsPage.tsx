@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Monitor, Trash2, FlaskConical, Brain, Type } from 'lucide-react';
+import { VoiceSettingsCard } from '../../components/VoiceSettingsCard';
+import { VoiceSettingsCard as VoiceSettingsPanelCard } from '../../components/VoiceSettingsPanel';
 
 const FASTAPI_BASE_URL = import.meta.env?.VITE_FASTAPI_URL as string || 'http://127.0.0.1:11111'; // 默认端口改为 11111，可通过环境变量覆盖
 
@@ -344,6 +346,13 @@ const ToolsPage: React.FC = () => {
         </div>
         <div className="text-xs text-gray-400 mt-3">检测后端健康、模型与VAD资源、以及 WebSocket 连通性。</div>
       </div>
+
+      {/* 语音转写设置 */}
+      <VoiceSettingsCard
+        onSettingsChange={(settings) => {
+          console.log('Voice settings updated:', settings);
+        }}
+      />
 
       {/* 模型管理 */}
       <div
